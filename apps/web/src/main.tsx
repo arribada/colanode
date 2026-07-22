@@ -29,7 +29,7 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 const initializeApp = async () => {
-  const isMobile = isMobileDevice();
+  const isMobile = isMobileDevice() && localStorage.getItem('colanode-mobile-ok') !== '1';
   if (isMobile) {
     const root = createRoot(document.getElementById('root') as HTMLElement);
     root.render(<MobileNotSupported />);
