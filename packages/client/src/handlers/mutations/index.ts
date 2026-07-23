@@ -37,6 +37,7 @@ import { NodeReactionDeleteMutationHandler } from './nodes/node-reaction-delete'
 import { NodeUpdateMutationHandler } from './nodes/node-update';
 import { MuteSetMutationHandler } from './notifications/mute-set';
 import { NotificationReadMutationHandler } from './notifications/notification-read';
+import { PageDuplicateMutationHandler } from './pages/page-duplicate';
 import { PushSubscriptionCreateMutationHandler } from './push-subscriptions/push-subscription-create';
 import { PushSubscriptionDeleteMutationHandler } from './push-subscriptions/push-subscription-delete';
 import { ServerCreateMutationHandler } from './servers/server-create';
@@ -64,6 +65,7 @@ export const buildMutationHandlerMap = (
     'google.login': new GoogleLoginMutationHandler(app),
     'node.delete': new NodeDeleteMutationHandler(app),
     'node.create': new NodeCreateMutationHandler(app),
+    'page.duplicate': new PageDuplicateMutationHandler(app),
     'node.update': new NodeUpdateMutationHandler(app),
     'chat.create': new ChatCreateMutationHandler(app),
     'message.create': new MessageCreateMutationHandler(app),
