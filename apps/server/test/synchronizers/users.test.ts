@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { generateId, IdType, UserStatus } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { UserSynchronizer } from '@colanode/server/synchronizers/users';
-import { generateId, IdType, UserStatus } from '@colanode/core';
 
 const createUserRow = async (input: {
   workspaceId: string;

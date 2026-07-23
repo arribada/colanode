@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { generateId, IdType } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { NotificationSynchronizer } from '@colanode/server/synchronizers/notifications';
-import { generateId, IdType } from '@colanode/core';
 
 const insertNotif = (userId: string) =>
   database

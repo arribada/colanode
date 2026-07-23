@@ -11,6 +11,7 @@ vi.mock('web-push', () => ({
   },
 }));
 
+// eslint-disable-next-line import/order -- must stay below the vi.mock call
 import webpush from 'web-push';
 
 beforeAll(() => {

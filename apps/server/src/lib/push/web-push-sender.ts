@@ -1,9 +1,9 @@
 import webpush from 'web-push';
 
 import { database } from '@colanode/server/data/database';
+import { SelectPushSubscription } from '@colanode/server/data/schema';
 import { config } from '@colanode/server/lib/config';
 import { createLogger } from '@colanode/server/lib/logger';
-import { SelectPushSubscription } from '@colanode/server/data/schema';
 
 const logger = createLogger('web-push-sender');
 

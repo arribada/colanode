@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+
 import { database } from '@colanode/server/data/database';
-import { notificationService } from '@colanode/server/services/notification-service';
 import { eventBus } from '@colanode/server/lib/event-bus';
+import { notificationService } from '@colanode/server/services/notification-service';
+
 import {
   createAccount,
   createWorkspace,

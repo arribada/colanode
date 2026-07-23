@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
+
+import { generateId, IdType, MutationStatus } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import {
   createNotification,
   markNotificationRead,
 } from '@colanode/server/lib/notifications';
+
 import {
   createAccount,
   createWorkspace,
   createUser,
 } from '../helpers/seed';
-import { generateId, IdType, MutationStatus } from '@colanode/core';
 
 describe('notifications lib', () => {
   it('creates one notification and dedups a second unread for the same source', async () => {

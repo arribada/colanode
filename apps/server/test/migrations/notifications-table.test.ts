@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { database } from '@colanode/server/data/database';
+
 import { generateId, IdType } from '@colanode/core';
+import { database } from '@colanode/server/data/database';
 
 describe('notifications table', () => {
   it('inserts a row and auto-assigns a revision; UPDATE bumps it', async () => {

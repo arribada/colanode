@@ -1,6 +1,6 @@
+import { writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { writeFile } from 'node:fs/promises';
 
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { RedisContainer } from '@testcontainers/redis';

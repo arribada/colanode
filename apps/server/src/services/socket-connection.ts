@@ -13,10 +13,10 @@ import { CollaborationSynchronizer } from '@colanode/server/synchronizers/collab
 import { DocumentUpdateSynchronizer } from '@colanode/server/synchronizers/document-updates';
 import { NodeInteractionSynchronizer } from '@colanode/server/synchronizers/node-interactions';
 import { NodeReactionSynchronizer } from '@colanode/server/synchronizers/node-reactions';
-import { NotificationMuteSynchronizer } from '@colanode/server/synchronizers/notification-mutes';
-import { NotificationSynchronizer } from '@colanode/server/synchronizers/notifications';
 import { NodeTombstoneSynchronizer } from '@colanode/server/synchronizers/node-tombstones';
 import { NodeUpdatesSynchronizer } from '@colanode/server/synchronizers/node-updates';
+import { NotificationMuteSynchronizer } from '@colanode/server/synchronizers/notification-mutes';
+import { NotificationSynchronizer } from '@colanode/server/synchronizers/notifications';
 import { UserSynchronizer } from '@colanode/server/synchronizers/users';
 import {
   AccountUpdatedEvent,

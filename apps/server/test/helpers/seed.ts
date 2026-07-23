@@ -5,7 +5,7 @@ import {
   NodeRole,
   UserStatus,
   WorkspaceStatus,
-} from '@colanode/core';
+ getNodeModel, NodeAttributes , FileStatus } from '@colanode/core';
 import { YDoc } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
 import type {
@@ -21,8 +21,6 @@ import {
 import { createNode } from '@colanode/server/lib/nodes';
 import { generateToken } from '@colanode/server/lib/tokens';
 import { DeviceType } from '@colanode/server/types/devices';
-import { getNodeModel, NodeAttributes } from '@colanode/core';
-import { FileStatus } from '@colanode/core';
 
 export const createAccount = async (input?: {
   email?: string;
@@ -290,7 +288,13 @@ export const createMessageNode = async (input: {
         parentId: messageId,
         index: 'a0',
         content: [
-          { type: 'mention', attrs: { target: 'user', id: input.mentionUserId } },
+          {
+            type: 'mention',
+            attrs: {
+              id: generateId(IdType.Mention),
+              target: input.mentionUserId,
+            },
+          },
         ],
       },
     };
