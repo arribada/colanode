@@ -177,6 +177,10 @@ apps/web/public/assets/fonts/satoshi-variable-italic.woff2
 apps/web/public/assets/fonts/antonio.ttf
 apps/web/public/assets/colanode-logo-192.jpg
 apps/web/public/assets/colanode-logo-512.jpg
+apps/web/public/assets/arribada-icon-180.png
+apps/web/public/assets/arribada-icon-192.png
+apps/web/public/assets/arribada-icon-512.png
+apps/web/public/assets/arribada-mark.svg
 
 # Ignore mobile assets
 apps/mobile/assets/ui/index.html
