@@ -1,12 +1,17 @@
 import {
   MutationStatus,
   NotificationReadMutation,
+  extractNodeRole,
   generateId,
+  getIdType,
+  hasNodeRole,
   IdType,
+  Mention,
+  Node,
 } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
-import { eventBus } from '@colanode/server/lib/event-bus';
 import { SelectNotification } from '@colanode/server/data/schema';
+import { eventBus } from '@colanode/server/lib/event-bus';
 import { WorkspaceContext } from '@colanode/server/types/api';
 
 type CreateNotificationInput = {
@@ -64,6 +69,42 @@ export const createNotification = async (
   });
 
   return created;
+};
+
+type CreateMentionNotificationsInput = {
+  mentions: Mention[];
+  workspaceId: string;
+  rootId: string;
+  rootNode: Node;
+  sourceNodeId: string;
+  actorId: string | null;
+};
+
+// Shared by the node notification pipeline (messages) and the document
+// mutation path (pages/records). Mention targets are raw ids: user mentions
+// notify, node mentions (pages, databases, records...) are wiki links and
+// stay silent.
+export const createMentionNotifications = async (
+  input: CreateMentionNotificationsInput
+): Promise<void> => {
+  for (const mention of input.mentions) {
+    const targetId = mention.target;
+    if (getIdType(targetId) !== IdType.User) continue;
+    if (targetId === input.actorId) continue;
+
+    const role = extractNodeRole(input.rootNode, targetId);
+    if (!role || !hasNodeRole(role, 'viewer')) continue;
+
+    await createNotification({
+      userId: targetId,
+      workspaceId: input.workspaceId,
+      rootId: input.rootId,
+      type: 'mention',
+      sourceNodeId: input.sourceNodeId,
+      actorId: input.actorId,
+      preview: {},
+    });
+  }
 };
 
 export const markNotificationRead = async (
