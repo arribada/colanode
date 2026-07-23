@@ -1,9 +1,12 @@
 import { eq, useLiveQuery } from '@tanstack/react-db';
+import { Trash2 } from 'lucide-react';
 
 import { LocalSpaceNode } from '@colanode/client/types';
 import { SidebarHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-header';
+import { SidebarSettingsItem } from '@colanode/ui/components/layouts/sidebars/sidebar-settings-item';
 import { SpaceCreateButton } from '@colanode/ui/components/spaces/space-create-button';
 import { SpaceSidebarItem } from '@colanode/ui/components/spaces/space-sidebar-item';
+import { Link } from '@colanode/ui/components/ui/link';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 export const SidebarSpaces = () => {
@@ -32,6 +35,21 @@ export const SidebarSpaces = () => {
         {spaces.map((space) => (
           <SpaceSidebarItem space={space} key={space.id} />
         ))}
+      </div>
+      <div className="mt-auto flex w-full min-w-0 flex-col gap-1 pb-2 pt-4">
+        <Link
+          from="/workspace/$userId"
+          to="trash"
+          activeProps={{ 'aria-current': 'page' }}
+        >
+          {({ isActive }) => (
+            <SidebarSettingsItem
+              title="Trash"
+              icon={Trash2}
+              isActive={isActive}
+            />
+          )}
+        </Link>
       </div>
     </div>
   );

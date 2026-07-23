@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 
 import { WorkspaceQueryHandlerBase } from '@colanode/client/handlers/queries/workspace-query-handler-base';
 import { mapNode } from '@colanode/client/lib/mappers';
+import { notTrashedSql } from '@colanode/client/lib/nodes';
 import { buildFiltersQuery } from '@colanode/client/lib/records';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib/types';
 import {
@@ -184,8 +185,9 @@ export class RecordFieldValueCountQueryHandler
         END as value,
         COUNT(*) as count
       FROM nodes n
-      WHERE n.parent_id = '${databaseId}' 
-        AND n.type = 'record' 
+      WHERE n.parent_id = '${databaseId}'
+        AND n.type = 'record'
+        AND ${notTrashedSql('n')}
         ${filterQuery}
       GROUP BY value
       ORDER BY count DESC, value ASC
@@ -203,8 +205,9 @@ export class RecordFieldValueCountQueryHandler
         COUNT(*) as count
       FROM nodes n,
       json_each(${this.buildFieldSelector(field)})
-      WHERE n.parent_id = '${databaseId}' 
+      WHERE n.parent_id = '${databaseId}'
         AND n.type = 'record'
+        AND ${notTrashedSql('n')}
         ${filterQuery}
       GROUP BY json_each.value
       
@@ -214,9 +217,10 @@ export class RecordFieldValueCountQueryHandler
         'null' as value,
         COUNT(*) as count
       FROM nodes n
-      WHERE n.parent_id = '${databaseId}' 
+      WHERE n.parent_id = '${databaseId}'
         AND n.type = 'record'
-        AND (${this.buildFieldSelector(field)} IS NULL 
+        AND ${notTrashedSql('n')}
+        AND (${this.buildFieldSelector(field)} IS NULL
              OR ${this.buildFieldSelector(field)} = '[]'
              OR json_array_length(${this.buildFieldSelector(field)}) = 0)
         ${filterQuery}
@@ -231,12 +235,13 @@ export class RecordFieldValueCountQueryHandler
     filterQuery: string
   ): string {
     return `
-      SELECT 
+      SELECT
         COALESCE(CAST(${this.buildFieldSelector(field)} AS TEXT), 'null') as value,
         COUNT(*) as count
       FROM nodes n
-      WHERE n.parent_id = '${databaseId}' 
+      WHERE n.parent_id = '${databaseId}'
         AND n.type = 'record'
+        AND ${notTrashedSql('n')}
         ${filterQuery}
       GROUP BY value
       ORDER BY count DESC, value ASC

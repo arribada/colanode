@@ -15,6 +15,8 @@ export const recordAttributesSchema = z.object({
   avatar: z.string().nullable().optional(),
   sourceMessageId: z.string().nullable().optional(),
   fields: z.record(z.string(), fieldValueSchema),
+  deletedAt: z.string().nullable().optional(),
+  deletedBy: z.string().nullable().optional(),
 });
 
 export type RecordAttributes = z.infer<typeof recordAttributesSchema>;

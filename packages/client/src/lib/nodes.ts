@@ -198,3 +198,35 @@ export const buildNodeSortsQuery = (sorts: Array<ParsedOrderBy>): string => {
 
   return sortQueries.join(', ');
 };
+
+// ---------------------------------------------------------------------------
+// Soft delete (trash) query filters.
+//
+// Trashed nodes carry a deletedAt attribute (set via a normal node update so
+// it syncs like any other change). Queries that back browsing UI (sidebar
+// trees, containers, search, mention suggestions, backlinks) must exclude
+// them; the trash view queries them explicitly.
+// ---------------------------------------------------------------------------
+
+// True when the node itself is not trashed. Enough for queries that already
+// scope to a parent (tree children, records of a database): descendants of a
+// trashed ancestor disappear with the ancestor and come back on restore.
+export const notTrashedSql = (alias: string): string => {
+  return `json_extract(${alias}.attributes, '$.deletedAt') IS NULL`;
+};
+
+// Ids of every trashed node AND all of their descendants. Used by search-like
+// queries that can surface deeply nested nodes: a page inside a trashed
+// folder must not appear in results even though the page itself carries no
+// deletedAt attribute. Seeded from trashed nodes only, so the recursion stays
+// cheap; SQLite allows WITH RECURSIVE at the start of a subquery.
+export const trashedNodeTreeSql = `WITH RECURSIVE trashed_tree(id) AS (
+  SELECT id FROM nodes WHERE json_extract(attributes, '$.deletedAt') IS NOT NULL
+  UNION
+  SELECT child.id FROM nodes child JOIN trashed_tree ON child.parent_id = trashed_tree.id
+) SELECT id FROM trashed_tree`;
+
+// True when the node is neither trashed nor inside a trashed subtree.
+export const notInTrashedTreeSql = (alias: string): string => {
+  return `${alias}.id NOT IN (${trashedNodeTreeSql})`;
+};

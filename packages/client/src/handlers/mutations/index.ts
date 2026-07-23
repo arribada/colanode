@@ -34,6 +34,8 @@ import { NodeInteractionOpenedMutationHandler } from './nodes/node-interaction-o
 import { NodeInteractionSeenMutationHandler } from './nodes/node-interaction-seen';
 import { NodeReactionCreateMutationHandler } from './nodes/node-reaction-create';
 import { NodeReactionDeleteMutationHandler } from './nodes/node-reaction-delete';
+import { NodeRestoreMutationHandler } from './nodes/node-restore';
+import { NodeTrashMutationHandler } from './nodes/node-trash';
 import { NodeUpdateMutationHandler } from './nodes/node-update';
 import { MuteSetMutationHandler } from './notifications/mute-set';
 import { NotificationReadMutationHandler } from './notifications/notification-read';
@@ -65,6 +67,8 @@ export const buildMutationHandlerMap = (
     'google.login': new GoogleLoginMutationHandler(app),
     'node.delete': new NodeDeleteMutationHandler(app),
     'node.create': new NodeCreateMutationHandler(app),
+    'node.trash': new NodeTrashMutationHandler(app),
+    'node.restore': new NodeRestoreMutationHandler(app),
     'page.duplicate': new PageDuplicateMutationHandler(app),
     'node.update': new NodeUpdateMutationHandler(app),
     'chat.create': new ChatCreateMutationHandler(app),

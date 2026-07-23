@@ -12,6 +12,8 @@ export const whiteboardAttributesSchema = z.object({
   // Excalidraw scene JSON: { elements, appState, files }. Stored as an opaque
   // blob and replaced wholesale on each save (last-writer-wins).
   scene: z.any().optional(),
+  deletedAt: z.string().nullable().optional(),
+  deletedBy: z.string().nullable().optional(),
 });
 
 export type WhiteboardAttributes = z.infer<typeof whiteboardAttributesSchema>;

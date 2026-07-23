@@ -8,6 +8,7 @@ import {
   tokenizeSearchQuery,
 } from '@colanode/client/lib/fts';
 import { mapNode } from '@colanode/client/lib/mappers';
+import { notTrashedSql } from '@colanode/client/lib/nodes';
 import { RecordSearchQueryInput } from '@colanode/client/queries/records/record-search';
 import { Event } from '@colanode/client/types/events';
 import { LocalRecordNode } from '@colanode/client/types/nodes';
@@ -107,6 +108,7 @@ export class RecordSearchQueryHandler
       JOIN nodes n ON n.id = m.id
       WHERE n.type = 'record'
         AND n.parent_id = ${input.databaseId}
+        AND ${sql.raw(notTrashedSql('n'))}
         ${
           exclude.length > 0
             ? sql`AND n.id NOT IN (${sql.join(
@@ -132,6 +134,7 @@ export class RecordSearchQueryHandler
       .where('type', '=', 'record')
       .where('parent_id', '=', input.databaseId)
       .where('id', 'not in', exclude)
+      .where(sql<boolean>`${sql.raw(notTrashedSql('nodes'))}`)
       .selectAll()
       .execute();
   }

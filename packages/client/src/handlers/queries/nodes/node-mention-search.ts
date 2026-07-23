@@ -4,6 +4,7 @@ import { SelectNode } from '@colanode/client/databases/workspace';
 import { WorkspaceQueryHandlerBase } from '@colanode/client/handlers/queries/workspace-query-handler-base';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib';
 import { mapNode } from '@colanode/client/lib/mappers';
+import { notInTrashedTreeSql } from '@colanode/client/lib/nodes';
 import { NodeMentionSearchQueryInput } from '@colanode/client/queries/nodes/node-mention-search';
 import { Event } from '@colanode/client/types/events';
 import { LocalNode } from '@colanode/client/types/nodes';
@@ -82,6 +83,7 @@ export class NodeMentionSearchQueryHandler
       FROM nodes n
       JOIN node_texts ON node_texts.id = n.id
       WHERE node_texts MATCH ${ftsQuery}
+        AND ${sql.raw(notInTrashedTreeSql('n'))}
         ${
           types.length > 0
             ? sql`AND n.type IN (${sql.join(
@@ -112,7 +114,10 @@ export class NodeMentionSearchQueryHandler
     const exclude = input.exclude ?? [];
     const limit = input.limit ?? DEFAULT_LIMIT;
 
-    let query = workspace.database.selectFrom('nodes').selectAll();
+    let query = workspace.database
+      .selectFrom('nodes')
+      .selectAll()
+      .where(sql<boolean>`${sql.raw(notInTrashedTreeSql('nodes'))}`);
 
     if (types.length > 0) {
       query = query.where('type', 'in', types);

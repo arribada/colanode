@@ -31,6 +31,7 @@ import { NodeListQueryHandler } from './nodes/node-list';
 import { NodeMentionSearchQueryHandler } from './nodes/node-mention-search';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
 import { NodeSearchQueryHandler } from './nodes/node-search';
+import { NodeTrashListQueryHandler } from './nodes/node-trash-list';
 import { NotificationListQueryHandler } from './notifications/notification-list';
 import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';
 import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
@@ -56,6 +57,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'node.search': new NodeSearchQueryHandler(app),
     'node.mention.search': new NodeMentionSearchQueryHandler(app),
     'node.backlink.list': new NodeBacklinkListQueryHandler(app),
+    'node.trash.list': new NodeTrashListQueryHandler(app),
     'record.field.value.count': new RecordFieldValueCountQueryHandler(app),
     'user.search': new UserSearchQueryHandler(app),
     'workspace.list': new WorkspaceListQueryHandler(app),

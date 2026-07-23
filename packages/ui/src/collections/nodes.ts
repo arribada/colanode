@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-db';
 
 import { LocalNode } from '@colanode/client/types';
+import { isNodeTrashed } from '@colanode/core';
 import { applyNodeTransaction } from '@colanode/ui/lib/nodes';
 
 export const createNodesCollection = (userId: string) => {
@@ -54,7 +55,16 @@ export const createNodesCollection = (userId: string) => {
             event.workspace.userId === userId
           ) {
             begin();
-            write({ type: 'update', value: event.node });
+            if (isNodeTrashed(event.node)) {
+              // Soft-deleted nodes leave the browsing collection; the trash
+              // view reads them via the dedicated node.trash.list query.
+              // Deleting a key that was never synced is a no-op.
+              write({ type: 'delete', value: event.node });
+            } else {
+              // With rowUpdateMode 'full' an update acts as an upsert, which
+              // also covers a node coming back from the trash.
+              write({ type: 'update', value: event.node });
+            }
             commit();
           } else if (
             event.type === 'node.deleted' &&

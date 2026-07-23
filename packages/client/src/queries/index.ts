@@ -38,6 +38,7 @@ export * from './nodes/node-list';
 export * from './nodes/node-search';
 export * from './nodes/node-mention-search';
 export * from './nodes/node-backlink-list';
+export * from './nodes/node-trash-list';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface QueryMap {}
