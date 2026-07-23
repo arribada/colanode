@@ -376,7 +376,7 @@ export const getThemeVariables = (
   mode: ThemeMode,
   color: ThemeColor | undefined
 ): Record<string, string> => {
-  const colorVariables = color ? colorVariablesMap[color][mode] : {};
+  const colorVariables = color ? (colorVariablesMap[color]?.[mode] ?? {}) : {};
 
   return {
     ...baseVariables,
