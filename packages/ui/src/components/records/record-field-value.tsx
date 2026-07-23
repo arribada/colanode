@@ -5,10 +5,12 @@ import { RecordCreatedAtValue } from '@colanode/ui/components/records/values/rec
 import { RecordCreatedByValue } from '@colanode/ui/components/records/values/record-created-by-value';
 import { RecordDateValue } from '@colanode/ui/components/records/values/record-date-value';
 import { RecordEmailValue } from '@colanode/ui/components/records/values/record-email-value';
+import { RecordFormulaValue } from '@colanode/ui/components/records/values/record-formula-value';
 import { RecordMultiSelectValue } from '@colanode/ui/components/records/values/record-multi-select-value';
 import { RecordNumberValue } from '@colanode/ui/components/records/values/record-number-value';
 import { RecordPhoneValue } from '@colanode/ui/components/records/values/record-phone-value';
 import { RecordRelationValue } from '@colanode/ui/components/records/values/record-relation-value';
+import { RecordRollupValue } from '@colanode/ui/components/records/values/record-rollup-value';
 import { RecordSelectValue } from '@colanode/ui/components/records/values/record-select-value';
 import { RecordTextValue } from '@colanode/ui/components/records/values/record-text-value';
 import { RecordUpdatedAtValue } from '@colanode/ui/components/records/values/record-updated-at-value';
@@ -37,12 +39,16 @@ export const RecordFieldValue = ({
       return <RecordDateValue field={field} readOnly={readOnly} />;
     case 'email':
       return <RecordEmailValue field={field} readOnly={readOnly} />;
+    case 'formula':
+      return <RecordFormulaValue field={field} />;
     case 'multi_select':
       return <RecordMultiSelectValue field={field} readOnly={readOnly} />;
     case 'number':
       return <RecordNumberValue field={field} readOnly={readOnly} />;
     case 'phone':
       return <RecordPhoneValue field={field} readOnly={readOnly} />;
+    case 'rollup':
+      return <RecordRollupValue field={field} />;
     case 'select':
       return <RecordSelectValue field={field} readOnly={readOnly} />;
     case 'relation':
