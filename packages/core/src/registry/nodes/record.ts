@@ -4,7 +4,10 @@ import { extractBlocksMentions } from '@colanode/core/lib/mentions';
 import { extractNodeRole } from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
 import { richTextContentSchema } from '@colanode/core/registry/documents/rich-text';
-import { NodeModel } from '@colanode/core/registry/nodes/core';
+import {
+  NodeModel,
+  nodeCoverSchema,
+} from '@colanode/core/registry/nodes/core';
 import { fieldValueSchema } from '@colanode/core/registry/nodes/field-value';
 
 export const recordAttributesSchema = z.object({
@@ -13,6 +16,7 @@ export const recordAttributesSchema = z.object({
   databaseId: z.string(),
   name: z.string(),
   avatar: z.string().nullable().optional(),
+  cover: nodeCoverSchema.nullable().optional(),
   sourceMessageId: z.string().nullable().optional(),
   fields: z.record(z.string(), fieldValueSchema),
   deletedAt: z.string().nullable().optional(),

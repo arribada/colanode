@@ -4,12 +4,16 @@ import { extractBlocksMentions } from '@colanode/core/lib/mentions';
 import { extractNodeRole } from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
 import { richTextContentSchema } from '@colanode/core/registry/documents/rich-text';
-import { NodeModel } from '@colanode/core/registry/nodes/core';
+import {
+  NodeModel,
+  nodeCoverSchema,
+} from '@colanode/core/registry/nodes/core';
 
 export const pageAttributesSchema = z.object({
   type: z.literal('page'),
   name: z.string(),
   avatar: z.string().nullable().optional(),
+  cover: nodeCoverSchema.nullable().optional(),
   parentId: z.string(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
