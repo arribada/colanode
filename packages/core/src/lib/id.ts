@@ -45,6 +45,7 @@ export enum IdType {
   Download = 'dl',
   Tab = 'tb',
   Notification = 'no',
+  Whiteboard = 'wb',
 }
 
 export const SpecialId = {
