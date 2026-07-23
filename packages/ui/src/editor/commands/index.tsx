@@ -12,6 +12,10 @@ import { FolderCommand } from '@colanode/ui/editor/commands/folder';
 import { Heading1Command } from '@colanode/ui/editor/commands/heading1';
 import { Heading2Command } from '@colanode/ui/editor/commands/heading2';
 import { Heading3Command } from '@colanode/ui/editor/commands/heading3';
+import {
+  MathBlockCommand,
+  MathInlineCommand,
+} from '@colanode/ui/editor/commands/math';
 import { OrderedListCommand } from '@colanode/ui/editor/commands/ordered-list';
 import { PageCommand } from '@colanode/ui/editor/commands/page';
 import { ParagraphCommand } from '@colanode/ui/editor/commands/paragraph';
@@ -32,6 +36,8 @@ export {
   Heading1Command,
   Heading2Command,
   Heading3Command,
+  MathBlockCommand,
+  MathInlineCommand,
   OrderedListCommand,
   PageCommand,
   ParagraphCommand,

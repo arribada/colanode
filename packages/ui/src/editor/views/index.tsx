@@ -3,6 +3,8 @@ import { CodeBlockNodeView } from '@colanode/ui/editor/views/code-block';
 import { DatabaseNodeView } from '@colanode/ui/editor/views/database';
 import { FileNodeView } from '@colanode/ui/editor/views/file';
 import { FolderNodeView } from '@colanode/ui/editor/views/folder';
+import { MathBlockNodeView } from '@colanode/ui/editor/views/math-block';
+import { MathInlineNodeView } from '@colanode/ui/editor/views/math-inline';
 import { MentionNodeView } from '@colanode/ui/editor/views/mention';
 import { PageNodeView } from '@colanode/ui/editor/views/page';
 import { TableNodeView } from '@colanode/ui/editor/views/table';
@@ -17,6 +19,8 @@ export {
   FileNodeView,
   TempFileNodeView,
   FolderNodeView,
+  MathBlockNodeView,
+  MathInlineNodeView,
   MentionNodeView,
   PageNodeView,
   TableCellNodeView,

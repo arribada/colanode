@@ -29,6 +29,10 @@ import { LinkMark } from '@colanode/ui/editor/extensions/link';
 import { ListItemNode } from '@colanode/ui/editor/extensions/list-item';
 import { ListKeymapExtension } from '@colanode/ui/editor/extensions/list-keymap';
 import { Markdown } from '@colanode/ui/editor/extensions/markdown';
+import {
+  MathBlockNode,
+  MathInlineNode,
+} from '@colanode/ui/editor/extensions/math';
 import { MentionExtension } from '@colanode/ui/editor/extensions/mention';
 import { MessageNode } from '@colanode/ui/editor/extensions/message';
 import { OrderedListNode } from '@colanode/ui/editor/extensions/ordered-list';
@@ -75,6 +79,8 @@ export {
   LinkMark,
   ListItemNode,
   ListKeymapExtension,
+  MathBlockNode,
+  MathInlineNode,
   MessageNode,
   OrderedListNode,
   PageNode,
