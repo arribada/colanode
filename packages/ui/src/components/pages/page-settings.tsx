@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
   Copy,
+  FileStack,
   FolderInput,
   Image,
   LetterText,
@@ -36,12 +37,15 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate({ from: '/workspace/$userId' });
   const { mutate: duplicatePage, isPending: isDuplicating } = useMutation();
+  const { mutate: saveAsTemplate, isPending: isSavingAsTemplate } =
+    useMutation();
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
+  const canSaveAsTemplate = canEdit && !page.isTemplate;
 
   return (
     <Fragment>
@@ -124,6 +128,33 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
           >
             <Copy className="size-4" />
             Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            data-testid="page-save-as-template-button"
+            disabled={!canSaveAsTemplate || isSavingAsTemplate}
+            onClick={() => {
+              if (!canSaveAsTemplate || isSavingAsTemplate) {
+                return;
+              }
+
+              saveAsTemplate({
+                input: {
+                  type: 'page.template.save',
+                  userId: workspace.userId,
+                  pageId: page.id,
+                },
+                onSuccess() {
+                  toast.success('Saved as template');
+                },
+                onError(error) {
+                  toast.error(error.message);
+                },
+              });
+            }}
+          >
+            <FileStack className="size-4" />
+            Save as template
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

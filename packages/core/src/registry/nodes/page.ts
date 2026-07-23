@@ -11,6 +11,11 @@ export const pageAttributesSchema = z.object({
   name: z.string(),
   avatar: z.string().nullable().optional(),
   parentId: z.string(),
+  // Page templates live under the page's space (parentId is set to the
+  // space id when a template is saved) and are kept out of the browsing
+  // collection (see notTemplateSql) — surfaced only through the dedicated
+  // page.template.list query / "New from template" menu on the space.
+  isTemplate: z.boolean().nullable().optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });

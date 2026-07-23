@@ -48,6 +48,10 @@ export * from './push-subscriptions/push-subscription-create';
 export * from './push-subscriptions/push-subscription-delete';
 export * from './apns-subscriptions/apns-subscription-create';
 export * from './apns-subscriptions/apns-subscription-delete';
+export * from './pages/page-template-save';
+export * from './pages/page-template-create';
+export * from './records/record-template-save';
+export * from './records/record-template-create';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface MutationMap {}

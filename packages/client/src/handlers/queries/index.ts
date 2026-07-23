@@ -35,8 +35,10 @@ import { NodeTrashListQueryHandler } from './nodes/node-trash-list';
 import { NotificationListQueryHandler } from './notifications/notification-list';
 import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';
 import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
+import { PageTemplateListQueryHandler } from './pages/page-template-list';
 import { RecordFieldValueCountQueryHandler } from './records/record-field-value-count';
 import { RecordSearchQueryHandler } from './records/record-search';
+import { RecordTemplateListQueryHandler } from './records/record-template-list';
 import { ServerListQueryHandler } from './servers/server-list';
 import { UserListQueryHandler } from './users/user-list';
 import { UserSearchQueryHandler } from './users/user-search';
@@ -87,5 +89,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'notification.list': new NotificationListQueryHandler(app),
     'notification-mute.get': new NotificationMuteGetQueryHandler(app),
     'notification.unread-count': new NotificationUnreadCountQueryHandler(app),
+    'record.template.list': new RecordTemplateListQueryHandler(app),
+    'page.template.list': new PageTemplateListQueryHandler(app),
   };
 };

@@ -40,8 +40,12 @@ import { NodeUpdateMutationHandler } from './nodes/node-update';
 import { MuteSetMutationHandler } from './notifications/mute-set';
 import { NotificationReadMutationHandler } from './notifications/notification-read';
 import { PageDuplicateMutationHandler } from './pages/page-duplicate';
+import { PageTemplateCreateMutationHandler } from './pages/page-template-create';
+import { PageTemplateSaveMutationHandler } from './pages/page-template-save';
 import { PushSubscriptionCreateMutationHandler } from './push-subscriptions/push-subscription-create';
 import { PushSubscriptionDeleteMutationHandler } from './push-subscriptions/push-subscription-delete';
+import { RecordTemplateCreateMutationHandler } from './records/record-template-create';
+import { RecordTemplateSaveMutationHandler } from './records/record-template-save';
 import { ServerCreateMutationHandler } from './servers/server-create';
 import { ServerDeleteMutationHandler } from './servers/server-delete';
 import { ServerSyncMutationHandler } from './servers/server-sync';
@@ -112,5 +116,9 @@ export const buildMutationHandlerMap = (
     'pushSubscription.delete': new PushSubscriptionDeleteMutationHandler(app),
     'apnsSubscription.create': new ApnsSubscriptionCreateMutationHandler(app),
     'apnsSubscription.delete': new ApnsSubscriptionDeleteMutationHandler(app),
+    'record.template.save': new RecordTemplateSaveMutationHandler(app),
+    'record.template.create': new RecordTemplateCreateMutationHandler(app),
+    'page.template.save': new PageTemplateSaveMutationHandler(app),
+    'page.template.create': new PageTemplateCreateMutationHandler(app),
   };
 };

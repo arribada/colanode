@@ -230,3 +230,19 @@ export const trashedNodeTreeSql = `WITH RECURSIVE trashed_tree(id) AS (
 export const notInTrashedTreeSql = (alias: string): string => {
   return `${alias}.id NOT IN (${trashedNodeTreeSql})`;
 };
+
+// ---------------------------------------------------------------------------
+// Template query filters.
+//
+// Template records/pages carry an isTemplate attribute (set once, at
+// creation, by record.template.save / page.template.save) and are never
+// toggled back to a normal node in place — "New from template" always
+// deep-copies them into a fresh, non-template node. Queries that back the
+// shared browsing collection (table/board/calendar views, space sidebar
+// trees) must exclude them; record.template.list / page.template.list query
+// them explicitly.
+// ---------------------------------------------------------------------------
+
+export const notTemplateSql = (alias: string): string => {
+  return `(json_extract(${alias}.attributes, '$.isTemplate') IS NULL OR json_extract(${alias}.attributes, '$.isTemplate') = 0)`;
+};

@@ -15,6 +15,12 @@ export const recordAttributesSchema = z.object({
   avatar: z.string().nullable().optional(),
   sourceMessageId: z.string().nullable().optional(),
   fields: z.record(z.string(), fieldValueSchema),
+  // Template records are regular records living in the same database, kept
+  // out of the browsing collection (see notTemplateSql) and surfaced only
+  // through the dedicated record.template.list query / "New from template"
+  // menus. Saving a record as a template deep-copies its fields + document
+  // into a new record with this flag set; the source record is untouched.
+  isTemplate: z.boolean().nullable().optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });
