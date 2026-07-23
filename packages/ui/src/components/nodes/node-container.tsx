@@ -2,6 +2,7 @@ import { Outlet } from '@tanstack/react-router';
 
 import { ChannelContainer } from '@colanode/ui/components/channels/channel-container';
 import { ChatContainer } from '@colanode/ui/components/chats/chat-container';
+import { PageCommentsButton } from '@colanode/ui/components/comments/page-comments-button';
 import { DatabaseContainer } from '@colanode/ui/components/databases/database-container';
 import { FileContainer } from '@colanode/ui/components/files/file-container';
 import { FolderContainer } from '@colanode/ui/components/folders/folder-container';
@@ -35,7 +36,14 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
     <Container
       type={type}
       breadcrumb={<NodeBreadcrumb nodes={data.breadcrumb} />}
-      actions={<NodeSettings node={data.node} role={data.role} />}
+      actions={
+        <div className="flex flex-row items-center gap-2">
+          {data.node.type === 'page' && (
+            <PageCommentsButton pageId={data.node.id} />
+          )}
+          <NodeSettings node={data.node} role={data.role} />
+        </div>
+      }
       onFullscreen={onFullscreen}
     >
       {data.node.type === 'space' && (
