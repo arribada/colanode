@@ -38,6 +38,7 @@ export * from './servers/server-sync';
 export * from './apps/tab-delete';
 export * from './nodes/node-delete';
 export * from './nodes/node-create';
+export * from './pages/page-duplicate';
 export * from './nodes/node-update';
 export * from './notifications/notification-read';
 export * from './notifications/mute-set';

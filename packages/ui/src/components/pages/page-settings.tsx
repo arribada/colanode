@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import {
   Copy,
   FolderInput,
@@ -7,6 +8,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Fragment, useState } from 'react';
+import { toast } from 'sonner';
 
 import { LocalPageNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
@@ -22,6 +24,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
 interface PageSettingsProps {
   page: LocalPageNode;
@@ -29,6 +33,9 @@ interface PageSettingsProps {
 }
 
 export const PageSettings = ({ page, role }: PageSettingsProps) => {
+  const workspace = useWorkspace();
+  const navigate = useNavigate({ from: '/workspace/$userId' });
+  const { mutate: duplicatePage, isPending: isDuplicating } = useMutation();
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
@@ -89,7 +96,31 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
-            disabled
+            disabled={!canEdit || isDuplicating}
+            onClick={() => {
+              if (!canEdit || isDuplicating) {
+                return;
+              }
+
+              duplicatePage({
+                input: {
+                  type: 'page.duplicate',
+                  userId: workspace.userId,
+                  pageId: page.id,
+                },
+                onSuccess(output) {
+                  navigate({
+                    to: '$nodeId',
+                    params: {
+                      nodeId: output.id,
+                    },
+                  });
+                },
+                onError(error) {
+                  toast.error(error.message);
+                },
+              });
+            }}
           >
             <Copy className="size-4" />
             Duplicate
