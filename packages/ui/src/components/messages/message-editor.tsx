@@ -37,6 +37,7 @@ interface MessageEditorProps {
   workspaceId: string;
   conversationId: string;
   rootId: string;
+  placeholder?: string;
   onChange?: (content: JSONContent) => void;
   onSubmit: () => void;
 }
@@ -62,7 +63,7 @@ export const MessageEditor = forwardRef<
         CodeBlockNode,
         TabKeymapExtension,
         PlaceholderExtension.configure({
-          message: 'Write a message',
+          message: props.placeholder ?? 'Write a message',
         }),
         DividerNode,
         TrailingNode,
@@ -91,7 +92,7 @@ export const MessageEditor = forwardRef<
         attributes: {
           class:
             'prose-lg prose-stone dark:prose-invert prose-headings:font-title font-default focus:outline-none max-w-full',
-          'aria-label': 'Write a message',
+          'aria-label': props.placeholder ?? 'Write a message',
           'data-testid': 'message-composer-input',
         },
         handleKeyDown: (_, event) => {

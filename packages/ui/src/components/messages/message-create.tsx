@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 import { editorHasContent } from '@colanode/client/lib';
 import { LocalMessageNode } from '@colanode/client/types';
+import { IdType, getIdType } from '@colanode/core';
 import {
   MessageEditor,
   MessageEditorRefProps,
@@ -43,6 +44,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
   const [replyTo, setReplyTo] = useState<LocalMessageNode | null>(null);
 
   const hasContent = content != null && editorHasContent(content);
+  const isPageConversation = getIdType(conversation.id) === IdType.Page;
 
   useImperativeHandle(ref, () => ({
     setReplyTo: (replyTo) => {
@@ -160,6 +162,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
               workspaceId={workspace.workspaceId}
               conversationId={conversation.id}
               rootId={conversation.rootId}
+              placeholder={isPageConversation ? 'Write a comment' : undefined}
               onChange={setContent}
               onSubmit={handleSubmit}
             />
