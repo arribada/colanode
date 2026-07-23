@@ -52,6 +52,9 @@ export enum ApiErrorCode {
   TokenMissing = 'token_missing',
   TokenInvalid = 'token_invalid',
   RootNotFound = 'root_not_found',
+  DocumentNotFound = 'document_not_found',
+  DocumentNoAccess = 'document_no_access',
+  DocumentSnapshotNotFound = 'document_snapshot_not_found',
 
   ValidationError = 'validation_error',
   TooManyRequests = 'too_many_requests',

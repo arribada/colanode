@@ -10,6 +10,7 @@ export * from './apps/metadata-delete';
 export * from './apps/metadata-update';
 export * from './avatars/avatar-upload';
 export * from './chats/chat-create';
+export * from './documents/document-restore';
 export * from './documents/document-update';
 export * from './files/file-create';
 export * from './files/file-download';
@@ -162,4 +163,5 @@ export enum MutationErrorCode {
   MessageNotFound = 'message_not_found',
   NodeReactionCreateForbidden = 'node_reaction_create_forbidden',
   DownloadFailed = 'download_failed',
+  DocumentRestoreFailed = 'document_restore_failed',
 }

@@ -21,6 +21,7 @@ export * from './registry/nodes/whiteboard';
 export * from './registry/documents/index';
 export * from './registry/documents/rich-text';
 export * from './types/accounts';
+export * from './types/documents';
 export * from './types/files';
 export * from './types/sockets';
 export * from './types/servers';

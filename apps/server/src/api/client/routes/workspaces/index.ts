@@ -3,6 +3,7 @@ import { FastifyPluginCallback } from 'fastify';
 import { accountAuthenticator } from '@colanode/server/api/client/plugins/account-auth';
 import { workspaceAuthenticator } from '@colanode/server/api/client/plugins/workspace-auth';
 
+import { documentRoutes } from './documents';
 import { fileRoutes } from './files';
 import { mutationsRoutes } from './mutations';
 import { userRoutes } from './users';
@@ -24,6 +25,7 @@ export const workspaceRoutes: FastifyPluginCallback = (instance, _, done) => {
       subInstance.register(workspaceGetRoute);
       subInstance.register(workspaceUpdateRoute);
 
+      subInstance.register(documentRoutes, { prefix: '/documents' });
       subInstance.register(fileRoutes, { prefix: '/files' });
       subInstance.register(userRoutes, { prefix: '/users' });
       subInstance.register(mutationsRoutes, { prefix: '/mutations' });

@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   Copy,
   FolderInput,
+  History,
   Image,
   LetterText,
   Settings,
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 import { LocalPageNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
+import { DocumentHistoryDialog } from '@colanode/ui/components/documents/document-history';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
@@ -39,6 +41,7 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -128,6 +131,15 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
+              setShowHistoryDialog(true);
+            }}
+          >
+            <History className="size-4" />
+            Version history
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
               if (!canDelete) {
                 return;
               }
@@ -178,6 +190,13 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
         page={page}
         open={showMoveDialog}
         onOpenChange={setShowMoveDialog}
+      />
+      <DocumentHistoryDialog
+        documentId={page.id}
+        name={page.name}
+        canEdit={canEdit}
+        open={showHistoryDialog}
+        onOpenChange={setShowHistoryDialog}
       />
     </Fragment>
   );
