@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { notificationReadMutationSchema } from '@colanode/core';
 
 describe('notification.read mutation schema', () => {
