@@ -11,6 +11,7 @@ import { SidebarMenuType, UploadStatus } from '@colanode/client/types';
 import { SidebarMenuFooter } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer';
 import { SidebarMenuHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-header';
 import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-icon';
+import { ArribadaMark } from '@colanode/ui/components/ui/arribada-logo';
 import { useRadar } from '@colanode/ui/contexts/radar';
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -59,6 +60,15 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
 
   return (
     <div className="flex flex-col h-full w-[65px] min-w-[65px] items-center">
+      <div
+        className="mt-3 flex w-full items-center justify-center"
+        title="Arribada Wiki"
+      >
+        <ArribadaMark
+          className="size-6 text-sidebar-foreground/80"
+          aria-hidden="true"
+        />
+      </div>
       <SidebarMenuHeader />
       <div className="flex flex-col gap-1 mt-2 w-full p-2 items-center grow">
         <SidebarMenuIcon

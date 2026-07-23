@@ -8,12 +8,13 @@ export const BrowserNotSupported = () => {
         <h2 className="text-4xl text-foreground">Browser not supported</h2>
         <p className="text-sm text-muted-foreground">
           Unfortunately, your browser does not support the Origin Private File
-          System (OPFS) feature that Colanode requires to function properly.
+          System (OPFS) feature that the Arribada Wiki requires to function
+          properly.
         </p>
         <p className="text-sm text-muted-foreground">
-          If you're self-hosting Colanode make sure you are accessing the web
-          version through a secure 'https' way, because some browsers require
-          HTTPS to use the features required.
+          If you're self-hosting the Arribada Wiki make sure you are accessing
+          the version through a secure 'https' way, because some browsers
+          require HTTPS to use the features required.
         </p>
         <p className="text-sm text-muted-foreground mt-4">
           You can try using the{' '}

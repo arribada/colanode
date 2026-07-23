@@ -77,18 +77,28 @@ const execute = () => {
   ]);
 
   copyFile(
-    path.resolve(IMAGES_DIR, 'colanode-logo.ico'),
+    path.resolve(IMAGES_DIR, 'arribada-favicon.ico'),
     path.resolve(WEB_PUBLIC_DIR, 'favicon.ico')
   );
 
   copyFile(
-    path.resolve(IMAGES_DIR, 'colanode-logo-192.jpg'),
-    path.resolve(WEB_ASSETS_DIR, 'colanode-logo-192.jpg')
+    path.resolve(IMAGES_DIR, 'arribada-icon-180.png'),
+    path.resolve(WEB_ASSETS_DIR, 'arribada-icon-180.png')
   );
 
   copyFile(
-    path.resolve(IMAGES_DIR, 'colanode-logo-512.jpg'),
-    path.resolve(WEB_ASSETS_DIR, 'colanode-logo-512.jpg')
+    path.resolve(IMAGES_DIR, 'arribada-icon-192.png'),
+    path.resolve(WEB_ASSETS_DIR, 'arribada-icon-192.png')
+  );
+
+  copyFile(
+    path.resolve(IMAGES_DIR, 'arribada-icon-512.png'),
+    path.resolve(WEB_ASSETS_DIR, 'arribada-icon-512.png')
+  );
+
+  copyFile(
+    path.resolve(IMAGES_DIR, 'arribada-mark.svg'),
+    path.resolve(WEB_ASSETS_DIR, 'arribada-mark.svg')
   );
 
   copyFile(

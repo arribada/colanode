@@ -12,12 +12,13 @@ export const MobileNotSupported = () => {
         <Smartphone className="h-10 w-10 text-foreground" />
         <h2 className="text-4xl text-foreground">Mobile not supported</h2>
         <p className="text-sm text-muted-foreground">
-          Hey there! Thanks for checking out Colanode.
+          Hey there! Thanks for checking out the Arribada Wiki.
         </p>
         <p className="text-sm text-muted-foreground">
-          Right now, Colanode is not quite ready for mobile devices just yet.
-          For the best experience, please hop onto a desktop or laptop. We're
-          working hard to bring you an awesome mobile experience soon.
+          Right now, the Arribada Wiki is not quite ready for mobile devices
+          just yet. For the best experience, please hop onto a desktop or
+          laptop. We're working hard to bring you an awesome mobile experience
+          soon.
         </p>
         <p className="text-sm text-muted-foreground mt-4">
           Thanks for your patience and support!

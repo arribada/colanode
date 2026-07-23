@@ -42,14 +42,12 @@ const themeModeOptions: ThemeModeOption[] = [
   },
 ];
 
+// Arribada teal is the branded default; a small set of alternates remains
+// selectable (their token definitions are kept intact in themes.ts).
 const themeColorOptions = [
-  { value: 'default', label: 'Default', color: 'oklch(0.205 0 0)' },
+  { value: 'default', label: 'Arribada', color: '#1de9b6' },
   { value: 'blue', label: 'Blue', color: 'oklch(0.623 0.214 259.815)' },
-  { value: 'red', label: 'Red', color: 'oklch(0.637 0.237 25.331)' },
-  { value: 'rose', label: 'Rose', color: 'oklch(0.645 0.246 16.439)' },
   { value: 'orange', label: 'Orange', color: 'oklch(0.705 0.213 47.604)' },
-  { value: 'green', label: 'Green', color: 'oklch(0.723 0.219 149.579)' },
-  { value: 'yellow', label: 'Yellow', color: 'oklch(0.795 0.184 86.047)' },
   { value: 'violet', label: 'Violet', color: 'oklch(0.606 0.25 292.717)' },
 ];
 

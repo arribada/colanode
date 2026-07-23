@@ -148,7 +148,7 @@ export const Register = () => {
         </h1>
         <p className="text-sm text-muted-foreground">
           {state.type === 'register'
-            ? 'Sign up to get started with Colanode'
+            ? 'Sign up to get started with the Arribada Wiki'
             : 'Enter the code sent to your email'}
         </p>
       </div>
