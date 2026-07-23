@@ -1,5 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Chat visibility is a per-workspace metadata flag (hidden by default in this
+// fork). The hook is mocked so each test can pin the state it needs without
+// running the metadata collection.
+const chatVisibility = vi.hoisted(() => ({ visible: true }));
+
+vi.mock('@colanode/ui/hooks/use-chat-visibility', () => ({
+  useChatVisibility: () => [chatVisibility.visible, () => {}],
+}));
 
 // The sidebar menu depends on workspace/radar contexts and live queries that
 // require running providers. For this regression test we only care about the
@@ -41,6 +50,10 @@ vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-menu-footer', () => ({
 import { SidebarMenu } from '@colanode/ui/components/layouts/sidebars/sidebar-menu';
 
 describe('SidebarMenu', () => {
+  beforeEach(() => {
+    chatVisibility.visible = true;
+  });
+
   it('labels the settings control with the correctly spelled "Settings"', () => {
     const markup = renderToStaticMarkup(
       <SidebarMenu value="chats" onChange={() => {}} />
@@ -74,5 +87,20 @@ describe('SidebarMenu', () => {
     // The search button is icon-only, so its aria-label is its sole accessible
     // name; the cmd-K dialog relies on it as the pointer-driven entry point.
     expect(markup).toContain('aria-label="Search"');
+  });
+
+  it('hides the chats entry when chat is disabled for the workspace', () => {
+    chatVisibility.visible = false;
+
+    const markup = renderToStaticMarkup(
+      <SidebarMenu value="spaces" onChange={() => {}} />
+    );
+
+    // Chat is off by default in this fork (the team chats elsewhere): the
+    // chats menu icon must not render, while the rest of the menu stays.
+    expect(markup).not.toContain('aria-label="Chats"');
+    expect(markup).toContain('aria-label="Spaces"');
+    expect(markup).toContain('aria-label="Inbox"');
+    expect(markup).toContain('aria-label="Settings"');
   });
 });
