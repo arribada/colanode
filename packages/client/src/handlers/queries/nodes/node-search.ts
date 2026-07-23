@@ -8,6 +8,7 @@ import {
   buildSnippet,
   tokenizeSearchQuery,
 } from '@colanode/client/lib/fts';
+import { notInTrashedTreeSql } from '@colanode/client/lib/nodes';
 import {
   NodeSearchMatchSource,
   NodeSearchQueryInput,
@@ -174,6 +175,7 @@ export class NodeSearchQueryHandler
         LIMIT ${limit}
       ) m
       JOIN nodes n ON n.id = m.id
+      WHERE ${sql.raw(notInTrashedTreeSql('n'))}
       ORDER BY m.rank
     `.compile(workspace.database);
 

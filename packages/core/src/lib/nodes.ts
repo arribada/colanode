@@ -1,6 +1,6 @@
 import { generateKeyBetween } from 'fractional-indexing-jittered';
 
-import { Node, NodeAttributes, NodeRole } from '@colanode/core';
+import { Node, NodeAttributes, NodeRole, NodeType } from '@colanode/core';
 
 export const extractNodeCollaborators = (
   attributes: NodeAttributes | NodeAttributes[]
@@ -62,4 +62,31 @@ export const generateFractionalIndex = (
   const upper = next === undefined ? null : next;
 
   return generateKeyBetween(lower, upper);
+};
+
+// Node types that support soft delete (trash). Deleting them from the UI sets
+// a deletedAt/deletedBy attribute (synced as a normal update); a hard
+// node.delete only happens from the trash ("Delete forever") or for the
+// remaining types (space, channel, chat, message, database_view).
+export const softDeletableNodeTypes: NodeType[] = [
+  'page',
+  'folder',
+  'database',
+  'record',
+  'file',
+  'whiteboard',
+];
+
+export const isSoftDeletableNodeType = (type: NodeType): boolean => {
+  return softDeletableNodeTypes.includes(type);
+};
+
+export const isNodeTrashed = (
+  node: Node | NodeAttributes | { deletedAt?: string | null }
+): boolean => {
+  return (
+    'deletedAt' in node &&
+    typeof node.deletedAt === 'string' &&
+    node.deletedAt.length > 0
+  );
 };

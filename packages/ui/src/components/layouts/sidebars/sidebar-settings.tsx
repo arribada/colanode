@@ -5,6 +5,7 @@ import {
   LogOut,
   Palette,
   Settings,
+  Trash2,
   Upload,
   Users,
 } from 'lucide-react';
@@ -105,6 +106,19 @@ export const SidebarSettings = () => {
             )}
           </Link>
         )}
+        <Link
+          from="/workspace/$userId"
+          to="trash"
+          activeProps={{ 'aria-current': 'page' }}
+        >
+          {({ isActive }) => (
+            <SidebarSettingsItem
+              title="Trash"
+              icon={Trash2}
+              isActive={isActive}
+            />
+          )}
+        </Link>
       </div>
       <div className="flex w-full min-w-0 flex-col gap-1">
         <SidebarHeader title="Account settings" />

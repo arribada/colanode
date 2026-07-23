@@ -21,6 +21,8 @@ export const databaseAttributesSchema = z.object({
   fields: z.record(z.string(), fieldAttributesSchema),
   nameField: databaseNameFieldAttributesSchema.nullable().optional(),
   locked: z.boolean().nullable().optional(),
+  deletedAt: z.string().nullable().optional(),
+  deletedBy: z.string().nullable().optional(),
 });
 
 export type DatabaseAttributes = z.infer<typeof databaseAttributesSchema>;

@@ -6,6 +6,7 @@ import { mapNode } from '@colanode/client/lib';
 import {
   buildNodeFiltersQuery,
   buildNodeSortsQuery,
+  notTrashedSql,
 } from '@colanode/client/lib/nodes';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib/types';
 import { NodeListQueryInput } from '@colanode/client/queries/nodes/node-list';
@@ -34,7 +35,9 @@ export class NodeListQueryHandler
     const filterQuery = buildNodeFiltersQuery(input.filters);
     const sortQuery = buildNodeSortsQuery(input.sorts);
 
-    let queryString = `SELECT * FROM nodes n WHERE 1=1 ${filterQuery}`;
+    // Trashed nodes never surface through the shared nodes collection; the
+    // trash view uses the dedicated node.trash.list query instead.
+    let queryString = `SELECT * FROM nodes n WHERE ${notTrashedSql('n')} ${filterQuery}`;
 
     if (sortQuery) {
       queryString += ` ORDER BY ${sortQuery}`;
