@@ -1,15 +1,12 @@
-import {
-  ChatNode,
-  extractNodeRole,
-  getNodeModel,
-  hasNodeRole,
-  NodeAttributes,
-} from '@colanode/core';
+import { ChatNode, getNodeModel, NodeAttributes } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { eventBus } from '@colanode/server/lib/event-bus';
 import { createLogger } from '@colanode/server/lib/logger';
 import { mapNode } from '@colanode/server/lib/nodes';
-import { createNotification } from '@colanode/server/lib/notifications';
+import {
+  createMentionNotifications,
+  createNotification,
+} from '@colanode/server/lib/notifications';
 import { Event } from '@colanode/server/types/events';
 
 const logger = createLogger('notification-service');
@@ -48,27 +45,20 @@ class NotificationService {
     const actorId = nodeRow.created_by;
     const attributes = nodeRow.attributes as NodeAttributes;
 
-    // Mentions: extract mention targets from the node's content blocks
+    // Mentions: extract mention targets from the node's content blocks.
+    // Mention leaves carry `{ id: mentionId, target: userId | nodeId }`;
+    // createMentionNotifications filters to user targets and checks roles.
     const model = getNodeModel(node.type);
     const mentions = model.extractMentions(node.id, attributes);
 
-    for (const mention of mentions) {
-      if (mention.target !== 'user') continue;
-      if (mention.id === actorId) continue;
-
-      const role = extractNodeRole(rootNode, mention.id);
-      if (!role || !hasNodeRole(role, 'viewer')) continue;
-
-      await createNotification({
-        userId: mention.id,
-        workspaceId: event.workspaceId,
-        rootId: event.rootId,
-        type: 'mention',
-        sourceNodeId: node.id,
-        actorId,
-        preview: {},
-      });
-    }
+    await createMentionNotifications({
+      mentions,
+      workspaceId: event.workspaceId,
+      rootId: event.rootId,
+      rootNode,
+      sourceNodeId: node.id,
+      actorId,
+    });
 
     // Direct messages: a new message in a chat root -> notify other chat members
     if (

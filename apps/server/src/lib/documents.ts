@@ -6,7 +6,9 @@ import {
   generateId,
   getNodeModel,
   IdType,
+  Mention,
   MutationStatus,
+  NodeModel,
   UpdateDocumentMutationData,
 } from '@colanode/core';
 import { decodeState, YDoc } from '@colanode/crdt';
@@ -14,6 +16,7 @@ import { database } from '@colanode/server/data/database';
 import { eventBus } from '@colanode/server/lib/event-bus';
 import { createLogger } from '@colanode/server/lib/logger';
 import { fetchNode, fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
+import { createMentionNotifications } from '@colanode/server/lib/notifications';
 import { WorkspaceContext } from '@colanode/server/types/api';
 import {
   CreateDocumentInput,
@@ -25,6 +28,35 @@ import { ConcurrentUpdateResult } from '@colanode/server/types/nodes';
 const logger = createLogger('server:lib:documents');
 
 const UPDATE_RETRIES_LIMIT = 10;
+
+// Diff document mentions so only newly-added mentions notify. The before
+// state is the stored content of the document row (if any).
+const extractAddedDocumentMentions = (
+  model: NodeModel,
+  documentId: string,
+  beforeContent: DocumentContent | null | undefined,
+  afterContent: DocumentContent
+): Mention[] => {
+  if (!model.extractDocumentMentions) {
+    return [];
+  }
+
+  const afterMentions = model.extractDocumentMentions(documentId, afterContent);
+  if (afterMentions.length === 0) {
+    return [];
+  }
+
+  const beforeMentions = beforeContent
+    ? model.extractDocumentMentions(documentId, beforeContent)
+    : [];
+
+  return afterMentions.filter(
+    (after) =>
+      !beforeMentions.some(
+        (before) => before.id === after.id && before.target === after.target
+      )
+  );
+};
 
 export const createDocument = async (
   input: CreateDocumentInput
@@ -276,6 +308,28 @@ const tryUpdateDocumentFromMutation = async (
       rootId: node.root_id,
       workspaceId: workspace.id,
     });
+
+    // Fire mention notifications for people newly mentioned in this
+    // document update (pages/records) — mirrors the message pipeline in
+    // notification-service.
+    const addedMentions = extractAddedDocumentMentions(
+      model,
+      mutation.documentId,
+      document?.content,
+      content
+    );
+
+    const rootNode = tree[0];
+    if (addedMentions.length > 0 && rootNode) {
+      await createMentionNotifications({
+        mentions: addedMentions,
+        workspaceId: workspace.id,
+        rootId: node.root_id,
+        rootNode: mapNode(rootNode),
+        sourceNodeId: mutation.documentId,
+        actorId: workspace.user.id,
+      });
+    }
 
     return {
       type: 'success',

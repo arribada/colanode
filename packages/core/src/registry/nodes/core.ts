@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 
+import { DocumentContent } from '@colanode/core/registry/documents';
 import { Node, NodeAttributes } from '@colanode/core/registry/nodes';
 import { Mention } from '@colanode/core/types/mentions';
 import { WorkspaceRole } from '@colanode/core/types/workspaces';
@@ -66,4 +67,5 @@ export interface NodeModel {
   canReact: (context: CanReactNodeContext) => boolean;
   extractText: (id: string, attributes: NodeAttributes) => NodeText | null;
   extractMentions: (id: string, attributes: NodeAttributes) => Mention[];
+  extractDocumentMentions?: (id: string, content: DocumentContent) => Mention[];
 }

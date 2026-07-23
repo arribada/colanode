@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 
+import { extractBlocksMentions } from '@colanode/core/lib/mentions';
 import { extractNodeRole } from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
 import { richTextContentSchema } from '@colanode/core/registry/documents/rich-text';
@@ -104,5 +105,8 @@ export const recordModel: NodeModel = {
   },
   extractMentions: () => {
     return [];
+  },
+  extractDocumentMentions: (id, content) => {
+    return extractBlocksMentions(id, content.blocks);
   },
 };
