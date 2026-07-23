@@ -54,6 +54,30 @@ export const extractNodeRole = (
   return role;
 };
 
+// Returns true when the node-level collaborators record differs between two
+// attribute snapshots. Used by node models to require admin role for
+// permission changes while keeping regular edits at editor level.
+export const haveNodeCollaboratorsChanged = (
+  before: Node | NodeAttributes,
+  after: Node | NodeAttributes
+): boolean => {
+  const beforeCollaborators = extractNodeCollaborators(before);
+  const afterCollaborators = extractNodeCollaborators(after);
+
+  const beforeEntries = Object.entries(beforeCollaborators);
+  if (beforeEntries.length !== Object.keys(afterCollaborators).length) {
+    return true;
+  }
+
+  for (const [collaboratorId, role] of beforeEntries) {
+    if (afterCollaborators[collaboratorId] !== role) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const generateFractionalIndex = (
   previous?: string | null,
   next?: string | null

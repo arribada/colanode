@@ -15,7 +15,11 @@ const buildContextValue = (
     ? [...parentContext.breadcrumb, node]
     : [node];
   const root = parentContext ? parentContext.root : node;
-  const role = extractNodeRole(root, userId);
+
+  // Resolve the role from the full ancestor chain (root -> node), not just
+  // the root, so that node-level collaborators (e.g. on a page or database)
+  // are honored in addition to space-level ones.
+  const role = extractNodeRole(breadcrumb, userId);
 
   if (!role) {
     throw new Error('Node role not found');

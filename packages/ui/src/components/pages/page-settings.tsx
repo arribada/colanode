@@ -6,13 +6,15 @@ import {
   LetterText,
   Settings,
   Trash2,
+  Users,
 } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalPageNode } from '@colanode/client/types';
+import { LocalNode, LocalPageNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
+import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
@@ -29,16 +31,18 @@ import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
 interface PageSettingsProps {
   page: LocalPageNode;
+  nodes: LocalNode[];
   role: NodeRole;
 }
 
-export const PageSettings = ({ page, role }: PageSettingsProps) => {
+export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate({ from: '/workspace/$userId' });
   const { mutate: duplicatePage, isPending: isDuplicating } = useMutation();
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -127,6 +131,13 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowCollaboratorsDialog(true)}
+          >
+            <Users className="size-4" />
+            Collaborators
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
               if (!canDelete) {
                 return;
@@ -178,6 +189,13 @@ export const PageSettings = ({ page, role }: PageSettingsProps) => {
         page={page}
         open={showMoveDialog}
         onOpenChange={setShowMoveDialog}
+      />
+      <NodeCollaboratorsDialog
+        node={page}
+        nodes={nodes}
+        role={role}
+        open={showCollaboratorsDialog}
+        onOpenChange={setShowCollaboratorsDialog}
       />
     </Fragment>
   );

@@ -42,7 +42,11 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
           {data.node.type === 'page' && (
             <PageCommentsButton pageId={data.node.id} />
           )}
-          <NodeSettings node={data.node} role={data.role} />
+          <NodeSettings
+            node={data.node}
+            nodes={data.breadcrumb}
+            role={data.role}
+          />
         </div>
       }
       onFullscreen={onFullscreen}
