@@ -35,13 +35,16 @@ export const ServerCreateDialog = ({ onCancel }: ServerCreateDialogProps) => {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a server</DialogTitle>
-          <DialogDescription>Add a custom server to login to</DialogDescription>
+          <DialogDescription>
+            Add a custom server to login to. You can enter a domain, an
+            origin or a full config URL.
+          </DialogDescription>
         </DialogHeader>
         <div className="grow space-y-2 py-2 pb-4">
           <Label htmlFor="server-create-url">Server URL</Label>
           <Input
             id="server-create-url"
-            placeholder="https://us.colanode.com/config"
+            placeholder="colanode.example.com"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
