@@ -74,3 +74,16 @@ ul[data-type='taskList'] li[data-checked='true'] > div > p {
   text-decoration: line-through;
   text-decoration-thickness: 2px;
 }
+
+/* Toggle (collapsible) block */
+div[data-type='toggle'][data-open='false'] div[data-type='toggle-content'] {
+  display: none;
+}
+
+div[data-type='toggle'] > button[data-toggle-button] svg {
+  transition: transform 120ms ease-in-out;
+}
+
+div[data-type='toggle'][data-open='true'] > button[data-toggle-button] svg {
+  transform: rotate(90deg);
+}

@@ -26,4 +26,44 @@ export const defaultClasses = {
   tableCell: 'flex p-1 px-2 items-center',
   tableHeaderWrapper: 'border',
   tableHeader: 'flex p-1 px-2 items-center font-semibold bg-muted',
+  toggle: 'my-1 flex flex-row items-start gap-1',
+  toggleButton:
+    'mt-1.5 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent',
+  toggleInner: 'min-w-0 flex-1',
+  toggleSummary: 'py-1 font-medium',
+  toggleContent: 'pb-0.5',
+  callout: 'my-1 flex flex-row items-start gap-2 rounded-md p-3',
+};
+
+export const calloutColors = [
+  { value: 'default', label: 'Default', class: 'bg-muted' },
+  { value: 'gray', label: 'Gray', class: 'bg-gray-100 dark:bg-gray-800/60' },
+  { value: 'blue', label: 'Blue', class: 'bg-blue-100 dark:bg-blue-950/50' },
+  {
+    value: 'green',
+    label: 'Green',
+    class: 'bg-green-100 dark:bg-green-950/50',
+  },
+  {
+    value: 'yellow',
+    label: 'Yellow',
+    class: 'bg-yellow-100 dark:bg-yellow-950/50',
+  },
+  {
+    value: 'orange',
+    label: 'Orange',
+    class: 'bg-orange-100 dark:bg-orange-950/50',
+  },
+  { value: 'red', label: 'Red', class: 'bg-red-100 dark:bg-red-950/50' },
+  {
+    value: 'purple',
+    label: 'Purple',
+    class: 'bg-purple-100 dark:bg-purple-950/50',
+  },
+  { value: 'pink', label: 'Pink', class: 'bg-pink-100 dark:bg-pink-950/50' },
+];
+
+export const getCalloutColorClass = (color: string | null | undefined) => {
+  const calloutColor = calloutColors.find((c) => c.value === color);
+  return calloutColor?.class ?? 'bg-muted';
 };
