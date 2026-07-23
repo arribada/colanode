@@ -23,6 +23,7 @@ const makeNode = (id: string, type: string, parentId: string | null): Node =>
   }) as unknown as Node;
 
 const space = makeNode('space1', 'space', null);
+const page = makeNode('page1', 'page', 'space1');
 const channel = makeNode('chan1', 'channel', 'space1');
 const rootMessage = makeNode('msg1', 'message', 'chan1');
 const threadReply = makeNode('msg2', 'message', 'msg1');
@@ -79,6 +80,29 @@ describe('messageAttributesSchema.taskId', () => {
         subtype: 'standard',
         parentId: 'chan1',
       }).success
+    ).toBe(true);
+  });
+});
+
+describe('messageModel.canCreate page comments', () => {
+  it('allows message under a page (page comments)', () => {
+    expect(
+      messageModel.canCreate({
+        user,
+        tree: [space, page],
+        attributes: attrs,
+      } as never)
+    ).toBe(true);
+  });
+
+  it('allows reply under a page comment (1-level thread)', () => {
+    const comment = makeNode('cmsg1', 'message', 'page1');
+    expect(
+      messageModel.canCreate({
+        user,
+        tree: [space, page, comment],
+        attributes: attrs,
+      } as never)
     ).toBe(true);
   });
 });
