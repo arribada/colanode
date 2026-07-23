@@ -8,12 +8,18 @@ import { SidebarSettings } from '@colanode/ui/components/layouts/sidebars/sideba
 import { SidebarSpaces } from '@colanode/ui/components/layouts/sidebars/sidebar-spaces';
 import { useApp } from '@colanode/ui/contexts/app';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const Sidebar = () => {
   const app = useApp();
   const workspace = useWorkspace();
-  const [menu, setMenu] = useState<SidebarMenuType>('spaces');
+  const [showChat] = useChatVisibility();
+  const [selectedMenu, setMenu] = useState<SidebarMenuType>('spaces');
+
+  // If chat gets hidden while the chats panel is open, fall back to spaces so
+  // the sidebar never shows a panel that no longer has a menu entry.
+  const menu = selectedMenu === 'chats' && !showChat ? 'spaces' : selectedMenu;
 
   return (
     <div

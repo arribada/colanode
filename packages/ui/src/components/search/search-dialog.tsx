@@ -14,6 +14,7 @@ import {
 } from '@colanode/ui/components/ui/command';
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import { useQuery } from '@colanode/ui/hooks/use-query';
 
 const groupOrder: NodeType[] = [
@@ -50,10 +51,15 @@ const resultName = (result: NodeSearchResult): string => {
   return result.type === 'message' ? 'Message' : 'Unnamed';
 };
 
+// Node types that only exist for chat; filtered out of results while chat is
+// hidden. Message nodes are kept: page comments are messages too (wave 1).
+const chatNodeTypes: NodeType[] = ['channel', 'chat'];
+
 export const SearchDialog = () => {
   const workspace = useWorkspace();
   const navigate = useNavigate();
   const { open, setOpen } = useSearch();
+  const [showChat] = useChatVisibility();
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -69,8 +75,12 @@ export const SearchDialog = () => {
     }
   );
 
-  const results =
+  const allResults =
     open && searchQuery.length > 0 ? (nodeSearchQuery.data ?? []) : [];
+
+  const results = showChat
+    ? allResults
+    : allResults.filter((result) => !chatNodeTypes.includes(result.type));
 
   const groups = groupOrder
     .map((type) => ({

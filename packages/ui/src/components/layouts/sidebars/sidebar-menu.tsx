@@ -14,6 +14,7 @@ import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sideba
 import { useRadar } from '@colanode/ui/contexts/radar';
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import { useLiveQuery as useColanodeLiveQuery } from '@colanode/ui/hooks/use-live-query';
 
 interface SidebarMenuProps {
@@ -25,6 +26,7 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
   const workspace = useWorkspace();
   const radar = useRadar();
   const search = useSearch();
+  const [showChat] = useChatVisibility();
 
   const chatsState = radar.getChatsState(workspace.userId);
   const channelsState = radar.getChannelsState(workspace.userId);
@@ -66,19 +68,21 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
             search.setOpen(true);
           }}
         />
-        <SidebarMenuIcon
-          icon={MessageCircle}
-          label="Chats"
-          onClick={() => {
-            onChange('chats');
-          }}
-          isActive={value === 'chats'}
-          unreadBadge={{
-            count: chatsState.unreadCount,
-            unread: chatsState.hasUnread,
-            maxCount: 99,
-          }}
-        />
+        {showChat && (
+          <SidebarMenuIcon
+            icon={MessageCircle}
+            label="Chats"
+            onClick={() => {
+              onChange('chats');
+            }}
+            isActive={value === 'chats'}
+            unreadBadge={{
+              count: chatsState.unreadCount,
+              unread: chatsState.hasUnread,
+              maxCount: 99,
+            }}
+          />
+        )}
         <SidebarMenuIcon
           icon={LayoutGrid}
           label="Spaces"
@@ -87,8 +91,8 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
           }}
           isActive={value === 'spaces'}
           unreadBadge={{
-            count: channelsState.unreadCount,
-            unread: channelsState.hasUnread,
+            count: showChat ? channelsState.unreadCount : 0,
+            unread: showChat && channelsState.hasUnread,
             maxCount: 99,
           }}
         />

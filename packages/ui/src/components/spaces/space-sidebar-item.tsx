@@ -12,6 +12,7 @@ import {
   CollapsibleTrigger,
 } from '@colanode/ui/components/ui/collapsible';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import {
   groupSpaceChildrenByType,
   sortSpaceChildren,
@@ -23,6 +24,7 @@ interface SpaceSidebarItemProps {
 
 export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
   const workspace = useWorkspace();
+  const [showChat] = useChatVisibility();
 
   const nodeChildrenGetQuery = useLiveQuery(
     (q) =>
@@ -32,7 +34,13 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
     [workspace.userId, space.id]
   );
 
-  const children = sortSpaceChildren(space, nodeChildrenGetQuery.data);
+  // Channels (including the default "Discussions" channel every workspace is
+  // seeded with) stay out of the tree while chat is hidden.
+  const visibleChildren = showChat
+    ? nodeChildrenGetQuery.data
+    : nodeChildrenGetQuery.data.filter((node) => node.type !== 'channel');
+
+  const children = sortSpaceChildren(space, visibleChildren);
   const groups = groupSpaceChildrenByType(children);
 
   return (

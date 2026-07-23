@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { WhiteboardCreateDialog } from '@colanode/ui/components/whiteboards/whiteboard-create-dialog';
+import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 
 interface SpaceSidebarDropdownProps {
   space: LocalSpaceNode;
@@ -32,6 +33,7 @@ interface SpaceSidebarDropdownProps {
 
 export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
   const navigate = useNavigate({ from: '/workspace/$userId' });
+  const [showChat] = useChatVisibility();
 
   const [openCreatePage, setOpenCreatePage] = useState(false);
   const [openCreateChannel, setOpenCreateChannel] = useState(false);
@@ -60,13 +62,15 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
             <StickyNote className="size-4" />
             <span>Add page</span>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => setOpenCreateChannel(true)}
-            className="flex flex-row items-center gap-2 cursor-pointer"
-          >
-            <MessageCircle className="size-4" />
-            <span>Add channel</span>
-          </DropdownMenuItem>
+          {showChat && (
+            <DropdownMenuItem
+              onSelect={() => setOpenCreateChannel(true)}
+              className="flex flex-row items-center gap-2 cursor-pointer"
+            >
+              <MessageCircle className="size-4" />
+              <span>Add channel</span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onSelect={() => setOpenCreateDatabase(true)}
             className="flex flex-row items-center gap-2 cursor-pointer"
