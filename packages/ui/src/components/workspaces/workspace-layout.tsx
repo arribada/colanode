@@ -6,7 +6,9 @@ import { CommentsSheet } from '@colanode/ui/components/layouts/comments-sheet';
 import { SidebarDesktop } from '@colanode/ui/components/layouts/sidebars/sidebar-desktop';
 import { ThreadPanel } from '@colanode/ui/components/layouts/thread-panel';
 import { ThreadSheet } from '@colanode/ui/components/layouts/thread-sheet';
+import { SearchDialog } from '@colanode/ui/components/search/search-dialog';
 import { PageCommentsContext } from '@colanode/ui/contexts/page-comments';
+import { SearchContext } from '@colanode/ui/contexts/search';
 import { ThreadPanelContext } from '@colanode/ui/contexts/thread-panel';
 import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 
@@ -14,6 +16,7 @@ export const WorkspaceLayout = () => {
   const isMobile = useIsMobile();
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
   const [commentsPageId, setCommentsPageId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // close the panels whenever the active route changes (stale-panel guard)
   const location = useRouterState({ select: (s) => s.location.pathname });
@@ -21,6 +24,19 @@ export const WorkspaceLayout = () => {
     setThreadRootId(null);
     setCommentsPageId(null);
   }, [location]);
+
+  // Cmd-K (macOS) / Ctrl-K toggles the workspace-wide search dialog
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen((previous) => !previous);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // thread and comments panels are mutually exclusive side surfaces
   const openThread = useCallback((id: string) => {
@@ -43,20 +59,28 @@ export const WorkspaceLayout = () => {
     [commentsPageId, openComments, closeComments]
   );
 
+  const searchValue = useMemo(
+    () => ({ open: searchOpen, setOpen: setSearchOpen }),
+    [searchOpen]
+  );
+
   return (
-    <ThreadPanelContext.Provider value={threadValue}>
-      <PageCommentsContext.Provider value={commentsValue}>
-        <div className="w-full h-full flex">
-          {!isMobile && <SidebarDesktop />}
-          <section className="min-w-0 flex-1">
-            <Outlet />
-          </section>
-          {!isMobile && <ThreadPanel />}
-          {!isMobile && <CommentsPanel />}
-          {isMobile && <ThreadSheet />}
-          {isMobile && <CommentsSheet />}
-        </div>
-      </PageCommentsContext.Provider>
-    </ThreadPanelContext.Provider>
+    <SearchContext.Provider value={searchValue}>
+      <ThreadPanelContext.Provider value={threadValue}>
+        <PageCommentsContext.Provider value={commentsValue}>
+          <div className="w-full h-full flex">
+            {!isMobile && <SidebarDesktop />}
+            <section className="min-w-0 flex-1">
+              <Outlet />
+            </section>
+            {!isMobile && <ThreadPanel />}
+            {!isMobile && <CommentsPanel />}
+            {isMobile && <ThreadSheet />}
+            {isMobile && <CommentsSheet />}
+          </div>
+          <SearchDialog />
+        </PageCommentsContext.Provider>
+      </ThreadPanelContext.Provider>
+    </SearchContext.Provider>
   );
 };

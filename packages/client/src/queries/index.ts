@@ -35,6 +35,7 @@ export * from './emojis/emoji-svg-get';
 export * from './apps/tabs-list';
 export * from './servers/server-list';
 export * from './nodes/node-list';
+export * from './nodes/node-search';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface QueryMap {}

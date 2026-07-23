@@ -28,6 +28,7 @@ import { NodeInteractionGetQueryHandler } from './interactions/node-interaction-
 import { RadarDataGetQueryHandler } from './interactions/radar-data-get';
 import { NodeListQueryHandler } from './nodes/node-list';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
+import { NodeSearchQueryHandler } from './nodes/node-search';
 import { NotificationListQueryHandler } from './notifications/notification-list';
 import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';
 import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
@@ -50,6 +51,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'node.interaction.get': new NodeInteractionGetQueryHandler(app),
     'node.reaction.list': new NodeReactionsListQueryHandler(app),
     'node.list': new NodeListQueryHandler(app),
+    'node.search': new NodeSearchQueryHandler(app),
     'record.field.value.count': new RecordFieldValueCountQueryHandler(app),
     'user.search': new UserSearchQueryHandler(app),
     'workspace.list': new WorkspaceListQueryHandler(app),
