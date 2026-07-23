@@ -8,6 +8,7 @@ import { MessageBreadcrumbItem } from '@colanode/ui/components/messages/message-
 import { PageBreadcrumbItem } from '@colanode/ui/components/pages/page-breadcrumb-item';
 import { RecordBreadcrumbItem } from '@colanode/ui/components/records/record-breadcrumb-item';
 import { SpaceBreadcrumbItem } from '@colanode/ui/components/spaces/space-breadcrumb-item';
+import { WhiteboardBreadcrumbItem } from '@colanode/ui/components/whiteboards/whiteboard-breadcrumb-item';
 
 interface NodeBreadcrumbItemProps {
   node: LocalNode;
@@ -33,6 +34,8 @@ export const NodeBreadcrumbItem = ({ node }: NodeBreadcrumbItemProps) => {
       return <FileBreadcrumbItem file={node} />;
     case 'message':
       return <MessageBreadcrumbItem message={node} />;
+    case 'whiteboard':
+      return <WhiteboardBreadcrumbItem whiteboard={node} />;
     default:
       return null;
   }

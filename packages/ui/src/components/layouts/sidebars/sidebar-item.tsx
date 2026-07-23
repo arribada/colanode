@@ -6,6 +6,7 @@ import { ViewSidebarItem } from '@colanode/ui/components/databases/view-sidebar-
 import { FolderSidebarItem } from '@colanode/ui/components/folders/folder-sidebar-item';
 import { PageSidebarItem } from '@colanode/ui/components/pages/page-sidebar-item';
 import { SpaceSidebarItem } from '@colanode/ui/components/spaces/space-sidebar-item';
+import { WhiteboardSidebarItem } from '@colanode/ui/components/whiteboards/whiteboard-sidebar-item';
 
 interface SidebarItemProps {
   node: LocalNode;
@@ -27,6 +28,8 @@ export const SidebarItem = ({ node }: SidebarItemProps): React.ReactNode => {
       return <ViewSidebarItem view={node} />;
     case 'folder':
       return <FolderSidebarItem folder={node} />;
+    case 'whiteboard':
+      return <WhiteboardSidebarItem whiteboard={node} />;
     default:
       return null;
   }

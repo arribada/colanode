@@ -13,6 +13,7 @@ import { NodeSettings } from '@colanode/ui/components/nodes/node-settings';
 import { PageContainer } from '@colanode/ui/components/pages/page-container';
 import { RecordContainer } from '@colanode/ui/components/records/record-container';
 import { SpaceContainer } from '@colanode/ui/components/spaces/space-container';
+import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { ContainerType } from '@colanode/ui/contexts/container';
 import { useNode } from '@colanode/ui/contexts/node';
 import { useNodeRadar } from '@colanode/ui/hooks/use-node-radar';
@@ -63,6 +64,9 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
         <MessageContainer message={data.node} role={data.role} />
       )}
       {data.node.type === 'file' && <FileContainer file={data.node} />}
+      {data.node.type === 'whiteboard' && (
+        <WhiteboardContainer whiteboard={data.node} role={data.role} />
+      )}
     </Container>
   );
 };
