@@ -26,8 +26,10 @@ import { IconSearchQueryHandler } from './icons/icon-search';
 import { IconSvgGetQueryHandler } from './icons/icon-svg-get';
 import { NodeInteractionGetQueryHandler } from './interactions/node-interaction-get';
 import { RadarDataGetQueryHandler } from './interactions/radar-data-get';
+import { NodeBacklinkListQueryHandler } from './nodes/node-backlink-list';
 import { NodeListQueryHandler } from './nodes/node-list';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
+import { NodeSearchQueryHandler } from './nodes/node-search';
 import { NotificationListQueryHandler } from './notifications/notification-list';
 import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';
 import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
@@ -50,6 +52,8 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'node.interaction.get': new NodeInteractionGetQueryHandler(app),
     'node.reaction.list': new NodeReactionsListQueryHandler(app),
     'node.list': new NodeListQueryHandler(app),
+    'node.search': new NodeSearchQueryHandler(app),
+    'node.backlink.list': new NodeBacklinkListQueryHandler(app),
     'record.field.value.count': new RecordFieldValueCountQueryHandler(app),
     'user.search': new UserSearchQueryHandler(app),
     'workspace.list': new WorkspaceListQueryHandler(app),
