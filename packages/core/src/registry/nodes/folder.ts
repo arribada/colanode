@@ -1,14 +1,18 @@
 import { z } from 'zod/v4';
 
-import { extractNodeRole } from '@colanode/core/lib/nodes';
+import {
+  extractNodeRole,
+  haveNodeCollaboratorsChanged,
+} from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
-import { NodeModel } from '@colanode/core/registry/nodes/core';
+import { NodeModel, nodeRoleEnum } from '@colanode/core/registry/nodes/core';
 
 export const folderAttributesSchema = z.object({
   type: z.literal('folder'),
   name: z.string(),
   avatar: z.string().nullable().optional(),
   parentId: z.string(),
+  collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });
@@ -38,6 +42,10 @@ export const folderModel: NodeModel = {
     const role = extractNodeRole(context.tree, context.user.id);
     if (!role) {
       return false;
+    }
+
+    if (haveNodeCollaboratorsChanged(context.node, context.attributes)) {
+      return hasNodeRole(role, 'admin');
     }
 
     return hasNodeRole(role, 'editor');

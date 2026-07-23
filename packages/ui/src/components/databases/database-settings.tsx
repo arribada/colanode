@@ -6,12 +6,14 @@ import {
   Trash2,
   Lock,
   LockOpen,
+  Users,
 } from 'lucide-react';
 import { Fragment, useCallback, useState } from 'react';
 
-import { LocalDatabaseNode } from '@colanode/client/types';
+import { LocalDatabaseNode, LocalNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
+import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
 import { DatabaseUpdateDialog } from '@colanode/ui/components/databases/database-update-dialog';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import {
@@ -26,13 +28,19 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 interface DatabaseSettingsProps {
   database: LocalDatabaseNode;
+  nodes: LocalNode[];
   role: NodeRole;
 }
 
-export const DatabaseSettings = ({ database, role }: DatabaseSettingsProps) => {
+export const DatabaseSettings = ({
+  database,
+  nodes,
+  role,
+}: DatabaseSettingsProps) => {
   const workspace = useWorkspace();
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'admin');
@@ -43,12 +51,12 @@ export const DatabaseSettings = ({ database, role }: DatabaseSettingsProps) => {
       return;
     }
 
-    const nodes = workspace.collections.nodes;
-    if (!nodes.has(database.id)) {
+    const nodesCollection = workspace.collections.nodes;
+    if (!nodesCollection.has(database.id)) {
       return;
     }
 
-    nodes.update(database.id, (draft) => {
+    nodesCollection.update(database.id, (draft) => {
       if (draft.type !== 'database') {
         return;
       }
@@ -115,6 +123,13 @@ export const DatabaseSettings = ({ database, role }: DatabaseSettingsProps) => {
             Duplicate
           </DropdownMenuItem>
           <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowCollaboratorsDialog(true)}
+          >
+            <Users className="size-4" />
+            Collaborators
+          </DropdownMenuItem>
+          <DropdownMenuItem
             className="flex items-center gap-2"
             onClick={() => {
               if (!canDelete) {
@@ -162,6 +177,13 @@ export const DatabaseSettings = ({ database, role }: DatabaseSettingsProps) => {
         role={role}
         open={showUpdateDialog}
         onOpenChange={setShowUpdateDialog}
+      />
+      <NodeCollaboratorsDialog
+        node={database}
+        nodes={nodes}
+        role={role}
+        open={showCollaboratorsDialog}
+        onOpenChange={setShowCollaboratorsDialog}
       />
     </Fragment>
   );

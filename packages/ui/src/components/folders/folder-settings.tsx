@@ -1,9 +1,10 @@
-import { Copy, Image, LetterText, Settings, Trash2 } from 'lucide-react';
+import { Copy, Image, LetterText, Settings, Trash2, Users } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
-import { LocalFolderNode } from '@colanode/client/types';
+import { LocalFolderNode, LocalNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
+import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
 import { FolderUpdateDialog } from '@colanode/ui/components/folders/folder-update-dialog';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import {
@@ -17,12 +18,18 @@ import {
 
 interface FolderSettingsProps {
   folder: LocalFolderNode;
+  nodes: LocalNode[];
   role: NodeRole;
 }
 
-export const FolderSettings = ({ folder, role }: FolderSettingsProps) => {
+export const FolderSettings = ({
+  folder,
+  nodes,
+  role,
+}: FolderSettingsProps) => {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -76,6 +83,13 @@ export const FolderSettings = ({ folder, role }: FolderSettingsProps) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowCollaboratorsDialog(true)}
+          >
+            <Users className="size-4" />
+            Collaborators
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
               if (!canDelete) {
                 return;
@@ -122,6 +136,13 @@ export const FolderSettings = ({ folder, role }: FolderSettingsProps) => {
         role={role}
         open={showUpdateDialog}
         onOpenChange={setShowUpdateDialog}
+      />
+      <NodeCollaboratorsDialog
+        node={folder}
+        nodes={nodes}
+        role={role}
+        open={showCollaboratorsDialog}
+        onOpenChange={setShowCollaboratorsDialog}
       />
     </Fragment>
   );

@@ -26,8 +26,8 @@ export const NodeCollaborators = ({
   );
 
   const isAdmin = hasNodeRole(role, 'admin');
-  const canAddCollaborator = isAdmin && node.type === 'space';
-  const ancestors = nodes.filter((node) => node.id !== node.id);
+  const canAddCollaborator = isAdmin;
+  const ancestors = nodes.filter((ancestor) => ancestor.id !== node.id);
 
   return (
     <div className="flex flex-col gap-2">
@@ -79,18 +79,18 @@ export const NodeCollaborators = ({
           )}
         </div>
       </div>
-      {ancestors.map((node) => {
+      {ancestors.map((ancestor) => {
         const inheritCollaborators = collaborators.filter(
-          (collaborator) => collaborator.nodeId === node.id
+          (collaborator) => collaborator.nodeId === ancestor.id
         );
 
         if (inheritCollaborators.length === 0) {
           return null;
         }
 
-        const name = extractNodeName(node) ?? 'Unknown';
+        const name = extractNodeName(ancestor) ?? 'Unknown';
         return (
-          <div key={node.id}>
+          <div key={ancestor.id}>
             <Separator className="my-3" />
             <div className="space-y-3">
               <h4 className="text-sm font-medium">Inherit from {name}</h4>
@@ -101,7 +101,7 @@ export const NodeCollaborators = ({
                   return (
                     <NodeCollaborator
                       key={collaborator.collaboratorId}
-                      nodeId={node.id}
+                      nodeId={ancestor.id}
                       collaboratorId={collaborator.collaboratorId}
                       role={collaborator.role}
                       canEdit={canEdit}

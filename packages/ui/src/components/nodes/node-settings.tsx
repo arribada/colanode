@@ -11,10 +11,11 @@ import { WhiteboardSettings } from '@colanode/ui/components/whiteboards/whiteboa
 
 interface NodeSettingsProps {
   node: LocalNode;
+  nodes: LocalNode[];
   role: NodeRole;
 }
 
-export const NodeSettings = ({ node, role }: NodeSettingsProps) => {
+export const NodeSettings = ({ node, nodes, role }: NodeSettingsProps) => {
   if (node.type === 'channel') {
     return <ChannelSettings channel={node} role={role} />;
   }
@@ -24,11 +25,11 @@ export const NodeSettings = ({ node, role }: NodeSettingsProps) => {
   }
 
   if (node.type === 'database') {
-    return <DatabaseSettings database={node} role={role} />;
+    return <DatabaseSettings database={node} nodes={nodes} role={role} />;
   }
 
   if (node.type === 'folder') {
-    return <FolderSettings folder={node} role={role} />;
+    return <FolderSettings folder={node} nodes={nodes} role={role} />;
   }
 
   if (node.type === 'file') {
@@ -36,7 +37,7 @@ export const NodeSettings = ({ node, role }: NodeSettingsProps) => {
   }
 
   if (node.type === 'page') {
-    return <PageSettings page={node} role={role} />;
+    return <PageSettings page={node} nodes={nodes} role={role} />;
   }
 
   if (node.type === 'record') {

@@ -1,8 +1,11 @@
 import { z } from 'zod/v4';
 
-import { extractNodeRole } from '@colanode/core/lib/nodes';
+import {
+  extractNodeRole,
+  haveNodeCollaboratorsChanged,
+} from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
-import { NodeModel } from '@colanode/core/registry/nodes/core';
+import { NodeModel, nodeRoleEnum } from '@colanode/core/registry/nodes/core';
 import { fieldAttributesSchema } from '@colanode/core/registry/nodes/field';
 
 export const databaseNameFieldAttributesSchema = z.object({
@@ -21,6 +24,7 @@ export const databaseAttributesSchema = z.object({
   fields: z.record(z.string(), fieldAttributesSchema),
   nameField: databaseNameFieldAttributesSchema.nullable().optional(),
   locked: z.boolean().nullable().optional(),
+  collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });
@@ -50,6 +54,10 @@ export const databaseModel: NodeModel = {
     const role = extractNodeRole(context.tree, context.user.id);
     if (!role) {
       return false;
+    }
+
+    if (haveNodeCollaboratorsChanged(context.node, context.attributes)) {
+      return hasNodeRole(role, 'admin');
     }
 
     return hasNodeRole(role, 'editor');
