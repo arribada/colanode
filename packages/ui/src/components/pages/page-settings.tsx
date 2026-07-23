@@ -3,6 +3,7 @@ import {
   Copy,
   FileStack,
   FolderInput,
+  History,
   Image,
   LetterText,
   Settings,
@@ -16,6 +17,7 @@ import { LocalNode, LocalPageNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
+import { DocumentHistoryDialog } from '@colanode/ui/components/documents/document-history';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
@@ -46,6 +48,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -170,6 +173,15 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
+              setShowHistoryDialog(true);
+            }}
+          >
+            <History className="size-4" />
+            Version history
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
               if (!canDelete) {
                 return;
               }
@@ -227,6 +239,13 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
         role={role}
         open={showCollaboratorsDialog}
         onOpenChange={setShowCollaboratorsDialog}
+      />
+      <DocumentHistoryDialog
+        documentId={page.id}
+        name={page.name}
+        canEdit={canEdit}
+        open={showHistoryDialog}
+        onOpenChange={setShowHistoryDialog}
       />
     </Fragment>
   );

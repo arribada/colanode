@@ -7,6 +7,11 @@ import { SelectDocumentUpdate } from '@colanode/server/data/schema';
 import { JobHandler } from '@colanode/server/jobs';
 import { config } from '@colanode/server/lib/config';
 import { fetchCounter, setCounter } from '@colanode/server/lib/counters';
+import {
+  captureDocumentSnapshot,
+  pruneDocumentSnapshots,
+  DocumentSnapshotRetention,
+} from '@colanode/server/lib/document-snapshots';
 import { createLogger } from '@colanode/server/lib/logger';
 
 const logger = createLogger('server:job:document-updates-merge');
@@ -77,7 +82,11 @@ export const documentUpdatesMergeHandler: JobHandler<
         documentId,
         documentUpdates,
         config.jobs.documentUpdatesMerge.mergeWindow,
-        config.jobs.documentUpdatesMerge.cutoffWindow
+        config.jobs.documentUpdatesMerge.cutoffWindow,
+        {
+          keepCount: config.jobs.documentUpdatesMerge.snapshotKeepCount,
+          maxAgeDays: config.jobs.documentUpdatesMerge.snapshotMaxAgeDays,
+        }
       );
       mergedGroups += result.mergedGroups;
       deletedUpdates += result.deletedUpdates;
@@ -96,11 +105,13 @@ export const documentUpdatesMergeHandler: JobHandler<
   );
 };
 
-const processDocumentUpdates = async (
+// Exported for tests (see apps/server/test/jobs/document-snapshots.test.ts).
+export const processDocumentUpdates = async (
   documentId: string,
   documentUpdates: SelectDocumentUpdate[],
   mergeWindow: number,
-  cutoffWindow: number
+  cutoffWindow: number,
+  snapshotRetention: DocumentSnapshotRetention
 ): Promise<{ mergedGroups: number; deletedUpdates: number }> => {
   const firstUpdate = documentUpdates[0]!;
   const cutoffTime = new Date(
@@ -136,20 +147,43 @@ const processDocumentUpdates = async (
   });
 
   const groups = groupUpdatesByMergeWindow(orderedUpdates, mergeWindow);
+  const mergeableGroups = groups.filter((group) => group.length >= 2);
+
+  if (mergeableGroups.length === 0) {
+    return { mergedGroups: 0, deletedUpdates: 0 };
+  }
+
+  // Preserve a version of the document BEFORE compacting its updates, so
+  // history survives the merge. If the snapshot cannot be written, skip
+  // merging this document for this run — it will be retried next run.
+  try {
+    await captureDocumentSnapshot(documentId);
+  } catch (error) {
+    logger.error(
+      error,
+      `Failed to capture snapshot for document ${documentId}, skipping merge`
+    );
+    return { mergedGroups: 0, deletedUpdates: 0 };
+  }
 
   let mergedGroups = 0;
   let deletedUpdates = 0;
 
-  for (const group of groups) {
-    if (group.length < 2) {
-      continue;
-    }
-
+  for (const group of mergeableGroups) {
     const success = await mergeUpdatesGroup(documentId, group);
     if (success) {
       mergedGroups++;
       deletedUpdates += group.length - 1;
     }
+  }
+
+  try {
+    await pruneDocumentSnapshots(documentId, snapshotRetention);
+  } catch (error) {
+    logger.error(
+      error,
+      `Failed to prune snapshots for document ${documentId}`
+    );
   }
 
   return { mergedGroups, deletedUpdates };

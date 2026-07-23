@@ -7,6 +7,8 @@ import { MetadataListQueryHandler } from './apps/metadata-list';
 import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
 import { DocumentGetQueryHandler } from './documents/document-get';
+import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
+import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
 import { DocumentUpdatesListQueryHandler } from './documents/document-update-list';
 import { EmojiCategoryListQueryHandler } from './emojis/emoji-category-list';
@@ -77,6 +79,8 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'local.file.get': new LocalFileGetQueryHandler(app),
     'file.download.request.get': new FileDownloadRequestGetQueryHandler(app),
     'document.get': new DocumentGetQueryHandler(app),
+    'document.snapshot.get': new DocumentSnapshotGetQueryHandler(app),
+    'document.snapshot.list': new DocumentSnapshotListQueryHandler(app),
     'document.state.get': new DocumentStateGetQueryHandler(app),
     'document.updates.list': new DocumentUpdatesListQueryHandler(app),
     'upload.list': new UploadListQueryHandler(app),

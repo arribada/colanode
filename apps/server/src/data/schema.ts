@@ -247,6 +247,19 @@ export type SelectDocumentUpdate = Selectable<DocumentUpdateTable>;
 export type CreateDocumentUpdate = Insertable<DocumentUpdateTable>;
 export type UpdateDocumentUpdate = Updateable<DocumentUpdateTable>;
 
+interface DocumentSnapshotTable {
+  id: ColumnType<string, string, never>;
+  document_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  revision: ColumnType<string, string, never>;
+  content: JSONColumnType<DocumentContent, string, never>;
+  created_at: ColumnType<Date, Date, never>;
+  created_by: ColumnType<string, string, never>;
+}
+
+export type SelectDocumentSnapshot = Selectable<DocumentSnapshotTable>;
+export type CreateDocumentSnapshot = Insertable<DocumentSnapshotTable>;
+
 interface UploadTable {
   file_id: ColumnType<string, string, never>;
   upload_id: ColumnType<string, string, string>;
@@ -383,6 +396,7 @@ export interface DatabaseSchema {
   collaborations: CollaborationTable;
   documents: DocumentTable;
   document_updates: DocumentUpdateTable;
+  document_snapshots: DocumentSnapshotTable;
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;

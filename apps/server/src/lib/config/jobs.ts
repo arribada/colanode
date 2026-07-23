@@ -7,6 +7,8 @@ const DEFAULT_BATCH_SIZE = 500;
 const DEFAULT_MERGE_WINDOW = ms('1 hour') / 1000; // in seconds
 const DEFAULT_CUTOFF_WINDOW = ms('2 hours') / 1000; // in seconds
 const DEFAULT_CRON_PATTERN = '0 5 */2 * * *'; // every 2 hours at the 5th minute
+const DEFAULT_SNAPSHOT_KEEP_COUNT = 20; // snapshots kept per document
+const DEFAULT_SNAPSHOT_MAX_AGE_DAYS = 90; // snapshots older than this are pruned
 
 export const nodeUpdatesMergeJobConfigSchema = z
   .discriminatedUnion('enabled', [
@@ -39,6 +41,10 @@ export const documentUpdatesMergeJobConfigSchema = z
       batchSize: z.coerce.number().default(DEFAULT_BATCH_SIZE),
       mergeWindow: z.coerce.number().default(DEFAULT_MERGE_WINDOW),
       cutoffWindow: z.coerce.number().default(DEFAULT_CUTOFF_WINDOW),
+      snapshotKeepCount: z.coerce.number().default(DEFAULT_SNAPSHOT_KEEP_COUNT),
+      snapshotMaxAgeDays: z.coerce
+        .number()
+        .default(DEFAULT_SNAPSHOT_MAX_AGE_DAYS),
     }),
     z.object({
       enabled: z.literal(false),
