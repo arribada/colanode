@@ -1,11 +1,11 @@
 import { useState } from 'react';
 
 import { SidebarMenuType } from '@colanode/client/types';
+import { InboxPanel } from '@colanode/ui/components/inbox/inbox-panel';
 import { SidebarChats } from '@colanode/ui/components/layouts/sidebars/sidebar-chats';
 import { SidebarMenu } from '@colanode/ui/components/layouts/sidebars/sidebar-menu';
 import { SidebarSettings } from '@colanode/ui/components/layouts/sidebars/sidebar-settings';
 import { SidebarSpaces } from '@colanode/ui/components/layouts/sidebars/sidebar-spaces';
-import { InboxPanel } from '@colanode/ui/components/inbox/inbox-panel';
 import { useApp } from '@colanode/ui/contexts/app';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
