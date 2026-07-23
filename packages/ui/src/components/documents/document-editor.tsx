@@ -65,6 +65,7 @@ import {
   LinkMark,
   ListItemNode,
   ListKeymapExtension,
+  MentionExtension,
   OrderedListNode,
   PageNode,
   ParagraphNode,
@@ -294,6 +295,15 @@ export const DocumentEditor = ({
         DropcursorExtension,
         DatabaseNode,
         AutoJoiner,
+        MentionExtension.configure({
+          context: {
+            userId: workspace.userId,
+            documentId: node.id,
+            accountId: workspace.accountId,
+            workspaceId: workspace.workspaceId,
+            rootId: node.rootId,
+          },
+        }),
         CommanderExtension.configure({
           commands: [
             ParagraphCommand,

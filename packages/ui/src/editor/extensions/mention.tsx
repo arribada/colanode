@@ -23,8 +23,8 @@ import {
   useState,
 } from 'react';
 
-import { EditorContext, User } from '@colanode/client/types';
-import { generateId, IdType } from '@colanode/core';
+import { EditorContext, LocalNode, User } from '@colanode/client/types';
+import { generateId, IdType, NodeType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import {
   ScrollArea,
@@ -32,6 +32,7 @@ import {
   ScrollBar,
 } from '@colanode/ui/components/ui/scroll-area';
 import { MentionNodeView } from '@colanode/ui/editor/views';
+import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import { updateScrollView } from '@colanode/ui/lib/utils';
 
 declare module '@tiptap/core' {
@@ -46,7 +47,76 @@ interface MentionOptions {
   context: EditorContext | null;
 }
 
+export type MentionUserItem = {
+  type: 'user';
+  user: User;
+};
+
+export type MentionNodeItem = {
+  type: 'node';
+  node: LocalNode;
+};
+
+export type MentionItem = MentionUserItem | MentionNodeItem;
+
+const MENTIONABLE_NODE_TYPES: NodeType[] = ['page', 'database', 'record'];
+
 const navigationKeys = ['ArrowUp', 'ArrowDown', 'Enter'];
+
+const getMentionItemId = (item: MentionItem): string =>
+  item.type === 'user' ? item.user.id : item.node.id;
+
+const MentionItemButton = ({
+  item,
+  index,
+  isSelected,
+  onSelect,
+}: {
+  item: MentionItem;
+  index: number;
+  isSelected: boolean;
+  onSelect: (index: number) => void;
+}) => {
+  const id = getMentionItemId(item);
+  const name =
+    item.type === 'user' ? item.user.name : getMentionNodeDisplay(item.node).name;
+  const avatar =
+    item.type === 'user'
+      ? item.user.avatar
+      : getMentionNodeDisplay(item.node).avatar;
+  const secondary =
+    item.type === 'user'
+      ? item.user.email
+      : getMentionNodeDisplay(item.node).label;
+
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={isSelected}
+      data-mention-index={index}
+      data-testid={`editor-mention-item-${id}`}
+      className={`relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-left outline-hidden select-none focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
+        isSelected ? 'bg-accent text-accent-foreground' : ''
+      }`}
+      onClick={() => onSelect(index)}
+      onPointerDownCapture={(e) => {
+        // Added this event handler because the onClick handler was not working
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect(index);
+      }}
+    >
+      <div className="flex size-10 min-w-10 items-center justify-center rounded-md border bg-background">
+        <Avatar id={id} name={name} avatar={avatar} className="size-8" />
+      </div>
+      <div className="flex-1">
+        <p className="font-medium">{name}</p>
+        <p className="text-sm text-muted-foreground">{secondary}</p>
+      </div>
+    </button>
+  );
+};
 
 const CommandList = ({
   items,
@@ -54,10 +124,10 @@ const CommandList = ({
   range,
   props,
 }: {
-  items: User[];
-  command: (item: User, range: Range) => void;
+  items: MentionItem[];
+  command: (item: MentionItem, range: Range) => void;
   range: Range;
-  props: SuggestionProps<User>;
+  props: SuggestionProps<MentionItem>;
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -126,12 +196,21 @@ const CommandList = ({
   const listContainer = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    const item = listContainer?.current?.children[selectedIndex] as HTMLElement;
+    const item = listContainer?.current?.querySelector(
+      `[data-mention-index="${selectedIndex}"]`
+    ) as HTMLElement | null;
 
     if (item && scrollContainer?.current) {
       updateScrollView(scrollContainer.current, item);
     }
   }, [selectedIndex]);
+
+  const userItems = items.filter(
+    (item): item is MentionUserItem => item.type === 'user'
+  );
+  const nodeItems = items.filter(
+    (item): item is MentionNodeItem => item.type === 'node'
+  );
 
   return items.length > 0 ? (
     <FloatingPortal>
@@ -145,41 +224,33 @@ const CommandList = ({
           <ScrollArea className="h-80">
             <ScrollViewport ref={scrollContainer}>
               <div ref={listContainer}>
-                {items.map((item: User, index: number) => (
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={index === selectedIndex}
-                    data-testid={`editor-mention-item-${item.id}`}
-                    className={`relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-left outline-hidden select-none focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
-                      index === selectedIndex
-                        ? 'bg-accent text-accent-foreground'
-                        : ''
-                    }`}
-                    key={item.id}
-                    onClick={() => selectItem(index)}
-                    onPointerDownCapture={(e) => {
-                      // Added this event handler because the onClick handler was not working
-                      e.preventDefault();
-                      e.stopPropagation();
-                      selectItem(index);
-                    }}
-                  >
-                    <div className="flex size-10 min-w-10 items-center justify-center rounded-md border bg-background">
-                      <Avatar
-                        id={item.id}
-                        name={item.name}
-                        avatar={item.avatar}
-                        className="size-8"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.email}
-                      </p>
-                    </div>
-                  </button>
+                {userItems.length > 0 && (
+                  <p className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                    People
+                  </p>
+                )}
+                {userItems.map((item, index) => (
+                  <MentionItemButton
+                    key={item.user.id}
+                    item={item}
+                    index={index}
+                    isSelected={index === selectedIndex}
+                    onSelect={selectItem}
+                  />
+                ))}
+                {nodeItems.length > 0 && (
+                  <p className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                    Pages
+                  </p>
+                )}
+                {nodeItems.map((item, index) => (
+                  <MentionItemButton
+                    key={item.node.id}
+                    item={item}
+                    index={userItems.length + index}
+                    isSelected={userItems.length + index === selectedIndex}
+                    onSelect={selectItem}
+                  />
                 ))}
               </div>
             </ScrollViewport>
@@ -196,7 +267,7 @@ const renderItems = () => {
   let editor: Editor | null = null;
 
   return {
-    onStart: (props: SuggestionProps<User>) => {
+    onStart: (props: SuggestionProps<MentionItem>) => {
       editor = props.editor;
       props.editor.storage.mention.isOpen = true;
 
@@ -208,7 +279,7 @@ const renderItems = () => {
         editor: props.editor,
       });
     },
-    onUpdate: (props: SuggestionProps<User>) => {
+    onUpdate: (props: SuggestionProps<MentionItem>) => {
       props.editor.storage.mention.isOpen = true;
       component?.updateProps({
         ...props,
@@ -284,7 +355,7 @@ export const MentionExtension = Node.create<MentionOptions>({
         }: {
           editor: Editor;
           range: Range;
-          props: User;
+          props: MentionItem;
         }) => {
           // increase range.to by one when the next node is of type "text"
           // and starts with a space character
@@ -303,7 +374,7 @@ export const MentionExtension = Node.create<MentionOptions>({
                 type: this.name,
                 attrs: {
                   id: generateId(IdType.Mention),
-                  target: props.id,
+                  target: getMentionItemId(props),
                 },
               },
               {
@@ -321,25 +392,34 @@ export const MentionExtension = Node.create<MentionOptions>({
           if (!type) return false;
           return !!$from.parent.type.contentMatch.matchType(type);
         },
-        items: async ({ query }: { query: string }) => {
-          return new Promise<User[]>((resolve) => {
-            if (!this.options.context) {
-              resolve([] as User[]);
-              return;
-            }
+        items: async ({ query }: { query: string }): Promise<MentionItem[]> => {
+          if (!this.options.context) {
+            return [];
+          }
 
-            const { userId } = this.options.context;
-            window.colanode
-              .executeQuery({
-                type: 'user.search',
-                userId,
-                searchQuery: query,
-                exclude: [userId],
-              })
-              .then((users) => {
-                resolve(users);
-              });
-          });
+          const { userId, documentId } = this.options.context;
+
+          const [users, nodes] = await Promise.all([
+            window.colanode.executeQuery({
+              type: 'user.search',
+              userId,
+              searchQuery: query,
+              exclude: [userId],
+            }),
+            window.colanode.executeQuery({
+              type: 'node.search',
+              userId,
+              searchQuery: query,
+              types: MENTIONABLE_NODE_TYPES,
+              exclude: [documentId],
+              limit: 10,
+            }),
+          ]);
+
+          return [
+            ...users.map((user): MentionItem => ({ type: 'user', user })),
+            ...nodes.map((node): MentionItem => ({ type: 'node', node })),
+          ];
         },
         render: renderItems,
       }),
