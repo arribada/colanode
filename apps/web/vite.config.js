@@ -1,8 +1,28 @@
+import { cpSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// Excalidraw lazy-loads its handwriting/code fonts at runtime relative to its
+// chunk URL (import.meta.url), i.e. /assets/fonts/** in the built app. Vite
+// only emits statically analyzable assets, so copy the font folder ourselves.
+const copyExcalidrawFonts = () => ({
+  name: 'copy-excalidraw-fonts',
+  apply: 'build',
+  closeBundle() {
+    const fontsDir = resolve(
+      __dirname,
+      '../../node_modules/@excalidraw/excalidraw/dist/prod/fonts'
+    );
+    if (existsSync(fontsDir)) {
+      cpSync(fontsDir, resolve(__dirname, 'dist/assets/fonts'), {
+        recursive: true,
+      });
+    }
+  },
+});
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -35,6 +55,7 @@ export default defineConfig({
   },
   plugins: [
     viteReact(),
+    copyExcalidrawFonts(),
     VitePWA({
       mode: 'development',
       base: '/',
