@@ -1,3 +1,4 @@
+import { CalloutNodeView } from '@colanode/ui/editor/views/callout';
 import { CodeBlockNodeView } from '@colanode/ui/editor/views/code-block';
 import { DatabaseNodeView } from '@colanode/ui/editor/views/database';
 import { FileNodeView } from '@colanode/ui/editor/views/file';
@@ -10,6 +11,7 @@ import { TableHeaderNodeView } from '@colanode/ui/editor/views/table-header';
 import { TempFileNodeView } from '@colanode/ui/editor/views/temp-file';
 
 export {
+  CalloutNodeView,
   CodeBlockNodeView,
   DatabaseNodeView,
   FileNodeView,

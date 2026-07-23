@@ -20,6 +20,10 @@ const types = [
   EditorNodeTypes.TableHeader,
   EditorNodeTypes.TableCell,
   EditorNodeTypes.TableRow,
+  EditorNodeTypes.Toggle,
+  EditorNodeTypes.ToggleSummary,
+  EditorNodeTypes.ToggleContent,
+  EditorNodeTypes.Callout,
 ];
 
 export const IdExtension = Extension.create({

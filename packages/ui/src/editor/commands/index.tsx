@@ -1,6 +1,7 @@
 import { EditorCommand, EditorCommandProps } from '@colanode/client/types';
 import { BlockquoteCommand } from '@colanode/ui/editor/commands/blockquote';
 import { BulletListCommand } from '@colanode/ui/editor/commands/bullet-list';
+import { CalloutCommand } from '@colanode/ui/editor/commands/callout';
 import { CodeBlockCommand } from '@colanode/ui/editor/commands/code-block';
 import { DatabaseCommand } from '@colanode/ui/editor/commands/database';
 import { DatabaseInlineCommand } from '@colanode/ui/editor/commands/database-inline';
@@ -15,12 +16,14 @@ import { PageCommand } from '@colanode/ui/editor/commands/page';
 import { ParagraphCommand } from '@colanode/ui/editor/commands/paragraph';
 import { TableCommand } from '@colanode/ui/editor/commands/table';
 import { TodoCommand } from '@colanode/ui/editor/commands/todo';
+import { ToggleCommand } from '@colanode/ui/editor/commands/toggle';
 
 export type { EditorCommand, EditorCommandProps };
 
 export {
   BlockquoteCommand,
   BulletListCommand,
+  CalloutCommand,
   CodeBlockCommand,
   DividerCommand,
   FileCommand,
@@ -33,6 +36,7 @@ export {
   ParagraphCommand,
   TableCommand,
   TodoCommand,
+  ToggleCommand,
   DatabaseCommand,
   DatabaseInlineCommand,
 };

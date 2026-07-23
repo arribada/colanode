@@ -4,6 +4,7 @@ import { match } from 'ts-pattern';
 
 import { BlockquoteRenderer } from '@colanode/ui/editor/renderers/blockquote';
 import { BulletListRenderer } from '@colanode/ui/editor/renderers/bullet-list';
+import { CalloutRenderer } from '@colanode/ui/editor/renderers/callout';
 import { CodeBlockRenderer } from '@colanode/ui/editor/renderers/code-block';
 import { DocumentRenderer } from '@colanode/ui/editor/renderers/document';
 import { FileRenderer } from '@colanode/ui/editor/renderers/file';
@@ -24,6 +25,9 @@ import { TableRowRenderer } from '@colanode/ui/editor/renderers/table-row';
 import { TaskItemRenderer } from '@colanode/ui/editor/renderers/task-item';
 import { TaskListRenderer } from '@colanode/ui/editor/renderers/task-list';
 import { TextRenderer } from '@colanode/ui/editor/renderers/text';
+import { ToggleRenderer } from '@colanode/ui/editor/renderers/toggle';
+import { ToggleContentRenderer } from '@colanode/ui/editor/renderers/toggle-content';
+import { ToggleSummaryRenderer } from '@colanode/ui/editor/renderers/toggle-summary';
 
 interface NodeRendererProps {
   node: JSONContent;
@@ -58,6 +62,18 @@ export const NodeRenderer = ({
         ))
         .with('blockquote', () => (
           <BlockquoteRenderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('toggle', () => (
+          <ToggleRenderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('toggleSummary', () => (
+          <ToggleSummaryRenderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('toggleContent', () => (
+          <ToggleContentRenderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('callout', () => (
+          <CalloutRenderer node={node} keyPrefix={keyPrefix} />
         ))
         .with('bulletList', () => (
           <BulletListRenderer node={node} keyPrefix={keyPrefix} />
