@@ -75,6 +75,29 @@ export const getDefaultViewFieldDisplay = (
   return layout === 'table';
 };
 
+export const GALLERY_CARD_MAX_FIELDS = 4;
+
+const galleryCoverColorClasses = [
+  'bg-gray-100 dark:bg-gray-900',
+  'bg-orange-100 dark:bg-orange-900',
+  'bg-yellow-100 dark:bg-yellow-900',
+  'bg-green-100 dark:bg-green-900',
+  'bg-blue-100 dark:bg-blue-900',
+  'bg-purple-100 dark:bg-purple-900',
+  'bg-pink-100 dark:bg-pink-900',
+  'bg-red-100 dark:bg-red-900',
+];
+
+export const getGalleryCoverColorClass = (recordId: string): string => {
+  let hash = 0;
+  for (let i = 0; i < recordId.length; i++) {
+    hash = (hash * 31 + recordId.charCodeAt(i)) | 0;
+  }
+
+  const index = Math.abs(hash) % galleryCoverColorClasses.length;
+  return galleryCoverColorClasses[index] ?? 'bg-gray-100 dark:bg-gray-900';
+};
+
 interface SelectOptionColor {
   label: string;
   value: string;
