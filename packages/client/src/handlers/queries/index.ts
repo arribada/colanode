@@ -28,8 +28,8 @@ import { NodeInteractionGetQueryHandler } from './interactions/node-interaction-
 import { RadarDataGetQueryHandler } from './interactions/radar-data-get';
 import { NodeBacklinkListQueryHandler } from './nodes/node-backlink-list';
 import { NodeListQueryHandler } from './nodes/node-list';
-import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
 import { NodeMentionSearchQueryHandler } from './nodes/node-mention-search';
+import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
 import { NodeSearchQueryHandler } from './nodes/node-search';
 import { NotificationListQueryHandler } from './notifications/notification-list';
 import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';

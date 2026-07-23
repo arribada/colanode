@@ -1,3 +1,6 @@
+
+import { eventBus } from '@colanode/client/lib/event-bus';
+import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 import {
   createDebugger,
   generateId,
@@ -5,9 +8,6 @@ import {
   NotificationReadMutation,
   SyncNotificationData,
 } from '@colanode/core';
-
-import { eventBus } from '@colanode/client/lib/event-bus';
-import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 
 const debug = createDebugger('desktop:service:notification');
 
