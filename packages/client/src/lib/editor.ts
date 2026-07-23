@@ -30,6 +30,9 @@ const leafBlockTypes = new Set([
   EditorNodeTypes.Heading3,
   EditorNodeTypes.HorizontalRule,
   EditorNodeTypes.CodeBlock,
+  // toggleSummary holds the inline text of a toggle block; toggle,
+  // toggleContent and callout are containers and must NOT be listed here.
+  EditorNodeTypes.ToggleSummary,
 ]);
 
 export const mapContentsToBlocks = (
