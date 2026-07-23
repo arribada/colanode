@@ -30,15 +30,13 @@ vi.mock('@tanstack/react-db', () => ({
   useLiveQuery: () => ({ data: { count: 0 } }),
 }));
 
-vi.mock(
-  '@colanode/ui/components/layouts/sidebars/sidebar-menu-header',
-  () => ({ SidebarMenuHeader: () => null })
-);
+vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-menu-header', () => ({
+  SidebarMenuHeader: () => null,
+}));
 
-vi.mock(
-  '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer',
-  () => ({ SidebarMenuFooter: () => null })
-);
+vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-menu-footer', () => ({
+  SidebarMenuFooter: () => null,
+}));
 
 import { SidebarMenu } from '@colanode/ui/components/layouts/sidebars/sidebar-menu';
 
@@ -66,5 +64,15 @@ describe('SidebarMenu', () => {
     // "Chats".
     expect(markup).toContain('aria-label="Chats"');
     expect(markup).not.toContain('Chatts');
+  });
+
+  it('renders a search control that opens the workspace-wide search', () => {
+    const markup = renderToStaticMarkup(
+      <SidebarMenu value="chats" onChange={() => {}} />
+    );
+
+    // The search button is icon-only, so its aria-label is its sole accessible
+    // name; the cmd-K dialog relies on it as the pointer-driven entry point.
+    expect(markup).toContain('aria-label="Search"');
   });
 });

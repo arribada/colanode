@@ -1,14 +1,20 @@
 import { count, inArray, useLiveQuery } from '@tanstack/react-db';
-import { Bell, LayoutGrid, MessageCircle, Settings } from 'lucide-react';
-
-import { useLiveQuery as useColanodeLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import {
+  Bell,
+  LayoutGrid,
+  MessageCircle,
+  Search,
+  Settings,
+} from 'lucide-react';
 
 import { SidebarMenuType, UploadStatus } from '@colanode/client/types';
 import { SidebarMenuFooter } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer';
 import { SidebarMenuHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-header';
 import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-icon';
 import { useRadar } from '@colanode/ui/contexts/radar';
+import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useLiveQuery as useColanodeLiveQuery } from '@colanode/ui/hooks/use-live-query';
 
 interface SidebarMenuProps {
   value: SidebarMenuType;
@@ -18,6 +24,7 @@ interface SidebarMenuProps {
 export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
   const workspace = useWorkspace();
   const radar = useRadar();
+  const search = useSearch();
 
   const chatsState = radar.getChatsState(workspace.userId);
   const channelsState = radar.getChannelsState(workspace.userId);
@@ -52,6 +59,13 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
     <div className="flex flex-col h-full w-[65px] min-w-[65px] items-center">
       <SidebarMenuHeader />
       <div className="flex flex-col gap-1 mt-2 w-full p-2 items-center grow">
+        <SidebarMenuIcon
+          icon={Search}
+          label="Search"
+          onClick={() => {
+            search.setOpen(true);
+          }}
+        />
         <SidebarMenuIcon
           icon={MessageCircle}
           label="Chats"
