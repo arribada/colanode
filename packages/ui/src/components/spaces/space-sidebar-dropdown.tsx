@@ -5,6 +5,7 @@ import {
   Folder,
   MessageCircle,
   Plus,
+  Presentation,
   Settings,
   StickyNote,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { WhiteboardCreateDialog } from '@colanode/ui/components/whiteboards/whiteboard-create-dialog';
 
 interface SpaceSidebarDropdownProps {
   space: LocalSpaceNode;
@@ -35,6 +37,7 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
   const [openCreateChannel, setOpenCreateChannel] = useState(false);
   const [openCreateDatabase, setOpenCreateDatabase] = useState(false);
   const [openCreateFolder, setOpenCreateFolder] = useState(false);
+  const [openCreateWhiteboard, setOpenCreateWhiteboard] = useState(false);
 
   return (
     <Fragment>
@@ -77,6 +80,13 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
           >
             <Folder className="size-4" />
             <span>Add folder</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => setOpenCreateWhiteboard(true)}
+            className="flex flex-row items-center gap-2 cursor-pointer"
+          >
+            <Presentation className="size-4" />
+            <span>Add whiteboard</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -131,6 +141,13 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
           spaceId={space.id}
           open={openCreateFolder}
           onOpenChange={setOpenCreateFolder}
+        />
+      )}
+      {openCreateWhiteboard && (
+        <WhiteboardCreateDialog
+          spaceId={space.id}
+          open={openCreateWhiteboard}
+          onOpenChange={setOpenCreateWhiteboard}
         />
       )}
     </Fragment>

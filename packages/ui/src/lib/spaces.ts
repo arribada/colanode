@@ -23,11 +23,18 @@ export const sortSpaceChildren = (
   });
 };
 
-const SPACE_CHILD_TYPE_ORDER = ['channel', 'page', 'database', 'folder'];
+const SPACE_CHILD_TYPE_ORDER = [
+  'channel',
+  'page',
+  'whiteboard',
+  'database',
+  'folder',
+];
 
 const SPACE_CHILD_TYPE_LABELS: Record<string, string> = {
   channel: 'Channels',
   page: 'Pages',
+  whiteboard: 'Whiteboards',
   database: 'Databases',
   folder: 'Folders',
 };

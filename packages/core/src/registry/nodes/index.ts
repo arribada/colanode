@@ -8,6 +8,7 @@ import { MessageAttributes, messageModel } from './message';
 import { PageAttributes, pageModel } from './page';
 import { RecordAttributes, recordModel } from './record';
 import { SpaceAttributes, spaceModel } from './space';
+import { WhiteboardAttributes, whiteboardModel } from './whiteboard';
 
 type NodeBase = {
   id: string;
@@ -39,6 +40,8 @@ export type MessageNode = NodeBase & MessageAttributes;
 
 export type FileNode = NodeBase & FileAttributes;
 
+export type WhiteboardNode = NodeBase & WhiteboardAttributes;
+
 export type NodeType = NodeAttributes['type'];
 
 export type NodeAttributes =
@@ -51,7 +54,8 @@ export type NodeAttributes =
   | RecordAttributes
   | MessageAttributes
   | FileAttributes
-  | DatabaseViewAttributes;
+  | DatabaseViewAttributes
+  | WhiteboardAttributes;
 
 export type Node =
   | SpaceNode
@@ -63,7 +67,8 @@ export type Node =
   | PageNode
   | RecordNode
   | MessageNode
-  | FileNode;
+  | FileNode
+  | WhiteboardNode;
 
 export const getNodeModel = (type: NodeType) => {
   switch (type) {
@@ -87,5 +92,7 @@ export const getNodeModel = (type: NodeType) => {
       return messageModel;
     case 'file':
       return fileModel;
+    case 'whiteboard':
+      return whiteboardModel;
   }
 };

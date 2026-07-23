@@ -7,6 +7,7 @@ import { FileSettings } from '@colanode/ui/components/files/file-settings';
 import { FolderSettings } from '@colanode/ui/components/folders/folder-settings';
 import { PageSettings } from '@colanode/ui/components/pages/page-settings';
 import { RecordSettings } from '@colanode/ui/components/records/record-settings';
+import { WhiteboardSettings } from '@colanode/ui/components/whiteboards/whiteboard-settings';
 
 interface NodeSettingsProps {
   node: LocalNode;
@@ -40,6 +41,10 @@ export const NodeSettings = ({ node, role }: NodeSettingsProps) => {
 
   if (node.type === 'record') {
     return <RecordSettings record={node} role={role} />;
+  }
+
+  if (node.type === 'whiteboard') {
+    return <WhiteboardSettings whiteboard={node} role={role} />;
   }
 
   return null;
