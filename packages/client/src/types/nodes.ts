@@ -10,6 +10,7 @@ import {
   SpaceNode,
   MessageNode,
   RecordNode,
+  WhiteboardNode,
 } from '@colanode/core';
 
 export type NodeCollaborator = {
@@ -85,6 +86,8 @@ export type LocalMessageNode = MessageNode & LocalNodeBase;
 
 export type LocalSpaceNode = SpaceNode & LocalNodeBase;
 
+export type LocalWhiteboardNode = WhiteboardNode & LocalNodeBase;
+
 export type LocalNode =
   | LocalChannelNode
   | LocalChatNode
@@ -95,4 +98,5 @@ export type LocalNode =
   | LocalPageNode
   | LocalRecordNode
   | LocalMessageNode
-  | LocalSpaceNode;
+  | LocalSpaceNode
+  | LocalWhiteboardNode;
