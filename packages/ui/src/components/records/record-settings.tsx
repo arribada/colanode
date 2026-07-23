@@ -1,5 +1,6 @@
-import { Copy, Settings, Trash2 } from 'lucide-react';
+import { Copy, FileStack, Settings, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
+import { toast } from 'sonner';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
@@ -14,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
 interface RecordSettingsProps {
   record: LocalRecordNode;
@@ -22,9 +24,13 @@ interface RecordSettingsProps {
 
 export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const workspace = useWorkspace();
+  const { mutate: saveAsTemplate, isPending: isSavingAsTemplate } =
+    useMutation();
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const canDelete =
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
+  const canSaveAsTemplate =
+    hasNodeRole(role, 'collaborator') && !record.isTemplate;
 
   return (
     <Fragment>
@@ -44,6 +50,33 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
           <DropdownMenuItem className="flex items-center gap-2" disabled>
             <Copy className="size-4" />
             Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            data-testid="record-save-as-template-button"
+            disabled={!canSaveAsTemplate || isSavingAsTemplate}
+            onClick={() => {
+              if (!canSaveAsTemplate || isSavingAsTemplate) {
+                return;
+              }
+
+              saveAsTemplate({
+                input: {
+                  type: 'record.template.save',
+                  userId: workspace.userId,
+                  recordId: record.id,
+                },
+                onSuccess() {
+                  toast.success('Saved as template');
+                },
+                onError(error) {
+                  toast.error(error.message);
+                },
+              });
+            }}
+          >
+            <FileStack className="size-4" />
+            Save as template
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

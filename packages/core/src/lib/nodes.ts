@@ -90,3 +90,21 @@ export const isNodeTrashed = (
     node.deletedAt.length > 0
   );
 };
+
+// Node types that support templates. Saving a record/page as a template
+// deep-copies it into a new node of the same type with isTemplate set; the
+// source node is left untouched. Template nodes are hidden from the shared
+// browsing collection (see notTemplateSql in @colanode/client) and are only
+// listed through the dedicated record.template.list / page.template.list
+// queries and "New from template" menus.
+export const templatableNodeTypes: NodeType[] = ['page', 'record'];
+
+export const isTemplatableNodeType = (type: NodeType): boolean => {
+  return templatableNodeTypes.includes(type);
+};
+
+export const isNodeTemplate = (
+  node: Node | NodeAttributes | { isTemplate?: boolean | null }
+): boolean => {
+  return 'isTemplate' in node && node.isTemplate === true;
+};
