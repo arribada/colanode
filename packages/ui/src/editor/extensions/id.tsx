@@ -24,6 +24,7 @@ const types = [
   EditorNodeTypes.ToggleSummary,
   EditorNodeTypes.ToggleContent,
   EditorNodeTypes.Callout,
+  EditorNodeTypes.MathBlock,
 ];
 
 export const IdExtension = Extension.create({

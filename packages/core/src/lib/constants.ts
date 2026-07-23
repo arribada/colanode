@@ -23,6 +23,8 @@ export const EditorNodeTypes = {
   ToggleSummary: 'toggleSummary',
   ToggleContent: 'toggleContent',
   Callout: 'callout',
+  MathBlock: 'mathBlock',
+  MathInline: 'mathInline',
 };
 
 export type SortDirection = 'asc' | 'desc';

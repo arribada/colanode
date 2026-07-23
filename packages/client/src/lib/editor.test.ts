@@ -138,3 +138,71 @@ describe('mapContentsToBlocks with callout blocks', () => {
     expect(callout?.content?.[0]?.content?.[0]?.text).toBe('Important note');
   });
 });
+
+const mathContents: JSONContent[] = [
+  {
+    type: 'mathBlock',
+    attrs: { id: 'math1', latex: '\\frac{a}{b}' },
+  },
+  {
+    type: 'paragraph',
+    attrs: { id: 'p3' },
+    content: [
+      { type: 'text', text: 'Euler: ' },
+      {
+        type: 'mathInline',
+        attrs: { id: 'mi1', latex: 'e^{i\\pi} + 1 = 0' },
+      },
+    ],
+  },
+];
+
+describe('mapContentsToBlocks with math nodes', () => {
+  const blocks = mapContentsToBlocks('doc1', mathContents, new Map());
+
+  it('maps mathBlock as a leaf block preserving the latex attr', () => {
+    const math = blocks['math1'];
+    expect(math).toBeDefined();
+    expect(math?.type).toBe('mathBlock');
+    expect(math?.parentId).toBe('doc1');
+    expect(math?.attrs).toEqual({ latex: '\\frac{a}{b}' });
+    expect(math?.content ?? null).toBeNull();
+  });
+
+  it('never creates child blocks under a mathBlock', () => {
+    const children = Object.values(blocks).filter(
+      (block) => block.parentId === 'math1'
+    );
+    expect(children).toHaveLength(0);
+  });
+
+  it('maps mathInline as an inline leaf of its paragraph', () => {
+    const paragraph = blocks['p3'];
+    expect(paragraph).toBeDefined();
+    expect(paragraph?.content).toEqual([
+      { type: 'text', text: 'Euler: ', attrs: undefined, marks: undefined },
+      {
+        type: 'mathInline',
+        text: undefined,
+        attrs: { id: 'mi1', latex: 'e^{i\\pi} + 1 = 0' },
+        marks: undefined,
+      },
+    ]);
+  });
+
+  it('round-trips math nodes through mapBlocksToContents', () => {
+    const contents = mapBlocksToContents('doc1', Object.values(blocks));
+    expect(contents).toHaveLength(2);
+
+    const math = contents[0];
+    expect(math?.type).toBe('mathBlock');
+    expect(math?.attrs).toEqual({ id: 'math1', latex: '\\frac{a}{b}' });
+    expect(math?.content).toBeUndefined();
+
+    const paragraph = contents[1];
+    expect(paragraph?.type).toBe('paragraph');
+    const inline = paragraph?.content?.[1];
+    expect(inline?.type).toBe('mathInline');
+    expect(inline?.attrs).toEqual({ id: 'mi1', latex: 'e^{i\\pi} + 1 = 0' });
+  });
+});

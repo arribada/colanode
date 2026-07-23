@@ -33,6 +33,9 @@ const leafBlockTypes = new Set([
   // toggleSummary holds the inline text of a toggle block; toggle,
   // toggleContent and callout are containers and must NOT be listed here.
   EditorNodeTypes.ToggleSummary,
+  // mathBlock is an atom: its LaTeX source lives in attrs, it never has
+  // child blocks, so it is a leaf (with empty content) like horizontalRule.
+  EditorNodeTypes.MathBlock,
 ]);
 
 export const mapContentsToBlocks = (

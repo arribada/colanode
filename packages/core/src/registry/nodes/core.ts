@@ -13,6 +13,16 @@ export const nodeRoleEnum = z.enum([
   'viewer',
 ]);
 
+// Optional decorative banner shown at the top of a node container (pages and
+// records). The value is a preset key resolved by the UI; unknown values fall
+// back to a neutral banner so the palette can evolve safely.
+export const nodeCoverSchema = z.object({
+  type: z.enum(['color', 'gradient']),
+  value: z.string(),
+});
+
+export type NodeCover = z.infer<typeof nodeCoverSchema>;
+
 export interface NodeMutationUser {
   id: string;
   role: WorkspaceRole;
