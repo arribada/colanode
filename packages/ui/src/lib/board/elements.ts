@@ -7,7 +7,6 @@ import {
   BoardElementType,
   BoardScene,
 } from '@colanode/core';
-
 import {
   generateKeyBetween,
   keyAfterAll,

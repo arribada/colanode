@@ -3,7 +3,6 @@
 // Retro, Flowchart, SWOT.
 
 import { BoardElement, BoardScene } from '@colanode/core';
-
 import {
   createElement,
   CreateElementInput,

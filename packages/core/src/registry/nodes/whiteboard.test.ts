@@ -151,10 +151,10 @@ describe('whiteboardModel.extractText', () => {
       },
     });
 
-    expect(result.name).toBe('Brainstorm');
-    expect(result.attributes).toContain('Idea one');
-    expect(result.attributes).toContain('links');
-    expect(result.attributes).not.toContain('rect');
+    expect(result?.name).toBe('Brainstorm');
+    expect(result?.attributes).toContain('Idea one');
+    expect(result?.attributes).toContain('links');
+    expect(result?.attributes).not.toContain('rect');
   });
 
   it('returns null attributes when there is no scene', () => {
