@@ -6,6 +6,12 @@ import { defineConfig } from 'vitest/config';
 // (e.g. @colanode/client/lib/mappers) resolve via directory aliasing
 // rather than the package `exports` map, matching apps/web/vite.config.js.
 export default defineConfig({
+  test: {
+    // Only run source tests; a stray tsc build would otherwise duplicate
+    // every test under dist/ where the path-based vi.mock specifiers no
+    // longer match and module-scope singletons execute unmocked.
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
   resolve: {
     alias: {
       '@colanode/core': resolve(__dirname, '../core/src'),
