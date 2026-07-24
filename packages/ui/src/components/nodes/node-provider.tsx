@@ -3,6 +3,7 @@ import { ReactNode } from 'react';
 
 import { LocalNode } from '@colanode/client/types';
 import { extractNodeRole } from '@colanode/core';
+import { NodeContainerSkeleton } from '@colanode/ui/components/nodes/node-container-skeleton';
 import { NodeContext, NodeContextValue } from '@colanode/ui/contexts/node';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
@@ -51,7 +52,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
   );
 
   if (nodeQuery.isLoading) {
-    return null;
+    return <NodeContainerSkeleton />;
   }
 
   const node = nodeQuery.data;
