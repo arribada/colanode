@@ -179,6 +179,12 @@ export const WhiteboardCanvas = ({
     }
   }, [whiteboard.scene]);
 
+  // Announce presence on mount so the "who's viewing" stack shows this user
+  // even before they move the pointer.
+  useEffect(() => {
+    publishPresence({ selectedElementIds: [], editingElementId: null });
+  }, [publishPresence]);
+
   // Re-broadcast presence when the local selection / inline-edit changes so
   // remote collaborators see it even if the pointer is not moving.
   useEffect(() => {
