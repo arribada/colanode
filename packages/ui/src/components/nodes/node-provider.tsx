@@ -11,19 +11,29 @@ const buildContextValue = (
   node: LocalNode,
   parentContext: NodeContextValue | null,
   userId: string
-): NodeContextValue => {
-  const breadcrumb = parentContext
-    ? [...parentContext.breadcrumb, node]
-    : [node];
-  const root = parentContext ? parentContext.root : node;
+): NodeContextValue | null => {
+  const breadcrumb =
+    parentContext != null && Array.isArray(parentContext.breadcrumb)
+      ? [...parentContext.breadcrumb, node]
+      : [node];
+  const root =
+    parentContext != null && Array.isArray(parentContext.breadcrumb)
+      ? parentContext.root
+      : node;
 
   // Resolve the role from the full ancestor chain (root -> node), not just
   // the root, so that node-level collaborators (e.g. on a page or database)
   // are honored in addition to space-level ones.
   const role = extractNodeRole(breadcrumb, userId);
 
+  // The role can be transiently unresolvable while the ancestor chain is still
+  // syncing (e.g. the root space node that carries this user's collaborator
+  // grant has a high revision that arrives late in the initial sync of a large
+  // workspace). Returning null lets the caller render a loading skeleton instead
+  // of throwing a hard error that the router error boundary latches onto
+  // permanently — the live query re-runs and resolves once the space arrives.
   if (!role) {
-    throw new Error('Node role not found');
+    return null;
   }
 
   return {
@@ -71,6 +81,10 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
               workspace.userId
             );
 
+            if (!value) {
+              return <NodeContainerSkeleton />;
+            }
+
             return (
               <NodeContext.Provider value={value}>
                 {children}
@@ -83,5 +97,8 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
   }
 
   const value = buildContextValue(node, null, workspace.userId);
+  if (!value) {
+    return <NodeContainerSkeleton />;
+  }
   return <NodeContext.Provider value={value}>{children}</NodeContext.Provider>;
 };

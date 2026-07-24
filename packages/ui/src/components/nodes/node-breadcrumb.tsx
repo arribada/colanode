@@ -43,7 +43,7 @@ export const NodeBreadcrumb = ({ nodes }: NodeBreadcrumbProps) => {
           return (
             <Fragment key={item.id}>
               {!isFirst && <BreadcrumbSeparator />}
-              <BreadcrumbItem className="cursor-pointer hover:text-foreground">
+              <BreadcrumbItem className="max-w-[180px] cursor-pointer truncate hover:text-foreground [&_span]:truncate">
                 <Link
                   from="/workspace/$userId"
                   to="$nodeId"
