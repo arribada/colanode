@@ -25,7 +25,6 @@ import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
-import { usePresences, usePresencePublisher } from '@colanode/ui/hooks/use-presence';
 import {
   BlockquoteCommand,
   BulletListCommand,
@@ -104,6 +103,10 @@ import {
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
+import {
+  usePresences,
+  usePresencePublisher,
+} from '@colanode/ui/hooks/use-presence';
 
 interface DocumentEditorProps {
   node: LocalNode;

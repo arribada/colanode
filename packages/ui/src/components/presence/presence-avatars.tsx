@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 
 import { PresenceState } from '@colanode/core';
-import { cn } from '@colanode/ui/lib/utils';
 import { presenceInitials } from '@colanode/ui/lib/presence';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface PresenceAvatarsProps {
   presences: PresenceState[];

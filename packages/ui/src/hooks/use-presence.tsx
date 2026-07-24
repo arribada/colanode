@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { PresenceKind, PresencePayload, PresenceState } from '@colanode/core';
-import { useQuery } from '@colanode/ui/hooks/use-query';
-import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import { useQuery } from '@colanode/ui/hooks/use-query';
 import { presenceColor } from '@colanode/ui/lib/presence';
 
 // Minimum gap between two presence broadcasts for the same node. The publisher

@@ -1,7 +1,7 @@
 import { Editor, Extension } from '@tiptap/core';
+import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 import { withAlpha } from '@colanode/ui/lib/presence';
 
