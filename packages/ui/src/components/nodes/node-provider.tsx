@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { LocalNode } from '@colanode/client/types';
 import { extractNodeRole } from '@colanode/core';
 import { NodeContainerSkeleton } from '@colanode/ui/components/nodes/node-container-skeleton';
+import { NodeUnavailable } from '@colanode/ui/components/nodes/node-unavailable';
 import { NodeContext, NodeContextValue } from '@colanode/ui/contexts/node';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
@@ -67,7 +68,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
 
   const node = nodeQuery.data;
   if (!node) {
-    return null;
+    return <NodeUnavailable />;
   }
 
   if (node.parentId) {
@@ -82,7 +83,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
             );
 
             if (!value) {
-              return <NodeContainerSkeleton />;
+              return <NodeUnavailable />;
             }
 
             return (
@@ -98,7 +99,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
 
   const value = buildContextValue(node, null, workspace.userId);
   if (!value) {
-    return <NodeContainerSkeleton />;
+    return <NodeUnavailable />;
   }
   return <NodeContext.Provider value={value}>{children}</NodeContext.Provider>;
 };

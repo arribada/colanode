@@ -1,8 +1,11 @@
 import { count, inArray, useLiveQuery } from '@tanstack/react-db';
 import {
   Bell,
+  FolderKanban,
   LayoutGrid,
   MessageCircle,
+  MessagesSquare,
+  Satellite,
   Search,
   Settings,
 } from 'lucide-react';
@@ -17,6 +20,26 @@ import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import { useLiveQuery as useColanodeLiveQuery } from '@colanode/ui/hooks/use-live-query';
+
+// External links to the other Arribada apps, opened via
+// window.colanode.openExternalUrl so it works on web and desktop.
+const ARRIBADA_APPS = [
+  {
+    icon: FolderKanban,
+    label: 'Plane — Projets',
+    url: 'https://plane.arribada.org',
+  },
+  {
+    icon: Satellite,
+    label: 'Dashboard Devices',
+    url: 'https://devices.arribada.org',
+  },
+  {
+    icon: MessagesSquare,
+    label: 'Chat',
+    url: 'https://chat.arribada.org',
+  },
+] as const;
 
 interface SidebarMenuProps {
   value: SidebarMenuType;
@@ -119,6 +142,15 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
             maxCount: 99,
           }}
         />
+        <div className="my-1 h-px w-8 bg-sidebar-border" />
+        {ARRIBADA_APPS.map((app) => (
+          <SidebarMenuIcon
+            key={app.url}
+            icon={app.icon}
+            label={app.label}
+            onClick={() => window.colanode.openExternalUrl(app.url)}
+          />
+        ))}
         <div className="mt-auto" />
         <SidebarMenuIcon
           icon={Settings}

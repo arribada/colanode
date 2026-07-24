@@ -3,6 +3,7 @@ import { NodeRole, hasNodeRole } from '@colanode/core';
 import { Document } from '@colanode/ui/components/documents/document';
 import { DocumentBacklinks } from '@colanode/ui/components/documents/document-backlinks';
 import { NodeCoverBanner } from '@colanode/ui/components/nodes/node-cover';
+import { PageChildren } from '@colanode/ui/components/pages/page-children';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 interface PageContainerProps {
@@ -40,6 +41,7 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
         // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: primary field (page title/content) focused when the page is opened
         autoFocus="start"
       />
+      <PageChildren nodeId={page.id} />
       <DocumentBacklinks nodeId={page.id} />
     </div>
   );
