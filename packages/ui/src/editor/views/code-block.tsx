@@ -24,7 +24,7 @@ import {
   ScrollBar,
 } from '@colanode/ui/components/ui/scroll-area';
 import { defaultClasses } from '@colanode/ui/editor/classes';
-import { languages } from '@colanode/ui/lib/lowlight';
+import { ensureLanguageRegistered, languages } from '@colanode/ui/lib/lowlight';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const CodeBlockNodeView = ({
@@ -63,6 +63,7 @@ export const CodeBlockNodeView = ({
                           key={languageItem.code}
                           value={`${languageItem.code} - ${languageItem.name}`}
                           onSelect={() => {
+                            void ensureLanguageRegistered(languageItem.code);
                             updateAttributes({
                               language: languageItem.code,
                             });

@@ -1,6 +1,46 @@
-import { all, createLowlight } from 'lowlight';
-export const lowlight = createLowlight(all);
-const lowlightLanguages = lowlight.listLanguages();
+import type { LanguageFn } from 'highlight.js';
+import { common, createLowlight } from 'lowlight';
+
+// Only the ~38 "common" grammars are registered eagerly. The remaining
+// ~150 highlight.js languages in `languages` below are dynamically
+// imported and registered the first time a document actually uses them
+// (see `ensureLanguageRegistered`), so users who never touch an obscure
+// language never pay for its grammar in the main bundle.
+export const lowlight = createLowlight(common);
+
+const pendingLanguages = new Map<string, Promise<void>>();
+
+// Dynamically imports and registers a single highlight.js language grammar
+// on the shared lowlight instance. Idempotent and safe to call from
+// anywhere (fire-and-forget): until the import resolves, lowlight/
+// CodeBlockLowlight fall back to auto-detection, so there is no crash
+// risk -- just a brief lower-fidelity highlight on first use of a
+// non-common language.
+export const ensureLanguageRegistered = (language: string): Promise<void> => {
+  if (lowlight.registered(language)) {
+    return Promise.resolve();
+  }
+
+  const pending = pendingLanguages.get(language);
+  if (pending) {
+    return pending;
+  }
+
+  const promise = import(`highlight.js/lib/languages/${language}`)
+    .then((module: { default: LanguageFn }) => {
+      lowlight.register({ [language]: module.default });
+    })
+    .catch(() => {
+      // Unknown/invalid language code -- nothing to register, callers
+      // already fall back to auto-detected highlighting.
+    })
+    .finally(() => {
+      pendingLanguages.delete(language);
+    });
+
+  pendingLanguages.set(language, promise);
+  return promise;
+};
 
 interface CodeHighlightNode {
   text: string;
@@ -241,10 +281,17 @@ export const highlightCode = (
   language?: string
 ): CodeHighlight | null => {
   try {
-    const result =
-      language && lowlightLanguages.includes(language)
-        ? lowlight.highlight(language, code)
-        : lowlight.highlightAuto(code);
+    const isRegistered = Boolean(language) && lowlight.registered(language!);
+    if (language && !isRegistered) {
+      // Best-effort now via auto-detect below; kick off a background
+      // import so this language is properly highlighted on the next
+      // render (e.g. reopening this document later).
+      void ensureLanguageRegistered(language);
+    }
+
+    const result = isRegistered
+      ? lowlight.highlight(language!, code)
+      : lowlight.highlightAuto(code);
 
     const nodes = parseNodes(result.children);
     return {
