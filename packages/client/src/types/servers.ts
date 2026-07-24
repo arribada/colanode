@@ -3,6 +3,11 @@ export type ServerAccountAttributes = {
     enabled: boolean;
     clientId: string;
   };
+  oidc?: {
+    enabled: boolean;
+    authorizeUrl?: string;
+    buttonLabel?: string;
+  };
 };
 
 export type ServerAttributes = {

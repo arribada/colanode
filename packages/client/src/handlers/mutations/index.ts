@@ -17,6 +17,7 @@ import { EmailPasswordResetInitMutationHandler } from './auth/email-password-res
 import { EmailRegisterMutationHandler } from './auth/email-register';
 import { EmailVerifyMutationHandler } from './auth/email-verify';
 import { GoogleLoginMutationHandler } from './auth/google-login';
+import { OidcLoginMutationHandler } from './auth/oidc-login';
 import { AvatarUploadMutationHandler } from './avatars/avatar-upload';
 import { ChatCreateMutationHandler } from './chats/chat-create';
 import { DocumentRestoreMutationHandler } from './documents/document-restore';
@@ -70,6 +71,7 @@ export const buildMutationHandlerMap = (
     'email.register': new EmailRegisterMutationHandler(app),
     'email.verify': new EmailVerifyMutationHandler(app),
     'google.login': new GoogleLoginMutationHandler(app),
+    'oidc.login': new OidcLoginMutationHandler(app),
     'node.delete': new NodeDeleteMutationHandler(app),
     'node.create': new NodeCreateMutationHandler(app),
     'node.trash': new NodeTrashMutationHandler(app),
