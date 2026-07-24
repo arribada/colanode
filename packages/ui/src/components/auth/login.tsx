@@ -6,6 +6,7 @@ import { LoginOutput } from '@colanode/core';
 import { LoginForm } from '@colanode/ui/components/auth/email-login-form';
 import { EmailVerifyForm } from '@colanode/ui/components/auth/email-verify-form';
 import { GoogleLogin } from '@colanode/ui/components/auth/google-login';
+import { OidcLogin } from '@colanode/ui/components/auth/oidc-login';
 import { Button } from '@colanode/ui/components/ui/button';
 import { useAuth } from '@colanode/ui/contexts/auth';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
@@ -160,6 +161,12 @@ export const Login = () => {
               context="login"
               onLogin={handleGoogleLogin}
               isPending={isGoogleLoginPending}
+            />
+            <OidcLogin
+              context="login"
+              disabled={
+                isEmailLoginPending || isEmailVerifyPending || isGoogleLoginPending
+              }
             />
             <Button
               variant="link"

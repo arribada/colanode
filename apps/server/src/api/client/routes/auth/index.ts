@@ -10,6 +10,7 @@ import { emailRegisterRoute } from './email-register';
 import { emailVerifyRoute } from './email-verify';
 import { googleLoginRoute } from './google-login';
 import { logoutRoute } from './logout';
+import { oidcLoginRoute } from './oidc-login';
 
 export const authRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register((subInstance) => {
@@ -21,6 +22,7 @@ export const authRoutes: FastifyPluginCallback = (instance, _, done) => {
     subInstance.register(emailPasswordResetInitRoute);
     subInstance.register(emailPasswordResetCompleteRoute);
     subInstance.register(googleLoginRoute);
+    subInstance.register(oidcLoginRoute);
   });
 
   instance.register((subInstance) => {

@@ -10,8 +10,22 @@ export const serverGoogleConfigSchema = z.discriminatedUnion('enabled', [
   }),
 ]);
 
+export const serverOidcConfigSchema = z.discriminatedUnion('enabled', [
+  z.object({
+    enabled: z.literal(true),
+    authorizeUrl: z.string(),
+    buttonLabel: z.string(),
+  }),
+  z.object({
+    enabled: z.literal(false),
+  }),
+]);
+
+export type ServerOidcConfig = z.infer<typeof serverOidcConfigSchema>;
+
 export const serverAccountConfigSchema = z.object({
   google: serverGoogleConfigSchema,
+  oidc: serverOidcConfigSchema.optional(),
 });
 
 export const serverPushConfigSchema = z.discriminatedUnion('enabled', [

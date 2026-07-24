@@ -6,6 +6,7 @@ import { LoginOutput } from '@colanode/core';
 import { RegisterForm } from '@colanode/ui/components/auth/email-register-form';
 import { EmailVerifyForm } from '@colanode/ui/components/auth/email-verify-form';
 import { GoogleLogin } from '@colanode/ui/components/auth/google-login';
+import { OidcLogin } from '@colanode/ui/components/auth/oidc-login';
 import { Button } from '@colanode/ui/components/ui/button';
 import { useAuth } from '@colanode/ui/contexts/auth';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
@@ -163,6 +164,14 @@ export const Register = () => {
               context="register"
               onLogin={handleGoogleRegister}
               isPending={isGoogleRegisterPending}
+            />
+            <OidcLogin
+              context="register"
+              disabled={
+                isEmailRegisterPending ||
+                isEmailVerifyPending ||
+                isGoogleRegisterPending
+              }
             />
             <Button
               variant="link"

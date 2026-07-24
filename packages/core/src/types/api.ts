@@ -16,6 +16,7 @@ export enum ApiErrorCode {
   AccountPendingVerification = 'account_pending_verification',
   EmailOrPasswordIncorrect = 'email_or_password_incorrect',
   GoogleAuthFailed = 'google_auth_failed',
+  OidcAuthFailed = 'oidc_auth_failed',
   AccountCreationFailed = 'account_creation_failed',
   EmailAlreadyExists = 'email_already_exists',
   AvatarNotFound = 'avatar_not_found',

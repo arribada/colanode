@@ -6,6 +6,7 @@ export * from './auth/email-password-reset-init';
 export * from './auth/email-register';
 export * from './auth/email-verify';
 export * from './auth/google-login';
+export * from './auth/oidc-login';
 export * from './apps/metadata-delete';
 export * from './apps/metadata-update';
 export * from './avatars/avatar-upload';

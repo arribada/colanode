@@ -42,6 +42,51 @@ The server reads configuration from a JSON file, or falls back to schema default
 - Values can reference `env://VAR_NAME` or `file://path/to/secret` for secrets.
 - `postgres.url` is required and defaults to `env://POSTGRES_URL`.
 
+### SSO / generic OIDC login
+
+In addition to Google (`account.google`), the server supports logging in via
+any standards-compliant OIDC/OAuth2 provider (e.g. a self-hosted
+GitLab-compatible identity provider), configured under `account.oidc` in
+`config.example.json`:
+
+```json
+"oidc": {
+  "enabled": true,
+  "issuer": "https://your-oidc-provider.example.com",
+  "clientId": "env://ACCOUNT_OIDC_CLIENT_ID",
+  "clientSecret": "env://ACCOUNT_OIDC_CLIENT_SECRET",
+  "redirectUri": "https://your-colanode-domain.example.com/auth/sso-callback",
+  "scopes": "openid profile email",
+  "buttonLabel": "Continue with SSO"
+}
+```
+
+- `issuer` — the provider's base URL; endpoints are discovered from
+  `${issuer}/.well-known/openid-configuration` (cached in memory after the
+  first successful discovery). Alternatively, set `authorizationUrl` +
+  `tokenUrl` + `userinfoUrl` explicitly to skip discovery — these take
+  precedence over `issuer` when present.
+- `clientId` / `clientSecret` — register Colanode as an OAuth2 application
+  on the provider first; `redirectUri` below must match exactly what's
+  registered there.
+- `redirectUri` — must be `https://<your-colanode-web-domain>/auth/sso-callback`
+  (the client route that finishes the login after the provider redirects
+  back). This is also the value sent in the authorization request, so it
+  must be registered on the provider's side too.
+- `scopes` — space-separated; must include `openid` and should include a
+  scope that returns an email claim (`email`).
+- `buttonLabel` — text shown on the login/register button, e.g.
+  `"Se connecter avec Arribada"`.
+- The account's email is trusted as verified unless the provider's
+  userinfo response explicitly sets `email_verified: false` — most
+  self-hosted OIDC providers don't send this claim at all, and an admin
+  who configured `issuer`/`clientId`/`clientSecret` is presumed to trust
+  that provider's identity assertions.
+- Set `ACCOUNT_OIDC_CLIENT_ID` and `ACCOUNT_OIDC_CLIENT_SECRET` (or
+  whichever env vars the `env://` references above point to) wherever the
+  server's environment is configured (compose file, k8s secret, etc.) —
+  never commit real values into `config.local.json`.
+
 ## Code map
 
 - `apps/server/src/api`: HTTP + WebSocket routes and plugins.
