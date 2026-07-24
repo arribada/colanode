@@ -16,6 +16,25 @@ import { VitePWA } from 'vite-plugin-pwa';
 // fetch+cache.
 const PRECACHE_SIZE_LIMIT_BYTES = 250 * 1024; // 250KB
 const ALWAYS_PRECACHE_PREFIXES = ['assets/dedicated-', 'assets/sqlite3-worker1-'];
+// These are exactly the chunks the route/feature-level code-splitting in
+// packages/ui produces (the TipTap document editor and the 5 database view
+// renderers -- table/board/calendar/gallery/list), plus the pre-existing
+// lazy KaTeX and whiteboard-canvas chunks. All of them are read/authoring
+// surfaces a viewer who only skims a page shouldn't pay for on install --
+// exclude them from the precache regardless of size (they're still small
+// today, but the point of lazy-loading them is that the SW shouldn't
+// blanket-fetch them either). The same-origin StaleWhileRevalidate route
+// below still runtime-caches each one the first time it's actually used.
+const RUNTIME_ONLY_PREFIXES = [
+  'assets/document-editor-',
+  'assets/table-view-',
+  'assets/board-view-',
+  'assets/calendar-view-',
+  'assets/gallery-view-',
+  'assets/list-view-',
+  'assets/katex-render-',
+  'assets/whiteboard-canvas-',
+];
 const LOCALE_CHUNK_RE = /^assets\/[a-z]{2}-[A-Z]{2}-.*\.js$/;
 
 const trimPrecacheManifest = (entries) => {
@@ -35,7 +54,21 @@ const trimPrecacheManifest = (entries) => {
     if (ALWAYS_PRECACHE_PREFIXES.some((prefix) => entry.url.startsWith(prefix))) {
       return true;
     }
+    if (RUNTIME_ONLY_PREFIXES.some((prefix) => entry.url.startsWith(prefix))) {
+      return false;
+    }
     if (LOCALE_CHUNK_RE.test(entry.url)) {
+      return false;
+    }
+    // Dynamic import()s that don't have an obvious name to derive a chunk
+    // name from (e.g. tus-js-client, dynamic-imported from inside the
+    // dedicated worker only when a file upload actually starts -- see
+    // packages/client/src/jobs/file-upload.ts) fall back to Rollup's
+    // generic "index-<hash>.js" naming, same prefix as the real entry. The
+    // real entry is already matched above via entryScriptUrl, so anything
+    // else matching that prefix is one of these on-demand chunks, not the
+    // app shell -- exclude it too.
+    if (/^assets\/index-[^/]+\.js$/.test(entry.url) && entry.url !== entryScriptUrl) {
       return false;
     }
     return (entry.size ?? 0) <= PRECACHE_SIZE_LIMIT_BYTES;
@@ -43,6 +76,51 @@ const trimPrecacheManifest = (entries) => {
 
   return { manifest };
 };
+
+// The dedicated worker (the client engine: sqlite/kysely/CRDT/sync services)
+// and sqlite3-worker1 (the OPFS-backed sqlite worker it talks to) are both
+// on the critical boot path -- app.init() can't do anything until both are
+// up -- but neither is reachable through Vite's static ESM import graph
+// (they're spawned via `new Worker(...)` at runtime), so Vite never emits a
+// modulepreload hint for them on its own. Inject one manually so the browser
+// starts fetching them in parallel with the entry script instead of only
+// discovering them after main.tsx has run and called `new Worker()`. KaTeX,
+// whiteboard-canvas and the editor/database-view chunks are deliberately
+// left alone here -- they're behind lazy()/dynamic import() and should stay
+// that way.
+const CRITICAL_WORKER_PRELOAD_PREFIXES = ['assets/dedicated-', 'assets/sqlite3-worker1-'];
+
+const preloadCriticalWorkers = () => ({
+  name: 'preload-critical-workers',
+  transformIndexHtml: {
+    order: 'post',
+    handler(html, ctx) {
+      const bundle = ctx.bundle;
+      if (!bundle) {
+        return html;
+      }
+
+      const hints = Object.keys(bundle)
+        .filter((fileName) =>
+          CRITICAL_WORKER_PRELOAD_PREFIXES.some((prefix) =>
+            fileName.startsWith(prefix)
+          )
+        )
+        .map(
+          (fileName) =>
+            `<link rel="modulepreload" crossorigin href="/${fileName}">`
+        )
+        .join('\n    ');
+
+      if (!hints) {
+        return html;
+      }
+
+      return html.replace('</head>', `    ${hints}\n  </head>`);
+    },
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
@@ -81,6 +159,7 @@ export default defineConfig({
   },
   plugins: [
     viteReact(),
+    preloadCriticalWorkers(),
     VitePWA({
       mode: 'development',
       base: '/',
