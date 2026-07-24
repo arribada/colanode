@@ -4,9 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { eventBus } from '@colanode/client/lib';
 import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
 import { BrowserNotSupported } from '@colanode/web/components/browser-not-supported';
-import { MobileNotSupported } from '@colanode/web/components/mobile-not-supported';
 import { ColanodeWorkerApi } from '@colanode/web/lib/types';
-import { isMobileDevice, isOpfsSupported } from '@colanode/web/lib/utils';
+import { isOpfsSupported } from '@colanode/web/lib/utils';
 import { Root } from '@colanode/web/root';
 import {
   disableWebPush,
@@ -29,13 +28,11 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 const initializeApp = async () => {
-  const isMobile = isMobileDevice() && localStorage.getItem('colanode-mobile-ok') !== '1';
-  if (isMobile) {
-    const root = createRoot(document.getElementById('root') as HTMLElement);
-    root.render(<MobileNotSupported />);
-    return;
-  }
-
+  // Phones and narrow viewports are supported by the responsive mobile
+  // layout (useIsMobile, SidebarMobile, LayoutMobile, comments-sheet -- see
+  // packages/ui), so we no longer gate rendering on a user-agent check here.
+  // OPFS is the only real hard requirement: the client engine needs it for
+  // local storage/sync, and there is no fallback.
   const hasOpfsSupport = await isOpfsSupported();
   if (!hasOpfsSupport) {
     const root = createRoot(document.getElementById('root') as HTMLElement);
