@@ -108,11 +108,13 @@ export class Synchronizer<TInput extends SynchronizerInput> {
 
     this.status = 'processing';
     let lastCursor: string | null = null;
+    let processedCount = 0;
 
     try {
       for (const item of message.items) {
         await this.processor(item.data);
         lastCursor = item.cursor;
+        processedCount++;
       }
     } catch (error) {
       debug(`Error consuming items: ${error}`);
@@ -120,6 +122,21 @@ export class Synchronizer<TInput extends SynchronizerInput> {
       if (lastCursor !== null) {
         this.cursor = lastCursor;
         await this.saveCursor(lastCursor);
+      }
+
+      // Best-effort progress signal for the UI's "Synchronisation..."
+      // indicator -- fire only when something was actually applied so an
+      // empty poll (caught up, nothing new) doesn't look like activity.
+      if (processedCount > 0) {
+        eventBus.publish({
+          type: 'workspace.sync.progress',
+          workspace: {
+            workspaceId: this.workspace.workspaceId,
+            userId: this.workspace.userId,
+            accountId: this.workspace.accountId,
+          },
+          itemCount: processedCount,
+        });
       }
 
       this.status = 'idle';

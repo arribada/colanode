@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { LocalSpaceNode } from '@colanode/client/types';
 import { SidebarHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-header';
 import { SidebarSettingsItem } from '@colanode/ui/components/layouts/sidebars/sidebar-settings-item';
+import { SidebarSpacesSkeleton } from '@colanode/ui/components/layouts/sidebars/sidebar-spaces-skeleton';
 import { SpaceCreateButton } from '@colanode/ui/components/spaces/space-create-button';
 import { SpaceSidebarItem } from '@colanode/ui/components/spaces/space-sidebar-item';
 import { Link } from '@colanode/ui/components/ui/link';
@@ -32,9 +33,11 @@ export const SidebarSpaces = () => {
         actions={canCreateSpace && <SpaceCreateButton />}
       />
       <div className="flex w-full min-w-0 flex-col gap-1">
-        {spaces.map((space) => (
-          <SpaceSidebarItem space={space} key={space.id} />
-        ))}
+        {spaceListQuery.isLoading ? (
+          <SidebarSpacesSkeleton />
+        ) : (
+          spaces.map((space) => <SpaceSidebarItem space={space} key={space.id} />)
+        )}
       </div>
       <div className="mt-auto flex w-full min-w-0 flex-col gap-1 pb-2 pt-4">
         <Link

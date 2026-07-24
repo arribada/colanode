@@ -7,6 +7,7 @@ import { SidebarDesktop } from '@colanode/ui/components/layouts/sidebars/sidebar
 import { ThreadPanel } from '@colanode/ui/components/layouts/thread-panel';
 import { ThreadSheet } from '@colanode/ui/components/layouts/thread-sheet';
 import { SearchDialog } from '@colanode/ui/components/search/search-dialog';
+import { WorkspaceSyncIndicator } from '@colanode/ui/components/workspaces/workspace-sync-indicator';
 import { PageCommentsContext } from '@colanode/ui/contexts/page-comments';
 import { SearchContext } from '@colanode/ui/contexts/search';
 import { ThreadPanelContext } from '@colanode/ui/contexts/thread-panel';
@@ -79,6 +80,7 @@ export const WorkspaceLayout = () => {
             {isMobile && <CommentsSheet />}
           </div>
           <SearchDialog />
+          <WorkspaceSyncIndicator />
         </PageCommentsContext.Provider>
       </ThreadPanelContext.Provider>
     </SearchContext.Provider>

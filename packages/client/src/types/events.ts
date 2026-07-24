@@ -227,6 +227,17 @@ export type AccountConnectionMessageReceivedEvent = {
   message: Message;
 };
 
+// Emitted by Synchronizer whenever it successfully applies a batch of
+// items from the server. Purely additive/best-effort telemetry for the
+// UI's "Synchronisation..." indicator -- it does not carry a total (the
+// incremental sync protocol has no upfront count), so consumers can only
+// show a running count / indeterminate activity, not a percentage.
+export type WorkspaceSyncProgressEvent = {
+  type: 'workspace.sync.progress';
+  workspace: WorkspaceEventData;
+  itemCount: number;
+};
+
 export type MetadataUpdatedEvent = {
   type: 'metadata.updated';
   metadata: Metadata;
@@ -381,6 +392,7 @@ export type Event =
   | AccountConnectionOpenedEvent
   | AccountConnectionClosedEvent
   | AccountConnectionMessageReceivedEvent
+  | WorkspaceSyncProgressEvent
   | MetadataUpdatedEvent
   | MetadataDeletedEvent
   | DocumentUpdatedEvent
