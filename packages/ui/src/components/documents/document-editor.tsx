@@ -445,6 +445,7 @@ export const DocumentEditor = ({
         ydocRef.current.getObject<RichTextContent>()
       ),
       editable: canEdit,
+      immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       autofocus: autoFocus,
       onUpdate: async ({ editor, transaction }) => {

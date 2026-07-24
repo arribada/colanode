@@ -119,6 +119,7 @@ export const MessageEditor = forwardRef<
       onUpdate: (e) => {
         props.onChange?.(e.editor.getJSON());
       },
+      immediatelyRender: true,
       autofocus: 'end',
     },
     [props.conversationId]
