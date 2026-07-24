@@ -27,6 +27,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   createElement,
   elementRect,
+  frameChildIds,
   resolveConnectorEndpoints,
   sortedElements,
   topZ,
@@ -495,7 +496,8 @@ export const WhiteboardCanvas = ({
       }
       setSelection(nextSel);
       const origin: Record<string, Point> = {};
-      for (const sid of nextSel) {
+      // moving a frame drags its contents along with it
+      for (const sid of withFrameChildren(nextSel)) {
         const el = sceneRef.current[sid];
         if (el) {
           origin[sid] = { x: el.x, y: el.y };
@@ -964,11 +966,24 @@ export const WhiteboardCanvas = ({
     commit(before, next, newIds);
   };
 
+  const withFrameChildren = (ids: string[]): string[] => {
+    const set = new Set(ids);
+    for (const id of ids) {
+      const el = sceneRef.current[id];
+      if (el?.type === 'frame') {
+        for (const cid of frameChildIds(sceneRef.current, id)) {
+          set.add(cid);
+        }
+      }
+    }
+    return [...set];
+  };
+
   const nudgeSelection = (dx: number, dy: number) => {
-    const ids = selectionRef.current;
-    if (ids.length === 0) {
+    if (selectionRef.current.length === 0) {
       return;
     }
+    const ids = withFrameChildren(selectionRef.current);
     const before = cloneScene(sceneRef.current);
     const next = { ...sceneRef.current };
     for (const id of ids) {
