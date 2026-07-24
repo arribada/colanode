@@ -82,6 +82,32 @@ export const fileFieldAttributesSchema = z.object({
 
 export type FileFieldAttributes = z.infer<typeof fileFieldAttributesSchema>;
 
+// The runtime type a formula is expected to produce. It is only a rendering
+// hint — the engine computes the actual value dynamically from the expression.
+export const formulaResultTypeSchema = z.enum([
+  'number',
+  'string',
+  'boolean',
+  'date',
+]);
+
+export type FormulaResultType = z.infer<typeof formulaResultTypeSchema>;
+
+export const formulaFieldAttributesSchema = z.object({
+  id: z.string(),
+  type: z.literal('formula'),
+  name: z.string(),
+  index: z.string(),
+  // The formula source, e.g. "prop('Price') * prop('Quantity')". Evaluated
+  // client-side against the record's other fields (see @colanode/client).
+  expression: z.string(),
+  resultType: formulaResultTypeSchema.optional().nullable(),
+});
+
+export type FormulaFieldAttributes = z.infer<
+  typeof formulaFieldAttributesSchema
+>;
+
 export const multiSelectFieldAttributesSchema = z.object({
   id: z.string(),
   type: z.literal('multi_select'),
@@ -124,11 +150,31 @@ export type RelationFieldAttributes = z.infer<
   typeof relationFieldAttributesSchema
 >;
 
+// How a rollup reduces the target field across a record's related records.
+export const rollupAggregationSchema = z.enum([
+  'count',
+  'sum',
+  'average',
+  'min',
+  'max',
+  'earliest',
+  'latest',
+  'percent_checked',
+  'show_original',
+]);
+
+export type RollupAggregation = z.infer<typeof rollupAggregationSchema>;
+
 export const rollupFieldAttributesSchema = z.object({
   id: z.string(),
   type: z.literal('rollup'),
   name: z.string(),
   index: z.string(),
+  // The relation field on this database whose related records are aggregated.
+  relationFieldId: z.string().optional().nullable(),
+  // The field (on the related database) whose values are aggregated.
+  targetFieldId: z.string().optional().nullable(),
+  aggregation: rollupAggregationSchema.optional().nullable(),
 });
 
 export type RollupFieldAttributes = z.infer<typeof rollupFieldAttributesSchema>;
@@ -191,6 +237,7 @@ export const fieldAttributesSchema = z.discriminatedUnion('type', [
   dateFieldAttributesSchema,
   emailFieldAttributesSchema,
   fileFieldAttributesSchema,
+  formulaFieldAttributesSchema,
   multiSelectFieldAttributesSchema,
   numberFieldAttributesSchema,
   phoneFieldAttributesSchema,

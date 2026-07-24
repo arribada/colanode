@@ -55,6 +55,10 @@ const fieldTypes: FieldTypeOption[] = [
     type: 'email',
   },
   {
+    name: 'Formula',
+    type: 'formula',
+  },
+  {
     name: 'Multi Select',
     type: 'multi_select',
   },
@@ -65,6 +69,10 @@ const fieldTypes: FieldTypeOption[] = [
   {
     name: 'Phone',
     type: 'phone',
+  },
+  {
+    name: 'Rollup',
+    type: 'rollup',
   },
   {
     name: 'Select',

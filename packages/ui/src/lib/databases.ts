@@ -1129,8 +1129,13 @@ const recordMatchesUrlFilter = (
   return false;
 };
 
-export const isFilterableField = (_: FieldAttributes) => {
-  // TODO: Implement this
+export const isFilterableField = (field: FieldAttributes) => {
+  // Formula and rollup values are derived at read-time and are not stored in
+  // SQLite, so the SQL-backed filters cannot target them.
+  if (field.type === 'formula' || field.type === 'rollup') {
+    return false;
+  }
+
   return true;
 };
 
