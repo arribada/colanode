@@ -165,6 +165,11 @@ export class NodeService {
 
         if (nodeText) {
           await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', input.id)
+            .execute();
+
+          await trx
             .insertInto('node_texts')
             .values({
               id: input.id,
@@ -335,6 +340,11 @@ export class NodeService {
         }
 
         if (nodeText) {
+          await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', id)
+            .execute();
+
           await trx
             .insertInto('node_texts')
             .values({
@@ -537,6 +547,11 @@ export class NodeService {
       }
 
       if (nodeText) {
+        await trx
+          .deleteFrom('node_texts')
+          .where('id', '=', nodeId)
+          .execute();
+
         await trx
           .insertInto('node_texts')
           .values({
@@ -826,6 +841,11 @@ export class NodeService {
 
         if (nodeText) {
           await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', update.nodeId)
+            .execute();
+
+          await trx
             .insertInto('node_texts')
             .values({
               id: update.nodeId,
@@ -974,6 +994,11 @@ export class NodeService {
         }
 
         if (nodeText) {
+          await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', existingNode.id)
+            .execute();
+
           await trx
             .insertInto('node_texts')
             .values({
@@ -1295,6 +1320,11 @@ export class NodeService {
           .execute();
 
         if (nodeText) {
+          await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', node.id)
+            .execute();
+
           await trx
             .insertInto('node_texts')
             .values({
