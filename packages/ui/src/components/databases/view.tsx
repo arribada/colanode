@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { match } from 'ts-pattern';
 
 import {
@@ -16,11 +16,7 @@ import {
   generateId,
   IdType,
 } from '@colanode/core';
-import { BoardView } from '@colanode/ui/components/databases/boards/board-view';
-import { CalendarView } from '@colanode/ui/components/databases/calendars/calendar-view';
-import { GalleryView } from '@colanode/ui/components/databases/galleries/gallery-view';
-import { ListView } from '@colanode/ui/components/databases/lists/list-view';
-import { TableView } from '@colanode/ui/components/databases/tables/table-view';
+import { ViewSkeleton } from '@colanode/ui/components/databases/view-skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewContext } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -30,6 +26,37 @@ import {
   getDefaultNameWidth,
   getDefaultViewFieldDisplay,
 } from '@colanode/ui/lib/databases';
+
+// Each of the 5 view layouts is dynamic-imported so a database that only
+// ever gets opened as a table doesn't also pay for the board/calendar/
+// gallery/list renderers up front. Suspense (below) falls back to a shared
+// shimmer skeleton the first time a given layout is opened in a session --
+// after that the chunk is cached and switching views is instant.
+const TableView = lazy(() =>
+  import('@colanode/ui/components/databases/tables/table-view').then(
+    (module) => ({ default: module.TableView })
+  )
+);
+const BoardView = lazy(() =>
+  import('@colanode/ui/components/databases/boards/board-view').then(
+    (module) => ({ default: module.BoardView })
+  )
+);
+const CalendarView = lazy(() =>
+  import('@colanode/ui/components/databases/calendars/calendar-view').then(
+    (module) => ({ default: module.CalendarView })
+  )
+);
+const GalleryView = lazy(() =>
+  import('@colanode/ui/components/databases/galleries/gallery-view').then(
+    (module) => ({ default: module.GalleryView })
+  )
+);
+const ListView = lazy(() =>
+  import('@colanode/ui/components/databases/lists/list-view').then(
+    (module) => ({ default: module.ListView })
+  )
+);
 
 interface ViewProps {
   view: LocalDatabaseViewNode;
@@ -204,13 +231,15 @@ export const View = ({ view }: ViewProps) => {
       }}
     >
       <div className="w-full h-full group/database">
-        {match(view.layout)
-          .with('table', () => <TableView />)
-          .with('board', () => <BoardView />)
-          .with('calendar', () => <CalendarView />)
-          .with('gallery', () => <GalleryView />)
-          .with('list', () => <ListView />)
-          .exhaustive()}
+        <Suspense fallback={<ViewSkeleton />}>
+          {match(view.layout)
+            .with('table', () => <TableView />)
+            .with('board', () => <BoardView />)
+            .with('calendar', () => <CalendarView />)
+            .with('gallery', () => <GalleryView />)
+            .with('list', () => <ListView />)
+            .exhaustive()}
+        </Suspense>
       </div>
     </DatabaseViewContext.Provider>
   );
