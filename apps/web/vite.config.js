@@ -72,6 +72,13 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@sqlite.org/sqlite-wasm'],
   },
+  worker: {
+    // 'es' (module workers) instead of the default 'iife' so dynamic
+    // import() inside the dedicated worker (e.g. tus-js-client, only needed
+    // once a file upload actually starts) can be code-split into its own
+    // chunk instead of erroring/being forced inline.
+    format: 'es',
+  },
   plugins: [
     viteReact(),
     VitePWA({
