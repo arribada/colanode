@@ -9,6 +9,7 @@ import { corsSchema } from './cors';
 import { emailConfigSchema } from './email';
 import { jobsConfigSchema } from './jobs';
 import { loggingConfigSchema } from './logging';
+import { planeConfigSchema } from './plane';
 import { postgresConfigSchema } from './postgres';
 import { pushConfigSchema } from './push';
 import { redisConfigSchema } from './redis';
@@ -48,6 +49,7 @@ const configSchema = z.object({
   push: pushConfigSchema,
   apns: apnsConfigSchema,
   zulip: zulipConfigSchema,
+  plane: planeConfigSchema,
 });
 
 export type Configuration = z.infer<typeof configSchema>;

@@ -21,6 +21,7 @@ import {
   MessageNode,
   ParagraphNode,
   PlaceholderExtension,
+  PlaneIssueLinkExtension,
   StrikethroughMark,
   TabKeymapExtension,
   TextNode,
@@ -56,6 +57,10 @@ export const MessageEditor = forwardRef<
     {
       extensions: [
         IdExtension,
+        // See the comment in document-editor.tsx: this recognizes a bare
+        // pasted Plane issue URL and must be registered ahead of anything
+        // that would otherwise treat the paste as plain text/a normal link.
+        PlaneIssueLinkExtension,
         MessageNode,
         TextNode,
         ParagraphNode,

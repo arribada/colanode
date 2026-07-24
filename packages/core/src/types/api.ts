@@ -56,6 +56,11 @@ export enum ApiErrorCode {
   DocumentNotFound = 'document_not_found',
   DocumentNoAccess = 'document_no_access',
   DocumentSnapshotNotFound = 'document_snapshot_not_found',
+  PlaneIntegrationDisabled = 'plane_integration_disabled',
+  PlaneInvalidIssueUrl = 'plane_invalid_issue_url',
+  PlaneWorkspaceMismatch = 'plane_workspace_mismatch',
+  PlaneIssueNotFound = 'plane_issue_not_found',
+  PlaneFetchFailed = 'plane_fetch_failed',
 
   ValidationError = 'validation_error',
   TooManyRequests = 'too_many_requests',
