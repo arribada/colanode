@@ -44,6 +44,8 @@ import { NotificationReadMutationHandler } from './notifications/notification-re
 import { PageDuplicateMutationHandler } from './pages/page-duplicate';
 import { PageTemplateCreateMutationHandler } from './pages/page-template-create';
 import { PageTemplateSaveMutationHandler } from './pages/page-template-save';
+import { PresenceLeaveMutationHandler } from './presence/presence-leave';
+import { PresenceUpdateMutationHandler } from './presence/presence-update';
 import { PushSubscriptionCreateMutationHandler } from './push-subscriptions/push-subscription-create';
 import { PushSubscriptionDeleteMutationHandler } from './push-subscriptions/push-subscription-delete';
 import { RecordTemplateCreateMutationHandler } from './records/record-template-create';
@@ -124,5 +126,7 @@ export const buildMutationHandlerMap = (
     'record.template.create': new RecordTemplateCreateMutationHandler(app),
     'page.template.save': new PageTemplateSaveMutationHandler(app),
     'page.template.create': new PageTemplateCreateMutationHandler(app),
+    'presence.update': new PresenceUpdateMutationHandler(app),
+    'presence.leave': new PresenceLeaveMutationHandler(app),
   };
 };
