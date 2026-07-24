@@ -45,6 +45,14 @@ import {
   snap,
   unionBounds,
 } from '@colanode/ui/lib/board/geometry';
+import {
+  addMindmapChild,
+  addMindmapSibling,
+  hasMindmapChildren,
+  mindmapEdges,
+  mindmapHiddenIds,
+  toggleMindmapCollapsed,
+} from '@colanode/ui/lib/board/mindmap';
 import { downloadBlob, exportScenePng } from '@colanode/ui/lib/board/png';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -373,6 +381,15 @@ export const WhiteboardCanvas = ({
     const target = e.target as Element;
     const handleEl = target.closest('[data-handle]');
     const elEl = target.closest('[data-el-id]');
+    const collapseEl = target.closest('[data-collapse]');
+
+    // mindmap collapse toggle badge takes priority over selection
+    if (collapseEl) {
+      if (canEdit) {
+        mindmapToggleCollapse(collapseEl.getAttribute('data-collapse')!);
+      }
+      return;
+    }
 
     if (!canEdit) {
       if (elEl) {
@@ -864,6 +881,23 @@ export const WhiteboardCanvas = ({
       if (!canEdit) {
         return;
       }
+      // mind map growth: Tab = child, Enter = sibling of the selected node
+      if (
+        (e.key === 'Tab' || e.key === 'Enter') &&
+        !meta &&
+        selectionRef.current.length === 1
+      ) {
+        const sel = sceneRef.current[selectionRef.current[0]!];
+        if (sel?.type === 'mindmap') {
+          e.preventDefault();
+          if (e.key === 'Tab') {
+            mindmapAddChild(sel.id);
+          } else {
+            mindmapAddSibling(sel.id);
+          }
+          return;
+        }
+      }
       if (meta && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateSelection();
@@ -995,6 +1029,40 @@ export const WhiteboardCanvas = ({
     commit(before, next, ids);
   };
 
+  // ----- mind map ----------------------------------------------------------
+  // Grow the map (Tab = child, Enter = sibling) with a tidy re-layout, then
+  // drop straight into inline edit on the fresh node.
+  const mindmapAddChild = (id: string) => {
+    const before = cloneScene(sceneRef.current);
+    const res = addMindmapChild(sceneRef.current, id);
+    if (!res) {
+      return;
+    }
+    commit(before, res.scene, res.changedIds);
+    setSelection([res.newId]);
+    setEditing({ id: res.newId, value: '' });
+  };
+
+  const mindmapAddSibling = (id: string) => {
+    const before = cloneScene(sceneRef.current);
+    const res = addMindmapSibling(sceneRef.current, id);
+    if (!res) {
+      return;
+    }
+    commit(before, res.scene, res.changedIds);
+    setSelection([res.newId]);
+    setEditing({ id: res.newId, value: '' });
+  };
+
+  const mindmapToggleCollapse = (id: string) => {
+    const before = cloneScene(sceneRef.current);
+    const res = toggleMindmapCollapsed(sceneRef.current, id);
+    if (res.changedIds.length === 0) {
+      return;
+    }
+    commit(before, res.scene, res.changedIds);
+  };
+
   const onStyleChange = (patch: Partial<BoardStyleState>) => {
     setStyle((s) => ({ ...s, ...patch }));
     const ids = selectionRef.current;
@@ -1101,7 +1169,12 @@ export const WhiteboardCanvas = ({
   };
 
   // ----- rendering ---------------------------------------------------------
-  const ordered = useMemo(() => sortedElements(scene), [scene]);
+  const hiddenIds = useMemo(() => mindmapHiddenIds(scene), [scene]);
+  const mindEdges = useMemo(() => mindmapEdges(scene), [scene]);
+  const ordered = useMemo(
+    () => sortedElements(scene).filter((el) => !hiddenIds.has(el.id)),
+    [scene, hiddenIds]
+  );
   const it = interactionRef.current;
   const marquee =
     it?.mode === 'marquee'
@@ -1115,7 +1188,7 @@ export const WhiteboardCanvas = ({
 
   const selectionRects = selection
     .map((id) => scene[id])
-    .filter((el): el is BoardElement => Boolean(el))
+    .filter((el): el is BoardElement => Boolean(el) && !hiddenIds.has(el!.id))
     .map((el) => ({ el, rect: elementRect(el) }));
 
   const gridSize = GRID;
@@ -1180,6 +1253,27 @@ export const WhiteboardCanvas = ({
             fill={`url(#board-grid-${whiteboard.id})`}
           />
 
+          {/* mind-map parent -> child edges (behind the nodes) */}
+          <g style={{ pointerEvents: 'none' }}>
+            {mindEdges.map((edge) => {
+              const from = {
+                x: edge.from.x + edge.from.w,
+                y: edge.from.y + edge.from.h / 2,
+              };
+              const to = { x: edge.to.x, y: edge.to.y + edge.to.h / 2 };
+              const midX = (from.x + to.x) / 2;
+              return (
+                <path
+                  key={edge.id}
+                  d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                />
+              );
+            })}
+          </g>
+
           {ordered.map((el) => (
             <g
               key={el.id}
@@ -1194,6 +1288,54 @@ export const WhiteboardCanvas = ({
               <ElementHitArea element={el} scene={scene} />
             </g>
           ))}
+
+          {/* collapse toggles on mind-map nodes that have children */}
+          {canEdit &&
+            ordered
+              .filter(
+                (el) =>
+                  el.type === 'mindmap' && hasMindmapChildren(scene, el.id)
+              )
+              .map((el) => {
+                const cx = el.x + el.w;
+                const cy = el.y + el.h / 2;
+                const collapsed = el.mindmap?.collapsed;
+                return (
+                  <g
+                    key={`collapse-${el.id}`}
+                    className="board-no-export"
+                    data-collapse={el.id}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={8}
+                      fill="#fff"
+                      stroke="#6366f1"
+                      strokeWidth={1.5}
+                    />
+                    <line
+                      x1={cx - 4}
+                      y1={cy}
+                      x2={cx + 4}
+                      y2={cy}
+                      stroke="#6366f1"
+                      strokeWidth={1.5}
+                    />
+                    {collapsed && (
+                      <line
+                        x1={cx}
+                        y1={cy - 4}
+                        x2={cx}
+                        y2={cy + 4}
+                        stroke="#6366f1"
+                        strokeWidth={1.5}
+                      />
+                    )}
+                  </g>
+                );
+              })}
         </g>
 
         {/* selection + handles in screen space (excluded from export) */}
