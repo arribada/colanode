@@ -1,7 +1,7 @@
 // Helpers for building SQLite FTS5 match queries and plain-text snippets.
-// The workspace FTS tables (node_texts, document_texts) are contentless
-// (content=''), so snippets cannot be produced by the FTS snippet() function
-// and are computed here from the source text instead.
+// Snippets are computed here from the source text (the local nodes/documents
+// tables) rather than via the FTS5 snippet() function, so the search handlers
+// stay decoupled from the FTS schema.
 
 const SNIPPET_CONTEXT_BEFORE = 40;
 const SNIPPET_MAX_LENGTH = 150;
