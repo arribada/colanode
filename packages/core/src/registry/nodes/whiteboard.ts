@@ -4,48 +4,119 @@ import { extractNodeRole } from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
 import { NodeModel } from '@colanode/core/registry/nodes/core';
 
+// Native board engine (Miro / AFFiNE-edgeless style). The scene is a record
+// keyed by element id so that per-element edits produce element-level Y.Map
+// diffs through the existing node.update CRDT sync — concurrent edits to
+// different elements (or different fields of one element) merge cleanly.
+
+export const boardElementTypeSchema = z.enum([
+  'sticky',
+  'rect',
+  'ellipse',
+  'diamond',
+  'text',
+  'connector',
+  'freehand',
+  'frame',
+  'mindmap',
+]);
+
+export type BoardElementType = z.infer<typeof boardElementTypeSchema>;
+
+export const boardElementStyleSchema = z.object({
+  fill: z.string().optional(),
+  stroke: z.string().optional(),
+  strokeWidth: z.number().optional(),
+  strokeStyle: z.enum(['solid', 'dashed', 'dotted']).optional(),
+  fontSize: z.number().optional(),
+  color: z.string().optional(),
+  fontWeight: z.string().optional(),
+  opacity: z.number().optional(),
+});
+
+export type BoardElementStyle = z.infer<typeof boardElementStyleSchema>;
+
+export const boardConnectorSchema = z.object({
+  fromId: z.string().optional(),
+  toId: z.string().optional(),
+  fromAnchor: z.string().optional(),
+  toAnchor: z.string().optional(),
+  arrowStart: z.boolean().optional(),
+  arrowEnd: z.boolean().optional(),
+  label: z.string().optional(),
+});
+
+export type BoardConnector = z.infer<typeof boardConnectorSchema>;
+
+export const boardMindmapSchema = z.object({
+  parentId: z.string().optional(),
+  collapsed: z.boolean().optional(),
+});
+
+export type BoardMindmap = z.infer<typeof boardMindmapSchema>;
+
+export const boardElementSchema = z.object({
+  id: z.string(),
+  type: boardElementTypeSchema,
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  rotation: z.number().optional(),
+  // fractional-index string used for stable z ordering; lexicographic sort
+  // of these strings yields paint order (back to front).
+  z: z.string(),
+  style: boardElementStyleSchema,
+  text: z.string().optional(),
+  points: z.array(z.array(z.number())).optional(),
+  connector: boardConnectorSchema.optional(),
+  frameId: z.string().optional(),
+  mindmap: boardMindmapSchema.optional(),
+});
+
+export type BoardElement = z.infer<typeof boardElementSchema>;
+
+export const boardSceneSchema = z.record(z.string(), boardElementSchema);
+
+export type BoardScene = z.infer<typeof boardSceneSchema>;
+
 export const whiteboardAttributesSchema = z.object({
   type: z.literal('whiteboard'),
   name: z.string(),
   avatar: z.string().nullable().optional(),
   parentId: z.string(),
-  // Excalidraw scene JSON: { elements, appState, files }. Stored as an opaque
-  // blob and replaced wholesale on each save (last-writer-wins).
-  scene: z.any().optional(),
+  // Board scene: { [elementId]: BoardElement }. Stored as a record so the CRDT
+  // layer merges edits at element granularity (near-real-time collaboration).
+  scene: boardSceneSchema.optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });
 
 export type WhiteboardAttributes = z.infer<typeof whiteboardAttributesSchema>;
 
-type WhiteboardSceneElement = {
-  text?: unknown;
-  isDeleted?: unknown;
-};
-
 const extractSceneTexts = (scene: unknown): string[] => {
   if (!scene || typeof scene !== 'object') {
     return [];
   }
 
-  const elements = (scene as { elements?: unknown }).elements;
-  if (!Array.isArray(elements)) {
-    return [];
-  }
-
   const texts: string[] = [];
-  for (const element of elements) {
+  for (const element of Object.values(scene as Record<string, unknown>)) {
     if (!element || typeof element !== 'object') {
       continue;
     }
 
-    const { text, isDeleted } = element as WhiteboardSceneElement;
-    if (isDeleted === true) {
-      continue;
-    }
+    const { text, connector } = element as {
+      text?: unknown;
+      connector?: { label?: unknown } | null;
+    };
 
     if (typeof text === 'string' && text.trim().length > 0) {
       texts.push(text.trim());
+    }
+
+    const label = connector?.label;
+    if (typeof label === 'string' && label.trim().length > 0) {
+      texts.push(label.trim());
     }
   }
 

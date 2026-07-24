@@ -147,7 +147,7 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
             className="flex flex-row items-center gap-2 cursor-pointer"
           >
             <Presentation className="size-4" />
-            <span>Add whiteboard</span>
+            <span>Add board</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
