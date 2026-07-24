@@ -1,5 +1,4 @@
 import ms from 'ms';
-import { Upload } from 'tus-js-client';
 
 import {
   SelectLocalFile,
@@ -127,6 +126,12 @@ export class FileUploadJobHandler implements JobHandler<FileUploadInput> {
           ...values,
         });
       };
+
+      // tus-js-client (~50KB) is only needed while an upload is actually in
+      // flight, so it's dynamic-imported here instead of at module scope --
+      // that keeps it out of the dedicated worker's boot-time bundle for
+      // every session that never uploads a file.
+      const { Upload } = await import('tus-js-client');
 
       const fileStream = await this.app.fs.readStream(localFile.path);
       await new Promise<void>((resolve, reject) => {
