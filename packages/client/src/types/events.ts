@@ -22,7 +22,7 @@ import {
 import { Server } from '@colanode/client/types/servers';
 import { User } from '@colanode/client/types/users';
 import { Workspace } from '@colanode/client/types/workspaces';
-import { Message } from '@colanode/core';
+import { Message, PresenceState } from '@colanode/core';
 
 export type WorkspaceEventData = {
   workspaceId: string;
@@ -227,6 +227,15 @@ export type AccountConnectionMessageReceivedEvent = {
   message: Message;
 };
 
+// Emitted by PresenceService whenever the set of remote (live-cursor)
+// presences for a node changes. Ephemeral; drives the presence.list live query.
+export type PresenceChangedEvent = {
+  type: 'presence.changed';
+  accountId: string;
+  nodeId: string;
+  presences: PresenceState[];
+};
+
 // Emitted by Synchronizer whenever it successfully applies a batch of
 // items from the server. Purely additive/best-effort telemetry for the
 // UI's "Synchronisation..." indicator -- it does not carry a total (the
@@ -392,6 +401,7 @@ export type Event =
   | AccountConnectionOpenedEvent
   | AccountConnectionClosedEvent
   | AccountConnectionMessageReceivedEvent
+  | PresenceChangedEvent
   | WorkspaceSyncProgressEvent
   | MetadataUpdatedEvent
   | MetadataDeletedEvent

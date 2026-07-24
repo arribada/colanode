@@ -10,6 +10,7 @@ import {
   mapWorkspace,
 } from '@colanode/client/lib/mappers';
 import { AccountSocket } from '@colanode/client/services/accounts/account-socket';
+import { PresenceService } from '@colanode/client/services/accounts/presence-service';
 import { AppService } from '@colanode/client/services/app-service';
 import { ServerService } from '@colanode/client/services/server-service';
 import { Account } from '@colanode/client/types/accounts';
@@ -26,6 +27,7 @@ const debug = createDebugger('desktop:service:account');
 export class AccountService {
   public readonly account: Account;
   public readonly socket: AccountSocket;
+  public readonly presence: PresenceService;
   public readonly client: KyInstance;
   public readonly app: AppService;
   public readonly server: ServerService;
@@ -41,6 +43,7 @@ export class AccountService {
     this.app = app;
 
     this.socket = new AccountSocket(this);
+    this.presence = new PresenceService(this);
     this.client = this.app.client.extend({
       prefixUrl: this.server.httpBaseUrl,
       headers: {
@@ -151,6 +154,7 @@ export class AccountService {
       await this.app.jobs.removeJobSchedule(this.accountSyncJobScheduleId);
 
       this.socket.close();
+      this.presence.destroy();
       eventBus.unsubscribe(this.eventSubscriptionId);
 
       eventBus.publish({

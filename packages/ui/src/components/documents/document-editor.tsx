@@ -23,6 +23,7 @@ import {
 } from '@colanode/client/types';
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
+import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   BlockquoteCommand,
@@ -98,8 +99,15 @@ import {
   HardBreakNode,
   ParserExtension,
   Markdown,
+  PresenceExtension,
+  setRemoteCarets,
+  type RemoteCaret,
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
+import {
+  usePresences,
+  usePresencePublisher,
+} from '@colanode/ui/hooks/use-presence';
 
 interface DocumentEditorProps {
   node: LocalNode;
@@ -207,6 +215,13 @@ export const DocumentEditor = ({
 }: DocumentEditorProps) => {
   const workspace = useWorkspace();
 
+  const presences = usePresences(node.id);
+  const { publish: publishPresence } = usePresencePublisher({
+    nodeId: node.id,
+    rootId: node.rootId,
+    kind: 'doc',
+  });
+
   const hasPendingChanges = useRef(false);
   const revisionRef = useRef(state?.revision ?? 0);
   const ydocRef = useRef<YDoc>(buildYDoc(state, updates));
@@ -313,6 +328,7 @@ export const DocumentEditor = ({
         MathBlockNode,
         MathInlineNode,
         TrailingNode,
+        PresenceExtension,
         LinkMark,
         DeleteControlExtension,
         DropcursorExtension,
@@ -471,8 +487,53 @@ export const DocumentEditor = ({
   // Keep editorRef updated so handleKeyDown can access the current editor
   editorRef.current = editor;
 
+  // Publish the local caret/selection (throttled inside the publisher).
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    const publishSelection = () => {
+      const { from, to } = editor.state.selection;
+      publishPresence({ anchor: from, head: to });
+    };
+
+    editor.on('selectionUpdate', publishSelection);
+    editor.on('focus', publishSelection);
+    publishSelection();
+
+    return () => {
+      editor.off('selectionUpdate', publishSelection);
+      editor.off('focus', publishSelection);
+    };
+  }, [editor, publishPresence]);
+
+  // Render remote collaborators' carets/selections.
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    const carets: RemoteCaret[] = presences
+      .filter((p) => p.kind === 'doc' && typeof p.payload.head === 'number')
+      .map((p) => ({
+        key: `${p.userId}:${p.deviceId}`,
+        name: p.name,
+        color: p.color,
+        anchor: p.payload.anchor ?? (p.payload.head as number),
+        head: p.payload.head as number,
+      }));
+
+    setRemoteCarets(editor, carets);
+  }, [editor, presences]);
+
   return (
-    <>
+    <div className="relative">
+      {presences.length > 0 && (
+        <div className="absolute right-2 top-2 z-10">
+          <PresenceAvatars presences={presences} />
+        </div>
+      )}
       {editor && canEdit && (
         <Fragment>
           <ToolbarMenu editor={editor} />
@@ -480,6 +541,6 @@ export const DocumentEditor = ({
         </Fragment>
       )}
       <EditorContent editor={editor} />
-    </>
+    </div>
   );
 };

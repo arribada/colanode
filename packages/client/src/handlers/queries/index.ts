@@ -39,6 +39,7 @@ import { NotificationMuteGetQueryHandler } from './notifications/notification-mu
 import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
 import { PageTemplateListQueryHandler } from './pages/page-template-list';
 import { PlaneIssueGetQueryHandler } from './plane/plane-issue-get';
+import { PresenceListQueryHandler } from './presence/presence-list';
 import { RecordFieldValueCountQueryHandler } from './records/record-field-value-count';
 import { RecordSearchQueryHandler } from './records/record-search';
 import { RecordTemplateListQueryHandler } from './records/record-template-list';
@@ -97,5 +98,6 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'record.template.list': new RecordTemplateListQueryHandler(app),
     'page.template.list': new PageTemplateListQueryHandler(app),
     'plane.issue.get': new PlaneIssueGetQueryHandler(app),
+    'presence.list': new PresenceListQueryHandler(app),
   };
 };

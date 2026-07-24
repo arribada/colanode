@@ -44,6 +44,7 @@ export * from './nodes/node-trash-list';
 export * from './pages/page-template-list';
 export * from './records/record-template-list';
 export * from './plane/plane-issue-get';
+export * from './presence/presence-list';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface QueryMap {}

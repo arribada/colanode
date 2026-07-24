@@ -54,6 +54,8 @@ export * from './pages/page-template-save';
 export * from './pages/page-template-create';
 export * from './records/record-template-save';
 export * from './records/record-template-create';
+export * from './presence/presence-update';
+export * from './presence/presence-leave';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface MutationMap {}

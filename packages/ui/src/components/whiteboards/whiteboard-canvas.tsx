@@ -16,7 +16,9 @@ import {
   hasNodeRole,
   NodeRole,
 } from '@colanode/core';
+import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { BoardElementView } from '@colanode/ui/components/whiteboards/board/board-element';
+import { BoardPresenceLayer } from '@colanode/ui/components/whiteboards/board/board-presence-layer';
 import { BoardToolbar } from '@colanode/ui/components/whiteboards/board/board-toolbar';
 import {
   BoardStyleState,
@@ -24,6 +26,10 @@ import {
   DEFAULT_BOARD_STYLE,
 } from '@colanode/ui/components/whiteboards/board/board-types';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import {
+  usePresences,
+  usePresencePublisher,
+} from '@colanode/ui/hooks/use-presence';
 import {
   createElement,
   elementRect,
@@ -119,6 +125,14 @@ export const WhiteboardCanvas = ({
   const workspace = useWorkspace();
   const canEdit = hasNodeRole(role, 'editor');
 
+  const presences = usePresences(whiteboard.id);
+  const { publish: publishPresence } = usePresencePublisher({
+    nodeId: whiteboard.id,
+    rootId: whiteboard.rootId,
+    kind: 'board',
+  });
+  const lastScenePointerRef = useRef<{ x: number; y: number } | null>(null);
+
   const [scene, setScene] = useState<BoardScene>(
     () => (whiteboard.scene as BoardScene | undefined) ?? {}
   );
@@ -164,6 +178,26 @@ export const WhiteboardCanvas = ({
       setScene(incoming);
     }
   }, [whiteboard.scene]);
+
+  // Announce presence on mount so the "who's viewing" stack shows this user
+  // even before they move the pointer.
+  useEffect(() => {
+    publishPresence({ selectedElementIds: [], editingElementId: null });
+  }, [publishPresence]);
+
+  // Re-broadcast presence when the local selection / inline-edit changes so
+  // remote collaborators see it even if the pointer is not moving.
+  useEffect(() => {
+    const pointer = lastScenePointerRef.current;
+    if (!pointer) {
+      return;
+    }
+    publishPresence({
+      pointer,
+      selectedElementIds: selection,
+      editingElementId: editing?.id ?? null,
+    });
+  }, [selection, editing, publishPresence]);
 
   // ----- coordinate helpers ------------------------------------------------
   const clientToScene = (clientX: number, clientY: number): Point => {
@@ -567,6 +601,16 @@ export const WhiteboardCanvas = ({
     if (pointersRef.current.has(e.pointerId)) {
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     }
+
+    // Broadcast the local pointer (throttled inside the publisher) so remote
+    // collaborators see this cursor move, regardless of the current gesture.
+    const scenePointer = clientToScene(e.clientX, e.clientY);
+    lastScenePointerRef.current = scenePointer;
+    publishPresence({
+      pointer: scenePointer,
+      selectedElementIds: selectionRef.current,
+      editingElementId: editing?.id ?? null,
+    });
 
     if (pinchRef.current && pointersRef.current.size === 2) {
       const [a, b] = [...pointersRef.current.values()];
@@ -1420,6 +1464,13 @@ export const WhiteboardCanvas = ({
             />
           )}
         </g>
+
+        {/* remote collaborators' pointers + selections */}
+        <BoardPresenceLayer
+          presences={presences}
+          viewport={viewport}
+          scene={scene}
+        />
       </svg>
 
       <BoardToolbar
@@ -1437,6 +1488,12 @@ export const WhiteboardCanvas = ({
         onDuplicate={duplicateSelection}
         onExport={onExport}
       />
+
+      {presences.length > 0 && (
+        <div className="absolute right-2 top-2 z-20">
+          <PresenceAvatars presences={presences} />
+        </div>
+      )}
 
       {/* inline text editor */}
       {editing && editingEl && editingScreen && (

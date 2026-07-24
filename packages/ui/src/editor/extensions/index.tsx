@@ -41,6 +41,11 @@ import { ParagraphNode } from '@colanode/ui/editor/extensions/paragraph';
 import { ParserExtension } from '@colanode/ui/editor/extensions/parser';
 import { PlaceholderExtension } from '@colanode/ui/editor/extensions/placeholder';
 import { PlaneIssueLinkExtension } from '@colanode/ui/editor/extensions/plane-issue-link';
+import {
+  PresenceExtension,
+  setRemoteCarets,
+  type RemoteCaret,
+} from '@colanode/ui/editor/extensions/presence';
 import { TabKeymapExtension } from '@colanode/ui/editor/extensions/tab-keymap';
 import { TableNode } from '@colanode/ui/editor/extensions/table';
 import { TableCellNode } from '@colanode/ui/editor/extensions/table-cell';
@@ -109,4 +114,8 @@ export {
   HardBreakNode,
   ParserExtension,
   Markdown,
+  PresenceExtension,
+  setRemoteCarets,
 };
+
+export type { RemoteCaret };
