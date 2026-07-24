@@ -1,7 +1,9 @@
 import { EditorCommand, EditorCommandProps } from '@colanode/client/types';
 import { BlockquoteCommand } from '@colanode/ui/editor/commands/blockquote';
 import { BulletListCommand } from '@colanode/ui/editor/commands/bullet-list';
+import { BookmarkCommand } from '@colanode/ui/editor/commands/bookmark';
 import { CalloutCommand } from '@colanode/ui/editor/commands/callout';
+import { ColumnsCommand } from '@colanode/ui/editor/commands/columns';
 import { CodeBlockCommand } from '@colanode/ui/editor/commands/code-block';
 import { DatabaseCommand } from '@colanode/ui/editor/commands/database';
 import { DatabaseInlineCommand } from '@colanode/ui/editor/commands/database-inline';
@@ -19,6 +21,7 @@ import {
 import { OrderedListCommand } from '@colanode/ui/editor/commands/ordered-list';
 import { PageCommand } from '@colanode/ui/editor/commands/page';
 import { ParagraphCommand } from '@colanode/ui/editor/commands/paragraph';
+import { TableOfContentsCommand } from '@colanode/ui/editor/commands/table-of-contents';
 import { TableCommand } from '@colanode/ui/editor/commands/table';
 import { TodoCommand } from '@colanode/ui/editor/commands/todo';
 import { ToggleCommand } from '@colanode/ui/editor/commands/toggle';
@@ -29,6 +32,9 @@ export {
   BlockquoteCommand,
   BulletListCommand,
   CalloutCommand,
+  BookmarkCommand,
+  ColumnsCommand,
+  TableOfContentsCommand,
   CodeBlockCommand,
   DividerCommand,
   FileCommand,

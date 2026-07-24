@@ -8,7 +8,12 @@ import UnderlineMark from '@tiptap/extension-underline';
 import { AutoJoiner } from '@colanode/ui/editor/extensions/auto-joiner';
 import { BlockquoteNode } from '@colanode/ui/editor/extensions/blockquote';
 import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
+import { BookmarkNode } from '@colanode/ui/editor/extensions/bookmark';
 import { CalloutNode } from '@colanode/ui/editor/extensions/callout';
+import {
+  ColumnNode,
+  ColumnsNode,
+} from '@colanode/ui/editor/extensions/columns';
 import { CodeMark } from '@colanode/ui/editor/extensions/code';
 import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
 import { ColorMark } from '@colanode/ui/editor/extensions/color';
@@ -47,6 +52,7 @@ import {
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions/presence';
 import { TabKeymapExtension } from '@colanode/ui/editor/extensions/tab-keymap';
+import { TableOfContentsNode } from '@colanode/ui/editor/extensions/table-of-contents';
 import { TableNode } from '@colanode/ui/editor/extensions/table';
 import { TableCellNode } from '@colanode/ui/editor/extensions/table-cell';
 import { TableHeaderNode } from '@colanode/ui/editor/extensions/table-header';
@@ -105,6 +111,10 @@ export {
   ToggleNode,
   ToggleSummaryNode,
   CalloutNode,
+  BookmarkNode,
+  ColumnsNode,
+  ColumnNode,
+  TableOfContentsNode,
   TrailingNode,
   UnderlineMark,
   DatabaseNode,

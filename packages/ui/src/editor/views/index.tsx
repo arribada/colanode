@@ -1,3 +1,4 @@
+import { BookmarkNodeView } from '@colanode/ui/editor/views/bookmark';
 import { CalloutNodeView } from '@colanode/ui/editor/views/callout';
 import { CodeBlockNodeView } from '@colanode/ui/editor/views/code-block';
 import { DatabaseNodeView } from '@colanode/ui/editor/views/database';
@@ -11,9 +12,12 @@ import { PlaneIssueLinkNodeView } from '@colanode/ui/editor/views/plane-issue-li
 import { TableNodeView } from '@colanode/ui/editor/views/table';
 import { TableCellNodeView } from '@colanode/ui/editor/views/table-cell';
 import { TableHeaderNodeView } from '@colanode/ui/editor/views/table-header';
+import { TableOfContentsNodeView } from '@colanode/ui/editor/views/table-of-contents';
 import { TempFileNodeView } from '@colanode/ui/editor/views/temp-file';
 
 export {
+  BookmarkNodeView,
+  TableOfContentsNodeView,
   CalloutNodeView,
   CodeBlockNodeView,
   DatabaseNodeView,
