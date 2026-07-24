@@ -4,6 +4,7 @@ import { authRoute } from '@colanode/ui/routes/auth';
 import { loginRoute } from '@colanode/ui/routes/auth/login';
 import { registerRoute } from '@colanode/ui/routes/auth/register';
 import { resetRoute } from '@colanode/ui/routes/auth/reset';
+import { ssoCallbackRoute } from '@colanode/ui/routes/auth/sso-callback';
 import { workspaceCreateRoute } from '@colanode/ui/routes/create';
 import { homeRoute } from '@colanode/ui/routes/home';
 import { rootRoute } from '@colanode/ui/routes/root';
@@ -58,6 +59,7 @@ import {
 export const routeTree = rootRoute.addChildren([
   homeRoute,
   authRoute.addChildren([loginRoute, registerRoute, resetRoute]),
+  ssoCallbackRoute,
   workspaceCreateRoute,
   workspaceRoute.addChildren([
     workspaceRedirectRoute,
