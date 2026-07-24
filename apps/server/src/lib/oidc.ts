@@ -171,6 +171,23 @@ export const fetchOidcToken = async (
   }
 };
 
+// Shape of a userinfo response before normalization: either standards-compliant
+// OIDC claims, or a GitLab-style REST user object (`id`/`username`/`avatar_url`)
+// returned by providers — like a self-hosted GitLab-compatible identity
+// provider — whose "userinfo" endpoint is really their REST user API rather
+// than a true `/oauth/userinfo` OIDC endpoint.
+interface RawOidcUserInfo {
+  sub?: string;
+  id?: string | number;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  preferred_username?: string;
+  username?: string;
+  picture?: string;
+  avatar_url?: string;
+}
+
 /** Fetches the userinfo claims for the account behind an access token. */
 export const fetchOidcUserInfo = async (
   userinfoUrl: string,
@@ -182,14 +199,25 @@ export const fetchOidcUserInfo = async (
         headers: { Authorization: `Bearer ${accessToken}` },
         timeout: OidcRequestTimeout,
       })
-      .json<OidcUserInfo>();
+      .json<RawOidcUserInfo>();
 
-    if (!user.sub) {
+    // Prefer the real "sub" claim; fall back to "id" for providers whose
+    // userinfo endpoint is a GitLab-style REST user object rather than a
+    // standards-compliant OIDC userinfo response.
+    const sub = user.sub ?? (user.id !== undefined ? String(user.id) : undefined);
+    if (!sub) {
       logger.error('OIDC userinfo response is missing "sub"');
       return null;
     }
 
-    return user;
+    return {
+      sub,
+      email: user.email,
+      email_verified: user.email_verified,
+      name: user.name,
+      preferred_username: user.preferred_username ?? user.username,
+      picture: user.picture ?? user.avatar_url,
+    };
   } catch (error) {
     logger.error(
       toSafeLogFields(error),

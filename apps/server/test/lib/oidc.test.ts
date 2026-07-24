@@ -221,6 +221,32 @@ describe('fetchOidcUserInfo', () => {
     expect(userInfo).toBeNull();
   });
 
+  it('falls back to "id"/"username"/"avatar_url" for a GitLab-style REST userinfo response', async () => {
+    mockedKy.get.mockReturnValue({
+      json: () =>
+        Promise.resolve({
+          id: 4242,
+          username: 'jdoe',
+          email: 'person@example.com',
+          name: 'Person',
+          avatar_url: 'https://idp.example.com/avatars/jdoe.png',
+        }),
+    });
+
+    const userInfo = await fetchOidcUserInfo(
+      explicitConfig.userinfoUrl!,
+      'access-token-123'
+    );
+
+    expect(userInfo).toEqual({
+      sub: '4242',
+      email: 'person@example.com',
+      name: 'Person',
+      preferred_username: 'jdoe',
+      picture: 'https://idp.example.com/avatars/jdoe.png',
+    });
+  });
+
   it('returns null when the userinfo request fails', async () => {
     mockedKy.get.mockReturnValue({
       json: () => Promise.reject(new Error('unauthorized')),
