@@ -22,10 +22,19 @@ type MenuState = {
 };
 
 export const ActionMenu = ({ editor }: ActionMenuProps) => {
-  const view = useRef(editor!.view!);
+  // Do NOT read editor.view during render: @tiptap/react v3 creates the view
+  // asynchronously, so editor.view can throw "editor view is not available"
+  // in the window before it is attached. Populate the ref in an effect instead.
+  const view = useRef<Editor['view']>(null as unknown as Editor['view']);
   const [menuState, setMenuState] = useState<MenuState>({
     show: false,
   });
+
+  useEffect(() => {
+    if (editor) {
+      view.current = editor.view;
+    }
+  }, [editor]);
 
   const { refs, floatingStyles } = useFloating({
     placement: 'left',
