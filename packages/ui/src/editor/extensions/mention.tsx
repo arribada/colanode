@@ -9,6 +9,7 @@ import {
 } from '@floating-ui/react';
 import type { Range } from '@tiptap/core';
 import { Editor, Node } from '@tiptap/core';
+import { PluginKey } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer, ReactRenderer } from '@tiptap/react';
 import {
   Suggestion,
@@ -348,6 +349,7 @@ export const MentionExtension = Node.create<MentionOptions>({
       Suggestion({
         editor: this.editor,
         char: '@',
+        pluginKey: new PluginKey('mentionSuggestion'),
         command: ({
           editor,
           range,

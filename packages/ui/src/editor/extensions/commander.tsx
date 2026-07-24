@@ -9,6 +9,7 @@ import {
 } from '@floating-ui/react';
 import type { Range } from '@tiptap/core';
 import { Editor, Extension } from '@tiptap/core';
+import { PluginKey } from '@tiptap/pm/state';
 import { ReactRenderer } from '@tiptap/react';
 import {
   Suggestion,
@@ -246,6 +247,7 @@ export const CommanderExtension = Extension.create<CommanderOptions>({
       Suggestion({
         editor: this.editor,
         char: '/',
+        pluginKey: new PluginKey('slashCommandSuggestion'),
         command: async ({
           editor,
           range,
