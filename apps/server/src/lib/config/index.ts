@@ -18,6 +18,7 @@ import {
   resolveOptionalConfigReference,
 } from './utils';
 import { workspaceConfigSchema } from './workspace';
+import { zulipConfigSchema } from './zulip';
 
 const serverModeSchema = z.enum(['standalone', 'cluster']);
 
@@ -46,6 +47,7 @@ const configSchema = z.object({
   workspace: workspaceConfigSchema,
   push: pushConfigSchema,
   apns: apnsConfigSchema,
+  zulip: zulipConfigSchema,
 });
 
 export type Configuration = z.infer<typeof configSchema>;

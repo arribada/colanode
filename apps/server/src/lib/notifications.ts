@@ -12,6 +12,7 @@ import {
 import { database } from '@colanode/server/data/database';
 import { SelectNotification } from '@colanode/server/data/schema';
 import { eventBus } from '@colanode/server/lib/event-bus';
+import { notifyZulip } from '@colanode/server/lib/zulip/notifier';
 import { WorkspaceContext } from '@colanode/server/types/api';
 
 type CreateNotificationInput = {
@@ -66,6 +67,19 @@ export const createNotification = async (
     notificationId: created.id,
     userId: created.user_id,
     workspaceId: created.workspace_id,
+  });
+
+  // Outgoing integration hook: relay this notification to a Zulip stream.
+  // No-ops instantly when disabled (see lib/zulip/notifier.ts); when
+  // enabled it fires-and-forgets, so a slow/down Zulip never delays or
+  // fails notification creation.
+  notifyZulip({
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    rootId: input.rootId,
+    type: input.type,
+    sourceNodeId: input.sourceNodeId,
+    actorId: input.actorId,
   });
 
   return created;
