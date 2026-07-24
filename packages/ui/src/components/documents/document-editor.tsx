@@ -7,7 +7,7 @@ import {
   useEditor,
 } from '@tiptap/react';
 import { debounce, isEqual } from 'lodash-es';
-import { Fragment, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -233,6 +233,7 @@ export const DocumentEditor = ({
   const revisionRef = useRef(state?.revision ?? 0);
   const ydocRef = useRef<YDoc>(buildYDoc(state, updates));
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+  const [viewReady, setViewReady] = useState(false);
 
   const debouncedSave = useMemo(
     () =>
@@ -542,6 +543,33 @@ export const DocumentEditor = ({
     setRemoteCarets(editor, carets);
   }, [editor, presences]);
 
+  // @tiptap/react v3 attaches the ProseMirror view asynchronously (after
+  // EditorContent mounts), so editor.view throws "editor view is not available"
+  // if the toolbar/action menus render first. Only render them once the view is
+  // truly ready to avoid an intermittent crash.
+  useEffect(() => {
+    setViewReady(false);
+    if (!editor) {
+      return;
+    }
+    let raf = 0;
+    const check = () => {
+      let ready = false;
+      try {
+        ready = Boolean(editor.view?.dom);
+      } catch {
+        ready = false;
+      }
+      if (ready) {
+        setViewReady(true);
+      } else {
+        raf = requestAnimationFrame(check);
+      }
+    };
+    check();
+    return () => cancelAnimationFrame(raf);
+  }, [editor]);
+
   return (
     <div className="relative">
       {presences.length > 0 && (
@@ -549,7 +577,7 @@ export const DocumentEditor = ({
           <PresenceAvatars presences={presences} />
         </div>
       )}
-      {editor && canEdit && (
+      {editor && viewReady && canEdit && (
         <Fragment>
           <ToolbarMenu editor={editor} />
           <ActionMenu editor={editor} />
