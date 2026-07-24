@@ -2,6 +2,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import {
   ArrowUpRight,
   FolderKanban,
+  Github,
   History,
   LayoutGrid,
   MessagesSquare,
@@ -43,6 +44,12 @@ const TOOLS = [
     description: "Messagerie de l'équipe",
     href: 'https://chat.arribada.org',
     icon: MessagesSquare,
+  },
+  {
+    name: 'GitHub',
+    description: 'Code & firmware',
+    href: 'https://github.com/arribada',
+    icon: Github,
   },
 ];
 

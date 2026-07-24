@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // running the metadata collection.
 const chatVisibility = vi.hoisted(() => ({ visible: true }));
 
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => () => {},
+  useLocation: () => ({ pathname: '/workspace/user-1/home' }),
+}));
+
 vi.mock('@colanode/ui/hooks/use-chat-visibility', () => ({
   useChatVisibility: () => [chatVisibility.visible, () => {}],
 }));

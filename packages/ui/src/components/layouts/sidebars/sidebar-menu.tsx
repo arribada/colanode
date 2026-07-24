@@ -1,10 +1,15 @@
 import { count, inArray, useLiveQuery } from '@tanstack/react-db';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Bell,
   FolderKanban,
+  Github,
+  Home,
   LayoutGrid,
   MessageCircle,
   MessagesSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Satellite,
   Search,
   Settings,
@@ -39,18 +44,32 @@ const ARRIBADA_APPS = [
     label: 'Chat',
     url: 'https://chat.arribada.org',
   },
+  {
+    icon: Github,
+    label: 'GitHub — Code',
+    url: 'https://github.com/arribada',
+  },
 ] as const;
 
 interface SidebarMenuProps {
   value: SidebarMenuType;
   onChange: (value: SidebarMenuType) => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
-export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
+export const SidebarMenu = ({
+  value,
+  onChange,
+  collapsed = false,
+  onToggleCollapsed,
+}: SidebarMenuProps) => {
   const workspace = useWorkspace();
   const radar = useRadar();
   const search = useSearch();
   const [showChat] = useChatVisibility();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const chatsState = radar.getChatsState(workspace.userId);
   const channelsState = radar.getChannelsState(workspace.userId);
@@ -82,7 +101,7 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
   const pendingUploads = pendingUploadsQuery.data?.count ?? 0;
 
   return (
-    <div className="flex flex-col h-full w-[65px] min-w-[65px] items-center">
+    <div className="flex flex-col h-full w-[65px] min-w-[65px] shrink-0 items-center">
       <div
         className="mt-3 flex w-full items-center justify-center"
         title="Arribada Wiki"
@@ -94,6 +113,17 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
       </div>
       <SidebarMenuHeader />
       <div className="flex flex-col gap-1 mt-2 w-full p-2 items-center grow">
+        <SidebarMenuIcon
+          icon={Home}
+          label="Home"
+          onClick={() => {
+            navigate({
+              to: '/workspace/$userId/home',
+              params: { userId: workspace.userId },
+            });
+          }}
+          isActive={location.pathname.endsWith('/home')}
+        />
         <SidebarMenuIcon
           icon={Search}
           label="Search"
@@ -152,13 +182,19 @@ export const SidebarMenu = ({ value, onChange }: SidebarMenuProps) => {
           />
         ))}
         <div className="mt-auto" />
+        {onToggleCollapsed && (
+          <SidebarMenuIcon
+            icon={collapsed ? PanelLeftOpen : PanelLeftClose}
+            label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            onClick={onToggleCollapsed}
+          />
+        )}
         <SidebarMenuIcon
           icon={Settings}
           label="Settings"
           onClick={() => {
             onChange('settings');
           }}
-          className="mt-auto"
           isActive={value === 'settings'}
           unreadBadge={{
             count: pendingUploads,

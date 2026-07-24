@@ -54,15 +54,15 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
         className="group/space-row text-sm flex h-7 items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer"
       >
         <CollapsibleTrigger asChild>
-          <button className="flex items-center gap-2 overflow-hidden rounded-md text-left text-sm flex-1 cursor-pointer">
+          <button className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md text-left text-sm flex-1 cursor-pointer">
             <Avatar
               id={space.id}
               avatar={space.avatar}
               name={space.name}
               className="size-4 group-hover/space-row:hidden shrink-0"
             />
-            <ChevronRight className="hidden size-4 transition-transform duration-200 group-hover/space-row:block group-data-[state=open]/sidebar-space:rotate-90 cursor-pointer rounded hover:bg-sidebar-accent/50" />
-            <span>{space.name}</span>
+            <ChevronRight className="hidden size-4 shrink-0 transition-transform duration-200 group-hover/space-row:block group-data-[state=open]/sidebar-space:rotate-90 cursor-pointer rounded hover:bg-sidebar-accent/50" />
+            <span className="truncate">{space.name}</span>
           </button>
         </CollapsibleTrigger>
         <SpaceSidebarDropdown space={space} />

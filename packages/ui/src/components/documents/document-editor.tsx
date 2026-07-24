@@ -140,6 +140,9 @@ interface UndoRedoParams {
   ydoc: YDoc;
   nodeId: string;
   userId: string;
+  // Commit any debounced (not-yet-persisted) editor edit into the YDoc so the
+  // undo/redo below operate on the real latest state, not a 500ms-stale copy.
+  flushPendingSave: () => Promise<unknown> | unknown;
 }
 
 const performUndo = async ({
@@ -147,7 +150,10 @@ const performUndo = async ({
   ydoc,
   nodeId,
   userId,
+  flushPendingSave,
 }: UndoRedoParams) => {
+  await flushPendingSave();
+
   const beforeContent = ydoc.getObject<RichTextContent>();
   const update = ydoc.undo();
 
@@ -181,12 +187,12 @@ const performRedo = async ({
   ydoc,
   nodeId,
   userId,
+  flushPendingSave,
 }: UndoRedoParams) => {
+  await flushPendingSave();
+
   const beforeContent = ydoc.getObject<RichTextContent>();
-  console.log('beforeContent', beforeContent);
   const update = ydoc.redo();
-  console.log('afterContent', ydoc.getObject<RichTextContent>());
-  console.log('update', update);
 
   if (!update) {
     return;
@@ -409,36 +415,46 @@ export const DocumentEditor = ({
             return false;
           }
 
-          if (event.key === 'z' && event.metaKey && !event.shiftKey) {
+          // metaKey = Cmd (macOS); ctrlKey = Ctrl (Windows/Linux). The old code
+          // only checked metaKey, so Ctrl+Z/Ctrl+Y did nothing on Windows/Linux.
+          const mod = event.metaKey || event.ctrlKey;
+          const flushPendingSave = () => debouncedSave.flush();
+
+          if (event.key === 'z' && mod && !event.shiftKey) {
             event.preventDefault();
             performUndo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
+              flushPendingSave,
             });
             return true;
           }
-          if (event.key === 'z' && event.metaKey && event.shiftKey) {
+          if (event.key === 'z' && mod && event.shiftKey) {
             event.preventDefault();
             performRedo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
+              flushPendingSave,
             });
             return true;
           }
-          if (event.key === 'y' && event.metaKey) {
+          if (event.key === 'y' && mod) {
             event.preventDefault();
             performRedo({
               editor: editorRef.current,
               ydoc: ydocRef.current,
               nodeId: node.id,
               userId: workspace.userId,
+              flushPendingSave,
             });
             return true;
           }
+
+          return false;
         },
       },
       content: buildEditorContent(
