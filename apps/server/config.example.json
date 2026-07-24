@@ -86,6 +86,14 @@
     "publicKey": "env://PUSH_VAPID_PUBLIC_KEY",
     "privateKey": "env://PUSH_VAPID_PRIVATE_KEY"
   },
+  "zulip": {
+    "_comment": "Outgoing notification integration: relays mentions/messages to a Zulip stream via a bot. Disabled by default. Two ways to turn it on: (1) leave this whole \"zulip\" key out of config.json entirely and just set ZULIP_ENABLED=true plus the four ZULIP_* env vars below — every field already falls back to its own env:// reference; or (2) set \"enabled\": true here explicitly, as shown, with literal values or env:// pointers of your choice.",
+    "enabled": false,
+    "site": "env://ZULIP_SITE",
+    "botEmail": "env://ZULIP_BOT_EMAIL",
+    "apiKey": "env://ZULIP_API_KEY",
+    "stream": "env://ZULIP_STREAM"
+  },
   "jobs": {
     "queue": {
       "name": "jobs",

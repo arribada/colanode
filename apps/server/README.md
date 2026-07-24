@@ -87,6 +87,60 @@ GitLab-compatible identity provider), configured under `account.oidc` in
   server's environment is configured (compose file, k8s secret, etc.) —
   never commit real values into `config.local.json`.
 
+### Zulip notifications
+
+An outgoing-notification hook can mirror Colanode notifications (mentions,
+chat messages, task assignments/status changes) to a Zulip stream via a bot,
+so a team using Zulip for chat still gets pinged when something happens in
+Colanode. It's a feature flag, off by default, wired at the single choke
+point where every notification is created
+(`apps/server/src/lib/notifications.ts` → `lib/zulip/notifier.ts` →
+`lib/zulip/zulip-client.ts`). Disabled, it costs nothing (a single boolean
+check, no DB lookups, no network calls); enabled, it fires-and-forgets after
+the notification row is committed, so a slow or unreachable Zulip instance
+never delays or fails Colanode's own notification pipeline.
+
+Two ways to turn it on:
+
+1. **Env vars only** (recommended for compose/k8s deploys) — don't touch
+   `config.json` at all, just set:
+
+   ```bash
+   ZULIP_ENABLED=true
+   ZULIP_SITE=https://your-zulip-instance.example.com
+   ZULIP_BOT_EMAIL=colanode-bot@your-zulip-instance.example.com
+   ZULIP_API_KEY=the-bot-s-api-key
+   ZULIP_STREAM=colanode-notifications
+   ```
+
+   Every field under `zulip` in the config schema already defaults to its
+   own `env://ZULIP_*` reference, so as long as these five env vars are set
+   on the server process, the integration is live — no config.json edit
+   required.
+
+2. **Explicit `config.json`** (account-style, same pattern as `push`/`oidc`
+   above) — set `"zulip": { "enabled": true, ... }` in `config.example.json`
+   / `config.local.json`, with literal values or `env://VAR`/`file://path`
+   references of your choice for `site`/`botEmail`/`apiKey`/`stream`. An
+   explicit `"enabled": false` here always wins over `ZULIP_ENABLED=true`.
+
+Getting a bot + API key: in the Zulip web UI, go to
+**Settings → Personal settings → Bots** (or **Organization settings → Bots**
+for a generic/incoming-webhook bot) and create a "Generic bot". Its profile
+page shows the bot's email and API key — that's `ZULIP_BOT_EMAIL` /
+`ZULIP_API_KEY`. Make sure the bot is subscribed to whichever stream you put
+in `ZULIP_STREAM` (it needs to be a member to post there).
+
+What gets posted: one Zulip message per Colanode notification, e.g.
+
+```
+**Alice** mentioned you in [Project Plan](https://colanode.example.com/workspace/<userId>/<rootId>)
+> ...first ~160 characters of the mentioning message...
+```
+
+The topic is the root node's name (channel/page/space), or "Colanode" if it
+can't be resolved.
+
 ## Code map
 
 - `apps/server/src/api`: HTTP + WebSocket routes and plugins.
