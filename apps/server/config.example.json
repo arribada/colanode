@@ -18,6 +18,16 @@
       "enabled": false,
       "clientId": "env://ACCOUNT_GOOGLE_CLIENT_ID",
       "clientSecret": "env://ACCOUNT_GOOGLE_CLIENT_SECRET"
+    },
+    "oidc": {
+      "_comment": "Generic OIDC/OAuth2 login (e.g. a self-hosted GitLab-compatible provider). Set either \"issuer\" (endpoints are discovered from {issuer}/.well-known/openid-configuration) or all three of authorizationUrl/tokenUrl/userinfoUrl explicitly.",
+      "enabled": false,
+      "issuer": "https://your-oidc-provider.example.com",
+      "clientId": "env://ACCOUNT_OIDC_CLIENT_ID",
+      "clientSecret": "env://ACCOUNT_OIDC_CLIENT_SECRET",
+      "redirectUri": "https://your-colanode-domain.example.com/auth/sso-callback",
+      "scopes": "openid profile email",
+      "buttonLabel": "Continue with SSO"
     }
   },
   "postgres": {
