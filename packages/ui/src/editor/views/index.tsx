@@ -7,6 +7,7 @@ import { MathBlockNodeView } from '@colanode/ui/editor/views/math-block';
 import { MathInlineNodeView } from '@colanode/ui/editor/views/math-inline';
 import { MentionNodeView } from '@colanode/ui/editor/views/mention';
 import { PageNodeView } from '@colanode/ui/editor/views/page';
+import { PlaneIssueLinkNodeView } from '@colanode/ui/editor/views/plane-issue-link';
 import { TableNodeView } from '@colanode/ui/editor/views/table';
 import { TableCellNodeView } from '@colanode/ui/editor/views/table-cell';
 import { TableHeaderNodeView } from '@colanode/ui/editor/views/table-header';
@@ -23,6 +24,7 @@ export {
   MathInlineNodeView,
   MentionNodeView,
   PageNodeView,
+  PlaneIssueLinkNodeView,
   TableCellNodeView,
   TableNodeView,
   TableHeaderNodeView,

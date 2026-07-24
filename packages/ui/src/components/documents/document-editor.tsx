@@ -77,6 +77,7 @@ import {
   PageNode,
   ParagraphNode,
   PlaceholderExtension,
+  PlaneIssueLinkExtension,
   StrikethroughMark,
   TabKeymapExtension,
   TableNode,
@@ -263,6 +264,11 @@ export const DocumentEditor = ({
     {
       extensions: [
         IdExtension,
+        // Must precede ParserExtension: its handlePaste only fires when the
+        // ENTIRE clipboard payload is a bare Plane issue URL, and needs
+        // first refusal before the generic markdown/text paste handling
+        // below swallows it as plain text.
+        PlaneIssueLinkExtension,
         ParserExtension,
         Markdown,
         DocumentNode,
