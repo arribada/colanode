@@ -21,9 +21,18 @@ describe('nodeCoverSchema', () => {
     }
   });
 
+  it('accepts an image cover', () => {
+    const r = nodeCoverSchema.safeParse({
+      type: 'image',
+      value: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e',
+    });
+
+    expect(r.success).toBe(true);
+  });
+
   it('rejects an unknown type', () => {
     expect(
-      nodeCoverSchema.safeParse({ type: 'image', value: 'blue' }).success
+      nodeCoverSchema.safeParse({ type: 'video', value: 'x' }).success
     ).toBe(false);
   });
 

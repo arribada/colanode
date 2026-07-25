@@ -17,7 +17,9 @@ export const nodeRoleEnum = z.enum([
 // records). The value is a preset key resolved by the UI; unknown values fall
 // back to a neutral banner so the palette can evolve safely.
 export const nodeCoverSchema = z.object({
-  type: z.enum(['color', 'gradient']),
+  // 'image' value is either a full https URL (e.g. Unsplash) or an uploaded
+  // avatar id resolved through the local asset cache.
+  type: z.enum(['color', 'gradient', 'image']),
   value: z.string(),
 });
 
