@@ -6,6 +6,7 @@ import {
   Download,
   Frame,
   Hand,
+  LayoutTemplate,
   MousePointer2,
   Network,
   Pencil,
@@ -24,6 +25,7 @@ import {
   STICKY_COLORS,
   STROKE_COLORS,
 } from '@colanode/ui/lib/board/elements';
+import { BOARD_TEMPLATES } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
 
 import { BoardStyleState, BoardTool } from './board-types';
@@ -122,6 +124,14 @@ interface BoardToolbarProps {
   onDelete: () => void;
   onDuplicate: () => void;
   onExport: () => void;
+  onInsertTemplate: (templateId: string) => void;
+  // Per-element text sizing controls (shown when a text-bearing shape is
+  // selected). `fontAuto`/`fontSize` reflect the current selection.
+  fontControlsVisible: boolean;
+  fontAuto: boolean;
+  fontSize: number;
+  onFontDelta: (delta: number) => void;
+  onFontAuto: (auto: boolean) => void;
 }
 
 export const BoardToolbar = ({
@@ -138,8 +148,17 @@ export const BoardToolbar = ({
   onDelete,
   onDuplicate,
   onExport,
+  onInsertTemplate,
+  fontControlsVisible,
+  fontAuto,
+  fontSize,
+  onFontDelta,
+  onFontAuto,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [templateMenu, setTemplateMenu] = useState(false);
+  // Templates worth inserting into a live board (skip the empty "Blank").
+  const insertableTemplates = BOARD_TEMPLATES.filter((t) => t.id !== 'blank');
 
   const showStylePanel =
     !readOnly &&
@@ -214,12 +233,104 @@ export const BoardToolbar = ({
             <ToolbarButton title="Export PNG" onClick={onExport}>
               <Download className="size-4" />
             </ToolbarButton>
+
+            <div className="relative">
+              <ToolbarButton
+                title="Insert template"
+                active={templateMenu}
+                onClick={() => setTemplateMenu((o) => !o)}
+              >
+                <LayoutTemplate className="size-4" />
+              </ToolbarButton>
+              {templateMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setTemplateMenu(false)}
+                  />
+                  <div className="absolute left-0 top-11 z-20 w-56 rounded-lg border border-border bg-background p-1 shadow-xl">
+                    <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Insert template
+                    </p>
+                    {insertableTemplates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          onInsertTemplate(t.id);
+                          setTemplateMenu(false);
+                        }}
+                        className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                      >
+                        <span className="block text-xs font-medium">
+                          {t.name}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {t.description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
 
       {showStylePanel && !collapsed && (
         <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur">
+          {fontControlsVisible && (
+            <>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Text</span>
+                <button
+                  type="button"
+                  aria-label="Decrease font size"
+                  title="Decrease font size"
+                  disabled={fontAuto}
+                  onClick={() => onFontDelta(-2)}
+                  className={cn(
+                    'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+                    fontAuto && 'pointer-events-none opacity-40'
+                  )}
+                >
+                  <span className="text-xs font-semibold">A-</span>
+                </button>
+                <span className="min-w-6 text-center text-xs tabular-nums text-muted-foreground">
+                  {fontAuto ? 'Auto' : Math.round(fontSize)}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Increase font size"
+                  title="Increase font size"
+                  disabled={fontAuto}
+                  onClick={() => onFontDelta(2)}
+                  className={cn(
+                    'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+                    fontAuto && 'pointer-events-none opacity-40'
+                  )}
+                >
+                  <span className="text-sm font-semibold">A+</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Auto-fit font size"
+                  title="Auto-fit font to shape"
+                  onClick={() => onFontAuto(!fontAuto)}
+                  className={cn(
+                    'ml-0.5 rounded-md px-2 py-1 text-xs hover:bg-accent',
+                    fontAuto && 'bg-primary/10 text-primary'
+                  )}
+                >
+                  Auto
+                </button>
+              </div>
+
+              <div className="h-6 w-px bg-border" />
+            </>
+          )}
+
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">
               {isStickyContext ? 'Note' : 'Fill'}

@@ -29,6 +29,9 @@ export const boardElementStyleSchema = z.object({
   strokeWidth: z.number().optional(),
   strokeStyle: z.enum(['solid', 'dashed', 'dotted']).optional(),
   fontSize: z.number().optional(),
+  // When true the label font auto-scales to fill the element box; when false
+  // (or unset) `fontSize` is used as a fixed, user-picked size.
+  fontAuto: z.boolean().optional(),
   color: z.string().optional(),
   fontWeight: z.string().optional(),
   opacity: z.number().optional(),

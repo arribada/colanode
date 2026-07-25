@@ -70,12 +70,36 @@ interface LabelProps {
   padding?: number;
 }
 
+// Largest font (down to a floor) at which the wrapped text still fits inside
+// the element box on both axes. Used when style.fontAuto is set so the label
+// grows/shrinks with the shape instead of staying a fixed size.
+const fitFontSize = (
+  text: string,
+  boxW: number,
+  boxH: number,
+  padding: number,
+  ceiling: number
+): number => {
+  const maxW = Math.max(20, boxW - padding * 2);
+  const maxH = Math.max(12, boxH - padding * 2);
+  const hi = Math.min(ceiling, Math.max(8, Math.floor(boxH)));
+  for (let fs = hi; fs >= 8; fs--) {
+    const lines = wrapText(text, maxW, fs);
+    if (lines.length * fs * 1.25 <= maxH) {
+      return fs;
+    }
+  }
+  return 8;
+};
+
 const Label = ({ element, align = 'center', padding = 10 }: LabelProps) => {
   const text = element.text;
   if (!text) {
     return null;
   }
-  const fontSize = element.style.fontSize ?? 15;
+  const fontSize = element.style.fontAuto
+    ? fitFontSize(text, element.w, element.h, padding, 96)
+    : (element.style.fontSize ?? 15);
   const color = element.style.color ?? '#1f2937';
   const fontWeight = element.style.fontWeight ?? 'normal';
   const maxWidth = Math.max(20, element.w - padding * 2);

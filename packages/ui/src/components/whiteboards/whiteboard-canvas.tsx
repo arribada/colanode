@@ -1,4 +1,14 @@
-import { Expand, Maximize, Minus, Plus, Shrink } from 'lucide-react';
+import {
+  Circle,
+  Diamond,
+  Expand,
+  Maximize,
+  Minus,
+  Plus,
+  Shrink,
+  Square,
+  StickyNote,
+} from 'lucide-react';
 import {
   PointerEvent as ReactPointerEvent,
   useCallback,
@@ -12,6 +22,7 @@ import { LocalWhiteboardNode } from '@colanode/client/types';
 import {
   BoardElement,
   BoardElementStyle,
+  BoardElementType,
   BoardScene,
   hasNodeRole,
   NodeRole,
@@ -32,12 +43,15 @@ import {
 } from '@colanode/ui/hooks/use-presence';
 import {
   createElement,
+  createElementId,
+  defaultForType,
   elementRect,
   frameChildIds,
   resolveConnectorEndpoints,
   sortedElements,
   topZ,
 } from '@colanode/ui/lib/board/elements';
+import { generateNKeysBetween } from '@colanode/ui/lib/board/fractional-index';
 import {
   AlignGuide,
   Anchor,
@@ -64,7 +78,28 @@ import {
   toggleMindmapCollapsed,
 } from '@colanode/ui/lib/board/mindmap';
 import { downloadBlob, exportScenePng } from '@colanode/ui/lib/board/png';
+import { getTemplate } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
+
+// Shape types whose label the per-element text-size controls apply to.
+const TEXT_CAPABLE_TYPES: BoardElementType[] = [
+  'sticky',
+  'rect',
+  'ellipse',
+  'diamond',
+  'text',
+  'mindmap',
+  'frame',
+];
+
+// Sides a quick-connect "+" handle can sit on / a new shape can be spawned to.
+type QuickSide = 'top' | 'right' | 'bottom' | 'left';
+const OPPOSITE_SIDE: Record<QuickSide, QuickSide> = {
+  top: 'bottom',
+  bottom: 'top',
+  left: 'right',
+  right: 'left',
+};
 
 const GRID = 20;
 const MIN_ZOOM = 0.15;
@@ -157,6 +192,13 @@ export const WhiteboardCanvas = ({
   // Element currently under the pointer while linking with the connector tool;
   // drives the anchor-dot hover feedback so users see where a link will snap.
   const [linkHoverId, setLinkHoverId] = useState<string | null>(null);
+  // Open quick-connect picker: which shape + side triggered it and where (in
+  // container-relative screen coords) to float the shape-type menu.
+  const [quickConnect, setQuickConnect] = useState<{
+    sourceId: string;
+    side: QuickSide;
+    screen: Point;
+  } | null>(null);
   const [history, setHistory] = useState<{
     past: BoardScene[];
     future: BoardScene[];
@@ -205,6 +247,11 @@ export const WhiteboardCanvas = ({
       setLinkHoverId(null);
     }
   }, [tool]);
+
+  // Close the quick-connect picker whenever the selection changes.
+  useEffect(() => {
+    setQuickConnect(null);
+  }, [selection]);
 
   // Keep local fullscreen state in sync with the browser (e.g. Esc to exit).
   useEffect(() => {
@@ -466,6 +513,32 @@ export const WhiteboardCanvas = ({
         mindmapToggleCollapse(collapseEl.getAttribute('data-collapse')!);
       }
       return;
+    }
+
+    // quick-connect "+" handle: open the shape-type picker for that side.
+    const quickEl = target.closest('[data-quick]');
+    if (quickEl) {
+      if (canEdit && selectionRef.current.length === 1) {
+        openQuickConnect(
+          selectionRef.current[0]!,
+          quickEl.getAttribute('data-quick') as QuickSide
+        );
+      }
+      return;
+    }
+
+    // mindmap "+" affordance: add a child node directly.
+    const mindAddEl = target.closest('[data-mindadd]');
+    if (mindAddEl) {
+      if (canEdit) {
+        mindmapAddChild(mindAddEl.getAttribute('data-mindadd')!);
+      }
+      return;
+    }
+
+    // any other pointer-down dismisses an open quick-connect picker
+    if (quickConnect) {
+      setQuickConnect(null);
     }
 
     if (!canEdit) {
@@ -1198,6 +1271,207 @@ export const WhiteboardCanvas = ({
     commit(before, res.scene, res.changedIds);
   };
 
+  // ----- quick-connect -----------------------------------------------------
+  // Anchor the picker menu at the selected shape's edge midpoint (in screen
+  // coords) for the chosen side, then let the user pick the new shape type.
+  const openQuickConnect = (sourceId: string, side: QuickSide) => {
+    const src = sceneRef.current[sourceId];
+    if (!src) {
+      return;
+    }
+    const ap = anchorPoint(elementRect(src), side);
+    setQuickConnect({ sourceId, side, screen: sceneToClient(ap) });
+  };
+
+  // Spawn a NEW shape on `side` of the source and auto-wire an arrow connector
+  // between them, then drop straight into inline edit on the new shape.
+  const createConnectedShape = (
+    sourceId: string,
+    side: QuickSide,
+    type: BoardElementType
+  ) => {
+    const src = sceneRef.current[sourceId];
+    if (!src) {
+      return;
+    }
+    const def = defaultForType(type);
+    const gap = 90;
+    let x = src.x;
+    let y = src.y;
+    switch (side) {
+      case 'right':
+        x = src.x + src.w + gap;
+        y = src.y + src.h / 2 - def.h / 2;
+        break;
+      case 'left':
+        x = src.x - gap - def.w;
+        y = src.y + src.h / 2 - def.h / 2;
+        break;
+      case 'top':
+        x = src.x + src.w / 2 - def.w / 2;
+        y = src.y - gap - def.h;
+        break;
+      case 'bottom':
+        x = src.x + src.w / 2 - def.w / 2;
+        y = src.y + src.h + gap;
+        break;
+    }
+    const before = cloneScene(sceneRef.current);
+    const newEl = createElement({
+      type,
+      x: maybeSnap(x),
+      y: maybeSnap(y),
+      z: topZ(sceneRef.current),
+      style: styleForType(type as BoardTool),
+      text: '',
+    });
+    const withNew = { ...sceneRef.current, [newEl.id]: newEl };
+    const conn = createElement({
+      type: 'connector',
+      x: 0,
+      y: 0,
+      z: topZ(withNew),
+      style: styleForType('connector'),
+    });
+    conn.connector = {
+      fromId: sourceId,
+      toId: newEl.id,
+      arrowEnd: true,
+      fromAnchor: side,
+      toAnchor: OPPOSITE_SIDE[side],
+    };
+    const next = { ...withNew, [conn.id]: conn };
+    setQuickConnect(null);
+    commit(before, next, [newEl.id, conn.id]);
+    setSelection([newEl.id]);
+    setEditing({ id: newEl.id, value: '' });
+  };
+
+  // ----- per-element text sizing -------------------------------------------
+  const applyFontToSelection = (
+    mut: (style: BoardElementStyle) => BoardElementStyle
+  ) => {
+    const ids = selectionRef.current.filter((id) => {
+      const el = sceneRef.current[id];
+      return !!el && TEXT_CAPABLE_TYPES.includes(el.type);
+    });
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = { ...el, style: mut(el.style) };
+    }
+    commit(before, next, ids);
+  };
+
+  const onFontDelta = (delta: number) => {
+    applyFontToSelection((s) => ({
+      ...s,
+      fontAuto: false,
+      fontSize: Math.max(8, Math.min(200, Math.round((s.fontSize ?? 15) + delta))),
+    }));
+  };
+
+  const onFontAuto = (auto: boolean) => {
+    applyFontToSelection((s) => ({ ...s, fontAuto: auto }));
+  };
+
+  // ----- insert a template into the current board --------------------------
+  // Reuse a BOARD_TEMPLATE but drop it at the viewport center with fresh ids
+  // and top-of-stack z keys so it never collides with existing elements.
+  const insertTemplate = (templateId: string) => {
+    const tpl = getTemplate(templateId);
+    if (!tpl) {
+      return;
+    }
+    const built = tpl.build();
+    const elems = Object.values(built);
+    if (elems.length === 0) {
+      return;
+    }
+    const rects = elems.map((el) =>
+      el.type === 'connector' || el.type === 'freehand'
+        ? pointsBounds(el.points ?? [[el.x, el.y]])
+        : elementRect(el)
+    );
+    const b = unionBounds(rects) ?? { x: 0, y: 0, w: 0, h: 0 };
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    const center = {
+      x: (cw / 2 - vp.x) / vp.zoom,
+      y: (ch / 2 - vp.y) / vp.zoom,
+    };
+    const dx = center.x - (b.x + b.w / 2);
+    const dy = center.y - (b.y + b.h / 2);
+
+    const idMap: Record<string, string> = {};
+    for (const el of elems) {
+      idMap[el.id] = createElementId();
+    }
+    const orderedElems = [...elems].sort((a, c) =>
+      a.z < c.z ? -1 : a.z > c.z ? 1 : 0
+    );
+    const zKeys = generateNKeysBetween(
+      topZ(sceneRef.current),
+      null,
+      orderedElems.length
+    );
+
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    const newIds: string[] = [];
+    orderedElems.forEach((el, i) => {
+      const nid = idMap[el.id]!;
+      const remapped: BoardElement = {
+        ...el,
+        id: nid,
+        z: zKeys[i]!,
+        x: el.x + dx,
+        y: el.y + dy,
+      };
+      if (el.points) {
+        remapped.points = el.points.map(([px, py]) => [
+          (px ?? 0) + dx,
+          (py ?? 0) + dy,
+        ]);
+      }
+      if (el.frameId && idMap[el.frameId]) {
+        remapped.frameId = idMap[el.frameId];
+      }
+      if (el.connector) {
+        remapped.connector = {
+          ...el.connector,
+          fromId: el.connector.fromId
+            ? idMap[el.connector.fromId] ?? el.connector.fromId
+            : el.connector.fromId,
+          toId: el.connector.toId
+            ? idMap[el.connector.toId] ?? el.connector.toId
+            : el.connector.toId,
+        };
+      }
+      if (el.mindmap) {
+        remapped.mindmap = {
+          ...el.mindmap,
+          parentId: el.mindmap.parentId
+            ? idMap[el.mindmap.parentId] ?? el.mindmap.parentId
+            : el.mindmap.parentId,
+        };
+      }
+      next[nid] = remapped;
+      newIds.push(nid);
+    });
+    commit(before, next, newIds);
+    setSelection(newIds);
+    setTool('select');
+  };
+
   const onStyleChange = (patch: Partial<BoardStyleState>) => {
     setStyle((s) => ({ ...s, ...patch }));
     const ids = selectionRef.current;
@@ -1339,6 +1613,34 @@ export const WhiteboardCanvas = ({
     ? sceneToClient({ x: editingEl.x, y: editingEl.y })
     : null;
 
+  // Text-sizing controls reflect the first selected text-bearing element.
+  const selectedTextEls = selection
+    .map((id) => scene[id])
+    .filter(
+      (el): el is BoardElement =>
+        Boolean(el) && TEXT_CAPABLE_TYPES.includes(el!.type)
+    );
+  const fontControlsVisible = canEdit && selectedTextEls.length > 0;
+  const fontAutoState = selectedTextEls[0]?.style.fontAuto ?? false;
+  const fontSizeState = selectedTextEls[0]?.style.fontSize ?? 15;
+
+  // The single selected shape that should show quick-connect "+" handles.
+  const quickConnectSource =
+    canEdit && selection.length === 1
+      ? (() => {
+          const el = scene[selection[0]!];
+          if (
+            !el ||
+            el.type === 'connector' ||
+            el.type === 'freehand' ||
+            hiddenIds.has(el.id)
+          ) {
+            return null;
+          }
+          return el;
+        })()
+      : null;
+
   return (
     <div
       ref={containerRef}
@@ -1474,6 +1776,51 @@ export const WhiteboardCanvas = ({
                   </g>
                 );
               })}
+
+          {/* mind-map "+" affordance: add a child to the selected node */}
+          {canEdit &&
+            ordered
+              .filter(
+                (el) => el.type === 'mindmap' && selection.includes(el.id)
+              )
+              .map((el) => {
+                const cx = el.x + el.w + 20;
+                const cy = el.y + el.h / 2;
+                return (
+                  <g
+                    key={`mindadd-${el.id}`}
+                    className="board-no-export"
+                    data-mindadd={el.id}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <title>Add child node</title>
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={9}
+                      fill="#6366f1"
+                      stroke="#fff"
+                      strokeWidth={1.5}
+                    />
+                    <line
+                      x1={cx - 4}
+                      y1={cy}
+                      x2={cx + 4}
+                      y2={cy}
+                      stroke="#fff"
+                      strokeWidth={1.75}
+                    />
+                    <line
+                      x1={cx}
+                      y1={cy - 4}
+                      x2={cx}
+                      y2={cy + 4}
+                      stroke="#fff"
+                      strokeWidth={1.75}
+                    />
+                  </g>
+                );
+              })}
         </g>
 
         {/* selection + handles in screen space (excluded from export) */}
@@ -1544,6 +1891,58 @@ export const WhiteboardCanvas = ({
               </g>
             );
           })}
+
+          {/* quick-connect "+" handles around the single selected shape */}
+          {quickConnectSource &&
+            (() => {
+              const rect = elementRect(quickConnectSource);
+              const tl = sceneToClient({ x: rect.x, y: rect.y });
+              const w = rect.w * viewport.zoom;
+              const h = rect.h * viewport.zoom;
+              const cx = tl.x + w / 2;
+              const cy = tl.y + h / 2;
+              const side = 22;
+              // top uses a larger offset to clear the rotation grip above the box
+              const handles: Array<{ side: QuickSide; x: number; y: number }> = [
+                { side: 'top', x: cx, y: tl.y - 44 },
+                { side: 'right', x: tl.x + w + side, y: cy },
+                { side: 'bottom', x: cx, y: tl.y + h + side },
+                { side: 'left', x: tl.x - side, y: cy },
+              ];
+              return handles.map((hd) => (
+                <g
+                  key={`quick-${hd.side}`}
+                  data-quick={hd.side}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <title>Add connected shape</title>
+                  <circle
+                    cx={hd.x}
+                    cy={hd.y}
+                    r={9}
+                    fill="#fff"
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                  />
+                  <line
+                    x1={hd.x - 4}
+                    y1={hd.y}
+                    x2={hd.x + 4}
+                    y2={hd.y}
+                    stroke="#3b82f6"
+                    strokeWidth={1.75}
+                  />
+                  <line
+                    x1={hd.x}
+                    y1={hd.y - 4}
+                    x2={hd.x}
+                    y2={hd.y + 4}
+                    stroke="#3b82f6"
+                    strokeWidth={1.75}
+                  />
+                </g>
+              ));
+            })()}
 
           {marquee && (
             <rect
@@ -1637,6 +2036,12 @@ export const WhiteboardCanvas = ({
         onDelete={deleteSelection}
         onDuplicate={duplicateSelection}
         onExport={onExport}
+        onInsertTemplate={insertTemplate}
+        fontControlsVisible={fontControlsVisible}
+        fontAuto={fontAutoState}
+        fontSize={fontSizeState}
+        onFontDelta={onFontDelta}
+        onFontAuto={onFontAuto}
       />
 
       {presences.length > 0 && (
@@ -1672,6 +2077,51 @@ export const WhiteboardCanvas = ({
             e.stopPropagation();
           }}
         />
+      )}
+
+      {/* quick-connect shape-type picker */}
+      {quickConnect && canEdit && (
+        <div
+          className="absolute z-40 flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-xl"
+          style={{
+            left: quickConnect.screen.x,
+            top: quickConnect.screen.y,
+            transform:
+              quickConnect.side === 'right'
+                ? 'translate(14px, -50%)'
+                : quickConnect.side === 'left'
+                  ? 'translate(calc(-100% - 14px), -50%)'
+                  : quickConnect.side === 'top'
+                    ? 'translate(-50%, calc(-100% - 14px))'
+                    : 'translate(-50%, 14px)',
+          }}
+        >
+          {(
+            [
+              { type: 'sticky', icon: StickyNote, label: 'Sticky' },
+              { type: 'rect', icon: Square, label: 'Rectangle' },
+              { type: 'ellipse', icon: Circle, label: 'Ellipse' },
+              { type: 'diamond', icon: Diamond, label: 'Diamond' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.type}
+              type="button"
+              title={`Add ${opt.label}`}
+              aria-label={`Add ${opt.label}`}
+              onClick={() =>
+                createConnectedShape(
+                  quickConnect.sourceId,
+                  quickConnect.side,
+                  opt.type
+                )
+              }
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <opt.icon className="size-4" />
+            </button>
+          ))}
+        </div>
       )}
 
       {/* bottom-right controls */}
