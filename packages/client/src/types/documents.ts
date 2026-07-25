@@ -21,4 +21,7 @@ export type DocumentUpdate = {
   id: string;
   documentId: string;
   data: string;
+  // Per-edit timestamp (row.created_at). Optional so existing constructors
+  // that build a DocumentUpdate without it keep compiling.
+  createdAt?: string;
 };

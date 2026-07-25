@@ -10,6 +10,7 @@ import { DocumentGetQueryHandler } from './documents/document-get';
 import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
 import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
+import { DocumentUpdateContentQueryHandler } from './documents/document-update-content';
 import { DocumentUpdatesListQueryHandler } from './documents/document-update-list';
 import { EmojiCategoryListQueryHandler } from './emojis/emoji-category-list';
 import { EmojiGetQueryHandler } from './emojis/emoji-get';
@@ -84,6 +85,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'document.snapshot.get': new DocumentSnapshotGetQueryHandler(app),
     'document.snapshot.list': new DocumentSnapshotListQueryHandler(app),
     'document.state.get': new DocumentStateGetQueryHandler(app),
+    'document.update.content': new DocumentUpdateContentQueryHandler(app),
     'document.updates.list': new DocumentUpdatesListQueryHandler(app),
     'upload.list': new UploadListQueryHandler(app),
     'download.list': new DownloadListQueryHandler(app),

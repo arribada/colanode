@@ -6,6 +6,7 @@ export * from './documents/document-get';
 export * from './documents/document-snapshot-get';
 export * from './documents/document-snapshot-list';
 export * from './documents/document-state-get';
+export * from './documents/document-update-content';
 export * from './documents/document-updates-list';
 export * from './emojis/emoji-category-list';
 export * from './emojis/emoji-get-by-skin-id';

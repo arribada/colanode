@@ -17,6 +17,7 @@ export class DocumentUpdatesListQueryHandler
       .selectFrom('document_updates')
       .selectAll()
       .where('document_id', '=', input.documentId)
+      .orderBy('id', 'asc')
       .execute();
 
     if (!documentUpdates) {

@@ -123,6 +123,7 @@ export const mapDocumentUpdate = (
     id: row.id,
     documentId: row.document_id,
     data: encodeState(row.data),
+    createdAt: row.created_at,
   };
 };
 
