@@ -18,7 +18,8 @@ import {
   Type,
   Undo2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   SHAPE_FILLS,
@@ -29,6 +30,14 @@ import { BOARD_TEMPLATES } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
 
 import { BoardStyleState, BoardTool } from './board-types';
+
+// Menus opened from board overlays must escape the toolbar's `overflow-x-auto`
+// clip and remain visible while the board is in the Fullscreen API. Portaling
+// into the current fullscreen element (falling back to <body>) keeps the menu
+// inside the fullscreen subtree — content outside it is not painted — while a
+// fixed position lets it break out of the scrolling toolbar container.
+const boardPortalTarget = (): HTMLElement =>
+  (document.fullscreenElement as HTMLElement | null) ?? document.body;
 
 interface ToolDef {
   tool: BoardTool;
@@ -157,8 +166,25 @@ export const BoardToolbar = ({
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
+  const templateWrapRef = useRef<HTMLDivElement>(null);
+  // Fixed (viewport) coords of the template dropdown, captured from the trigger
+  // when the menu opens so the portaled menu anchors under the button.
+  const [templatePos, setTemplatePos] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   // Templates worth inserting into a live board (skip the empty "Blank").
   const insertableTemplates = BOARD_TEMPLATES.filter((t) => t.id !== 'blank');
+
+  const toggleTemplateMenu = () => {
+    if (!templateMenu) {
+      const r = templateWrapRef.current?.getBoundingClientRect();
+      if (r) {
+        setTemplatePos({ left: r.left, top: r.bottom + 6 });
+      }
+    }
+    setTemplateMenu((open) => !open);
+  };
 
   const showStylePanel =
     !readOnly &&
@@ -234,45 +260,51 @@ export const BoardToolbar = ({
               <Download className="size-4" />
             </ToolbarButton>
 
-            <div className="relative">
+            <div className="relative" ref={templateWrapRef}>
               <ToolbarButton
                 title="Insert template"
                 active={templateMenu}
-                onClick={() => setTemplateMenu((o) => !o)}
+                onClick={toggleTemplateMenu}
               >
                 <LayoutTemplate className="size-4" />
               </ToolbarButton>
-              {templateMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setTemplateMenu(false)}
-                  />
-                  <div className="absolute left-0 top-11 z-20 w-56 rounded-lg border border-border bg-background p-1 shadow-xl">
-                    <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Insert template
-                    </p>
-                    {insertableTemplates.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => {
-                          onInsertTemplate(t.id);
-                          setTemplateMenu(false);
-                        }}
-                        className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                      >
-                        <span className="block text-xs font-medium">
-                          {t.name}
-                        </span>
-                        <span className="block text-[11px] text-muted-foreground">
-                          {t.description}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              {templateMenu &&
+                templatePos &&
+                createPortal(
+                  <>
+                    <div
+                      className="fixed inset-0 z-[60]"
+                      onClick={() => setTemplateMenu(false)}
+                    />
+                    <div
+                      className="fixed z-[61] w-56 rounded-lg border border-border bg-background p-1 shadow-xl"
+                      style={{ left: templatePos.left, top: templatePos.top }}
+                    >
+                      <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Insert template
+                      </p>
+                      {insertableTemplates.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            onInsertTemplate(t.id);
+                            setTemplateMenu(false);
+                          }}
+                          className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                        >
+                          <span className="block text-xs font-medium">
+                            {t.name}
+                          </span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            {t.description}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>,
+                  boardPortalTarget()
+                )}
             </div>
           </>
         )}

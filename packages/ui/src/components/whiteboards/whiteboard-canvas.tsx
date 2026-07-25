@@ -17,6 +17,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 import { LocalWhiteboardNode } from '@colanode/client/types';
 import {
@@ -159,6 +160,14 @@ interface WhiteboardCanvasProps {
 
 const cloneScene = (scene: BoardScene): BoardScene =>
   JSON.parse(JSON.stringify(scene)) as BoardScene;
+
+// Floating board menus (quick-connect picker) must escape the board's
+// `overflow-hidden` container and stay painted while the board is fullscreen.
+// The Fullscreen API only paints the fullscreen subtree, so portal into the
+// current fullscreen element when there is one, else <body>; both pair with
+// position:fixed anchored to viewport coordinates.
+const boardPortalTarget = (): HTMLElement =>
+  (document.fullscreenElement as HTMLElement | null) ?? document.body;
 
 export const WhiteboardCanvas = ({
   whiteboard,
@@ -1280,7 +1289,19 @@ export const WhiteboardCanvas = ({
       return;
     }
     const ap = anchorPoint(elementRect(src), side);
-    setQuickConnect({ sourceId, side, screen: sceneToClient(ap) });
+    // The picker is portaled out of the board and positioned with
+    // position:fixed, so anchor it in viewport coordinates (container-relative
+    // screen point + the svg's page offset).
+    const local = sceneToClient(ap);
+    const rect = svgRef.current?.getBoundingClientRect();
+    setQuickConnect({
+      sourceId,
+      side,
+      screen: {
+        x: local.x + (rect?.left ?? 0),
+        y: local.y + (rect?.top ?? 0),
+      },
+    });
   };
 
   // Spawn a NEW shape on `side` of the source and auto-wire an arrow connector
@@ -1655,11 +1676,32 @@ export const WhiteboardCanvas = ({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onDoubleClick={(e) => {
-          const elEl = (e.target as Element).closest('[data-el-id]');
+          const target = e.target as Element;
+          // Never let a double-click on an overlay affordance (quick-connect
+          // "+", resize/rotate handle, mindmap "+", collapse badge) fall through
+          // to shape creation — the pointer-down already handled those.
+          if (
+            target.closest(
+              '[data-quick],[data-handle],[data-mindadd],[data-collapse]'
+            )
+          ) {
+            return;
+          }
+          const elEl = target.closest('[data-el-id]');
           if (elEl) {
             onElementDoubleClick(elEl.getAttribute('data-el-id')!);
+            return;
+          }
+          // The pointer-capture set on pointer-down (and the screen-space
+          // selection overlay painted over the shape) can retarget the dblclick
+          // off the shape's <g>, so hit-test the scene at the cursor before
+          // treating this as an empty-canvas double-click. Double-clicking an
+          // existing shape must edit its text, not spawn a new one.
+          const p = clientToScene(e.clientX, e.clientY);
+          const hit = elementAt(p);
+          if (hit) {
+            onElementDoubleClick(hit.id);
           } else if (canEdit && tool === 'select') {
-            const p = clientToScene(e.clientX, e.clientY);
             placeClickElement('text', p);
           }
         }}
@@ -2079,10 +2121,13 @@ export const WhiteboardCanvas = ({
         />
       )}
 
-      {/* quick-connect shape-type picker */}
-      {quickConnect && canEdit && (
+      {/* quick-connect shape-type picker (portaled so it escapes the board's
+          overflow-hidden container and stays visible in fullscreen) */}
+      {quickConnect &&
+        canEdit &&
+        createPortal(
         <div
-          className="absolute z-40 flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-xl"
+          className="fixed z-[61] flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-xl"
           style={{
             left: quickConnect.screen.x,
             top: quickConnect.screen.y,
@@ -2121,8 +2166,9 @@ export const WhiteboardCanvas = ({
               <opt.icon className="size-4" />
             </button>
           ))}
-        </div>
-      )}
+        </div>,
+          boardPortalTarget()
+        )}
 
       {/* bottom-right controls */}
       <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
