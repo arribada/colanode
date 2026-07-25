@@ -1,4 +1,4 @@
-import { Maximize, Minus, Plus } from 'lucide-react';
+import { Expand, Maximize, Minus, Plus, Shrink } from 'lucide-react';
 import {
   PointerEvent as ReactPointerEvent,
   useCallback,
@@ -39,6 +39,8 @@ import {
   topZ,
 } from '@colanode/ui/lib/board/elements';
 import {
+  Anchor,
+  anchorPoint,
   normalizeRect,
   pointInRotatedRect,
   pointsBounds,
@@ -144,11 +146,16 @@ export const WhiteboardCanvas = ({
     null
   );
   const [snapEnabled, setSnapEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Element currently under the pointer while linking with the connector tool;
+  // drives the anchor-dot hover feedback so users see where a link will snap.
+  const [linkHoverId, setLinkHoverId] = useState<string | null>(null);
   const [history, setHistory] = useState<{
     past: BoardScene[];
     future: BoardScene[];
   }>({ past: [], future: [] });
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const sceneGroupRef = useRef<SVGGElement>(null);
   const sceneRef = useRef(scene);
@@ -184,6 +191,35 @@ export const WhiteboardCanvas = ({
   useEffect(() => {
     publishPresence({ selectedElementIds: [], editingElementId: null });
   }, [publishPresence]);
+
+  // Drop the connector hover highlight whenever the connector tool is inactive.
+  useEffect(() => {
+    if (tool !== 'connector') {
+      setLinkHoverId(null);
+    }
+  }, [tool]);
+
+  // Keep local fullscreen state in sync with the browser (e.g. Esc to exit).
+  useEffect(() => {
+    const onFsChange = () =>
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  // Toggle true browser fullscreen on the container div (not the <svg>) so the
+  // toolbar, overlays and inline editor stay inside the fullscreen element.
+  const toggleFullscreen = () => {
+    const node = containerRef.current;
+    if (!node) {
+      return;
+    }
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void node.requestFullscreen();
+    }
+  };
 
   // Re-broadcast presence when the local selection / inline-edit changes so
   // remote collaborators see it even if the pointer is not moving.
@@ -627,6 +663,15 @@ export const WhiteboardCanvas = ({
       return;
     }
 
+    // Connector tool: highlight the shape (and its anchors) the pointer is over
+    // before a link is even started, so users see where it will snap.
+    if (!interactionRef.current && toolRef.current === 'connector') {
+      const hover = elementAt(clientToScene(e.clientX, e.clientY), {
+        shapesOnly: true,
+      });
+      setLinkHoverId(hover?.id ?? null);
+    }
+
     const it = interactionRef.current;
     if (!it) {
       return;
@@ -733,7 +778,8 @@ export const WhiteboardCanvas = ({
         if (!el) {
           break;
         }
-        const target = elementAt(p);
+        const target = elementAt(p, { shapesOnly: true });
+        setLinkHoverId(target?.id ?? null);
         const points = [el.points?.[0] ?? [p.x, p.y], [p.x, p.y]];
         const next = {
           ...sceneRef.current,
@@ -765,6 +811,7 @@ export const WhiteboardCanvas = ({
   const finishInteraction = () => {
     const it = interactionRef.current;
     interactionRef.current = null;
+    setLinkHoverId(null);
     if (!it) {
       return;
     }
@@ -1249,7 +1296,10 @@ export const WhiteboardCanvas = ({
     : null;
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-muted/30">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden bg-muted/30"
+    >
       <svg
         ref={svgRef}
         className="h-full w-full touch-none select-none"
@@ -1463,6 +1513,26 @@ export const WhiteboardCanvas = ({
               strokeWidth={1}
             />
           )}
+
+          {/* Connector anchor hover feedback: dots on the shape being linked. */}
+          {linkHoverId &&
+            scene[linkHoverId] &&
+            (['top', 'right', 'bottom', 'left'] as Anchor[]).map((an) => {
+              const pt = anchorPoint(elementRect(scene[linkHoverId]!), an);
+              const sp = sceneToClient(pt);
+              return (
+                <circle
+                  key={`anchor-${an}`}
+                  cx={sp.x}
+                  cy={sp.y}
+                  r={5}
+                  fill="#fff"
+                  stroke="#3b82f6"
+                  strokeWidth={1.5}
+                  pointerEvents="none"
+                />
+              );
+            })}
         </g>
 
         {/* remote collaborators' pointers + selections */}
@@ -1580,6 +1650,18 @@ export const WhiteboardCanvas = ({
           onClick={() => fitToContent()}
         >
           <Maximize className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="flex size-7 items-center justify-center rounded-md hover:bg-accent"
+          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+          onClick={toggleFullscreen}
+        >
+          {isFullscreen ? (
+            <Shrink className="size-4" />
+          ) : (
+            <Expand className="size-4" />
+          )}
         </button>
       </div>
     </div>

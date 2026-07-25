@@ -304,12 +304,173 @@ const mindmapTemplate: BoardTemplate = {
   },
 };
 
+const kanban: BoardTemplate = {
+  id: 'kanban',
+  name: 'Kanban',
+  description: 'Backlog / To do / In progress / Done.',
+  build: () => {
+    const cols = [
+      { label: 'Backlog', fill: '#e2e8f0' },
+      { label: 'To do', fill: '#dbeafe' },
+      { label: 'In progress', fill: '#fef9c3' },
+      { label: 'Done', fill: '#dcfce7' },
+    ];
+    const specs: Array<Omit<CreateElementInput, 'z'>> = [
+      {
+        type: 'text',
+        x: 80,
+        y: 40,
+        w: 600,
+        h: 48,
+        text: 'Kanban board',
+        style: { fontSize: 32, fontWeight: 'bold' },
+      },
+    ];
+    cols.forEach((col, i) => {
+      const x = 80 + i * 280;
+      specs.push({ type: 'frame', x, y: 110, w: 250, h: 560, text: col.label });
+      for (let r = 0; r < 2; r++) {
+        specs.push({
+          type: 'sticky',
+          x: x + 18,
+          y: 160 + r * 140,
+          w: 214,
+          h: 120,
+          style: { fill: col.fill },
+          text: '',
+        });
+      }
+    });
+    return buildScene(specs);
+  },
+};
+
+const timeline: BoardTemplate = {
+  id: 'timeline',
+  name: 'Timeline',
+  description: 'A horizontal roadmap with milestones.',
+  build: () => {
+    const specs: Array<
+      Omit<CreateElementInput, 'z'> & { connector?: BoardElement['connector'] }
+    > = [
+      {
+        type: 'text',
+        x: 80,
+        y: 40,
+        w: 500,
+        h: 48,
+        text: 'Timeline',
+        style: { fontSize: 32, fontWeight: 'bold' },
+      },
+    ];
+    const milestones = ['Kickoff', 'Design', 'Build', 'Launch', 'Review'];
+    const y = 260;
+    const startX = 120;
+    const gap = 260;
+    specs.push({
+      type: 'connector',
+      x: 0,
+      y: 0,
+      points: [
+        [startX, y + 60],
+        [startX + gap * (milestones.length - 1), y + 60],
+      ],
+      style: { stroke: '#94a3b8', strokeWidth: 3 },
+      connector: { arrowEnd: true },
+    });
+    milestones.forEach((label, i) => {
+      const x = startX + i * gap;
+      specs.push({
+        type: 'ellipse',
+        x: x - 8,
+        y: y + 52,
+        w: 16,
+        h: 16,
+        style: { fill: '#6366f1', stroke: '#4f46e5', strokeWidth: 2 },
+      });
+      const cardY = i % 2 === 0 ? y - 40 : y + 110;
+      specs.push({
+        type: 'rect',
+        x: x - 90,
+        y: cardY,
+        w: 180,
+        h: 70,
+        text: label,
+        style: { fill: '#eef2ff', stroke: '#6366f1', strokeWidth: 2 },
+      });
+    });
+    return buildScene(specs);
+  },
+};
+
+const orgchart: BoardTemplate = {
+  id: 'orgchart',
+  name: 'Org chart',
+  description: 'A top-down hierarchy with connectors.',
+  build: () => {
+    const nodes = [
+      { id: 'ceo', label: 'CEO', x: 400, y: 60 },
+      { id: 'a', label: 'Lead A', x: 200, y: 220 },
+      { id: 'b', label: 'Lead B', x: 400, y: 220 },
+      { id: 'c', label: 'Lead C', x: 600, y: 220 },
+      { id: 'a1', label: 'Member', x: 120, y: 380 },
+      { id: 'a2', label: 'Member', x: 300, y: 380 },
+      { id: 'c1', label: 'Member', x: 600, y: 380 },
+    ];
+    const edges: Array<[string, string]> = [
+      ['ceo', 'a'],
+      ['ceo', 'b'],
+      ['ceo', 'c'],
+      ['a', 'a1'],
+      ['a', 'a2'],
+      ['c', 'c1'],
+    ];
+    const keys = generateNKeysBetween(null, null, nodes.length + edges.length);
+    const scene: BoardScene = {};
+    const idMap: Record<string, string> = {};
+    nodes.forEach((n, i) => {
+      const el = createElement({
+        type: 'rect',
+        x: n.x - 80,
+        y: n.y,
+        w: 160,
+        h: 70,
+        z: keys[i]!,
+        text: n.label,
+        style: { fill: '#ffffff', stroke: '#334155', strokeWidth: 2 },
+      });
+      idMap[n.id] = el.id;
+      scene[el.id] = el;
+    });
+    edges.forEach(([from, to], i) => {
+      const c = createElement({
+        type: 'connector',
+        x: 0,
+        y: 0,
+        z: keys[nodes.length + i]!,
+      });
+      c.connector = {
+        fromId: idMap[from]!,
+        toId: idMap[to]!,
+        arrowEnd: true,
+        fromAnchor: 'bottom',
+        toAnchor: 'top',
+      };
+      scene[c.id] = c;
+    });
+    return scene;
+  },
+};
+
 export const BOARD_TEMPLATES: BoardTemplate[] = [
   blank,
   brainstorm,
   mindmapTemplate,
-  retro,
+  orgchart,
   flowchart,
+  kanban,
+  timeline,
+  retro,
   swot,
 ];
 
