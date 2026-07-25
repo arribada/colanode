@@ -9,6 +9,7 @@ import { AutoJoiner } from '@colanode/ui/editor/extensions/auto-joiner';
 import { BlockquoteNode } from '@colanode/ui/editor/extensions/blockquote';
 import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
 import { BookmarkNode } from '@colanode/ui/editor/extensions/bookmark';
+import { EmbedNode } from '@colanode/ui/editor/extensions/embed';
 import { CalloutNode } from '@colanode/ui/editor/extensions/callout';
 import {
   ColumnNode,
@@ -112,6 +113,7 @@ export {
   ToggleSummaryNode,
   CalloutNode,
   BookmarkNode,
+  EmbedNode,
   ColumnsNode,
   ColumnNode,
   TableOfContentsNode,

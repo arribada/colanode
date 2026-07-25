@@ -1,4 +1,5 @@
 import { BookmarkNodeView } from '@colanode/ui/editor/views/bookmark';
+import { EmbedNodeView } from '@colanode/ui/editor/views/embed';
 import { CalloutNodeView } from '@colanode/ui/editor/views/callout';
 import { CodeBlockNodeView } from '@colanode/ui/editor/views/code-block';
 import { DatabaseNodeView } from '@colanode/ui/editor/views/database';
@@ -17,6 +18,7 @@ import { TempFileNodeView } from '@colanode/ui/editor/views/temp-file';
 
 export {
   BookmarkNodeView,
+  EmbedNodeView,
   TableOfContentsNodeView,
   CalloutNodeView,
   CodeBlockNodeView,

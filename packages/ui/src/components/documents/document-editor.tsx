@@ -30,6 +30,7 @@ import {
   BulletListCommand,
   CalloutCommand,
   BookmarkCommand,
+  EmbedCommand,
   ColumnsCommand,
   TableOfContentsCommand,
   CodeBlockCommand,
@@ -96,6 +97,7 @@ import {
   ToggleSummaryNode,
   CalloutNode,
   BookmarkNode,
+  EmbedNode,
   ColumnsNode,
   ColumnNode,
   TableOfContentsNode,
@@ -298,6 +300,10 @@ export const DocumentEditor = ({
         // first refusal before the generic markdown/text paste handling
         // below swallows it as plain text.
         PlaneIssueLinkExtension,
+        // Same rationale as PlaneIssueLinkExtension: EmbedNode registers a
+        // handlePaste that turns a bare Google Drive/Docs/Slides/Sheets/
+        // YouTube URL into an embed block, and must precede ParserExtension.
+        EmbedNode,
         ParserExtension,
         Markdown,
         DocumentNode,
@@ -384,6 +390,7 @@ export const DocumentEditor = ({
             CalloutCommand,
             TableOfContentsCommand,
             BookmarkCommand,
+            EmbedCommand,
             ColumnsCommand,
             FileCommand,
             FolderCommand,
