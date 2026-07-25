@@ -10,7 +10,8 @@ const DEFAULT_WIDTH = 400;
 
 export const CommentsPanel = () => {
   const workspace = useWorkspace();
-  const { commentsPageId, closeComments } = usePageComments();
+  const { commentsPageId, commentsAnchorId, closeComments } =
+    usePageComments();
   const [width, setWidth] = useMetadata<number>(
     workspace.userId,
     'comments-panel.width'
@@ -39,7 +40,9 @@ export const CommentsPanel = () => {
     >
       <div className="flex h-full flex-col">
         <div className="flex h-10 shrink-0 flex-row items-center justify-between border-b border-border px-3">
-          <p className="text-sm font-semibold">Comments</p>
+          <p className="text-sm font-semibold">
+            {commentsAnchorId ? 'Comment' : 'Comments'}
+          </p>
           <button
             type="button"
             aria-label="Close comments"
@@ -49,7 +52,10 @@ export const CommentsPanel = () => {
             <X className="size-4" />
           </button>
         </div>
-        <CommentsPanelContent pageId={commentsPageId} />
+        <CommentsPanelContent
+          pageId={commentsPageId}
+          anchorId={commentsAnchorId}
+        />
       </div>
     </Resizable>
   );

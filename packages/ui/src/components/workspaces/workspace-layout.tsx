@@ -17,6 +17,9 @@ export const WorkspaceLayout = () => {
   const isMobile = useIsMobile();
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
   const [commentsPageId, setCommentsPageId] = useState<string | null>(null);
+  const [commentsAnchorId, setCommentsAnchorId] = useState<string | null>(
+    null
+  );
   const [searchOpen, setSearchOpen] = useState(false);
 
   // close the panels whenever the active route changes (stale-panel guard)
@@ -24,6 +27,7 @@ export const WorkspaceLayout = () => {
   useEffect(() => {
     setThreadRootId(null);
     setCommentsPageId(null);
+    setCommentsAnchorId(null);
   }, [location]);
 
   // Cmd-K (macOS) / Ctrl-K toggles the workspace-wide search dialog
@@ -42,6 +46,7 @@ export const WorkspaceLayout = () => {
   // thread and comments panels are mutually exclusive side surfaces
   const openThread = useCallback((id: string) => {
     setCommentsPageId(null);
+    setCommentsAnchorId(null);
     setThreadRootId(id);
   }, []);
   const closeThread = useCallback(() => setThreadRootId(null), []);
@@ -50,14 +55,21 @@ export const WorkspaceLayout = () => {
     [threadRootId, openThread, closeThread]
   );
 
-  const openComments = useCallback((pageId: string) => {
-    setThreadRootId(null);
-    setCommentsPageId(pageId);
+  const openComments = useCallback(
+    (pageId: string, anchorId?: string | null) => {
+      setThreadRootId(null);
+      setCommentsPageId(pageId);
+      setCommentsAnchorId(anchorId ?? null);
+    },
+    []
+  );
+  const closeComments = useCallback(() => {
+    setCommentsPageId(null);
+    setCommentsAnchorId(null);
   }, []);
-  const closeComments = useCallback(() => setCommentsPageId(null), []);
   const commentsValue = useMemo(
-    () => ({ commentsPageId, openComments, closeComments }),
-    [commentsPageId, openComments, closeComments]
+    () => ({ commentsPageId, commentsAnchorId, openComments, closeComments }),
+    [commentsPageId, commentsAnchorId, openComments, closeComments]
   );
 
   const searchValue = useMemo(

@@ -11,7 +11,8 @@ import {
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 
 export const CommentsSheet = () => {
-  const { commentsPageId, closeComments } = usePageComments();
+  const { commentsPageId, commentsAnchorId, closeComments } =
+    usePageComments();
 
   return (
     <Sheet
@@ -43,7 +44,10 @@ export const CommentsSheet = () => {
         </VisuallyHidden>
         {commentsPageId && (
           <div className="min-h-0 flex-1">
-            <CommentsPanelContent pageId={commentsPageId} />
+            <CommentsPanelContent
+              pageId={commentsPageId}
+              anchorId={commentsAnchorId}
+            />
           </div>
         )}
       </SheetContent>

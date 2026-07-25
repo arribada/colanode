@@ -12,12 +12,17 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 interface CommentsPanelContentProps {
   pageId: string;
+  // When set, scope the panel to a single inline comment thread.
+  anchorId?: string | null;
 }
 
 // Notion-style page comments: message nodes parented directly to the page.
 // Reuses the chat Conversation (list + composer + reactions + quote replies);
 // replies fall back to quote-reply because thread panels are channel-only.
-export const CommentsPanelContent = ({ pageId }: CommentsPanelContentProps) => {
+export const CommentsPanelContent = ({
+  pageId,
+  anchorId,
+}: CommentsPanelContentProps) => {
   const workspace = useWorkspace();
   const scrollAreaRef = useRef<HTMLDivElement>(null!);
   const scrollViewportRef = useRef<HTMLDivElement>(null!);
@@ -64,10 +69,16 @@ export const CommentsPanelContent = ({ pageId }: CommentsPanelContentProps) => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {commentCount === 0 && (
+      {anchorId ? (
         <p className="shrink-0 px-4 pt-3 text-sm text-muted-foreground">
-          No comments yet. Start the discussion below.
+          Comment on the highlighted text.
         </p>
+      ) : (
+        commentCount === 0 && (
+          <p className="shrink-0 px-4 pt-3 text-sm text-muted-foreground">
+            No comments yet. Start the discussion below.
+          </p>
+        )
       )}
       <div className="min-h-0 flex-1">
         <ContainerContext.Provider
@@ -80,6 +91,7 @@ export const CommentsPanelContent = ({ pageId }: CommentsPanelContentProps) => {
                   conversationId={page.id}
                   rootId={page.rootId}
                   role={role}
+                  anchorId={anchorId}
                 />
               </div>
             </ScrollViewport>

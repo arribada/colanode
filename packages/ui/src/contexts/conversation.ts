@@ -9,6 +9,9 @@ interface ConversationContext {
   role: NodeRole;
   canCreateMessage: boolean;
   isThread: boolean;
+  // Inline comment thread this conversation is scoped to. When set, only
+  // messages whose anchorId matches are shown and new messages inherit it.
+  anchorId?: string | null;
   onReply: (message: LocalMessageNode) => void;
   onQuoteReply: (message: LocalMessageNode) => void;
   onOpenThread: (messageId: string) => void;

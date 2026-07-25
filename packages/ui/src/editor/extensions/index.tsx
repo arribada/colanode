@@ -18,6 +18,7 @@ import {
 import { CodeMark } from '@colanode/ui/editor/extensions/code';
 import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
 import { ColorMark } from '@colanode/ui/editor/extensions/color';
+import { CommentMark } from '@colanode/ui/editor/extensions/comment';
 import { CommanderExtension } from '@colanode/ui/editor/extensions/commander';
 import { DatabaseNode } from '@colanode/ui/editor/extensions/database';
 import { DeleteControlExtension } from '@colanode/ui/editor/extensions/delete-control';
@@ -75,6 +76,7 @@ export {
   CodeBlockNode,
   CodeMark,
   ColorMark,
+  CommentMark,
   CommanderExtension,
   DeleteControlExtension,
   DividerNode,

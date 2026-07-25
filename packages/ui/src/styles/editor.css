@@ -87,3 +87,24 @@ div[data-type='toggle'] > button[data-toggle-button] svg {
 div[data-type='toggle'][data-open='true'] > button[data-toggle-button] svg {
   transform: rotate(90deg);
 }
+
+/* Notion-style inline comment highlight (CommentMark). Subtle amber wash with
+   an underline so it reads as commented text; the pointer cue signals it is
+   clickable (opens the comments panel filtered to this thread). */
+.comment-mark {
+  background-color: rgba(251, 191, 36, 0.22);
+  border-bottom: 2px solid rgba(217, 119, 6, 0.55);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.12s ease-out;
+}
+.comment-mark:hover {
+  background-color: rgba(251, 191, 36, 0.38);
+}
+.dark .comment-mark {
+  background-color: rgba(251, 191, 36, 0.16);
+  border-bottom-color: rgba(251, 191, 36, 0.6);
+}
+.dark .comment-mark:hover {
+  background-color: rgba(251, 191, 36, 0.28);
+}

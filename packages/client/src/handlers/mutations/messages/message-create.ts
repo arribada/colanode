@@ -63,6 +63,7 @@ export class MessageCreateMutationHandler
       parentId: input.parentId,
       content: blocks,
       referenceId: input.referenceId,
+      anchorId: input.anchorId,
     };
 
     await workspace.nodes.createNode({

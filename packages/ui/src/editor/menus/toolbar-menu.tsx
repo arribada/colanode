@@ -5,12 +5,16 @@ import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ColorButton } from '@colanode/ui/editor/menus/color-button';
+import { CommentButton } from '@colanode/ui/editor/menus/comment-button';
 import { HighlightButton } from '@colanode/ui/editor/menus/highlight-button';
 import { LinkButton } from '@colanode/ui/editor/menus/link-button';
 import { MarkButton } from '@colanode/ui/editor/menus/mark-button';
 
 interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
   editor: Editor;
+  // Provided only for page documents: creates/opens an inline comment thread
+  // for the current selection. Omitted (e.g. record documents) hides the button.
+  onAddComment?: (threadId: string) => void;
 }
 
 export const ToolbarMenu = (props: ToolbarMenuProps) => {
@@ -152,6 +156,12 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
           setIsLinkButtonOpen(false);
         }}
       />
+      {props.onAddComment && (
+        <CommentButton
+          editor={props.editor}
+          onAddComment={props.onAddComment}
+        />
+      )}
     </BubbleMenu>
   );
 };

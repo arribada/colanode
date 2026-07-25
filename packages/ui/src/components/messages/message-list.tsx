@@ -30,8 +30,15 @@ export const MessageList = () => {
     [workspace.userId, conversation.id]
   );
 
+  const anchorId = conversation.anchorId ?? null;
   const messages: LocalMessageNode[] = messageListQuery.data
     .map((node) => node as LocalMessageNode)
+    // Page-level comments show only non-anchored messages; an inline thread
+    // shows only its own (anchorId === threadId). Channel/chat messages never
+    // carry an anchorId, so the default branch is a no-op there.
+    .filter((message) =>
+      anchorId ? message.anchorId === anchorId : !message.anchorId
+    )
     .toSorted((a, b) => compareString(a.id, b.id));
 
   useEffect(() => {

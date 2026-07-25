@@ -24,6 +24,7 @@ import {
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
+import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   BlockquoteCommand,
@@ -59,6 +60,7 @@ import {
   CodeBlockNode,
   CodeMark,
   ColorMark,
+  CommentMark,
   CommanderExtension,
   DeleteControlExtension,
   DividerNode,
@@ -229,6 +231,10 @@ export const DocumentEditor = ({
   autoFocus,
 }: DocumentEditorProps) => {
   const workspace = useWorkspace();
+  const { openComments } = usePageComments();
+  // Inline comments only make sense on page documents (comments are `message`
+  // nodes parented to the page). Record documents opt out.
+  const isPage = node.type === 'page';
 
   const presences = usePresences(node.id);
   const { publish: publishPresence } = usePresencePublisher({
@@ -410,6 +416,11 @@ export const DocumentEditor = ({
         CodeMark,
         ColorMark,
         HighlightMark,
+        CommentMark.configure({
+          onCommentClick: isPage
+            ? (threadId: string) => openComments(node.id, threadId)
+            : null,
+        }),
       ],
       editorProps: {
         attributes: {
@@ -602,7 +613,14 @@ export const DocumentEditor = ({
       )}
       {editor && viewReady && canEdit && (
         <Fragment>
-          <ToolbarMenu editor={editor} />
+          <ToolbarMenu
+            editor={editor}
+            onAddComment={
+              isPage
+                ? (threadId) => openComments(node.id, threadId)
+                : undefined
+            }
+          />
           <ActionMenu editor={editor} />
         </Fragment>
       )}

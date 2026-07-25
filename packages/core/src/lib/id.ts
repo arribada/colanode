@@ -46,6 +46,7 @@ export enum IdType {
   Tab = 'tb',
   Notification = 'no',
   Whiteboard = 'wb',
+  CommentThread = 'cm',
 }
 
 export const SpecialId = {

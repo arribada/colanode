@@ -19,6 +19,8 @@ interface ConversationProps {
   rootId: string;
   role: NodeRole;
   isThread?: boolean;
+  // Inline comment thread id; scopes the message list + composer to one thread.
+  anchorId?: string | null;
 }
 
 export const Conversation = ({
@@ -26,6 +28,7 @@ export const Conversation = ({
   rootId,
   role,
   isThread = false,
+  anchorId = null,
 }: ConversationProps) => {
   const workspace = useWorkspace();
   const container = useContainer();
@@ -97,6 +100,7 @@ export const Conversation = ({
         rootId,
         canCreateMessage,
         isThread,
+        anchorId,
         onReply: (message) => {
           const useThreadDefault =
             !isMobile &&

@@ -80,6 +80,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
         userId: workspace.userId,
         referenceId: replyTo?.id,
         rootId: conversation.rootId,
+        anchorId: conversation.anchorId ?? undefined,
       },
       onSuccess: () => {
         setReplyTo(null);
@@ -95,6 +96,8 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
   }, [
     conversation.id,
     conversation.canCreateMessage,
+    conversation.anchorId,
+    conversation.rootId,
     content,
     replyTo,
     workspace.userId,
