@@ -11,6 +11,7 @@ export const BookmarkNodeView = ({
   const url = (node.attrs.url as string) ?? '';
   const editable = editor.isEditable;
   const [draft, setDraft] = useState('');
+  const [iconFailed, setIconFailed] = useState(false);
 
   const normalize = (value: string) => {
     const trimmed = value.trim();
@@ -23,13 +24,33 @@ export const BookmarkNodeView = ({
     return `https://${trimmed}`;
   };
 
-  const domain = (() => {
+  const parsed = (() => {
     try {
-      return new URL(url).hostname.replace(/^www\./, '');
+      return new URL(url);
     } catch {
-      return url;
+      return null;
     }
   })();
+
+  const domain = parsed ? parsed.hostname.replace(/^www\./, '') : url;
+
+  // Derive a cleaner card title from the domain: drop the TLD and any leading
+  // "www"/sub-labels and title-case the main label (github.com -> "Github",
+  // docs.example.co -> "Example"). Falls back to the raw domain when unsure.
+  const title = (() => {
+    const labels = domain.split('.').filter((label) => label && label !== 'www');
+    const main = labels.length > 1 ? labels[labels.length - 2] : labels[0];
+    if (!main) {
+      return domain;
+    }
+    return main.charAt(0).toUpperCase() + main.slice(1);
+  })();
+
+  // Favicon via Google's public service. The app is not sandboxed, so a plain
+  // <img> is fine; on any load error we fall back to the generic globe icon.
+  const faviconUrl = parsed
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
+    : '';
 
   if (!url) {
     if (!editable) {
@@ -84,14 +105,26 @@ export const BookmarkNodeView = ({
         }}
         className="group my-1 flex cursor-pointer select-none items-center gap-3 rounded-md border border-border/60 bg-background p-3 no-underline transition-all hover:border-border hover:bg-accent hover:shadow-sm"
       >
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/50">
-          <Globe className="size-4 text-muted-foreground" />
+        <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/50">
+          {faviconUrl && !iconFailed ? (
+            <img
+              src={faviconUrl}
+              alt=""
+              width={20}
+              height={20}
+              className="size-5"
+              loading="lazy"
+              onError={() => setIconFailed(true)}
+            />
+          ) : (
+            <Globe className="size-4 text-muted-foreground" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
-            {domain}
+            {title}
           </p>
-          <p className="truncate text-xs text-muted-foreground">{url}</p>
+          <p className="truncate text-xs text-muted-foreground">{domain}</p>
         </div>
         <ExternalLink className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
       </a>
