@@ -31,6 +31,16 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     data: SynchronizerMap[TInput['type']]['data']
   ) => Promise<void>;
 
+  // Optional back-pressure gate. When provided and it returns false, this
+  // synchronizer holds off sending its next pull to the server (it stays idle,
+  // sends nothing) until the gate opens again. Used by SyncService to let the
+  // currently-opened root ("space") back-fill first on a cold sync while the
+  // other roots wait a short, bounded moment. When omitted (all the global
+  // synchronizers -- users, collaborations, notifications, ...) the
+  // synchronizer always pulls, exactly as before. This only reorders WHEN a
+  // root pulls; it never drops data -- every root still pulls to completion.
+  private readonly canPull?: () => boolean;
+
   private status: SynchronizerStatus = 'idle';
   private cursor: string = '0';
   private initialized: boolean = false;
@@ -39,7 +49,8 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     workspace: WorkspaceService,
     input: TInput,
     cursorKey: string,
-    processor: (data: SynchronizerMap[TInput['type']]['data']) => Promise<void>
+    processor: (data: SynchronizerMap[TInput['type']]['data']) => Promise<void>,
+    canPull?: () => boolean
   ) {
     this.workspace = workspace;
     this.connection = workspace.account.socket;
@@ -47,6 +58,7 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     this.cursorKey = cursorKey;
     this.id = this.generateId();
     this.processor = processor;
+    this.canPull = canPull;
 
     this.eventLoop = new EventLoop(
       ms('1 minute'),
@@ -144,12 +156,32 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     }
   }
 
+  /**
+   * Ask this synchronizer to (re)attempt a pull now. Used by SyncService to
+   * promptly wake a synchronizer that had been held back by its `canPull` gate,
+   * instead of waiting up to a minute for the next `ping`. Safe to call at any
+   * time: if the synchronizer is mid-pull or the gate is still closed,
+   * `initConsumer` is a no-op.
+   */
+  public pull() {
+    this.initConsumer();
+  }
+
   private initConsumer() {
     if (this.status === 'processing') {
       return;
     }
 
     if (!this.connection.isConnected()) {
+      return;
+    }
+
+    // Priority back-pressure: a gated (non-priority) root defers its pull while
+    // a higher-priority root is back-filling. It stays 'idle' (no message sent),
+    // so a later pull()/ping resumes it cleanly once the gate opens. The gate is
+    // strictly time-bounded on the SyncService side, so this can never starve a
+    // root -- it only delays it briefly.
+    if (this.canPull && !this.canPull()) {
       return;
     }
 
