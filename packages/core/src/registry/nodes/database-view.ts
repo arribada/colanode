@@ -60,10 +60,46 @@ export type DatabaseViewFilterAttributes = z.infer<
   typeof databaseViewFilterAttributesSchema
 >;
 
+// Chart view config. A chart view aggregates the same filtered/sorted
+// records as any other view, grouping them by one field and reducing each
+// group to a single number (count of records, or sum/average of a numeric
+// field), then rendered as a pie, bar or line chart.
+export const databaseViewChartTypeSchema = z.enum(['pie', 'bar', 'line']);
+
+export type DatabaseViewChartType = z.infer<
+  typeof databaseViewChartTypeSchema
+>;
+
+export const databaseViewChartAggregateSchema = z.enum([
+  'count',
+  'sum',
+  'average',
+]);
+
+export type DatabaseViewChartAggregate = z.infer<
+  typeof databaseViewChartAggregateSchema
+>;
+
+export const databaseViewChartAttributesSchema = z.object({
+  // The kind of chart to draw.
+  type: databaseViewChartTypeSchema,
+  // Field the records are grouped by (a select/multi_select/relation/
+  // collaborator/boolean/date/text/... field id, or the special "name" id).
+  groupBy: z.string().nullable().optional(),
+  // How each group is reduced to a number. Defaults to count.
+  aggregate: databaseViewChartAggregateSchema.optional().nullable(),
+  // The numeric field summed/averaged when aggregate is sum/average.
+  valueFieldId: z.string().nullable().optional(),
+});
+
+export type DatabaseViewChartAttributes = z.infer<
+  typeof databaseViewChartAttributesSchema
+>;
+
 export const databaseViewAttributesSchema = z.object({
   type: z.literal('database_view'),
   parentId: z.string(),
-  layout: z.enum(['table', 'board', 'calendar', 'gallery', 'list']),
+  layout: z.enum(['table', 'board', 'calendar', 'gallery', 'list', 'chart']),
   name: z.string(),
   avatar: z.string().nullable().optional(),
   index: z.string(),
@@ -81,6 +117,7 @@ export const databaseViewAttributesSchema = z.object({
     .nullable(),
   groupBy: z.string().nullable().optional(),
   nameWidth: z.number().nullable().optional(),
+  chart: databaseViewChartAttributesSchema.optional().nullable(),
 });
 
 export type DatabaseViewAttributes = z.infer<
@@ -91,7 +128,8 @@ export type DatabaseViewLayout =
   | 'board'
   | 'calendar'
   | 'gallery'
-  | 'list';
+  | 'list'
+  | 'chart';
 
 export const databaseViewModel: NodeModel = {
   type: 'database_view',

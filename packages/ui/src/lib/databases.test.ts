@@ -16,6 +16,7 @@ describe('getDefaultViewFieldDisplay', () => {
       calendar: false,
       gallery: false,
       list: false,
+      chart: false,
     };
 
     for (const [layout, expected] of Object.entries(expectations)) {

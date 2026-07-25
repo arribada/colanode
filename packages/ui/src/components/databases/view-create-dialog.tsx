@@ -1,6 +1,13 @@
 import { useForm } from '@tanstack/react-form';
 import { useMutation } from '@tanstack/react-query';
-import { Calendar, Columns, LayoutGrid, List, Table } from 'lucide-react';
+import {
+  Calendar,
+  ChartPie,
+  Columns,
+  LayoutGrid,
+  List,
+  Table,
+} from 'lucide-react';
 import { FC } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
@@ -35,7 +42,7 @@ import { cn } from '@colanode/ui/lib/utils';
 
 const formSchema = z.object({
   name: z.string(),
-  type: z.enum(['table', 'board', 'calendar', 'gallery', 'list']),
+  type: z.enum(['table', 'board', 'calendar', 'gallery', 'list', 'chart']),
 });
 
 type ViewCreateFormValues = z.infer<typeof formSchema>;
@@ -48,7 +55,7 @@ const defaultValues: ViewCreateFormValues = {
 interface ViewTypeOption {
   name: string;
   icon: FC;
-  type: 'table' | 'board' | 'calendar' | 'gallery' | 'list';
+  type: 'table' | 'board' | 'calendar' | 'gallery' | 'list' | 'chart';
 }
 
 const viewTypes: ViewTypeOption[] = [
@@ -76,6 +83,11 @@ const viewTypes: ViewTypeOption[] = [
     name: 'List',
     icon: List,
     type: 'list',
+  },
+  {
+    name: 'Chart',
+    icon: ChartPie,
+    type: 'chart',
   },
 ];
 

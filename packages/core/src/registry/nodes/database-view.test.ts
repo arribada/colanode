@@ -20,6 +20,7 @@ describe('databaseViewAttributesSchema.layout', () => {
     'calendar',
     'gallery',
     'list',
+    'chart',
   ];
 
   it.each(layouts)('accepts %s layout', (layout) => {

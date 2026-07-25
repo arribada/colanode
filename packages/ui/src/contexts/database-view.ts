@@ -5,6 +5,7 @@ import {
   DatabaseViewFilterAttributes,
   DatabaseViewSortAttributes,
   DatabaseViewLayout,
+  DatabaseViewChartAttributes,
   SortDirection,
 } from '@colanode/core';
 
@@ -20,6 +21,7 @@ interface DatabaseViewContext {
   setScopeMode: (mode: 'shared' | 'personal') => void;
   clearPersonal: () => void;
   groupBy: string | null | undefined;
+  chart: DatabaseViewChartAttributes | null | undefined;
   nameWidth: number;
   isSearchBarOpened: boolean;
   isSortsOpened: boolean;

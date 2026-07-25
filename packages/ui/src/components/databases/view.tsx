@@ -58,6 +58,11 @@ const ListView = lazy(() =>
     (module) => ({ default: module.ListView })
   )
 );
+const ChartView = lazy(() =>
+  import('@colanode/ui/components/databases/charts/chart-view').then(
+    (module) => ({ default: module.ChartView })
+  )
+);
 
 interface ViewProps {
   view: LocalDatabaseViewNode;
@@ -109,6 +114,7 @@ export const View = ({ view }: ViewProps) => {
         setScopeMode: scope.setMode,
         clearPersonal: scope.clearPersonal,
         groupBy: view.groupBy,
+        chart: view.chart,
         nameWidth: view.nameWidth ?? getDefaultNameWidth(),
         isSearchBarOpened: isSearchBarOpened || openedFieldFilters.length > 0,
         isSortsOpened,
@@ -291,6 +297,7 @@ export const View = ({ view }: ViewProps) => {
             .with('calendar', () => <CalendarView />)
             .with('gallery', () => <GalleryView />)
             .with('list', () => <ListView />)
+            .with('chart', () => <ChartView />)
             .exhaustive()}
         </Suspense>
       </div>

@@ -1,5 +1,6 @@
 import {
   Calendar,
+  ChartPie,
   Database,
   LayoutGrid,
   List,
@@ -47,6 +48,10 @@ export const ViewIcon = ({
 
   if (layout === 'list') {
     return <List className={className} />;
+  }
+
+  if (layout === 'chart') {
+    return <ChartPie className={className} />;
   }
 
   return <Database className={className} />;
