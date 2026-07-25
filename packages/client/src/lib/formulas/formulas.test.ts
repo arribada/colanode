@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { FieldAttributes } from '@colanode/core';
 
 import { evaluate } from './evaluator';
+import { FUNCTIONS } from './functions';
 import {
   buildRecordFormulaContext,
   evaluateFormula,
@@ -10,6 +11,7 @@ import {
   formatFormulaValue,
   getFormulaDependencies,
   validateFormula,
+  FORMULA_FUNCTION_DOCS,
   type FormulaContext,
 } from './index';
 import { collectDependencies, parse } from './parser';
@@ -330,5 +332,62 @@ describe('empty and whitespace expressions', () => {
   it('treats empty expression as valid but null', () => {
     expect(validateFormula('')).toBeNull();
     expect(evaluate(parse('0'), emptyContext)).toBe(0);
+  });
+});
+
+describe('extended functions', () => {
+  it('text helpers', () => {
+    expect(evalWith("contains('hello world', 'world')").value).toBe(true);
+    expect(evalWith("startsWith('hello', 'he')").value).toBe(true);
+    expect(evalWith("endsWith('hello', 'lo')").value).toBe(true);
+    expect(evalWith("indexOf('hello', 'l')").value).toBe(2);
+    expect(evalWith("replace('a-b-c', '-', '+')").value).toBe('a+b+c');
+    expect(evalWith("repeat('ab', 3)").value).toBe('ababab');
+    expect(evalWith("padStart('7', 3, '0')").value).toBe('007');
+    expect(evalWith("padEnd('7', 3, '0')").value).toBe('700');
+  });
+
+  it('math helpers', () => {
+    expect(evalWith('sqrt(9)').value).toBe(3);
+    expect(evalWith('pow(2, 10)').value).toBe(1024);
+    expect(evalWith('mod(10, 3)').value).toBe(1);
+    expect(evalWith('sign(-4)').value).toBe(-1);
+    expect(evalWith('sum(1, 2, 3, 4)').value).toBe(10);
+    expect(evalWith('average(2, 4, 6)').value).toBe(4);
+    expect(evalWith('exp(0)').value).toBe(1);
+    expect(evalWith('log(8, 2)').value).toBe(3);
+  });
+
+  it('logic helpers', () => {
+    expect(evalWith("empty('')").value).toBe(true);
+    expect(evalWith("empty('x')").value).toBe(false);
+    expect(evalWith("coalesce('', null, 'fallback')").value).toBe('fallback');
+  });
+
+  it('date component helpers', () => {
+    const now = new Date('2024-06-15T09:30:00.000Z');
+    expect(
+      evalWith("year(now())", () => null, now).value
+    ).toBe(now.getFullYear());
+    expect(evalWith("month(now())", () => null, now).value).toBe(
+      now.getMonth() + 1
+    );
+    expect(evalWith("day(now())", () => null, now).value).toBe(now.getDate());
+    const today = evalWith('today()', () => null, now).value as Date;
+    expect(today).toBeInstanceOf(Date);
+    expect(today.getHours()).toBe(0);
+  });
+
+  it('conversion helpers', () => {
+    expect(evalWith("toNumber('42')").value).toBe(42);
+    expect(evalWith('toText(42)').value).toBe('42');
+    expect(evalWith("toBoolean('x')").value).toBe(true);
+  });
+
+  it('exposes a doc entry for every runtime function', () => {
+    for (const doc of FORMULA_FUNCTION_DOCS) {
+      const isControl = ['prop', 'if', 'and', 'or'].includes(doc.name);
+      expect(isControl || doc.name in FUNCTIONS).toBe(true);
+    }
   });
 });

@@ -22,6 +22,11 @@ export {
   coerceString,
 } from './values';
 export { parse as parseFormula, collectDependencies } from './parser';
+export { FORMULA_FUNCTION_DOCS } from './functions';
+export type {
+  FormulaFunctionDoc,
+  FormulaFunctionCategory,
+} from './functions';
 export * from './rollup';
 
 interface ParsedFormula {
