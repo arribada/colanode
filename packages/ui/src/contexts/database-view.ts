@@ -16,6 +16,9 @@ interface DatabaseViewContext {
   fields: ViewField[];
   filters: DatabaseViewFilterAttributes[];
   sorts: DatabaseViewSortAttributes[];
+  scopeMode: 'shared' | 'personal';
+  setScopeMode: (mode: 'shared' | 'personal') => void;
+  clearPersonal: () => void;
   groupBy: string | null | undefined;
   nameWidth: number;
   isSearchBarOpened: boolean;

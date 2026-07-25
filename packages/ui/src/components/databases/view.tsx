@@ -20,6 +20,7 @@ import { ViewSkeleton } from '@colanode/ui/components/databases/view-skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewContext } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
 import {
   generateFieldValuesFromFilters,
   getDefaultFieldWidth,
@@ -66,6 +67,15 @@ export const View = ({ view }: ViewProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const navigate = useNavigate();
+  const scope = useViewScope(view.id);
+  const effectiveFilters =
+    scope.mode === 'personal'
+      ? Object.values(scope.state.filters ?? {})
+      : Object.values(view.filters ?? {});
+  const effectiveSorts =
+    scope.mode === 'personal'
+      ? Object.values(scope.state.sorts ?? {})
+      : Object.values(view.sorts ?? {});
 
   const fields: ViewField[] = database.fields
     .map((field) => {
@@ -93,8 +103,11 @@ export const View = ({ view }: ViewProps) => {
         avatar: view.avatar,
         layout: view.layout,
         fields,
-        filters: Object.values(view.filters ?? {}),
-        sorts: Object.values(view.sorts ?? {}),
+        filters: effectiveFilters,
+        sorts: effectiveSorts,
+        scopeMode: scope.mode,
+        setScopeMode: scope.setMode,
+        clearPersonal: scope.clearPersonal,
         groupBy: view.groupBy,
         nameWidth: view.nameWidth ?? getDefaultNameWidth(),
         isSearchBarOpened: isSearchBarOpened || openedFieldFilters.length > 0,
@@ -102,6 +115,31 @@ export const View = ({ view }: ViewProps) => {
         isFieldFilterOpened: (fieldId: string) =>
           openedFieldFilters.includes(fieldId),
         initFieldFilter: (fieldId: string) => {
+          if (scope.mode === 'personal') {
+            const existing = scope.state.filters?.[fieldId];
+            if (existing) {
+              setOpenedFieldFilters((prev) =>
+                prev.filter((id) => id !== fieldId)
+              );
+              return;
+            }
+            if (
+              fieldId !== SpecialId.Name &&
+              !database.fields.find((f) => f.id === fieldId)
+            ) {
+              return;
+            }
+            scope.setFilter(fieldId, {
+              id: fieldId,
+              fieldId,
+              type: 'field',
+              operator: 'equals',
+              value: '',
+            });
+            setOpenedFieldFilters((prev) => [...prev, fieldId]);
+            return;
+          }
+
           workspace.collections.nodes.update(view.id, (draft) => {
             if (draft.type !== 'database_view') return;
 
@@ -137,6 +175,21 @@ export const View = ({ view }: ViewProps) => {
           });
         },
         initFieldSort: async (fieldId: string, direction: SortDirection) => {
+          if (scope.mode === 'personal') {
+            const existing = scope.state.sorts?.[fieldId];
+            if (existing && existing.direction === direction) {
+              return;
+            }
+            if (
+              fieldId !== SpecialId.Name &&
+              !database.fields.find((f) => f.id === fieldId)
+            ) {
+              return;
+            }
+            scope.setSort(fieldId, { id: fieldId, fieldId, direction });
+            return;
+          }
+
           if (!database.canEdit || database.isLocked) {
             return;
           }
