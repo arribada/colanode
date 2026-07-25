@@ -92,7 +92,7 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
       shouldShow={shouldShow}
       options={options}
       data-testid="editor-toolbar-menu"
-      className="flex flex-row items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl transition-transform duration-150 ease-out"
+      className="flex flex-row items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl"
     >
       <LinkButton
         editor={props.editor}
