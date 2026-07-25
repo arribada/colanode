@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   anchorPoint,
   arrowHeadPoints,
+  computeAlignmentSnap,
   distance,
   nearestAnchor,
   normalizeRect,
@@ -136,6 +137,41 @@ describe('snap', () => {
     expect(snap(23, 10)).toBe(20);
     expect(snap(27, 10)).toBe(30);
     expect(snap(27, 0)).toBe(27);
+  });
+});
+
+describe('computeAlignmentSnap', () => {
+  const other = { x: 100, y: 100, w: 100, h: 100 };
+
+  it('snaps a left edge onto another left edge within threshold', () => {
+    const moving = { x: 104, y: 300, w: 60, h: 40 };
+    const res = computeAlignmentSnap(moving, [other], 6);
+    expect(res.dx).toBe(-4); // 100 - 104
+    expect(res.guides.some((g) => g.axis === 'x' && g.pos === 100)).toBe(true);
+  });
+
+  it('snaps centers together', () => {
+    // other centerX = 150; moving is 60 wide so centerX aligns when x = 120.
+    const moving = { x: 123, y: 300, w: 60, h: 40 };
+    const res = computeAlignmentSnap(moving, [other], 6);
+    expect(moving.x + res.dx + moving.w / 2).toBe(150);
+  });
+
+  it('returns no snap and no guides when nothing is within threshold', () => {
+    const moving = { x: 500, y: 500, w: 60, h: 40 };
+    const res = computeAlignmentSnap(moving, [other], 6);
+    expect(res.dx).toBe(0);
+    expect(res.dy).toBe(0);
+    expect(res.guides).toHaveLength(0);
+  });
+
+  it('picks the nearest candidate per axis independently', () => {
+    const moving = { x: 197, y: 98, w: 40, h: 40 };
+    const res = computeAlignmentSnap(moving, [other], 6);
+    // x: nearest is other's right edge (200) -> dx = 3
+    expect(res.dx).toBe(3);
+    // y: nearest is other's top edge (100) -> dy = 2
+    expect(res.dy).toBe(2);
   });
 });
 

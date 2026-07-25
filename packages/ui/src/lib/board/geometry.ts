@@ -198,6 +198,98 @@ export const normalizeRect = (r: Rect): Rect => ({
 export const snap = (value: number, grid: number): number =>
   grid > 0 ? Math.round(value / grid) * grid : value;
 
+// ----- smart alignment guides -------------------------------------------------
+// A guide line the UI draws while dragging: an element edge/center is aligned
+// with another element's edge/center. `axis: 'x'` is a vertical line at scene
+// x = `pos`; `axis: 'y'` is a horizontal line at scene y = `pos`. `from`/`to`
+// are the extent along the perpendicular axis so the overlay can span both the
+// moving element and the element it snapped to.
+export interface AlignGuide {
+  axis: 'x' | 'y';
+  pos: number;
+  from: number;
+  to: number;
+}
+
+export interface AlignResult {
+  dx: number;
+  dy: number;
+  guides: AlignGuide[];
+}
+
+/**
+ * Compute the smallest offset that snaps `moving` so one of its edges or its
+ * center aligns with an edge/center of any rect in `others`, considering each
+ * axis independently. `threshold` is the max scene-unit distance that still
+ * snaps. Returns the offset to apply plus the guide lines to render. When
+ * nothing is within threshold the offset is {0,0} and `guides` is empty.
+ */
+export const computeAlignmentSnap = (
+  moving: Rect,
+  others: Rect[],
+  threshold: number
+): AlignResult => {
+  const movingXs = [moving.x, moving.x + moving.w / 2, moving.x + moving.w];
+  const movingYs = [moving.y, moving.y + moving.h / 2, moving.y + moving.h];
+
+  let bestX: { delta: number; pos: number; other: Rect } | null = null;
+  let bestY: { delta: number; pos: number; other: Rect } | null = null;
+
+  for (const o of others) {
+    const oxs = [o.x, o.x + o.w / 2, o.x + o.w];
+    const oys = [o.y, o.y + o.h / 2, o.y + o.h];
+
+    for (const mx of movingXs) {
+      for (const ox of oxs) {
+        const d = ox - mx;
+        if (
+          Math.abs(d) <= threshold &&
+          (bestX === null || Math.abs(d) < Math.abs(bestX.delta))
+        ) {
+          bestX = { delta: d, pos: ox, other: o };
+        }
+      }
+    }
+
+    for (const my of movingYs) {
+      for (const oy of oys) {
+        const d = oy - my;
+        if (
+          Math.abs(d) <= threshold &&
+          (bestY === null || Math.abs(d) < Math.abs(bestY.delta))
+        ) {
+          bestY = { delta: d, pos: oy, other: o };
+        }
+      }
+    }
+  }
+
+  const dx = bestX ? bestX.delta : 0;
+  const dy = bestY ? bestY.delta : 0;
+  const guides: AlignGuide[] = [];
+
+  if (bestX) {
+    const m = { ...moving, x: moving.x + dx };
+    guides.push({
+      axis: 'x',
+      pos: bestX.pos,
+      from: Math.min(m.y, bestX.other.y),
+      to: Math.max(m.y + m.h, bestX.other.y + bestX.other.h),
+    });
+  }
+  if (bestY) {
+    const m = { ...moving, y: moving.y + dy };
+    guides.push({
+      axis: 'y',
+      pos: bestY.pos,
+      from: Math.min(m.x, bestY.other.x),
+      to: Math.max(m.x + m.w, bestY.other.x + bestY.other.w),
+    });
+  }
+
+  return { dx, dy, guides };
+};
+
 /** SVG path for a connector between two points (straight segment). */
 export const connectorPath = (start: Point, end: Point): string =>
   `M ${start.x} ${start.y} L ${end.x} ${end.y}`;

@@ -39,8 +39,10 @@ import {
   topZ,
 } from '@colanode/ui/lib/board/elements';
 import {
+  AlignGuide,
   Anchor,
   anchorPoint,
+  computeAlignmentSnap,
   normalizeRect,
   pointInRotatedRect,
   pointsBounds,
@@ -67,6 +69,9 @@ import { cn } from '@colanode/ui/lib/utils';
 const GRID = 20;
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 6;
+// Screen-space distance (px) at which a dragged element snaps to another
+// element's edge/center. Divided by zoom to get the scene-unit threshold.
+const ALIGN_SNAP_PX = 6;
 
 interface Viewport {
   x: number;
@@ -147,6 +152,8 @@ export const WhiteboardCanvas = ({
   );
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Smart alignment guide lines shown while dragging, in scene coordinates.
+  const [alignGuides, setAlignGuides] = useState<AlignGuide[]>([]);
   // Element currently under the pointer while linking with the connector tool;
   // drives the anchor-dot hover feedback so users see where a link will snap.
   const [linkHoverId, setLinkHoverId] = useState<string | null>(null);
@@ -695,20 +702,56 @@ export const WhiteboardCanvas = ({
       case 'move': {
         const rawDx = p.x - it.start.x;
         const rawDy = p.y - it.start.y;
+        const movingIds = Object.keys(it.origin);
         const next = { ...sceneRef.current };
+        // First pass: grid-snapped positions per element.
+        const movedRects: Rect[] = [];
         for (const [id, o] of Object.entries(it.origin)) {
           const el = next[id];
           if (!el) {
             continue;
           }
-          next[id] = {
-            ...el,
-            x: maybeSnap(o.x + rawDx),
-            y: maybeSnap(o.y + rawDy),
-          };
+          const x = maybeSnap(o.x + rawDx);
+          const y = maybeSnap(o.y + rawDy);
+          next[id] = { ...el, x, y };
+          movedRects.push({ x, y, w: el.w, h: el.h });
         }
+
+        // Second pass: smart alignment against the rest of the scene. Shift the
+        // whole moving group by a single offset so multi-selection stays rigid.
+        let guides: AlignGuide[] = [];
+        const groupBounds = unionBounds(movedRects);
+        if (snapEnabled && groupBounds) {
+          const movingSet = new Set(movingIds);
+          const others: Rect[] = [];
+          for (const el of Object.values(sceneRef.current)) {
+            if (
+              movingSet.has(el.id) ||
+              el.type === 'connector' ||
+              el.type === 'freehand'
+            ) {
+              continue;
+            }
+            others.push(elementRect(el));
+          }
+          const align = computeAlignmentSnap(
+            groupBounds,
+            others,
+            ALIGN_SNAP_PX / viewportRef.current.zoom
+          );
+          if (align.dx !== 0 || align.dy !== 0) {
+            for (const id of movingIds) {
+              const el = next[id];
+              if (el) {
+                next[id] = { ...el, x: el.x + align.dx, y: el.y + align.dy };
+              }
+            }
+          }
+          guides = align.guides;
+        }
+        setAlignGuides(guides);
         applyLocal(next);
-        schedulePersist(Object.keys(it.origin));
+        schedulePersist(movingIds);
         break;
       }
       case 'resize': {
@@ -812,6 +855,7 @@ export const WhiteboardCanvas = ({
     const it = interactionRef.current;
     interactionRef.current = null;
     setLinkHoverId(null);
+    setAlignGuides([]);
     if (!it) {
       return;
     }
@@ -1513,6 +1557,42 @@ export const WhiteboardCanvas = ({
               strokeWidth={1}
             />
           )}
+
+          {/* Smart alignment guides shown while dragging. */}
+          {alignGuides.map((g, i) => {
+            if (g.axis === 'x') {
+              const a = sceneToClient({ x: g.pos, y: g.from });
+              const b = sceneToClient({ x: g.pos, y: g.to });
+              return (
+                <line
+                  key={`guide-${i}`}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke="#f43f5e"
+                  strokeWidth={1}
+                  strokeDasharray="4 2"
+                  pointerEvents="none"
+                />
+              );
+            }
+            const a = sceneToClient({ x: g.from, y: g.pos });
+            const b = sceneToClient({ x: g.to, y: g.pos });
+            return (
+              <line
+                key={`guide-${i}`}
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+                stroke="#f43f5e"
+                strokeWidth={1}
+                strokeDasharray="4 2"
+                pointerEvents="none"
+              />
+            );
+          })}
 
           {/* Connector anchor hover feedback: dots on the shape being linked. */}
           {linkHoverId &&
