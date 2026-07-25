@@ -87,8 +87,14 @@ export const fileDownloadRoute: FastifyPluginCallbackZod = (
       try {
         const { stream, contentType } = await storage.download(upload.path);
 
-        if (contentType) {
-          reply.header('Content-Type', contentType);
+        // Prefer the content type reported by the storage provider (S3/GCS/Azure
+        // persist it), but fall back to the mime type recorded on the upload row.
+        // The file-system storage provider does not store a content type, so
+        // without this fallback file downloads would carry no Content-Type header
+        // at all (breaking direct-URL previews and content sniffing for e.g. PDFs).
+        const resolvedContentType = contentType ?? upload.mime_type;
+        if (resolvedContentType) {
+          reply.header('Content-Type', resolvedContentType);
         }
 
         return reply.send(stream);
