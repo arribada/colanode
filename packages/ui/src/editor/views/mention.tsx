@@ -7,6 +7,7 @@ import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { defaultClasses } from '@colanode/ui/editor/classes';
+import { MentionSafeBoundary } from '@colanode/ui/editor/mention-safe-boundary';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
 const MentionUserChip = ({ target }: { target: string }) => {
@@ -75,11 +76,13 @@ export const MentionNodeView = ({ node }: NodeViewProps) => {
 
   return (
     <NodeViewWrapper data-id={node.attrs.id} className={defaultClasses.mention}>
-      {isUser ? (
-        <MentionUserChip target={target} />
-      ) : (
-        <MentionNodeChip target={target} />
-      )}
+      <MentionSafeBoundary>
+        {isUser ? (
+          <MentionUserChip target={target} />
+        ) : (
+          <MentionNodeChip target={target} />
+        )}
+      </MentionSafeBoundary>
     </NodeViewWrapper>
   );
 };

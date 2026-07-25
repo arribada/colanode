@@ -5,6 +5,7 @@ import { getIdType, IdType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { defaultClasses } from '@colanode/ui/editor/classes';
+import { MentionSafeBoundary } from '@colanode/ui/editor/mention-safe-boundary';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
 interface MentionRendererProps {
@@ -75,9 +76,13 @@ export const MentionRenderer = ({ node }: MentionRendererProps) => {
     );
   }
 
-  if (getIdType(target) === IdType.User) {
-    return <MentionUserRenderer target={target} />;
-  }
-
-  return <MentionNodeRenderer target={target} />;
+  return (
+    <MentionSafeBoundary>
+      {getIdType(target) === IdType.User ? (
+        <MentionUserRenderer target={target} />
+      ) : (
+        <MentionNodeRenderer target={target} />
+      )}
+    </MentionSafeBoundary>
+  );
 };
