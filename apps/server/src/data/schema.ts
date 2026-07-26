@@ -332,6 +332,24 @@ export type SelectUserAiSetting = Selectable<UserAiSettingTable>;
 export type CreateUserAiSetting = Insertable<UserAiSettingTable>;
 export type UpdateUserAiSetting = Updateable<UserAiSettingTable>;
 
+// Workspace-level shared AI credentials: one row per workspace, managed by
+// admins, used as a fallback for members without their own user_ai_settings so
+// the whole team can bill to a single key. NOTE: api_key is stored as-is (no
+// encryption helper exists in this codebase yet). TODO: encrypt at rest.
+interface WorkspaceAiSettingTable {
+  workspace_id: ColumnType<string, string, never>;
+  provider: ColumnType<string, string, string>;
+  api_key: ColumnType<string, string, string>;
+  model: ColumnType<string, string, string>;
+  enabled: ColumnType<boolean, boolean, boolean>;
+  created_at: ColumnType<Date, Date, never>;
+  updated_at: ColumnType<Date | null, Date | null, Date | null>;
+}
+
+export type SelectWorkspaceAiSetting = Selectable<WorkspaceAiSettingTable>;
+export type CreateWorkspaceAiSetting = Insertable<WorkspaceAiSettingTable>;
+export type UpdateWorkspaceAiSetting = Updateable<WorkspaceAiSettingTable>;
+
 interface CounterTable {
   key: ColumnType<string, string, never>;
   value: ColumnType<string, string, string>;
@@ -426,4 +444,5 @@ export interface DatabaseSchema {
   apns_subscriptions: ApnsSubscriptionTable;
   notification_mutes: NotificationMuteTable;
   user_ai_settings: UserAiSettingTable;
+  workspace_ai_settings: WorkspaceAiSettingTable;
 }

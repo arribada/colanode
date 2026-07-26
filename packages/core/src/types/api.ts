@@ -65,6 +65,7 @@ export enum ApiErrorCode {
   AiNotConfigured = 'ai_not_configured',
   AiProviderUnsupported = 'ai_provider_unsupported',
   AiCompletionFailed = 'ai_completion_failed',
+  AiAgentFailed = 'ai_agent_failed',
 
   ValidationError = 'validation_error',
   TooManyRequests = 'too_many_requests',

@@ -38,6 +38,7 @@ import { createNotificationMutesTable } from './00035-create-notification-mutes-
 import { createApnsSubscriptionsTable } from './00036-create-apns-subscriptions-table';
 import { createDocumentSnapshotsTable } from './00037-create-document-snapshots-table';
 import { createUserAiSettingsTable } from './00038-create-user-ai-settings-table';
+import { createWorkspaceAiSettingsTable } from './00039-create-workspace-ai-settings-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -82,4 +83,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00036_create_apns_subscriptions_table': createApnsSubscriptionsTable,
   '00037_create_document_snapshots_table': createDocumentSnapshotsTable,
   '00038_create_user_ai_settings_table': createUserAiSettingsTable,
+  '00039_create_workspace_ai_settings_table': createWorkspaceAiSettingsTable,
 };

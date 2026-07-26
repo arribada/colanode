@@ -15,9 +15,10 @@ import {
 // POST /client/v1/workspaces/:workspaceId/ai/complete
 //
 // Editor AI action. Resolves the requesting user's AI credentials (their own
-// key/model, else the server-global Anthropic provider), runs the completion
-// and returns the generated text. Works even when the server-global
-// config.ai.enabled is false, as long as the user has their own key set.
+// key/model, else the workspace shared key, else the server-global Anthropic
+// provider), runs the completion and returns the generated text. Works even
+// when the server-global config.ai.enabled is false, as long as the user or
+// the workspace has a key set.
 export const aiCompleteRoute: FastifyPluginCallbackZod = (
   instance,
   _,
@@ -40,7 +41,10 @@ export const aiCompleteRoute: FastifyPluginCallbackZod = (
     handler: async (request, reply) => {
       const userId = request.workspace.user.id;
 
-      const credentials = await resolveAiCredentials(userId);
+      const credentials = await resolveAiCredentials(
+        userId,
+        request.workspace.id
+      );
       if (!credentials) {
         return reply.code(400).send({
           code: ApiErrorCode.AiNotConfigured,

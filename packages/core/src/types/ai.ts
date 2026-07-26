@@ -72,3 +72,56 @@ export const anthropicChatModels = [
   'claude-sonnet-5',
   'claude-haiku-4-5-20251001',
 ] as const;
+
+// GET /client/v1/workspaces/:workspaceId/ai/settings/workspace
+// The workspace-level shared AI settings (admin-managed). The raw API key is
+// NEVER returned; `hasApiKey` reports whether one is set.
+export const aiWorkspaceSettingsOutputSchema = z.object({
+  enabled: z.boolean(),
+  provider: aiProviderNameSchema.nullable(),
+  model: z.string().nullable(),
+  hasApiKey: z.boolean(),
+});
+export type AiWorkspaceSettingsOutput = z.infer<
+  typeof aiWorkspaceSettingsOutputSchema
+>;
+
+// PUT /client/v1/workspaces/:workspaceId/ai/settings/workspace
+export const aiWorkspaceSettingsUpdateInputSchema = z.object({
+  enabled: z.boolean(),
+  provider: aiProviderNameSchema,
+  model: z.string().min(1),
+  // Omit or send an empty string to keep the previously stored key.
+  apiKey: z.string().optional(),
+});
+export type AiWorkspaceSettingsUpdateInput = z.infer<
+  typeof aiWorkspaceSettingsUpdateInputSchema
+>;
+
+// POST /client/v1/workspaces/:workspaceId/ai/agent — the agentic wiki AI.
+export const aiAgentInputSchema = z.object({
+  message: z.string(),
+  // The editor selection the agent should operate on, if any.
+  selection: z.string().optional(),
+  // The node id of the page the user is currently on, if any.
+  pageId: z.string().optional(),
+  // Extra grounding context (e.g. surrounding document text).
+  context: z.string().optional(),
+});
+export type AiAgentInput = z.infer<typeof aiAgentInputSchema>;
+
+// A single action a wiki tool performed during an agent run.
+export const aiAgentActionSchema = z.object({
+  type: z.string(),
+  nodeId: z.string().nullable(),
+  summary: z.string(),
+});
+export type AiAgentAction = z.infer<typeof aiAgentActionSchema>;
+
+export const aiAgentOutputSchema = z.object({
+  text: z.string(),
+  actions: z.array(aiAgentActionSchema),
+  provider: aiProviderNameSchema,
+  model: z.string(),
+});
+export type AiAgentOutput = z.infer<typeof aiAgentOutputSchema>;
