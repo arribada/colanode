@@ -27,6 +27,7 @@ import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avata
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
+  AiCommand,
   BlockquoteCommand,
   BulletListCommand,
   CalloutCommand,
@@ -115,6 +116,7 @@ import {
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
+import { AiSlashPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 import {
   usePresences,
   usePresencePublisher,
@@ -375,6 +377,7 @@ export const DocumentEditor = ({
         }),
         CommanderExtension.configure({
           commands: [
+            AiCommand,
             ParagraphCommand,
             PageCommand,
             BlockquoteCommand,
@@ -615,6 +618,7 @@ export const DocumentEditor = ({
         <Fragment>
           <ToolbarMenu
             editor={editor}
+            userId={workspace.userId}
             onAddComment={
               isPage
                 ? (threadId) => openComments(node.id, threadId)
@@ -622,6 +626,7 @@ export const DocumentEditor = ({
             }
           />
           <ActionMenu editor={editor} />
+          <AiSlashPrompt />
         </Fragment>
       )}
       <EditorContent editor={editor} />

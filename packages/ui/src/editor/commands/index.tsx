@@ -1,4 +1,5 @@
 import { EditorCommand, EditorCommandProps } from '@colanode/client/types';
+import { AiCommand } from '@colanode/ui/editor/commands/ai';
 import { BlockquoteCommand } from '@colanode/ui/editor/commands/blockquote';
 import { BulletListCommand } from '@colanode/ui/editor/commands/bullet-list';
 import { BookmarkCommand } from '@colanode/ui/editor/commands/bookmark';
@@ -30,6 +31,7 @@ import { ToggleCommand } from '@colanode/ui/editor/commands/toggle';
 export type { EditorCommand, EditorCommandProps };
 
 export {
+  AiCommand,
   BlockquoteCommand,
   BulletListCommand,
   CalloutCommand,

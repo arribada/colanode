@@ -4,6 +4,7 @@ import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus';
 import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { AiButton } from '@colanode/ui/editor/menus/ai-button';
 import { ColorButton } from '@colanode/ui/editor/menus/color-button';
 import { CommentButton } from '@colanode/ui/editor/menus/comment-button';
 import { HighlightButton } from '@colanode/ui/editor/menus/highlight-button';
@@ -15,6 +16,9 @@ interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
   // Provided only for page documents: creates/opens an inline comment thread
   // for the current selection. Omitted (e.g. record documents) hides the button.
   onAddComment?: (threadId: string) => void;
+  // The requesting user's id. When present the "Ask AI" button is shown; it
+  // runs editor AI actions with the user's own configured AI credentials.
+  userId?: string;
 }
 
 export const ToolbarMenu = (props: ToolbarMenuProps) => {
@@ -94,6 +98,12 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
       data-testid="editor-toolbar-menu"
       className="flex flex-row items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl"
     >
+      {props.userId && (
+        <>
+          <AiButton editor={props.editor} userId={props.userId} />
+          <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+        </>
+      )}
       <LinkButton
         editor={props.editor}
         isOpen={isLinkButtonOpen}
