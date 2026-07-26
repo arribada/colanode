@@ -1,4 +1,4 @@
-import { Node } from '@tiptap/core';
+import { Node, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 
@@ -29,6 +29,12 @@ export const PlaneIssueLinkExtension = Node.create({
         default: null,
       },
     };
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-type="plane-issue-link"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'plane-issue-link' })];
   },
   addNodeView() {
     return ReactNodeViewRenderer(PlaneIssueLinkNodeView, {

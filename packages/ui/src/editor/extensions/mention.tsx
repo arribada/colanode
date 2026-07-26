@@ -8,7 +8,7 @@ import {
   VirtualElement,
 } from '@floating-ui/react';
 import type { Range } from '@tiptap/core';
-import { Editor, Node } from '@tiptap/core';
+import { Editor, Node, mergeAttributes } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer, ReactRenderer } from '@tiptap/react';
 import {
@@ -327,6 +327,12 @@ export const MentionExtension = Node.create<MentionOptions>({
         default: null,
       },
     };
+  },
+  parseHTML() {
+    return [{ tag: 'mention' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['mention', mergeAttributes(HTMLAttributes)];
   },
   addOptions() {
     return {
