@@ -3,6 +3,7 @@ import { QueryMap } from '@colanode/client/queries';
 import { AppService } from '@colanode/client/services/app-service';
 
 import { AccountListQueryHandler } from './accounts/accounts-list';
+import { AiSettingsGetQueryHandler } from './ai/ai-settings-get';
 import { MetadataListQueryHandler } from './apps/metadata-list';
 import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
@@ -55,6 +56,7 @@ export type QueryHandlerMap = {
 
 export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
   return {
+    'ai.settings.get': new AiSettingsGetQueryHandler(app),
     'metadata.list': new MetadataListQueryHandler(app),
     'avatar.get': new AvatarGetQueryHandler(app),
     'account.list': new AccountListQueryHandler(app),

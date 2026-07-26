@@ -4,6 +4,8 @@ import { AppService } from '@colanode/client/services';
 
 import { AccountLogoutMutationHandler } from './accounts/account-logout';
 import { AccountUpdateMutationHandler } from './accounts/account-update';
+import { AiCompleteMutationHandler } from './ai/ai-complete';
+import { AiSettingsUpdateMutationHandler } from './ai/ai-settings-update';
 import { ApnsSubscriptionCreateMutationHandler } from './apns-subscriptions/apns-subscription-create';
 import { ApnsSubscriptionDeleteMutationHandler } from './apns-subscriptions/apns-subscription-delete';
 import { MetadataDeleteMutationHandler } from './apps/metadata-delete';
@@ -69,6 +71,8 @@ export const buildMutationHandlerMap = (
   app: AppService
 ): MutationHandlerMap => {
   return {
+    'ai.complete': new AiCompleteMutationHandler(app),
+    'ai.settings.update': new AiSettingsUpdateMutationHandler(app),
     'email.login': new EmailLoginMutationHandler(app),
     'email.register': new EmailRegisterMutationHandler(app),
     'email.verify': new EmailVerifyMutationHandler(app),

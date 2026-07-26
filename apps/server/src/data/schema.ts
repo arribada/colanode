@@ -312,6 +312,26 @@ export type SelectDocumentEmbedding = Selectable<DocumentEmbeddingTable>;
 export type CreateDocumentEmbedding = Insertable<DocumentEmbeddingTable>;
 export type UpdateDocumentEmbedding = Updateable<DocumentEmbeddingTable>;
 
+// Per-user AI credentials: each workspace user may store their own provider,
+// API key and model, used to construct the LLM for their own AI requests
+// instead of (or when the server has none of) the server-global config.ai.
+// NOTE: api_key is stored as-is (no encryption helper exists in this codebase
+// yet). TODO: encrypt at rest once such a helper lands.
+interface UserAiSettingTable {
+  user_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  provider: ColumnType<string, string, string>;
+  api_key: ColumnType<string, string, string>;
+  model: ColumnType<string, string, string>;
+  enabled: ColumnType<boolean, boolean, boolean>;
+  created_at: ColumnType<Date, Date, never>;
+  updated_at: ColumnType<Date | null, Date | null, Date | null>;
+}
+
+export type SelectUserAiSetting = Selectable<UserAiSettingTable>;
+export type CreateUserAiSetting = Insertable<UserAiSettingTable>;
+export type UpdateUserAiSetting = Updateable<UserAiSettingTable>;
+
 interface CounterTable {
   key: ColumnType<string, string, never>;
   value: ColumnType<string, string, string>;
@@ -405,4 +425,5 @@ export interface DatabaseSchema {
   push_subscriptions: PushSubscriptionTable;
   apns_subscriptions: ApnsSubscriptionTable;
   notification_mutes: NotificationMuteTable;
+  user_ai_settings: UserAiSettingTable;
 }

@@ -62,6 +62,10 @@ export enum ApiErrorCode {
   PlaneIssueNotFound = 'plane_issue_not_found',
   PlaneFetchFailed = 'plane_fetch_failed',
 
+  AiNotConfigured = 'ai_not_configured',
+  AiProviderUnsupported = 'ai_provider_unsupported',
+  AiCompletionFailed = 'ai_completion_failed',
+
   ValidationError = 'validation_error',
   TooManyRequests = 'too_many_requests',
   Unauthorized = 'unauthorized',

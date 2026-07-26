@@ -1,5 +1,7 @@
 export * from './accounts/account-logout';
 export * from './accounts/account-update';
+export * from './ai/ai-complete';
+export * from './ai/ai-settings-update';
 export * from './auth/email-login';
 export * from './auth/email-password-reset-complete';
 export * from './auth/email-password-reset-init';

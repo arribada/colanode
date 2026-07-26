@@ -199,3 +199,46 @@
 //       nodeType,
 //     });
 // };
+
+// ---------------------------------------------------------------------------
+// Anthropic (Claude) completion wiring — Arribada Wiki
+//
+// The langchain-based RAG helpers above are disabled. The editor completion
+// feature instead uses the Vercel AI SDK ('ai' + '@ai-sdk/anthropic'). Only
+// Anthropic is wired here; other providers throw so the caller can surface a
+// clear "provider unsupported" error.
+// ---------------------------------------------------------------------------
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { generateText } from 'ai';
+
+import type { AiProviderName } from '@colanode/core';
+
+export interface ResolvedLlm {
+  provider: AiProviderName;
+  model: string;
+  apiKey: string;
+}
+
+// Single-shot text generation for a resolved LLM. Supported model names:
+// claude-opus-4-8 / claude-sonnet-5 / claude-haiku-4-5-20251001 (any Anthropic
+// model id is passed through).
+export const generateLlmText = async (
+  llm: ResolvedLlm,
+  args: { system: string; prompt: string; maxOutputTokens?: number }
+): Promise<string> => {
+  if (llm.provider !== 'anthropic') {
+    throw new Error(
+      `AI provider '${llm.provider}' is not supported for completions yet.`
+    );
+  }
+
+  const anthropic = createAnthropic({ apiKey: llm.apiKey });
+  const { text } = await generateText({
+    model: anthropic(llm.model),
+    system: args.system,
+    prompt: args.prompt,
+    maxOutputTokens: args.maxOutputTokens ?? 2048,
+  });
+
+  return text;
+};
