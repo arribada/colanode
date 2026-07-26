@@ -420,6 +420,25 @@ export type SelectNotificationMute = Selectable<NotificationMuteTable>;
 export type CreateNotificationMute = Insertable<NotificationMuteTable>;
 export type UpdateNotificationMute = Updateable<NotificationMuteTable>;
 
+// Per-user MCP access tokens: opaque bearer tokens that let an external MCP
+// client (e.g. Claude Desktop) act as the user inside a workspace via the
+// remote MCP server. NOTE: token is stored as-is (no encryption helper exists
+// in this codebase yet). TODO: encrypt at rest.
+interface McpAccessTokenTable {
+  id: ColumnType<string, string, never>;
+  token: ColumnType<string, string, never>;
+  user_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  name: ColumnType<string | null, string | null, string | null>;
+  created_at: ColumnType<Date, Date, never>;
+  last_used_at: ColumnType<Date | null, Date | null, Date | null>;
+  revoked_at: ColumnType<Date | null, Date | null, Date | null>;
+}
+
+export type SelectMcpAccessToken = Selectable<McpAccessTokenTable>;
+export type CreateMcpAccessToken = Insertable<McpAccessTokenTable>;
+export type UpdateMcpAccessToken = Updateable<McpAccessTokenTable>;
+
 export interface DatabaseSchema {
   accounts: AccountTable;
   devices: DeviceTable;
@@ -445,4 +464,5 @@ export interface DatabaseSchema {
   notification_mutes: NotificationMuteTable;
   user_ai_settings: UserAiSettingTable;
   workspace_ai_settings: WorkspaceAiSettingTable;
+  mcp_access_tokens: McpAccessTokenTable;
 }

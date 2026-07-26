@@ -6,6 +6,9 @@ import { aiSettingsGetRoute } from './ai-settings-get';
 import { aiSettingsUpdateRoute } from './ai-settings-update';
 import { aiSettingsWorkspaceGetRoute } from './ai-settings-workspace-get';
 import { aiSettingsWorkspaceUpdateRoute } from './ai-settings-workspace-update';
+import { mcpTokensCreateRoute } from './mcp-tokens-create';
+import { mcpTokensListRoute } from './mcp-tokens-list';
+import { mcpTokensRevokeRoute } from './mcp-tokens-revoke';
 
 export const aiRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register(aiCompleteRoute);
@@ -14,6 +17,9 @@ export const aiRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register(aiSettingsUpdateRoute);
   instance.register(aiSettingsWorkspaceGetRoute);
   instance.register(aiSettingsWorkspaceUpdateRoute);
+  instance.register(mcpTokensCreateRoute);
+  instance.register(mcpTokensListRoute);
+  instance.register(mcpTokensRevokeRoute);
 
   done();
 };

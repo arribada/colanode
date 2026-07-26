@@ -3,6 +3,7 @@ import { sha256 } from 'js-sha256';
 export * from './accounts/account-list';
 export * from './ai/ai-settings-get';
 export * from './ai/ai-settings-workspace-get';
+export * from './ai/mcp-tokens-list';
 export * from './apps/metadata-list';
 export * from './documents/document-get';
 export * from './documents/document-snapshot-get';

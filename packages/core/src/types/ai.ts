@@ -125,3 +125,45 @@ export const aiAgentOutputSchema = z.object({
   model: z.string(),
 });
 export type AiAgentOutput = z.infer<typeof aiAgentOutputSchema>;
+
+// ---------------------------------------------------------------------------
+// MCP access tokens — per-user opaque bearer tokens that let an external MCP
+// client (e.g. Claude Desktop) drive the wiki as the user, through the remote
+// MCP server endpoint. The raw token is only ever exposed once, at creation.
+// ---------------------------------------------------------------------------
+
+// POST /client/v1/workspaces/:workspaceId/ai/mcp/tokens
+export const mcpTokenCreateInputSchema = z.object({
+  // Optional human-friendly label to tell tokens apart (e.g. "Claude Desktop").
+  name: z.string().optional(),
+});
+export type McpTokenCreateInput = z.infer<typeof mcpTokenCreateInputSchema>;
+
+// The raw token is returned ONLY here, once — never again.
+export const mcpTokenCreateOutputSchema = z.object({
+  id: z.string(),
+  token: z.string(),
+  name: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type McpTokenCreateOutput = z.infer<typeof mcpTokenCreateOutputSchema>;
+
+// A single token as shown in listings — the raw token is NEVER included.
+export const mcpTokenSummarySchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  createdAt: z.string(),
+  lastUsedAt: z.string().nullable(),
+});
+export type McpTokenSummary = z.infer<typeof mcpTokenSummarySchema>;
+
+// GET /client/v1/workspaces/:workspaceId/ai/mcp/tokens
+export const mcpTokensListOutputSchema = z.array(mcpTokenSummarySchema);
+export type McpTokensListOutput = z.infer<typeof mcpTokensListOutputSchema>;
+
+// DELETE /client/v1/workspaces/:workspaceId/ai/mcp/tokens/:id
+export const mcpTokenRevokeOutputSchema = z.object({
+  id: z.string(),
+  revoked: z.boolean(),
+});
+export type McpTokenRevokeOutput = z.infer<typeof mcpTokenRevokeOutputSchema>;

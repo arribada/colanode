@@ -47,6 +47,7 @@ export enum IdType {
   Notification = 'no',
   Whiteboard = 'wb',
   CommentThread = 'cm',
+  McpToken = 'mt',
 }
 
 export const SpecialId = {

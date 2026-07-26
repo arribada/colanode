@@ -4,6 +4,8 @@ export * from './ai/ai-agent';
 export * from './ai/ai-complete';
 export * from './ai/ai-settings-update';
 export * from './ai/ai-settings-workspace-update';
+export * from './ai/mcp-token-create';
+export * from './ai/mcp-token-revoke';
 export * from './auth/email-login';
 export * from './auth/email-password-reset-complete';
 export * from './auth/email-password-reset-init';

@@ -39,6 +39,7 @@ import { createApnsSubscriptionsTable } from './00036-create-apns-subscriptions-
 import { createDocumentSnapshotsTable } from './00037-create-document-snapshots-table';
 import { createUserAiSettingsTable } from './00038-create-user-ai-settings-table';
 import { createWorkspaceAiSettingsTable } from './00039-create-workspace-ai-settings-table';
+import { createMcpAccessTokensTable } from './00040-create-mcp-access-tokens-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -84,4 +85,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00037_create_document_snapshots_table': createDocumentSnapshotsTable,
   '00038_create_user_ai_settings_table': createUserAiSettingsTable,
   '00039_create_workspace_ai_settings_table': createWorkspaceAiSettingsTable,
+  '00040_create_mcp_access_tokens_table': createMcpAccessTokensTable,
 };

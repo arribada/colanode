@@ -8,6 +8,8 @@ import { AiAgentMutationHandler } from './ai/ai-agent';
 import { AiCompleteMutationHandler } from './ai/ai-complete';
 import { AiSettingsUpdateMutationHandler } from './ai/ai-settings-update';
 import { AiSettingsWorkspaceUpdateMutationHandler } from './ai/ai-settings-workspace-update';
+import { McpTokenCreateMutationHandler } from './ai/mcp-token-create';
+import { McpTokenRevokeMutationHandler } from './ai/mcp-token-revoke';
 import { ApnsSubscriptionCreateMutationHandler } from './apns-subscriptions/apns-subscription-create';
 import { ApnsSubscriptionDeleteMutationHandler } from './apns-subscriptions/apns-subscription-delete';
 import { MetadataDeleteMutationHandler } from './apps/metadata-delete';
@@ -79,6 +81,8 @@ export const buildMutationHandlerMap = (
     'ai.settings.workspace.update': new AiSettingsWorkspaceUpdateMutationHandler(
       app
     ),
+    'ai.mcp.token.create': new McpTokenCreateMutationHandler(app),
+    'ai.mcp.token.revoke': new McpTokenRevokeMutationHandler(app),
     'email.login': new EmailLoginMutationHandler(app),
     'email.register': new EmailRegisterMutationHandler(app),
     'email.verify': new EmailVerifyMutationHandler(app),
