@@ -1,7 +1,6 @@
 import { Editor } from '@tiptap/core';
 import {
   ArrowRightFromLine,
-  Check,
   Languages,
   MessageSquarePlus,
   Sparkles,
@@ -12,8 +11,11 @@ import {
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { AiCompletionAction } from '@colanode/core';
-import { AiCompleteMutationOutput } from '@colanode/client/mutations';
+import {
+  AiAgentMutationOutput,
+  AiCompleteMutationOutput,
+} from '@colanode/client/mutations';
+import { AiAgentAction, AiCompletionAction } from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
 import {
   Dialog,
@@ -40,18 +42,42 @@ import { cn } from '@colanode/ui/lib/utils';
 interface AiButtonProps {
   editor: Editor;
   userId: string;
+  // The node id of the page being edited; forwarded to the wiki agent so it can
+  // anchor its work to the current page.
+  pageId?: string;
 }
 
 const TRANSLATE_LANGUAGES = [
-  'English',
-  'French',
-  'Spanish',
-  'German',
-  'Portuguese',
-  'Italian',
+  'Anglais',
+  'Français',
+  'Espagnol',
+  'Allemand',
+  'Portugais',
+  'Italien',
 ];
 
-export const AiButton = ({ editor, userId }: AiButtonProps) => {
+// Turn the agent's action list into a short, human toast summary.
+const summarizeActions = (actions: AiAgentAction[]): string => {
+  if (actions.length === 0) {
+    return 'IA : aucune action';
+  }
+  const details = actions
+    .map((action) => action.summary.trim())
+    .filter((summary) => summary.length > 0);
+  const count = `IA : ${actions.length} action${actions.length > 1 ? 's' : ''}`;
+  return details.length > 0 ? `${count} — ${details.join(' ; ')}` : count;
+};
+
+// The server flattens the AiNotConfigured error to its (English) message; turn
+// the known phrasing into a friendly French toast pointing at the settings.
+const friendlyAiError = (message: string): string => {
+  if (/no ai credentials/i.test(message)) {
+    return 'L’IA n’est pas encore configurée. Ouvre Réglages → Assistant IA pour ajouter ta clé, ou demande à un admin d’activer la clé d’équipe.';
+  }
+  return message;
+};
+
+export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isAskOpen, setIsAskOpen] = useState(false);
@@ -66,6 +92,8 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
     rangeRef.current = { from, to };
   };
 
+  // Canned rewrite actions (Improve/Fix/Shorter/Longer/Summarize/Translate).
+  // These stay on the fast ai.complete path: a pure text rewrite, no wiki tools.
   const runAction = async (action: AiCompletionAction, prompt = '') => {
     const range = rangeRef.current;
     if (!range || range.from === range.to) {
@@ -91,7 +119,7 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
       });
 
       if (!result.success) {
-        toast.error(result.error.message);
+        toast.error(friendlyAiError(result.error.message));
         return;
       }
 
@@ -102,7 +130,63 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
         .insertContentAt({ from: range.from, to: range.to }, output.text)
         .run();
     } catch {
-      toast.error('The AI request failed. Please try again.');
+      toast.error('La requête IA a échoué. Réessaie.');
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  // "Demander à l’IA…" — the free-prompt path runs the wiki AGENT, so it can do
+  // more than rewrite (create/edit pages & databases). If the agent returns
+  // text it replaces the selection (undoable); the actions it performed are
+  // always toasted.
+  const runAgent = async (message: string) => {
+    const range = rangeRef.current;
+    if (!range || range.from === range.to) {
+      return;
+    }
+
+    const selection = editor.state.doc.textBetween(
+      range.from,
+      range.to,
+      '\n',
+      ' '
+    );
+
+    setIsRunning(true);
+    setIsOpen(false);
+    try {
+      const result = await window.colanode.executeMutation({
+        type: 'ai.agent',
+        userId,
+        message,
+        selection,
+        pageId,
+      });
+
+      if (!result.success) {
+        toast.error(friendlyAiError(result.error.message));
+        return;
+      }
+
+      const output = result.output as AiAgentMutationOutput;
+
+      if (output.text.trim().length > 0) {
+        editor
+          .chain()
+          .focus()
+          .insertContentAt({ from: range.from, to: range.to }, output.text)
+          .run();
+      }
+
+      const summary = summarizeActions(output.actions);
+      if (output.actions.length > 0) {
+        toast.success(summary);
+      } else {
+        toast(summary);
+      }
+    } catch {
+      toast.error('La requête IA a échoué. Réessaie.');
     } finally {
       setIsRunning(false);
     }
@@ -120,7 +204,7 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
         }}
       >
         <DropdownMenuTrigger
-          aria-label="Ask AI"
+          aria-label="Demander à l’IA"
           data-testid="editor-toolbar-ai"
           disabled={isRunning}
         >
@@ -135,7 +219,7 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
             ) : (
               <Sparkles className="size-4" />
             )}
-            <span className="text-sm font-medium">AI</span>
+            <span className="text-sm font-medium">IA</span>
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
@@ -144,40 +228,40 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
             onSelect={() => runAction('improve')}
           >
             <Wand2 className="size-4" />
-            Improve writing
+            Améliorer l’écriture
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('fix')}
           >
             <SpellCheck className="size-4" />
-            Fix grammar
+            Corriger la grammaire
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('shorter')}
           >
             <Text className="size-4" />
-            Make shorter
+            Raccourcir
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('longer')}
           >
             <ArrowRightFromLine className="size-4" />
-            Make longer
+            Rallonger
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('summarize')}
           >
             <Text className="size-4" />
-            Summarize
+            Résumer
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer">
               <Languages className="size-4" />
-              Translate
+              Traduire
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {TRANSLATE_LANGUAGES.map((language) => (
@@ -201,7 +285,7 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
             }}
           >
             <MessageSquarePlus className="size-4" />
-            Ask AI…
+            Demander à l’IA…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -218,17 +302,18 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
-              Ask AI about the selection
+              Demander à l’IA
             </DialogTitle>
             <DialogDescription>
-              Tell Claude what to do with the selected text. The result replaces
-              your selection.
+              Dis à l’agent IA quoi faire avec la sélection. Il peut la réécrire,
+              mais aussi créer ou modifier des pages du wiki. S’il renvoie du
+              texte, il remplace la sélection.
             </DialogDescription>
           </DialogHeader>
           <Textarea
             value={askPrompt}
             onChange={(e) => setAskPrompt(e.target.value)}
-            placeholder="e.g. Rewrite this in a friendlier tone…"
+            placeholder="ex : réécris ce passage, crée une page liée, ajoute une section…"
             className="min-h-24"
             autoFocus
           />
@@ -239,18 +324,18 @@ export const AiButton = ({ editor, userId }: AiButtonProps) => {
               onClick={() => setIsAskOpen(false)}
               disabled={isRunning}
             >
-              Cancel
+              Annuler
             </Button>
             <Button
               type="button"
               disabled={isRunning || askPrompt.trim().length === 0}
               onClick={async () => {
                 setIsAskOpen(false);
-                await runAction('custom', askPrompt.trim());
+                await runAgent(askPrompt.trim());
               }}
             >
               {isRunning && <Spinner className="mr-2 size-4" />}
-              Run
+              Envoyer
             </Button>
           </DialogFooter>
         </DialogContent>

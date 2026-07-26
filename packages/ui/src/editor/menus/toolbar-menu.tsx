@@ -19,6 +19,9 @@ interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
   // The requesting user's id. When present the "Ask AI" button is shown; it
   // runs editor AI actions with the user's own configured AI credentials.
   userId?: string;
+  // The node id of the page being edited. Forwarded to the AI button so the
+  // wiki agent knows which page the request is anchored to.
+  pageId?: string;
 }
 
 export const ToolbarMenu = (props: ToolbarMenuProps) => {
@@ -100,7 +103,11 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
     >
       {props.userId && (
         <>
-          <AiButton editor={props.editor} userId={props.userId} />
+          <AiButton
+            editor={props.editor}
+            userId={props.userId}
+            pageId={props.pageId}
+          />
           <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
         </>
       )}
