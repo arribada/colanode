@@ -433,11 +433,55 @@ interface McpAccessTokenTable {
   created_at: ColumnType<Date, Date, never>;
   last_used_at: ColumnType<Date | null, Date | null, Date | null>;
   revoked_at: ColumnType<Date | null, Date | null, Date | null>;
+  client_id: ColumnType<string | null, string | null, string | null>;
+  expires_at: ColumnType<Date | null, Date | null, Date | null>;
+  refresh_token: ColumnType<string | null, string | null, string | null>;
+  refresh_token_expires_at: ColumnType<Date | null, Date | null, Date | null>;
 }
 
 export type SelectMcpAccessToken = Selectable<McpAccessTokenTable>;
 export type CreateMcpAccessToken = Insertable<McpAccessTokenTable>;
 export type UpdateMcpAccessToken = Updateable<McpAccessTokenTable>;
+
+interface McpOauthClientTable {
+  id: ColumnType<string, string, never>;
+  secret: ColumnType<string | null, string | null, string | null>;
+  name: ColumnType<string | null, string | null, string | null>;
+  redirect_uris: JSONColumnType<string[], string, string>;
+  grant_types: JSONColumnType<string[] | null, string | null, string | null>;
+  response_types: JSONColumnType<string[] | null, string | null, string | null>;
+  scope: ColumnType<string | null, string | null, string | null>;
+  token_endpoint_auth_method: ColumnType<string | null, string | null, string | null>;
+  metadata: JSONColumnType<
+    Record<string, unknown> | null,
+    string | null,
+    string | null
+  >;
+  created_at: ColumnType<Date, Date, never>;
+}
+
+export type SelectMcpOauthClient = Selectable<McpOauthClientTable>;
+export type CreateMcpOauthClient = Insertable<McpOauthClientTable>;
+export type UpdateMcpOauthClient = Updateable<McpOauthClientTable>;
+
+interface McpOauthCodeTable {
+  code: ColumnType<string, string, never>;
+  client_id: ColumnType<string, string, never>;
+  user_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  redirect_uri: ColumnType<string, string, never>;
+  code_challenge: ColumnType<string, string, never>;
+  code_challenge_method: ColumnType<string, string, never>;
+  scope: ColumnType<string | null, string | null, string | null>;
+  resource: ColumnType<string | null, string | null, string | null>;
+  created_at: ColumnType<Date, Date, never>;
+  expires_at: ColumnType<Date, Date, never>;
+  consumed_at: ColumnType<Date | null, Date | null, Date | null>;
+}
+
+export type SelectMcpOauthCode = Selectable<McpOauthCodeTable>;
+export type CreateMcpOauthCode = Insertable<McpOauthCodeTable>;
+export type UpdateMcpOauthCode = Updateable<McpOauthCodeTable>;
 
 export interface DatabaseSchema {
   accounts: AccountTable;
@@ -465,4 +509,6 @@ export interface DatabaseSchema {
   user_ai_settings: UserAiSettingTable;
   workspace_ai_settings: WorkspaceAiSettingTable;
   mcp_access_tokens: McpAccessTokenTable;
+  mcp_oauth_clients: McpOauthClientTable;
+  mcp_oauth_codes: McpOauthCodeTable;
 }

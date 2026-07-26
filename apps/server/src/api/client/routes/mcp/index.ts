@@ -11,6 +11,7 @@ import { FastifyPluginCallback, FastifyReply, FastifyRequest } from 'fastify';
 
 import { database } from '@colanode/server/data/database';
 import { createLogger } from '@colanode/server/lib/logger';
+import { protectedResourceMetadataUrl } from '@colanode/server/lib/mcp/oauth';
 import { createWikiMcpServer } from '@colanode/server/lib/mcp/wiki-mcp-server';
 
 const logger = createLogger('api:client:mcp');
@@ -26,17 +27,19 @@ const extractBearer = (request: FastifyRequest): string | null => {
 
 export const mcpRoutes: FastifyPluginCallback = (instance, _, done) => {
   const handle = async (request: FastifyRequest, reply: FastifyReply) => {
+    const resourceMetadata = protectedResourceMetadataUrl(request);
+    const wwwAuth = `Bearer resource_metadata="${resourceMetadata}"`;
     const token = extractBearer(request);
     if (!token) {
       return reply
         .code(401)
-        .header('WWW-Authenticate', 'Bearer')
+        .header('WWW-Authenticate', wwwAuth)
         .send({ error: 'Missing or malformed Authorization bearer token.' });
     }
 
     const tokenRow = await database
       .selectFrom('mcp_access_tokens')
-      .select(['id', 'user_id', 'workspace_id'])
+      .select(['id', 'user_id', 'workspace_id', 'expires_at'])
       .where('token', '=', token)
       .where('revoked_at', 'is', null)
       .executeTakeFirst();
@@ -44,8 +47,15 @@ export const mcpRoutes: FastifyPluginCallback = (instance, _, done) => {
     if (!tokenRow) {
       return reply
         .code(401)
-        .header('WWW-Authenticate', 'Bearer')
+        .header('WWW-Authenticate', wwwAuth)
         .send({ error: 'Invalid or revoked MCP access token.' });
+    }
+
+    if (tokenRow.expires_at && tokenRow.expires_at.getTime() <= Date.now()) {
+      return reply
+        .code(401)
+        .header('WWW-Authenticate', wwwAuth)
+        .send({ error: 'MCP access token has expired.' });
     }
 
     // Best-effort last-used bookkeeping; never blocks or fails the request.

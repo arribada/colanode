@@ -40,6 +40,9 @@ import { createDocumentSnapshotsTable } from './00037-create-document-snapshots-
 import { createUserAiSettingsTable } from './00038-create-user-ai-settings-table';
 import { createWorkspaceAiSettingsTable } from './00039-create-workspace-ai-settings-table';
 import { createMcpAccessTokensTable } from './00040-create-mcp-access-tokens-table';
+import { addOauthColumnsToMcpAccessTokens } from './00041-add-oauth-columns-to-mcp-access-tokens';
+import { createMcpOauthClientsTable } from './00042-create-mcp-oauth-clients-table';
+import { createMcpOauthCodesTable } from './00043-create-mcp-oauth-codes-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -86,4 +89,7 @@ export const databaseMigrations: Record<string, Migration> = {
   '00038_create_user_ai_settings_table': createUserAiSettingsTable,
   '00039_create_workspace_ai_settings_table': createWorkspaceAiSettingsTable,
   '00040_create_mcp_access_tokens_table': createMcpAccessTokensTable,
+  '00041_add_oauth_columns_to_mcp_access_tokens': addOauthColumnsToMcpAccessTokens,
+  '00042_create_mcp_oauth_clients_table': createMcpOauthClientsTable,
+  '00043_create_mcp_oauth_codes_table': createMcpOauthCodesTable,
 };
