@@ -5,6 +5,7 @@ import { AppService } from '@colanode/client/services';
 import { AccountLogoutMutationHandler } from './accounts/account-logout';
 import { AccountUpdateMutationHandler } from './accounts/account-update';
 import { AiAgentMutationHandler } from './ai/ai-agent';
+import { AiChatMutationHandler } from './ai/ai-chat';
 import { AiCompleteMutationHandler } from './ai/ai-complete';
 import { AiSettingsUpdateMutationHandler } from './ai/ai-settings-update';
 import { AiSettingsWorkspaceUpdateMutationHandler } from './ai/ai-settings-workspace-update';
@@ -76,6 +77,7 @@ export const buildMutationHandlerMap = (
 ): MutationHandlerMap => {
   return {
     'ai.agent': new AiAgentMutationHandler(app),
+    'ai.chat': new AiChatMutationHandler(app),
     'ai.complete': new AiCompleteMutationHandler(app),
     'ai.settings.update': new AiSettingsUpdateMutationHandler(app),
     'ai.settings.workspace.update': new AiSettingsWorkspaceUpdateMutationHandler(

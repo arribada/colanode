@@ -126,6 +126,35 @@ export const aiAgentOutputSchema = z.object({
 });
 export type AiAgentOutput = z.infer<typeof aiAgentOutputSchema>;
 
+// A single turn in the running chat transcript.
+export const aiChatMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+});
+export type AiChatMessage = z.infer<typeof aiChatMessageSchema>;
+
+// POST /client/v1/workspaces/:workspaceId/ai/chat — the multi-turn, docked
+// conversational wiki assistant. `messages` is the running transcript (at least
+// the latest user turn; may include prior turns). Output mirrors the agent.
+export const aiChatInputSchema = z.object({
+  messages: z.array(aiChatMessageSchema).min(1),
+  // The node id of the page the user is currently viewing, if any.
+  pageId: z.string().optional(),
+  // The editor selection, if any (treated as the current context).
+  selection: z.string().optional(),
+  // Extra grounding context (e.g. surrounding document text).
+  context: z.string().optional(),
+});
+export type AiChatInput = z.infer<typeof aiChatInputSchema>;
+
+export const aiChatOutputSchema = z.object({
+  text: z.string(),
+  actions: z.array(aiAgentActionSchema),
+  provider: aiProviderNameSchema,
+  model: z.string(),
+});
+export type AiChatOutput = z.infer<typeof aiChatOutputSchema>;
+
 // ---------------------------------------------------------------------------
 // MCP access tokens — per-user opaque bearer tokens that let an external MCP
 // client (e.g. Claude Desktop) drive the wiki as the user, through the remote

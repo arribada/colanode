@@ -1,6 +1,7 @@
 import { FastifyPluginCallback } from 'fastify';
 
 import { aiAgentRoute } from './ai-agent';
+import { aiChatRoute } from './ai-chat';
 import { aiCompleteRoute } from './ai-complete';
 import { aiSettingsGetRoute } from './ai-settings-get';
 import { aiSettingsUpdateRoute } from './ai-settings-update';
@@ -13,6 +14,7 @@ import { mcpTokensRevokeRoute } from './mcp-tokens-revoke';
 export const aiRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register(aiCompleteRoute);
   instance.register(aiAgentRoute);
+  instance.register(aiChatRoute);
   instance.register(aiSettingsGetRoute);
   instance.register(aiSettingsUpdateRoute);
   instance.register(aiSettingsWorkspaceGetRoute);

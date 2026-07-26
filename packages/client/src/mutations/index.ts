@@ -1,6 +1,7 @@
 export * from './accounts/account-logout';
 export * from './accounts/account-update';
 export * from './ai/ai-agent';
+export * from './ai/ai-chat';
 export * from './ai/ai-complete';
 export * from './ai/ai-settings-update';
 export * from './ai/ai-settings-workspace-update';
