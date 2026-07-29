@@ -8,6 +8,8 @@ import {
   Frame,
   Hand,
   LayoutTemplate,
+  Lock,
+  LockOpen,
   MousePointer2,
   Network,
   Pencil,
@@ -127,6 +129,9 @@ interface BoardToolbarProps {
   style: BoardStyleState;
   onStyleChange: (patch: Partial<BoardStyleState>) => void;
   hasSelection: boolean;
+  // True when every selected element is hard-locked (drives the lock/unlock
+  // toggle icon + label).
+  selectionLocked: boolean;
   canUndo: boolean;
   canRedo: boolean;
   readOnly: boolean;
@@ -134,6 +139,7 @@ interface BoardToolbarProps {
   onRedo: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onToggleLock: () => void;
   onExport: () => void;
   onExportSvg: () => void;
   onExportPdf: () => void;
@@ -153,6 +159,7 @@ export const BoardToolbar = ({
   style,
   onStyleChange,
   hasSelection,
+  selectionLocked,
   canUndo,
   canRedo,
   readOnly,
@@ -160,6 +167,7 @@ export const BoardToolbar = ({
   onRedo,
   onDelete,
   onDuplicate,
+  onToggleLock,
   onExport,
   onExportSvg,
   onExportPdf,
@@ -261,6 +269,22 @@ export const BoardToolbar = ({
               onClick={onDelete}
             >
               <Trash2 className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              title={
+                selectionLocked
+                  ? 'Unlock (anyone can unlock)'
+                  : 'Lock selection (only you can move / edit it)'
+              }
+              active={selectionLocked}
+              disabled={!hasSelection}
+              onClick={onToggleLock}
+            >
+              {selectionLocked ? (
+                <Lock className="size-4" />
+              ) : (
+                <LockOpen className="size-4" />
+              )}
             </ToolbarButton>
             <ToolbarButton title="Export PNG" onClick={onExport}>
               <Download className="size-4" />

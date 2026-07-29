@@ -75,6 +75,12 @@ export const boardElementSchema = z.object({
   connector: boardConnectorSchema.optional(),
   frameId: z.string().optional(),
   mindmap: boardMindmapSchema.optional(),
+  // Hard lock (multi-user): when `locked` is true the element cannot be
+  // moved / resized / rotated / text-edited by anyone except `lockedBy`
+  // (any editor may still unlock it). Optional + absent on legacy boards, so
+  // pre-lock scenes simply read as unlocked.
+  locked: z.boolean().optional(),
+  lockedBy: z.string().optional(),
 });
 
 export type BoardElement = z.infer<typeof boardElementSchema>;

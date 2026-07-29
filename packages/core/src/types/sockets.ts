@@ -80,6 +80,29 @@ export const presencePayloadSchema = z.object({
   selectedElementIds: z.array(z.string()).optional(),
   // Board element the user is currently editing (inline text edit).
   editingElementId: z.string().nullable().optional(),
+  // Follow-mode: the publisher's current board viewport (pan + zoom) in the
+  // same coordinate space the canvas uses, so a follower can mirror it live.
+  // Optional -> payloads produced before follow-mode still parse.
+  viewport: z
+    .object({ x: z.number(), y: z.number(), zoom: z.number() })
+    .optional(),
+  // Ephemeral live reaction floated on the board for everyone. `at` is the
+  // producer's ms timestamp so receivers can de-dupe / expire it. Never
+  // persisted; cleared on the next payload.
+  reaction: z
+    .object({
+      emoji: z.string(),
+      x: z.number(),
+      y: z.number(),
+      at: z.number(),
+    })
+    .optional(),
+  // Ephemeral laser-pointer dot in scene coordinates (rendered in the
+  // publisher's presence colour). `at` lets receivers fade it out when the
+  // stream stops. Never persisted.
+  laser: z
+    .object({ x: z.number(), y: z.number(), at: z.number() })
+    .optional(),
 });
 export type PresencePayload = z.infer<typeof presencePayloadSchema>;
 

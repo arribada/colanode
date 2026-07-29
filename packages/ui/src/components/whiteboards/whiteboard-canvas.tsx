@@ -2,12 +2,16 @@ import {
   Circle,
   Diamond,
   Expand,
+  Eye,
   Maximize,
   Minus,
   Plus,
+  Radio,
   Shrink,
+  Smile,
   Square,
   StickyNote,
+  X,
 } from 'lucide-react';
 import {
   PointerEvent as ReactPointerEvent,
@@ -28,6 +32,7 @@ import {
   BoardScene,
   hasNodeRole,
   NodeRole,
+  PresencePayload,
 } from '@colanode/core';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { BoardElementView } from '@colanode/ui/components/whiteboards/board/board-element';
@@ -87,6 +92,7 @@ import {
 } from '@colanode/ui/lib/board/png';
 import { printHtmlDocument } from '@colanode/ui/lib/print';
 import { getTemplate } from '@colanode/ui/lib/board/templates';
+import { presenceColor } from '@colanode/ui/lib/presence';
 import { cn } from '@colanode/ui/lib/utils';
 
 // Shape types whose label the per-element text-size controls apply to.
@@ -112,6 +118,13 @@ const OPPOSITE_SIDE: Record<QuickSide, QuickSide> = {
 const GRID = 20;
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 6;
+
+// Quick-reaction palette floated on the board and broadcast to everyone.
+const REACTION_EMOJIS = ['👍', '❤️', '🎉', '😂', '🔥', '👀', '✅', '❓'];
+// A floated reaction lives this long (ms) before it is removed.
+const REACTION_TTL = 2500;
+// A remote laser dot is shown only while a fresh update keeps arriving.
+const LASER_TTL = 1200;
 // Screen-space distance (px) at which a dragged element snaps to another
 // element's edge/center. Divided by zoom to get the scene-unit threshold.
 const ALIGN_SNAP_PX = 6;
@@ -163,6 +176,15 @@ type Interaction =
 interface WhiteboardCanvasProps {
   whiteboard: LocalWhiteboardNode;
   role: NodeRole;
+}
+
+// A live reaction floating up on the canvas (local + remote), keyed for its
+// short lifetime. Purely ephemeral — never persisted.
+interface FloatingReaction {
+  key: string;
+  emoji: string;
+  x: number;
+  y: number;
 }
 
 const cloneScene = (scene: BoardScene): BoardScene =>
@@ -234,6 +256,36 @@ export const WhiteboardCanvas = ({
     future: BoardScene[];
   }>({ past: [], future: [] });
 
+  // ----- multi-user collaboration (ephemeral) ------------------------------
+  // Follow-mode: the id of the collaborator whose viewport we mirror live, or
+  // null. Cleared as soon as the local user pans / zooms.
+  const [followUserId, setFollowUserId] = useState<string | null>(null);
+  const [followMenuOpen, setFollowMenuOpen] = useState(false);
+  // Laser-pointer mode: while on, pointer moves broadcast a colored dot instead
+  // of interacting with the canvas.
+  const [laserActive, setLaserActive] = useState(false);
+  const [reactionMenuOpen, setReactionMenuOpen] = useState(false);
+  // Live floated reactions (local + remote) currently on screen.
+  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
+  // Local laser dot (own colour); mirrors are read from remote presences.
+  const [localLaser, setLocalLaser] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  // Forces a re-render so stale remote laser dots fade out on their TTL even
+  // when no new presence arrives.
+  const [, setLaserTick] = useState(0);
+  const followUserIdRef = useRef<string | null>(null);
+  followUserIdRef.current = followUserId;
+  const laserActiveRef = useRef(false);
+  laserActiveRef.current = laserActive;
+  // Last reaction timestamp seen per remote session, so a re-broadcast of the
+  // same payload (heartbeat) does not spawn the emoji twice.
+  const seenReactionRef = useRef<Map<string, number>>(new Map());
+  const myColor = useMemo(
+    () => presenceColor(workspace.userId),
+    [workspace.userId]
+  );
+
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const sceneGroupRef = useRef<SVGGElement>(null);
@@ -254,6 +306,23 @@ export const WhiteboardCanvas = ({
   toolRef.current = tool;
   selectionRef.current = selection;
   editingRef.current = editing;
+
+  // Broadcast presence with the CURRENT pointer / selection / edit / viewport,
+  // plus any ephemeral extras (reaction, laser). Always carrying the viewport
+  // is what powers follow-mode; carrying it on every publish means a follower
+  // never loses the leader between pointer moves.
+  const publishBoardPresence = useCallback(
+    (extra?: Partial<PresencePayload>) => {
+      publishPresence({
+        pointer: lastScenePointerRef.current ?? undefined,
+        selectedElementIds: selectionRef.current,
+        editingElementId: editingRef.current?.id ?? null,
+        viewport: viewportRef.current,
+        ...extra,
+      });
+    },
+    [publishPresence]
+  );
 
   // Elements the local user is actively manipulating: their in-flight local
   // state must win over incoming remote/persisted data. Everything else still
@@ -328,8 +397,8 @@ export const WhiteboardCanvas = ({
   // Announce presence on mount so the "who's viewing" stack shows this user
   // even before they move the pointer.
   useEffect(() => {
-    publishPresence({ selectedElementIds: [], editingElementId: null });
-  }, [publishPresence]);
+    publishBoardPresence();
+  }, [publishBoardPresence]);
 
   // Drop the connector hover highlight whenever the connector tool is inactive.
   useEffect(() => {
@@ -365,19 +434,76 @@ export const WhiteboardCanvas = ({
     }
   };
 
-  // Re-broadcast presence when the local selection / inline-edit changes so
-  // remote collaborators see it even if the pointer is not moving.
+  // Re-broadcast presence when the local selection / inline-edit / viewport
+  // changes so remote collaborators (and followers) see it even if the pointer
+  // is not moving.
   useEffect(() => {
-    const pointer = lastScenePointerRef.current;
-    if (!pointer) {
+    publishBoardPresence();
+  }, [selection, editing, viewport, publishBoardPresence]);
+
+  // ----- follow-mode -------------------------------------------------------
+  // While following, mirror the followed collaborator's viewport live. If they
+  // disconnect, drop the follow.
+  useEffect(() => {
+    if (!followUserId) {
       return;
     }
-    publishPresence({
-      pointer,
-      selectedElementIds: selection,
-      editingElementId: editing?.id ?? null,
-    });
-  }, [selection, editing, publishPresence]);
+    const target = presences.find((p) => p.userId === followUserId);
+    if (!target) {
+      setFollowUserId(null);
+      return;
+    }
+    const vp = target.payload.viewport;
+    if (vp) {
+      const cur = viewportRef.current;
+      if (cur.x !== vp.x || cur.y !== vp.y || cur.zoom !== vp.zoom) {
+        setViewport({ x: vp.x, y: vp.y, zoom: vp.zoom });
+      }
+    }
+  }, [presences, followUserId]);
+
+  // Stop following the moment the local user drives their own viewport.
+  const cancelFollow = useCallback(() => {
+    if (followUserIdRef.current) {
+      setFollowUserId(null);
+    }
+  }, []);
+
+  // ----- live reactions ----------------------------------------------------
+  const addReaction = useCallback((r: Omit<FloatingReaction, 'key'>) => {
+    const key = `${r.x}:${r.y}:${Math.random().toString(36).slice(2)}`;
+    setReactions((list) => [...list, { ...r, key }]);
+    setTimeout(() => {
+      setReactions((list) => list.filter((item) => item.key !== key));
+    }, REACTION_TTL);
+  }, []);
+
+  // Spawn remote collaborators' reactions when a fresh one arrives.
+  useEffect(() => {
+    const now = Date.now();
+    for (const p of presences) {
+      const rc = p.payload.reaction;
+      if (!rc) {
+        continue;
+      }
+      const sessionKey = `${p.userId}:${p.deviceId}`;
+      const last = seenReactionRef.current.get(sessionKey) ?? 0;
+      if (rc.at > last && now - rc.at < REACTION_TTL) {
+        seenReactionRef.current.set(sessionKey, rc.at);
+        addReaction({ emoji: rc.emoji, x: rc.x, y: rc.y });
+      }
+    }
+  }, [presences, addReaction]);
+
+  // Tick to expire stale remote laser dots when the stream stops.
+  useEffect(() => {
+    const hasRemoteLaser = presences.some((p) => p.payload.laser);
+    if (!hasRemoteLaser) {
+      return;
+    }
+    const iv = setInterval(() => setLaserTick((t) => t + 1), 400);
+    return () => clearInterval(iv);
+  }, [presences]);
 
   // ----- coordinate helpers ------------------------------------------------
   const clientToScene = (clientX: number, clientY: number): Point => {
@@ -398,6 +524,68 @@ export const WhiteboardCanvas = ({
 
   const maybeSnap = (value: number): number =>
     snapEnabled ? snap(value, GRID) : value;
+
+  // ----- hard shape lock ---------------------------------------------------
+  // An element is "locked for me" when it is hard-locked by SOMEONE ELSE.
+  // Its owner (lockedBy === me) keeps full control; anyone may still unlock it
+  // through the toolbar toggle.
+  const isLockedForMe = (id: string): boolean => {
+    const el = sceneRef.current[id];
+    return !!el?.locked && el.lockedBy !== workspace.userId;
+  };
+
+  // Filter a set of ids down to the ones the local user is allowed to mutate
+  // (drops elements hard-locked by others).
+  const manipulableIds = (ids: string[]): string[] =>
+    ids.filter((id) => !isLockedForMe(id));
+
+  // Lock the selection to the local user, or unlock it if it is already fully
+  // locked. Locking stamps `lockedBy` = me; unlocking clears both fields
+  // (kept absent so the element round-trips like a legacy, never-locked one).
+  const toggleLockSelection = () => {
+    const ids = selectionRef.current;
+    if (ids.length === 0) {
+      return;
+    }
+    const allLocked = ids.every((id) => !!sceneRef.current[id]?.locked);
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    const changed: string[] = [];
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      if (allLocked) {
+        const { locked: _locked, lockedBy: _lockedBy, ...rest } = el;
+        void _locked;
+        void _lockedBy;
+        next[id] = rest;
+      } else {
+        next[id] = { ...el, locked: true, lockedBy: workspace.userId };
+      }
+      changed.push(id);
+    }
+    if (changed.length > 0) {
+      commit(before, next, changed);
+    }
+  };
+
+  // ----- ephemeral collaboration (reactions + laser) -----------------------
+  // Scene point at the centre of the current viewport (fallback for a
+  // reaction when the pointer position is unknown).
+  const viewportCenterScene = (): Point => {
+    const vp = viewportRef.current;
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    return { x: (cw / 2 - vp.x) / vp.zoom, y: (ch / 2 - vp.y) / vp.zoom };
+  };
+
+  const emitReaction = (emoji: string) => {
+    const pt = lastScenePointerRef.current ?? viewportCenterScene();
+    addReaction({ emoji, x: pt.x, y: pt.y });
+    publishBoardPresence({ reaction: { emoji, x: pt.x, y: pt.y, at: Date.now() } });
+  };
 
   // ----- persistence (element-level, collision-safe) -----------------------
   const persistIds = useCallback(
@@ -559,6 +747,7 @@ export const WhiteboardCanvas = ({
 
   // ----- pointer interaction ----------------------------------------------
   const beginPan = (e: ReactPointerEvent) => {
+    cancelFollow();
     interactionRef.current = {
       mode: 'pan',
       startClient: { x: e.clientX, y: e.clientY },
@@ -574,7 +763,17 @@ export const WhiteboardCanvas = ({
     svgRef.current?.setPointerCapture(e.pointerId);
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
+    // Laser mode: broadcast a dot, never interact with the canvas.
+    if (laserActiveRef.current) {
+      const lp = clientToScene(e.clientX, e.clientY);
+      lastScenePointerRef.current = lp;
+      setLocalLaser(lp);
+      publishBoardPresence({ laser: { x: lp.x, y: lp.y, at: Date.now() } });
+      return;
+    }
+
     if (pointersRef.current.size === 2) {
+      cancelFollow();
       const [a, b] = [...pointersRef.current.values()];
       pinchRef.current = {
         dist: Math.hypot(a!.x - b!.x, a!.y - b!.y),
@@ -644,6 +843,9 @@ export const WhiteboardCanvas = ({
     if (handleEl && selectionRef.current.length === 1) {
       const id = selectionRef.current[0]!;
       const el = sceneRef.current[id];
+      if (el && isLockedForMe(id)) {
+        return;
+      }
       if (el) {
         const handleType = handleEl.getAttribute('data-handle')!;
         if (handleType === 'rotate') {
@@ -753,12 +955,21 @@ export const WhiteboardCanvas = ({
       }
       setSelection(nextSel);
       const origin: Record<string, Point> = {};
-      // moving a frame drags its contents along with it
+      // moving a frame drags its contents along with it; elements hard-locked
+      // by another user are excluded so they stay put.
       for (const sid of withFrameChildren(nextSel)) {
+        if (isLockedForMe(sid)) {
+          continue;
+        }
         const el = sceneRef.current[sid];
         if (el) {
           origin[sid] = { x: el.x, y: el.y };
         }
+      }
+      // Nothing movable (everything locked by others) — keep the selection but
+      // do not start a drag.
+      if (Object.keys(origin).length === 0) {
+        return;
       }
       interactionRef.current = {
         mode: 'move',
@@ -812,11 +1023,17 @@ export const WhiteboardCanvas = ({
     // collaborators see this cursor move, regardless of the current gesture.
     const scenePointer = clientToScene(e.clientX, e.clientY);
     lastScenePointerRef.current = scenePointer;
-    publishPresence({
-      pointer: scenePointer,
-      selectedElementIds: selectionRef.current,
-      editingElementId: editing?.id ?? null,
-    });
+
+    // Laser mode: stream a dot, suppress all canvas interaction.
+    if (laserActiveRef.current) {
+      setLocalLaser(scenePointer);
+      publishBoardPresence({
+        laser: { x: scenePointer.x, y: scenePointer.y, at: Date.now() },
+      });
+      return;
+    }
+
+    publishBoardPresence();
 
     if (pinchRef.current && pointersRef.current.size === 2) {
       const [a, b] = [...pointersRef.current.values()];
@@ -1122,6 +1339,7 @@ export const WhiteboardCanvas = ({
     }
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      cancelFollow();
       const rect = el.getBoundingClientRect();
       const vp = viewportRef.current;
       if (e.ctrlKey || e.metaKey || !e.shiftKey) {
@@ -1141,7 +1359,7 @@ export const WhiteboardCanvas = ({
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [cancelFollow]);
 
   // ----- keyboard ----------------------------------------------------------
   useEffect(() => {
@@ -1251,7 +1469,8 @@ export const WhiteboardCanvas = ({
 
   // ----- selection operations ----------------------------------------------
   const deleteSelection = () => {
-    const ids = selectionRef.current;
+    // Elements hard-locked by others cannot be deleted.
+    const ids = manipulableIds(selectionRef.current);
     if (ids.length === 0) {
       return;
     }
@@ -1315,7 +1534,10 @@ export const WhiteboardCanvas = ({
     if (selectionRef.current.length === 0) {
       return;
     }
-    const ids = withFrameChildren(selectionRef.current);
+    const ids = manipulableIds(withFrameChildren(selectionRef.current));
+    if (ids.length === 0) {
+      return;
+    }
     const before = cloneScene(sceneRef.current);
     const next = { ...sceneRef.current };
     for (const id of ids) {
@@ -1455,7 +1677,9 @@ export const WhiteboardCanvas = ({
   ) => {
     const ids = selectionRef.current.filter((id) => {
       const el = sceneRef.current[id];
-      return !!el && TEXT_CAPABLE_TYPES.includes(el.type);
+      return (
+        !!el && TEXT_CAPABLE_TYPES.includes(el.type) && !isLockedForMe(id)
+      );
     });
     if (ids.length === 0) {
       return;
@@ -1576,7 +1800,7 @@ export const WhiteboardCanvas = ({
 
   const onStyleChange = (patch: Partial<BoardStyleState>) => {
     setStyle((s) => ({ ...s, ...patch }));
-    const ids = selectionRef.current;
+    const ids = manipulableIds(selectionRef.current);
     if (ids.length === 0) {
       return;
     }
@@ -1642,6 +1866,10 @@ export const WhiteboardCanvas = ({
     }
     const el = sceneRef.current[id];
     if (!el || el.type === 'connector' || el.type === 'freehand') {
+      return;
+    }
+    if (isLockedForMe(id)) {
+      toast(`\uD83D\uDD12 \u00C9l\u00e9ment verrouill\u00e9 \u2014 d\u00e9verrouillez-le pour le modifier`);
       return;
     }
     const lockedBy = remoteEditing.get(id);
@@ -1791,6 +2019,32 @@ export const WhiteboardCanvas = ({
           return el;
         })()
       : null;
+
+  // Every selected element is hard-locked -> the toggle shows "unlock".
+  const selectionLocked =
+    selection.length > 0 && selection.every((id) => !!scene[id]?.locked);
+
+  // Locked elements (whatever their owner) get a small lock badge.
+  const lockedElements = ordered.filter((el) => el.locked);
+
+  // One row per remote user for the follow menu (a user with several devices
+  // shows once). The active follow target's name drives the banner.
+  const followUsers: { userId: string; name: string; color: string }[] = [];
+  const seenFollowUsers = new Set<string>();
+  for (const p of presences) {
+    if (seenFollowUsers.has(p.userId)) {
+      continue;
+    }
+    seenFollowUsers.add(p.userId);
+    followUsers.push({
+      userId: p.userId,
+      name: p.name || 'Anonyme',
+      color: p.color,
+    });
+  }
+  const followedName = followUserId
+    ? (followUsers.find((u) => u.userId === followUserId)?.name ?? null)
+    : null;
 
   return (
     <div
@@ -2020,7 +2274,8 @@ export const WhiteboardCanvas = ({
                 {canEdit &&
                   selection.length === 1 &&
                   el.type !== 'connector' &&
-                  el.type !== 'freehand' && (
+                  el.type !== 'freehand' &&
+                  !(el.locked && el.lockedBy !== workspace.userId) && (
                     <>
                       {RESIZE_HANDLES.map((handle) => {
                         const hp = handlePoint(tl, w, h, handle);
@@ -2184,6 +2439,38 @@ export const WhiteboardCanvas = ({
                 />
               );
             })}
+
+          {/* Hard-lock badge on every locked element (screen space, constant
+              size). Owned-by-me locks are tinted in the primary colour, locks
+              held by others in slate. */}
+          {lockedElements.map((el) => {
+            const rect = elementRect(el);
+            const tr = sceneToClient({ x: rect.x + rect.w, y: rect.y });
+            const mine = el.lockedBy === workspace.userId;
+            return (
+              <g key={`lock-${el.id}`} pointerEvents="none">
+                <circle
+                  cx={tr.x - 9}
+                  cy={tr.y + 9}
+                  r={9}
+                  fill={mine ? '#3b82f6' : '#334155'}
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                  opacity={0.95}
+                />
+                <text
+                  x={tr.x - 9}
+                  y={tr.y + 9}
+                  fontSize={10}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{ userSelect: 'none' }}
+                >
+                  {'🔒'}
+                </text>
+              </g>
+            );
+          })}
         </g>
 
         {/* remote collaborators' pointers + selections */}
@@ -2192,6 +2479,82 @@ export const WhiteboardCanvas = ({
           viewport={viewport}
           scene={scene}
         />
+
+        {/* ephemeral live reactions + laser dots (scene space, not exported) */}
+        <g
+          transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
+          style={{ pointerEvents: 'none' }}
+        >
+          {reactions.map((r) => (
+            <g key={r.key} transform={`translate(${r.x} ${r.y})`}>
+              <g>
+                <text
+                  fontSize={28}
+                  textAnchor="middle"
+                  style={{ userSelect: 'none' }}
+                >
+                  {r.emoji}
+                </text>
+                <animateTransform
+                  attributeName="transform"
+                  type="translate"
+                  from="0 0"
+                  to="0 -70"
+                  dur="2.4s"
+                  fill="freeze"
+                />
+                <animate
+                  attributeName="opacity"
+                  from="1"
+                  to="0"
+                  dur="2.4s"
+                  fill="freeze"
+                />
+              </g>
+            </g>
+          ))}
+
+          {presences.map((p) => {
+            const l = p.payload.laser;
+            if (!l || Date.now() - l.at > LASER_TTL) {
+              return null;
+            }
+            const r = 7 / viewport.zoom;
+            return (
+              <g key={`laser-${p.userId}:${p.deviceId}`}>
+                <circle cx={l.x} cy={l.y} r={r * 2.4} fill={p.color} opacity={0.2} />
+                <circle
+                  cx={l.x}
+                  cy={l.y}
+                  r={r}
+                  fill={p.color}
+                  stroke="#ffffff"
+                  strokeWidth={r * 0.4}
+                />
+              </g>
+            );
+          })}
+
+          {laserActive && localLaser && (
+            <g>
+              <circle
+                cx={localLaser.x}
+                cy={localLaser.y}
+                r={(7 / viewport.zoom) * 2.4}
+                fill={myColor}
+                opacity={0.2}
+              />
+              <circle
+                cx={localLaser.x}
+                cy={localLaser.y}
+                r={7 / viewport.zoom}
+                fill={myColor}
+                stroke="#ffffff"
+                strokeWidth={(7 / viewport.zoom) * 0.4}
+              />
+            </g>
+          )}
+        </g>
       </svg>
 
       <BoardToolbar
@@ -2200,6 +2563,7 @@ export const WhiteboardCanvas = ({
         style={style}
         onStyleChange={onStyleChange}
         hasSelection={selection.length > 0}
+        selectionLocked={selectionLocked}
         canUndo={history.past.length > 0}
         canRedo={history.future.length > 0}
         readOnly={!canEdit}
@@ -2207,6 +2571,7 @@ export const WhiteboardCanvas = ({
         onRedo={redo}
         onDelete={deleteSelection}
         onDuplicate={duplicateSelection}
+        onToggleLock={toggleLockSelection}
         onExport={onExport}
         onExportSvg={onExportSvg}
         onExportPdf={onExportPdf}
@@ -2219,8 +2584,71 @@ export const WhiteboardCanvas = ({
       />
 
       {presences.length > 0 && (
-        <div className="absolute right-2 top-2 z-20">
-          <PresenceAvatars presences={presences} />
+        <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={() => setFollowMenuOpen((o) => !o)}
+            className="rounded-full bg-background/80 p-0.5 shadow-sm backdrop-blur transition hover:bg-background"
+            title="Voir / suivre les collaborateurs"
+          >
+            <PresenceAvatars presences={presences} />
+          </button>
+          {followMenuOpen && (
+            <div className="w-56 rounded-lg border border-border bg-background p-1 shadow-xl">
+              <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Collaborateurs
+              </p>
+              {followUsers.map((u) => {
+                const active = followUserId === u.userId;
+                return (
+                  <div
+                    key={u.userId}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+                  >
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: u.color }}
+                    />
+                    <span className="flex-1 truncate text-xs">{u.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFollowUserId(active ? null : u.userId);
+                        setFollowMenuOpen(false);
+                      }}
+                      className={cn(
+                        'flex items-center gap-1 rounded-md px-2 py-1 text-[11px]',
+                        active
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      <Eye className="size-3" />
+                      {active ? 'Suivi' : 'Suivre'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* follow-mode banner */}
+      {followedName && (
+        <div className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur">
+          <Eye className="size-3.5 text-primary" />
+          <span>
+            Vous suivez <strong>{followedName}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => setFollowUserId(null)}
+            className="ml-1 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-3" />
+            Arrêter
+          </button>
         </div>
       )}
 
@@ -2304,6 +2732,51 @@ export const WhiteboardCanvas = ({
 
       {/* bottom-right controls */}
       <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+        <button
+          type="button"
+          onClick={() => {
+            setLaserActive((a) => !a);
+            setLocalLaser(null);
+          }}
+          className={cn(
+            'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+            laserActive && 'bg-primary/10 text-primary'
+          )}
+          title="Pointeur laser (diffusé en direct)"
+        >
+          <Radio className="size-4" />
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setReactionMenuOpen((o) => !o)}
+            className={cn(
+              'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+              reactionMenuOpen && 'bg-primary/10 text-primary'
+            )}
+            title="Réaction"
+          >
+            <Smile className="size-4" />
+          </button>
+          {reactionMenuOpen && (
+            <div className="absolute bottom-9 right-0 flex gap-0.5 rounded-lg border border-border bg-background p-1 shadow-xl">
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    emitReaction(emoji);
+                    setReactionMenuOpen(false);
+                  }}
+                  className="flex size-8 items-center justify-center rounded-md text-lg hover:bg-accent"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mx-0.5 h-5 w-px bg-border" />
         {canEdit && (
           <button
             type="button"
@@ -2321,12 +2794,13 @@ export const WhiteboardCanvas = ({
           type="button"
           className="flex size-7 items-center justify-center rounded-md hover:bg-accent"
           title="Zoom out"
-          onClick={() =>
+          onClick={() => {
+            cancelFollow();
             setViewport((v) => ({
               ...v,
               zoom: Math.max(MIN_ZOOM, v.zoom / 1.2),
-            }))
-          }
+            }));
+          }}
         >
           <Minus className="size-4" />
         </button>
@@ -2334,7 +2808,10 @@ export const WhiteboardCanvas = ({
           type="button"
           className="min-w-12 rounded-md px-1 text-xs hover:bg-accent"
           title="Reset zoom"
-          onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })}
+          onClick={() => {
+            cancelFollow();
+            setViewport({ x: 0, y: 0, zoom: 1 });
+          }}
         >
           {Math.round(viewport.zoom * 100)}%
         </button>
@@ -2342,12 +2819,13 @@ export const WhiteboardCanvas = ({
           type="button"
           className="flex size-7 items-center justify-center rounded-md hover:bg-accent"
           title="Zoom in"
-          onClick={() =>
+          onClick={() => {
+            cancelFollow();
             setViewport((v) => ({
               ...v,
               zoom: Math.min(MAX_ZOOM, v.zoom * 1.2),
-            }))
-          }
+            }));
+          }}
         >
           <Plus className="size-4" />
         </button>
@@ -2376,6 +2854,7 @@ export const WhiteboardCanvas = ({
   );
 
   function fitToContent() {
+    cancelFollow();
     const els = Object.values(sceneRef.current);
     if (els.length === 0) {
       setViewport({ x: 0, y: 0, zoom: 1 });
