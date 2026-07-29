@@ -18,6 +18,7 @@ import {
 import { FieldSelect } from '@colanode/ui/components/databases/fields/field-select';
 import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
 import { ViewRenameInput } from '@colanode/ui/components/databases/view-rename-input';
+import { ViewCopyLinkAction } from '@colanode/ui/components/databases/view-copy-link-action';
 import { ViewSettingsButton } from '@colanode/ui/components/databases/view-settings-button';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import {
@@ -178,6 +179,8 @@ export const ChartViewSettings = () => {
             )}
           </div>
 
+          <Separator />
+          <ViewCopyLinkAction closeMenu={() => setOpen(false)} />
           {database.canEdit && (
             <Fragment>
               <Separator />

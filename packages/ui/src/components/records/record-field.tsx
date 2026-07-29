@@ -5,6 +5,7 @@ import { FieldAttributes } from '@colanode/core';
 import { FieldDeleteDialog } from '@colanode/ui/components/databases/fields/field-delete-dialog';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
 import { FieldRenameInput } from '@colanode/ui/components/databases/fields/field-rename-input';
+import { RecordFieldAiAutofill } from '@colanode/ui/components/records/record-field-ai-autofill';
 import {
   Popover,
   PopoverContent,
@@ -19,11 +20,12 @@ interface RecordFieldProps {
 
 export const RecordField = ({ field }: RecordFieldProps) => {
   const database = useDatabase();
+  const [open, setOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   return (
     <Fragment>
-      <Popover modal={true}>
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -37,6 +39,12 @@ export const RecordField = ({ field }: RecordFieldProps) => {
         <PopoverContent className="ml-1 flex w-72 flex-col gap-1 p-2 text-sm">
           <FieldRenameInput field={field} />
           <Separator />
+          {field.type === 'text' && (
+            <RecordFieldAiAutofill
+              field={field}
+              onComplete={() => setOpen(false)}
+            />
+          )}
           {database.canEdit && !database.isLocked && (
             <button
               type="button"

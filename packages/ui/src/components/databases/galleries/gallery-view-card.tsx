@@ -1,17 +1,28 @@
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { RecordFieldValue } from '@colanode/ui/components/records/record-field-value';
 import { Link } from '@colanode/ui/components/ui/link';
+import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useRecord } from '@colanode/ui/contexts/record';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   GALLERY_CARD_MAX_FIELDS,
   getGalleryCoverColorClass,
+  getRecordConditionalColorClass,
 } from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const GalleryViewCard = () => {
+  const database = useDatabase();
+  const workspace = useWorkspace();
   const view = useDatabaseView();
   const record = useRecord();
+  const colorClass = getRecordConditionalColorClass(
+    record,
+    view.conditionalColors,
+    database.fields,
+    workspace.userId
+  );
 
   const name = record.name;
   const hasName = name !== null && name !== '';
@@ -24,7 +35,10 @@ export const GalleryViewCard = () => {
       params={{ modalNodeId: record.id }}
       key={record.id}
       data-testid={`gallery-card-${record.id}`}
-      className="animate-fade-in flex cursor-pointer flex-col overflow-hidden rounded-md border hover:bg-accent"
+      className={cn(
+        'animate-fade-in flex cursor-pointer flex-col overflow-hidden rounded-md border hover:bg-accent',
+        colorClass
+      )}
     >
       <div
         className={cn(

@@ -51,6 +51,25 @@ export type DatabaseViewSortAttributes = z.infer<
   typeof databaseViewSortAttributesSchema
 >;
 
+// A single conditional-color rule: when a record matches the field/operator/
+// value condition (evaluated with the same logic as view filters), its row
+// (table/list) or card (board/gallery) is tinted with `color` (a select-option
+// color value, e.g. 'green'). OPTIONAL on the view; existing views omit it.
+export const databaseViewConditionalColorAttributesSchema = z.object({
+  id: z.string(),
+  fieldId: z.string(),
+  operator: z.string(),
+  value: z
+    .union([z.string(), z.number(), z.boolean(), z.array(z.string())])
+    .nullable()
+    .optional(),
+  color: z.string(),
+});
+
+export type DatabaseViewConditionalColorAttributes = z.infer<
+  typeof databaseViewConditionalColorAttributesSchema
+>;
+
 export const databaseViewFilterAttributesSchema = z.discriminatedUnion('type', [
   databaseViewFieldFilterAttributesSchema,
   databaseViewGroupFilterAttributesSchema,
@@ -118,6 +137,11 @@ export const databaseViewAttributesSchema = z.object({
   groupBy: z.string().nullable().optional(),
   nameWidth: z.number().nullable().optional(),
   chart: databaseViewChartAttributesSchema.optional().nullable(),
+  // OPTIONAL list of conditional-color rules. Absent on existing views.
+  conditionalColors: z
+    .array(databaseViewConditionalColorAttributesSchema)
+    .optional()
+    .nullable(),
 });
 
 export type DatabaseViewAttributes = z.infer<

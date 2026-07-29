@@ -3,6 +3,8 @@ import { Fragment, useState } from 'react';
 
 import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
 import { ViewCsvActions } from '@colanode/ui/components/databases/view-csv-actions';
+import { ViewConditionalColorSettings } from '@colanode/ui/components/databases/view-conditional-color-settings';
+import { ViewCopyLinkAction } from '@colanode/ui/components/databases/view-copy-link-action';
 import { ViewFieldSettings } from '@colanode/ui/components/databases/view-field-settings';
 import { ViewRenameInput } from '@colanode/ui/components/databases/view-rename-input';
 import { ViewSettingsButton } from '@colanode/ui/components/databases/view-settings-button';
@@ -46,6 +48,10 @@ export const ViewSettingsPopover = () => {
           </div>
           <Separator />
           <ViewFieldSettings />
+          <Separator />
+          <ViewConditionalColorSettings />
+          <Separator />
+          <ViewCopyLinkAction closeMenu={() => setOpen(false)} />
           <Separator />
           <ViewCsvActions closeMenu={() => setOpen(false)} />
           {database.canEdit && (

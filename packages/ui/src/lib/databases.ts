@@ -12,6 +12,7 @@ import {
   DatabaseViewFilterAttributes,
   DatabaseViewLayout,
   DatabaseViewFieldFilterAttributes,
+  DatabaseViewConditionalColorAttributes,
 } from '@colanode/core';
 
 export const getDefaultFieldWidth = (type: FieldType): number => {
@@ -1614,4 +1615,119 @@ const generateUrlValue = (
   }
 
   return null;
+};
+
+// Minimal record shape the conditional-color evaluator needs. Works both with
+// a full LocalRecordNode (table view) and the RecordContext (board/gallery/list).
+export interface ConditionalColorEvaluable {
+  id: string;
+  fields: Record<string, FieldValue>;
+  createdBy: string;
+  createdAt: string;
+}
+
+// Returns the tailwind background class for the FIRST conditional-color rule a
+// record matches, or '' when none match. Reuses the same per-field matching
+// logic as the view filters.
+export const getRecordConditionalColorClass = (
+  record: ConditionalColorEvaluable,
+  rules: DatabaseViewConditionalColorAttributes[] | null | undefined,
+  fields: FieldAttributes[],
+  currentUserId: string
+): string => {
+  if (!rules || rules.length === 0) {
+    return '';
+  }
+
+  for (const rule of rules) {
+    const field = fields.find((f) => f.id === rule.fieldId);
+    if (!field) {
+      continue;
+    }
+
+    const filter: DatabaseViewFieldFilterAttributes = {
+      id: rule.id,
+      fieldId: rule.fieldId,
+      type: 'field',
+      operator: rule.operator,
+      value: rule.value ?? null,
+    };
+
+    if (
+      recordMatchesFilter(
+        record as unknown as LocalRecordNode,
+        filter,
+        field,
+        currentUserId
+      )
+    ) {
+      return getSelectOptionLightColorClass(rule.color);
+    }
+  }
+
+  return '';
+};
+
+const stringifyFieldValueForAi = (
+  value: FieldValue,
+  field: FieldAttributes
+): string => {
+  switch (value.type) {
+    case 'text':
+      return value.value;
+    case 'number':
+      return String(value.value);
+    case 'boolean':
+      return value.value ? 'true' : 'false';
+    case 'string':
+      if (field.type === 'select') {
+        const options = (field as SelectFieldAttributes).options ?? {};
+        return options[value.value]?.name ?? value.value;
+      }
+      return value.value;
+    case 'string_array':
+      if (field.type === 'multi_select') {
+        const options = (field as MultiSelectFieldAttributes).options ?? {};
+        return value.value.map((id) => options[id]?.name ?? id).join(', ');
+      }
+      return value.value.join(', ');
+    default:
+      return '';
+  }
+};
+
+// Builds a plain-text summary of a record's OTHER properties, to give the AI
+// grounding when filling in `excludeFieldId`. Derived (formula/rollup) and the
+// target field itself are omitted.
+export const buildRecordAiContext = (
+  record: { name?: string | null; fields: Record<string, FieldValue> },
+  fields: FieldAttributes[],
+  excludeFieldId: string
+): string => {
+  const lines: string[] = [];
+
+  if (record.name) {
+    lines.push(`Name: ${record.name}`);
+  }
+
+  for (const field of fields) {
+    if (field.id === excludeFieldId) {
+      continue;
+    }
+    if (field.type === 'formula' || field.type === 'rollup') {
+      continue;
+    }
+
+    const value = record.fields[field.id];
+    if (!value) {
+      continue;
+    }
+
+    const text = stringifyFieldValueForAi(value, field);
+    if (text) {
+      lines.push(`${field.name}: ${text}`);
+    }
+  }
+
+  return lines.join('\n');
 };

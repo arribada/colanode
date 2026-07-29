@@ -57,7 +57,10 @@ export const ViewFieldSettings = () => {
   return (
     <Fragment>
       <div className="flex flex-col gap-2 text-sm">
-        <p className="my-1 font-semibold">Fields</p>
+        <p className="my-1 font-semibold">
+          Property visibility{' '}
+          <span className="text-muted-foreground">({view.fields.length})</span>
+        </p>
         {database.fields.map((field) => {
           const isDisplayed =
             view.fields.find((f) => f.field.id === field.id)?.display ?? false;

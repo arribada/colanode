@@ -115,6 +115,7 @@ export const View = ({ view }: ViewProps) => {
         clearPersonal: scope.clearPersonal,
         groupBy: view.groupBy,
         chart: view.chart,
+        conditionalColors: view.conditionalColors ?? [],
         nameWidth: view.nameWidth ?? getDefaultNameWidth(),
         isSearchBarOpened: isSearchBarOpened || openedFieldFilters.length > 0,
         isSortsOpened,

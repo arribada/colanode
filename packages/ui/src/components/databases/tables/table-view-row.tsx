@@ -6,6 +6,8 @@ import { RecordProvider } from '@colanode/ui/components/records/record-provider'
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { getRecordConditionalColorClass } from '@colanode/ui/lib/databases';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface TableViewRowProps {
   index: number;
@@ -17,12 +19,21 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
   const database = useDatabase();
   const view = useDatabaseView();
   const role = extractNodeRole(record, workspace.userId) ?? database.role;
+  const colorClass = getRecordConditionalColorClass(
+    record,
+    view.conditionalColors,
+    database.fields,
+    workspace.userId
+  );
 
   return (
     <RecordProvider record={record} role={role}>
       <div
         data-testid={`table-row-${record.id}`}
-        className="animate-fade-in flex flex-row items-center gap-0.5 border-b"
+        className={cn(
+          'animate-fade-in flex flex-row items-center gap-0.5 border-b',
+          colorClass
+        )}
       >
         <span
           className="flex cursor-pointer items-center justify-center text-sm text-muted-foreground"

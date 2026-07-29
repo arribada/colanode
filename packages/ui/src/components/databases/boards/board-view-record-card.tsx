@@ -5,13 +5,25 @@ import { FieldValue } from '@colanode/core';
 import { RecordFieldValue } from '@colanode/ui/components/records/record-field-value';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useBoardView } from '@colanode/ui/contexts/board-view';
+import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useRecord } from '@colanode/ui/contexts/record';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { getRecordConditionalColorClass } from '@colanode/ui/lib/databases';
+import { cn } from '@colanode/ui/lib/utils';
 
 export const BoardViewRecordCard = () => {
   const view = useDatabaseView();
   const boardView = useBoardView();
   const record = useRecord();
+  const database = useDatabase();
+  const workspace = useWorkspace();
+  const colorClass = getRecordConditionalColorClass(
+    record,
+    view.conditionalColors,
+    database.fields,
+    workspace.userId
+  );
 
   const [, drag] = useDrag({
     type: 'board-record',
@@ -34,7 +46,10 @@ export const BoardViewRecordCard = () => {
       role="presentation"
       key={record.id}
       data-testid={`board-card-${record.id}`}
-      className="animate-fade-in flex cursor-pointer flex-col gap-1 rounded-md border p-2 text-left hover:bg-accent"
+      className={cn(
+        'animate-fade-in flex cursor-pointer flex-col gap-1 rounded-md border p-2 text-left hover:bg-accent',
+        colorClass
+      )}
     >
       <Link
         from="/workspace/$userId/$nodeId"
