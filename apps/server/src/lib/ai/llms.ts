@@ -209,6 +209,7 @@
 // clear "provider unsupported" error.
 // ---------------------------------------------------------------------------
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText } from 'ai';
 
 import type { AiProviderName } from '@colanode/core';
@@ -219,6 +220,27 @@ export interface ResolvedLlm {
   apiKey: string;
 }
 
+// Resolves the concrete AI SDK model for a ResolvedLlm. Anthropic keeps using
+// the native @ai-sdk/anthropic provider; any other provider is routed through
+// the OpenAI-compatible provider using AI_OPENAI_COMPAT_BASE_URL (e.g. a free
+// Groq/Cerebras endpoint) so the wiki AI can run at $0.
+export const resolveAiModel = (llm: ResolvedLlm) => {
+  if (llm.provider === 'anthropic') {
+    return createAnthropic({ apiKey: llm.apiKey })(llm.model);
+  }
+  const baseURL = process.env.AI_OPENAI_COMPAT_BASE_URL;
+  if (!baseURL) {
+    throw new Error(
+      `AI provider '${llm.provider}' requires AI_OPENAI_COMPAT_BASE_URL (e.g. https://api.groq.com/openai/v1).`
+    );
+  }
+  return createOpenAICompatible({
+    name: llm.provider,
+    baseURL,
+    apiKey: llm.apiKey,
+  })(llm.model);
+};
+
 // Single-shot text generation for a resolved LLM. Supported model names:
 // claude-opus-4-8 / claude-sonnet-5 / claude-haiku-4-5-20251001 (any Anthropic
 // model id is passed through).
@@ -226,15 +248,8 @@ export const generateLlmText = async (
   llm: ResolvedLlm,
   args: { system: string; prompt: string; maxOutputTokens?: number }
 ): Promise<string> => {
-  if (llm.provider !== 'anthropic') {
-    throw new Error(
-      `AI provider '${llm.provider}' is not supported for completions yet.`
-    );
-  }
-
-  const anthropic = createAnthropic({ apiKey: llm.apiKey });
   const { text } = await generateText({
-    model: anthropic(llm.model),
+    model: resolveAiModel(llm),
     system: args.system,
     prompt: args.prompt,
     maxOutputTokens: args.maxOutputTokens ?? 2048,

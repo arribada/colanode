@@ -7,12 +7,11 @@
 //   - runWikiAgent: a single instruction (+ optional page/selection/context).
 //   - runWikiChat:  a multi-turn transcript; only the latest user turn runs
 //                   fresh tools (prior turns are replayed as plain text).
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { generateText, ModelMessage, stepCountIs, tool, ToolSet } from 'ai';
 
 import { AiAgentAction, AiAgentInput, AiChatInput } from '@colanode/core';
 
-import { ResolvedLlm } from '@colanode/server/lib/ai/llms';
+import { ResolvedLlm, resolveAiModel } from '@colanode/server/lib/ai/llms';
 import {
   WikiToolContext,
   wikiToolDefinitions,
@@ -107,7 +106,6 @@ export const runWikiAgent = async (
   input: AiAgentInput
 ): Promise<{ text: string; actions: AiAgentAction[] }> => {
   const actions: AiAgentAction[] = [];
-  const anthropic = createAnthropic({ apiKey: llm.apiKey });
   const tools = buildWikiTools(ctx, actions);
 
   const contextNote = buildContextNote(input);
@@ -116,7 +114,7 @@ export const runWikiAgent = async (
     .join('\n\n');
 
   const { text } = await generateText({
-    model: anthropic(llm.model),
+    model: resolveAiModel(llm),
     system: SYSTEM_PROMPT,
     prompt,
     tools,
@@ -136,7 +134,6 @@ export const runWikiChat = async (
   input: AiChatInput
 ): Promise<{ text: string; actions: AiAgentAction[] }> => {
   const actions: AiAgentAction[] = [];
-  const anthropic = createAnthropic({ apiKey: llm.apiKey });
   const tools = buildWikiTools(ctx, actions);
 
   const contextNote = buildContextNote(input);
@@ -152,7 +149,7 @@ export const runWikiChat = async (
   );
 
   const { text } = await generateText({
-    model: anthropic(llm.model),
+    model: resolveAiModel(llm),
     system,
     messages,
     tools,
