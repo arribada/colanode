@@ -50,7 +50,13 @@ export const ViewNumberFieldFilter = ({
     return null;
   }
 
-  const numberValue = filter.value as number | null;
+  const isBetween = operator.value === 'is_between';
+  // A plain scalar value only when the operator is a single-number one.
+  const numberValue = typeof filter.value === 'number' ? filter.value : null;
+  // A [min, max] pair (stored as strings so partial input is allowed).
+  const rangeValue = Array.isArray(filter.value)
+    ? (filter.value as string[])
+    : [];
 
   const hideInput = isOperatorWithoutValue(operator.value);
 
@@ -97,14 +103,12 @@ export const ViewNumberFieldFilter = ({
                 <DropdownMenuItem
                   key={operator.value}
                   onSelect={() => {
-                    const value = isOperatorWithoutValue(operator.value)
-                      ? null
-                      : numberValue;
-
                     updateFilter({
                       ...filter,
                       operator: operator.value,
-                      value: value,
+                      value: isOperatorWithoutValue(operator.value)
+                        ? null
+                        : filter.value,
                     });
                   }}
                 >
@@ -123,23 +127,53 @@ export const ViewNumberFieldFilter = ({
             <Trash2 className="size-4" />
           </Button>
         </div>
-        {!hideInput && (
-          <Input
-            type="number"
-            value={numberValue ?? ''}
-            aria-label={`${field.name} filter value`}
-            onChange={(e) => {
-              const numberValue = parseFloat(e.target.value);
-              if (isNaN(numberValue)) {
-                return;
-              }
+        {isBetween ? (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              value={rangeValue[0] ?? ''}
+              placeholder="Min"
+              aria-label={`${field.name} minimum`}
+              onChange={(e) => {
+                updateFilter({
+                  ...filter,
+                  value: [e.target.value, rangeValue[1] ?? ''],
+                });
+              }}
+            />
+            <span className="text-muted-foreground">–</span>
+            <Input
+              type="number"
+              value={rangeValue[1] ?? ''}
+              placeholder="Max"
+              aria-label={`${field.name} maximum`}
+              onChange={(e) => {
+                updateFilter({
+                  ...filter,
+                  value: [rangeValue[0] ?? '', e.target.value],
+                });
+              }}
+            />
+          </div>
+        ) : (
+          !hideInput && (
+            <Input
+              type="number"
+              value={numberValue ?? ''}
+              aria-label={`${field.name} filter value`}
+              onChange={(e) => {
+                const numberValue = parseFloat(e.target.value);
+                if (isNaN(numberValue)) {
+                  return;
+                }
 
-              updateFilter({
-                ...filter,
-                value: numberValue,
-              });
-            }}
-          />
+                updateFilter({
+                  ...filter,
+                  value: numberValue,
+                });
+              }}
+            />
+          )
         )}
       </PopoverContent>
     </Popover>

@@ -21,6 +21,7 @@ import {
   MathBlockCommand,
   MathInlineCommand,
 } from '@colanode/ui/editor/commands/math';
+import { MermaidCommand } from '@colanode/ui/editor/commands/mermaid';
 import { OrderedListCommand } from '@colanode/ui/editor/commands/ordered-list';
 import { PageCommand } from '@colanode/ui/editor/commands/page';
 import { ParagraphCommand } from '@colanode/ui/editor/commands/paragraph';
@@ -50,6 +51,7 @@ export {
   Heading3Command,
   MathBlockCommand,
   MathInlineCommand,
+  MermaidCommand,
   OrderedListCommand,
   PageCommand,
   ParagraphCommand,

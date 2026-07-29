@@ -24,6 +24,7 @@ import {
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
+import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
@@ -45,6 +46,7 @@ import {
   Heading3Command,
   MathBlockCommand,
   MathInlineCommand,
+  MermaidCommand,
   OrderedListCommand,
   PageCommand,
   ParagraphCommand,
@@ -81,6 +83,7 @@ import {
   ListKeymapExtension,
   MathBlockNode,
   MathInlineNode,
+  MermaidNode,
   MentionExtension,
   OrderedListNode,
   PageNode,
@@ -252,6 +255,7 @@ export const DocumentEditor = ({
   const ydocRef = useRef<YDoc>(buildYDoc(state, updates));
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const [viewReady, setViewReady] = useState(false);
+  const [wordCount, setWordCount] = useState(0);
 
   const debouncedSave = useMemo(
     () =>
@@ -362,6 +366,7 @@ export const DocumentEditor = ({
         DividerNode,
         MathBlockNode,
         MathInlineNode,
+        MermaidNode,
         TrailingNode,
         PresenceExtension,
         LinkMark,
@@ -397,6 +402,7 @@ export const DocumentEditor = ({
             DividerCommand,
             MathBlockCommand,
             MathInlineCommand,
+            MermaidCommand,
             TodoCommand,
             ToggleCommand,
             CalloutCommand,
@@ -544,6 +550,36 @@ export const DocumentEditor = ({
   // Keep editorRef updated so handleKeyDown can access the current editor
   editorRef.current = editor;
 
+  // Expose Markdown / rendered-HTML export of the live document to the page
+  // ⋯ menu (a different subtree), and keep a live word count for the footer.
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    const unregister = registerDocumentExporter(node.id, {
+      getMarkdown: () => editor.getMarkdown(),
+      getRenderedHtml: () => {
+        try {
+          return editor.view.dom.innerHTML;
+        } catch {
+          return editor.getHTML();
+        }
+      },
+    });
+
+    const recount = () => {
+      const text = editor.getText().trim();
+      setWordCount(text.length === 0 ? 0 : text.split(/\s+/).length);
+    };
+    recount();
+    editor.on('update', recount);
+
+    return () => {
+      editor.off('update', recount);
+      unregister();
+    };
+  }, [editor, node.id]);
+
   // Publish the local caret/selection (throttled inside the publisher).
   useEffect(() => {
     if (!editor) {
@@ -635,6 +671,12 @@ export const DocumentEditor = ({
         </Fragment>
       )}
       <EditorContent editor={editor} />
+      {isPage && wordCount > 0 && (
+        <div className="mt-6 select-none border-t border-border/60 pt-2 text-xs text-muted-foreground">
+          {wordCount} mot{wordCount === 1 ? '' : 's'} · ~
+          {Math.max(1, Math.ceil(wordCount / 200))} min de lecture
+        </div>
+      )}
     </div>
   );
 };

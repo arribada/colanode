@@ -1,11 +1,13 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
   Copy,
+  FileDown,
   FileStack,
   FolderInput,
   History,
   Image,
   LetterText,
+  Printer,
   Settings,
   Trash2,
   Users,
@@ -31,6 +33,12 @@ import {
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
+import {
+  downloadTextFile,
+  getDocumentExporter,
+  safeFileName,
+} from '@colanode/ui/lib/document-export';
+import { printHtmlDocument } from '@colanode/ui/lib/print';
 
 interface PageSettingsProps {
   page: LocalPageNode;
@@ -178,6 +186,45 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           >
             <History className="size-4" />
             Version history
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              const exporter = getDocumentExporter(page.id);
+              if (!exporter) {
+                toast.error('Ouvrez la page pour l\u2019exporter');
+                return;
+              }
+              downloadTextFile(
+                exporter.getMarkdown(),
+                `${safeFileName(page.name)}.md`,
+                'text/markdown'
+              );
+            }}
+          >
+            <FileDown className="size-4" />
+            Exporter en Markdown
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              const exporter = getDocumentExporter(page.id);
+              const title = page.name || 'Document';
+              const heading = title
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+              printHtmlDocument({
+                title,
+                bodyHtml:
+                  `<h1>${heading}</h1>` +
+                  (exporter ? exporter.getRenderedHtml() : ''),
+              });
+            }}
+          >
+            <Printer className="size-4" />
+            Imprimer / PDF
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

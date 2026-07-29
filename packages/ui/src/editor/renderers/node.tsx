@@ -16,6 +16,7 @@ import { ListItemRenderer } from '@colanode/ui/editor/renderers/list-item';
 import { MarkRenderer } from '@colanode/ui/editor/renderers/mark';
 import { MathBlockRenderer } from '@colanode/ui/editor/renderers/math-block';
 import { MathInlineRenderer } from '@colanode/ui/editor/renderers/math-inline';
+import { MermaidRenderer } from '@colanode/ui/editor/renderers/mermaid';
 import { MentionRenderer } from '@colanode/ui/editor/renderers/mention';
 import { MessageRenderer } from '@colanode/ui/editor/renderers/message';
 import { OrderedListRenderer } from '@colanode/ui/editor/renderers/ordered-list';
@@ -101,6 +102,9 @@ export const NodeRenderer = ({
         ))
         .with('mathInline', () => (
           <MathInlineRenderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('mermaid', () => (
+          <MermaidRenderer node={node} keyPrefix={keyPrefix} />
         ))
         .with('file', () => <FileRenderer node={node} keyPrefix={keyPrefix} />)
         .with('mention', () => (

@@ -8,6 +8,7 @@ import { FileNodeView } from '@colanode/ui/editor/views/file';
 import { FolderNodeView } from '@colanode/ui/editor/views/folder';
 import { MathBlockNodeView } from '@colanode/ui/editor/views/math-block';
 import { MathInlineNodeView } from '@colanode/ui/editor/views/math-inline';
+import { MermaidNodeView } from '@colanode/ui/editor/views/mermaid';
 import { MentionNodeView } from '@colanode/ui/editor/views/mention';
 import { PageNodeView } from '@colanode/ui/editor/views/page';
 import { PlaneIssueLinkNodeView } from '@colanode/ui/editor/views/plane-issue-link';
@@ -30,6 +31,7 @@ export {
   FolderNodeView,
   MathBlockNodeView,
   MathInlineNodeView,
+  MermaidNodeView,
   MentionNodeView,
   PageNodeView,
   PlaneIssueLinkNodeView,

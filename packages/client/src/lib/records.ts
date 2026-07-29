@@ -220,6 +220,20 @@ const buildNumberFilterQuery = (
     return buildFieldFilterQuery(field.id, 'IS NOT', 'NULL');
   }
 
+  if (filter.operator === 'is_between') {
+    if (!isStringArray(filter.value) || filter.value.length < 2) {
+      return null;
+    }
+    const lo = parseFloat(filter.value[0]!);
+    const hi = parseFloat(filter.value[1]!);
+    if (isNaN(lo) || isNaN(hi)) {
+      return null;
+    }
+    const min = Math.min(lo, hi);
+    const max = Math.max(lo, hi);
+    return `(${buildFieldFilterQuery(field.id, '>=', min.toString())} AND ${buildFieldFilterQuery(field.id, '<=', max.toString())})`;
+  }
+
   if (filter.value === null) {
     return null;
   }
@@ -514,6 +528,44 @@ const buildMultiSelectFilterQuery = (
   }
 };
 
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+const toDateStr = (d: Date): string =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// Half-open [start, endExclusive) day range (local time, YYYY-MM-DD) for the
+// relative-date operators. Both bounds sort correctly against stored date
+// strings and against the created_at/updated_at ISO timestamp columns.
+const relativeDateRange = (
+  operator: string
+): { start: string; endExclusive: string } | null => {
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  if (operator === 'is_today') {
+    const end = new Date(startOfToday);
+    end.setDate(end.getDate() + 1);
+    return { start: toDateStr(startOfToday), endExclusive: toDateStr(end) };
+  }
+  if (operator === 'is_this_week') {
+    const day = startOfToday.getDay();
+    const diffToMonday = (day + 6) % 7;
+    const start = new Date(startOfToday);
+    start.setDate(start.getDate() - diffToMonday);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { start: toDateStr(start), endExclusive: toDateStr(end) };
+  }
+  if (operator === 'is_this_month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return { start: toDateStr(start), endExclusive: toDateStr(end) };
+  }
+  return null;
+};
+
 const buildDateFilterQuery = (
   filter: DatabaseViewFieldFilterAttributes,
   field: DateFieldAttributes
@@ -524,6 +576,27 @@ const buildDateFilterQuery = (
 
   if (filter.operator === 'is_not_empty') {
     return buildFieldFilterQuery(field.id, 'IS NOT', 'NULL');
+  }
+
+  const relative = relativeDateRange(filter.operator);
+  if (relative) {
+    return `(${buildFieldFilterQuery(field.id, '>=', `'${relative.start}'`)} AND ${buildFieldFilterQuery(field.id, '<', `'${relative.endExclusive}'`)})`;
+  }
+
+  if (filter.operator === 'is_between') {
+    if (!isStringArray(filter.value) || filter.value.length < 2) {
+      return null;
+    }
+    const a = new Date(filter.value[0]!);
+    const b = new Date(filter.value[1]!);
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) {
+      return null;
+    }
+    const aStr = a.toISOString().split('T')[0]!;
+    const bStr = b.toISOString().split('T')[0]!;
+    const lo = aStr <= bStr ? aStr : bStr;
+    const hi = aStr <= bStr ? bStr : aStr;
+    return `(${buildFieldFilterQuery(field.id, '>=', `'${lo}'`)} AND ${buildFieldFilterQuery(field.id, '<=', `'${hi}'`)})`;
   }
 
   if (filter.value === null) {
@@ -563,6 +636,11 @@ const buildCreatedAtFilterQuery = (
   filter: DatabaseViewFieldFilterAttributes,
   _: CreatedAtFieldAttributes
 ): string | null => {
+  const relative = relativeDateRange(filter.operator);
+  if (relative) {
+    return `(${buildColumnFilterQuery('created_at', '>=', `'${relative.start}'`)} AND ${buildColumnFilterQuery('created_at', '<', `'${relative.endExclusive}'`)})`;
+  }
+
   if (filter.value === null) {
     return null;
   }
@@ -645,6 +723,11 @@ const buildUpdatedAtFilterQuery = (
 
   if (filter.operator === 'is_not_empty') {
     return buildColumnFilterQuery('updated_at', 'IS NOT', 'NULL');
+  }
+
+  const relative = relativeDateRange(filter.operator);
+  if (relative) {
+    return `(${buildColumnFilterQuery('updated_at', '>=', `'${relative.start}'`)} AND ${buildColumnFilterQuery('updated_at', '<', `'${relative.endExclusive}'`)})`;
   }
 
   if (filter.value === null) {

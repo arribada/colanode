@@ -87,3 +87,53 @@ export const downloadBlob = (blob: Blob, filename: string): void => {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
+
+/**
+ * Serialize a scene <g> region to a standalone SVG string. Mirrors the PNG
+ * clone/strip logic but embeds a background <rect> (SVG has no canvas fill) so
+ * the exported file is opaque. Any `board-no-export` node (grid, selection,
+ * handles) is removed and the pan/zoom transform reset to identity.
+ */
+export const buildSceneSvgString = (
+  sceneGroup: SVGGElement,
+  region: Rect,
+  background = '#ffffff'
+): string => {
+  const clone = sceneGroup.cloneNode(true) as SVGGElement;
+  clone.removeAttribute('transform');
+  clone.querySelectorAll('.board-no-export').forEach((n) => n.remove());
+
+  const svg = document.createElementNS(XMLNS, 'svg');
+  svg.setAttribute('xmlns', XMLNS);
+  svg.setAttribute('width', String(region.w));
+  svg.setAttribute('height', String(region.h));
+  svg.setAttribute(
+    'viewBox',
+    `${region.x} ${region.y} ${region.w} ${region.h}`
+  );
+
+  if (background) {
+    const bg = document.createElementNS(XMLNS, 'rect');
+    bg.setAttribute('x', String(region.x));
+    bg.setAttribute('y', String(region.y));
+    bg.setAttribute('width', String(region.w));
+    bg.setAttribute('height', String(region.h));
+    bg.setAttribute('fill', background);
+    svg.appendChild(bg);
+  }
+  svg.appendChild(clone);
+
+  return new XMLSerializer().serializeToString(svg);
+};
+
+/** Export a scene region to a downloadable .svg file. */
+export const exportSceneSvg = (
+  sceneGroup: SVGGElement,
+  region: Rect,
+  filename: string,
+  background = '#ffffff'
+): void => {
+  const svgString = buildSceneSvgString(sceneGroup, region, background);
+  const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  downloadBlob(blob, filename);
+};

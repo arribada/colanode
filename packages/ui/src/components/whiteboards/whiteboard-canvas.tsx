@@ -18,6 +18,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 
 import { LocalWhiteboardNode } from '@colanode/client/types';
 import {
@@ -78,7 +79,13 @@ import {
   mindmapHiddenIds,
   toggleMindmapCollapsed,
 } from '@colanode/ui/lib/board/mindmap';
-import { downloadBlob, exportScenePng } from '@colanode/ui/lib/board/png';
+import {
+  buildSceneSvgString,
+  downloadBlob,
+  exportScenePng,
+  exportSceneSvg,
+} from '@colanode/ui/lib/board/png';
+import { printHtmlDocument } from '@colanode/ui/lib/print';
 import { getTemplate } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -184,6 +191,20 @@ export const WhiteboardCanvas = ({
   });
   const lastScenePointerRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Element ids a remote collaborator currently has open for inline
+  // editing, mapped to their name — drives the soft-lock (block local edit
+  // + badge). Non-persisted, pure UX.
+  const remoteEditing = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of presences) {
+      const id = p.payload.editingElementId;
+      if (id) {
+        map.set(id, p.name || 'Quelqu\u2019un');
+      }
+    }
+    return map;
+  }, [presences]);
+
   const [scene, setScene] = useState<BoardScene>(
     () => (whiteboard.scene as BoardScene | undefined) ?? {}
   );
@@ -226,22 +247,82 @@ export const WhiteboardCanvas = ({
   const spaceRef = useRef(false);
   const persistPendingRef = useRef<Set<string> | null>(null);
   const rafRef = useRef<number | null>(null);
+  const editingRef = useRef(editing);
 
   sceneRef.current = scene;
   viewportRef.current = viewport;
   toolRef.current = tool;
   selectionRef.current = selection;
+  editingRef.current = editing;
 
-  // Adopt remote / persisted scene changes when the user is idle so that
-  // collaborators' element edits appear without clobbering an active gesture.
+  // Elements the local user is actively manipulating: their in-flight local
+  // state must win over incoming remote/persisted data. Everything else still
+  // adopts remote updates.
+  const lockedElementIds = (): Set<string> => {
+    const locked = new Set<string>();
+    const editingId = editingRef.current?.id;
+    if (editingId) {
+      locked.add(editingId);
+    }
+    const it = interactionRef.current;
+    if (it) {
+      if (it.mode === 'move') {
+        for (const id of Object.keys(it.origin)) {
+          locked.add(id);
+        }
+      } else if (
+        it.mode === 'resize' ||
+        it.mode === 'rotate' ||
+        it.mode === 'create' ||
+        it.mode === 'connector' ||
+        it.mode === 'pen'
+      ) {
+        locked.add(it.id);
+      }
+    }
+    return locked;
+  };
+
+  // Adopt remote / persisted scene changes with a per-element diff (O(changed),
+  // never a whole-scene stringify) so remote edits land LIVE even while the
+  // local user drags — every element except the ones under the local gesture
+  // is merged in immediately.
   useEffect(() => {
-    if (interactionRef.current || editing) {
-      return;
-    }
     const incoming = (whiteboard.scene as BoardScene | undefined) ?? {};
-    if (JSON.stringify(incoming) !== JSON.stringify(sceneRef.current)) {
-      setScene(incoming);
+    const current = sceneRef.current;
+    const locked = lockedElementIds();
+
+    let changed = false;
+    const next: BoardScene = { ...current };
+    const ids = new Set<string>([
+      ...Object.keys(incoming),
+      ...Object.keys(current),
+    ]);
+    for (const id of ids) {
+      if (locked.has(id)) {
+        continue;
+      }
+      const inc = incoming[id];
+      const cur = current[id];
+      if (inc === undefined) {
+        if (cur !== undefined) {
+          delete next[id];
+          changed = true;
+        }
+      } else if (
+        cur === undefined ||
+        JSON.stringify(inc) !== JSON.stringify(cur)
+      ) {
+        next[id] = inc;
+        changed = true;
+      }
     }
+
+    if (changed) {
+      sceneRef.current = next;
+      setScene(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [whiteboard.scene]);
 
   // Announce presence on mount so the "who's viewing" stack shows this user
@@ -1563,15 +1644,25 @@ export const WhiteboardCanvas = ({
     if (!el || el.type === 'connector' || el.type === 'freehand') {
       return;
     }
+    const lockedBy = remoteEditing.get(id);
+    if (lockedBy) {
+      toast(`\uD83D\uDD12 ${lockedBy} \u00e9dite cet \u00e9l\u00e9ment`);
+      return;
+    }
     setSelection([id]);
     setEditing({ id, value: el.text ?? '' });
   };
 
   // ----- export ------------------------------------------------------------
-  const onExport = async () => {
+  // Region (scene coords) every export shares: the selected frame if one is
+  // selected, otherwise the whole scene, padded.
+  const computeExportRegion = (): {
+    group: SVGGElement;
+    region: Rect;
+  } | null => {
     const group = sceneGroupRef.current;
     if (!group) {
-      return;
+      return null;
     }
     const els = Object.values(sceneRef.current);
     const selFrame = els.find(
@@ -1584,17 +1675,56 @@ export const WhiteboardCanvas = ({
     );
     const bounds = unionBounds(rects) ?? { x: 0, y: 0, w: 800, h: 600 };
     const pad = 40;
-    const region: Rect = {
-      x: bounds.x - pad,
-      y: bounds.y - pad,
-      w: bounds.w + pad * 2,
-      h: bounds.h + pad * 2,
+    return {
+      group,
+      region: {
+        x: bounds.x - pad,
+        y: bounds.y - pad,
+        w: bounds.w + pad * 2,
+        h: bounds.h + pad * 2,
+      },
     };
+  };
+
+  const boardFileName = () => whiteboard.name || 'board';
+
+  const onExport = async () => {
+    const target = computeExportRegion();
+    if (!target) {
+      return;
+    }
     try {
-      const blob = await exportScenePng(group, region, { scale: 2 });
-      downloadBlob(blob, `${whiteboard.name || 'board'}.png`);
+      const blob = await exportScenePng(target.group, target.region, {
+        scale: 2,
+      });
+      downloadBlob(blob, `${boardFileName()}.png`);
     } catch {
       // ignore export failures (e.g. tainted canvas)
+    }
+  };
+
+  const onExportSvg = () => {
+    const target = computeExportRegion();
+    if (!target) {
+      return;
+    }
+    try {
+      exportSceneSvg(target.group, target.region, `${boardFileName()}.svg`);
+    } catch {
+      // ignore export failures
+    }
+  };
+
+  const onExportPdf = () => {
+    const target = computeExportRegion();
+    if (!target) {
+      return;
+    }
+    try {
+      const svgString = buildSceneSvgString(target.group, target.region);
+      printHtmlDocument({ title: boardFileName(), bodyHtml: svgString });
+    } catch {
+      // ignore export failures
     }
   };
 
@@ -2078,6 +2208,8 @@ export const WhiteboardCanvas = ({
         onDelete={deleteSelection}
         onDuplicate={duplicateSelection}
         onExport={onExport}
+        onExportSvg={onExportSvg}
+        onExportPdf={onExportPdf}
         onInsertTemplate={insertTemplate}
         fontControlsVisible={fontControlsVisible}
         fontAuto={fontAutoState}

@@ -22,14 +22,20 @@ import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useViewFilter } from '@colanode/ui/hooks/use-view-filter';
 import { updatedAtFieldFilterOperators } from '@colanode/ui/lib/databases';
 
+const isOperatorWithoutValue = (operator: string) => {
+  return (
+    operator === 'is_empty' ||
+    operator === 'is_not_empty' ||
+    operator === 'is_today' ||
+    operator === 'is_this_week' ||
+    operator === 'is_this_month'
+  );
+};
+
 interface ViewUpdatedAtFieldFilterProps {
   field: UpdatedAtFieldAttributes;
   filter: DatabaseViewFieldFilterAttributes;
 }
-
-const isOperatorWithoutValue = (operator: string) => {
-  return operator === 'is_empty' || operator === 'is_not_empty';
-};
 
 export const ViewUpdatedAtFieldFilter = ({
   field,
@@ -122,24 +128,26 @@ export const ViewUpdatedAtFieldFilter = ({
             <Trash2 className="size-4" />
           </Button>
         </div>
-        <DatePicker
-          value={dateValue}
-          onChange={(newValue) => {
-            if (newValue === null || newValue === undefined) {
-              updateFilter({
-                ...filter,
-                value: null,
-              });
-            } else {
-              updateFilter({
-                ...filter,
-                value: newValue.toISOString(),
-              });
-            }
-          }}
-          placeholder="Select date"
-          className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
-        />
+        {!isOperatorWithoutValue(operator.value) && (
+          <DatePicker
+            value={dateValue}
+            onChange={(newValue) => {
+              if (newValue === null || newValue === undefined) {
+                updateFilter({
+                  ...filter,
+                  value: null,
+                });
+              } else {
+                updateFilter({
+                  ...filter,
+                  value: newValue.toISOString(),
+                });
+              }
+            }}
+            placeholder="Select date"
+            className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
+          />
+        )}
       </PopoverContent>
     </Popover>
   );

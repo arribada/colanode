@@ -27,8 +27,15 @@ interface ViewDateFieldFilterProps {
   filter: DatabaseViewFieldFilterAttributes;
 }
 
+// Operators that need no value input at all.
 const isOperatorWithoutValue = (operator: string) => {
-  return operator === 'is_empty' || operator === 'is_not_empty';
+  return (
+    operator === 'is_empty' ||
+    operator === 'is_not_empty' ||
+    operator === 'is_today' ||
+    operator === 'is_this_week' ||
+    operator === 'is_this_month'
+  );
 };
 
 export const ViewDateFieldFilter = ({
@@ -50,8 +57,16 @@ export const ViewDateFieldFilter = ({
     return null;
   }
 
-  const dateTextValue = filter.value as string | null;
+  const isBetween = operator.value === 'is_between';
+  const dateTextValue = typeof filter.value === 'string' ? filter.value : null;
   const dateValue = dateTextValue ? new Date(dateTextValue) : null;
+
+  // [start, end] ISO pair for the between range.
+  const rangeValue = Array.isArray(filter.value)
+    ? (filter.value as string[])
+    : [];
+  const rangeStart = rangeValue[0] ? new Date(rangeValue[0]) : null;
+  const rangeEnd = rangeValue[1] ? new Date(rangeValue[1]) : null;
 
   const hideInput = isOperatorWithoutValue(operator.value);
 
@@ -98,14 +113,12 @@ export const ViewDateFieldFilter = ({
                 <DropdownMenuItem
                   key={operator.value}
                   onSelect={() => {
-                    const value = isOperatorWithoutValue(operator.value)
-                      ? null
-                      : dateValue?.toISOString();
-
                     updateFilter({
                       ...filter,
                       operator: operator.value,
-                      value: value ?? null,
+                      value: isOperatorWithoutValue(operator.value)
+                        ? null
+                        : filter.value,
                     });
                   }}
                 >
@@ -124,25 +137,59 @@ export const ViewDateFieldFilter = ({
             <Trash2 className="size-4" />
           </Button>
         </div>
-        {!hideInput && (
-          <DatePicker
-            value={dateValue}
-            onChange={(newValue) => {
-              if (newValue === null || newValue === undefined) {
+        {isBetween ? (
+          <div className="flex items-center gap-2">
+            <DatePicker
+              value={rangeStart}
+              onChange={(newValue) => {
                 updateFilter({
                   ...filter,
-                  value: null,
+                  value: [
+                    newValue ? newValue.toISOString() : '',
+                    rangeValue[1] ?? '',
+                  ],
                 });
-              } else {
+              }}
+              placeholder="From"
+              className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
+            />
+            <span className="text-muted-foreground">–</span>
+            <DatePicker
+              value={rangeEnd}
+              onChange={(newValue) => {
                 updateFilter({
                   ...filter,
-                  value: newValue.toISOString(),
+                  value: [
+                    rangeValue[0] ?? '',
+                    newValue ? newValue.toISOString() : '',
+                  ],
                 });
-              }
-            }}
-            placeholder="Select date"
-            className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
-          />
+              }}
+              placeholder="To"
+              className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
+            />
+          </div>
+        ) : (
+          !hideInput && (
+            <DatePicker
+              value={dateValue}
+              onChange={(newValue) => {
+                if (newValue === null || newValue === undefined) {
+                  updateFilter({
+                    ...filter,
+                    value: null,
+                  });
+                } else {
+                  updateFilter({
+                    ...filter,
+                    value: newValue.toISOString(),
+                  });
+                }
+              }}
+              placeholder="Select date"
+              className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
+            />
+          )
         )}
       </PopoverContent>
     </Popover>

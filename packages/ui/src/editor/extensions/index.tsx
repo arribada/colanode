@@ -41,6 +41,7 @@ import {
   MathBlockNode,
   MathInlineNode,
 } from '@colanode/ui/editor/extensions/math';
+import { MermaidNode } from '@colanode/ui/editor/extensions/mermaid';
 import { MentionExtension } from '@colanode/ui/editor/extensions/mention';
 import { MessageNode } from '@colanode/ui/editor/extensions/message';
 import { OrderedListNode } from '@colanode/ui/editor/extensions/ordered-list';
@@ -97,6 +98,7 @@ export {
   ListKeymapExtension,
   MathBlockNode,
   MathInlineNode,
+  MermaidNode,
   MessageNode,
   OrderedListNode,
   PageNode,

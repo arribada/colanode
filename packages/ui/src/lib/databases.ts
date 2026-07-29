@@ -243,6 +243,18 @@ export const collaboratorFieldFilterOperators: FieldFilterOperator[] = [
 
 export const createdAtFieldFilterOperators: FieldFilterOperator[] = [
   {
+    label: 'Is Today',
+    value: 'is_today',
+  },
+  {
+    label: 'Is This Week',
+    value: 'is_this_week',
+  },
+  {
+    label: 'Is This Month',
+    value: 'is_this_month',
+  },
+  {
     label: 'Is Equal To',
     value: 'is_equal_to',
   },
@@ -288,6 +300,22 @@ export const createdByFieldFilterOperators: FieldFilterOperator[] = [
 ];
 
 export const dateFieldFilterOperators: FieldFilterOperator[] = [
+  {
+    label: 'Is Between',
+    value: 'is_between',
+  },
+  {
+    label: 'Is Today',
+    value: 'is_today',
+  },
+  {
+    label: 'Is This Week',
+    value: 'is_this_week',
+  },
+  {
+    label: 'Is This Month',
+    value: 'is_this_month',
+  },
   {
     label: 'Is Equal To',
     value: 'is_equal_to',
@@ -411,6 +439,10 @@ export const numberFieldFilterOperators: FieldFilterOperator[] = [
   {
     label: 'Is Less Than Or Equal To',
     value: 'is_less_than_or_equal_to',
+  },
+  {
+    label: 'Is Between',
+    value: 'is_between',
   },
   {
     label: 'Is Empty',
@@ -570,6 +602,18 @@ export const updatedByFieldFilterOperators: FieldFilterOperator[] = [
 ];
 
 export const updatedAtFieldFilterOperators: FieldFilterOperator[] = [
+  {
+    label: 'Is Today',
+    value: 'is_today',
+  },
+  {
+    label: 'Is This Week',
+    value: 'is_this_week',
+  },
+  {
+    label: 'Is This Month',
+    value: 'is_this_month',
+  },
   {
     label: 'Is Equal To',
     value: 'is_equal_to',

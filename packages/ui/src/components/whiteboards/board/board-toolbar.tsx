@@ -4,12 +4,14 @@ import {
   Copy,
   Diamond,
   Download,
+  FileCode,
   Frame,
   Hand,
   LayoutTemplate,
   MousePointer2,
   Network,
   Pencil,
+  Printer,
   Redo2,
   Spline,
   Square,
@@ -133,6 +135,8 @@ interface BoardToolbarProps {
   onDelete: () => void;
   onDuplicate: () => void;
   onExport: () => void;
+  onExportSvg: () => void;
+  onExportPdf: () => void;
   onInsertTemplate: (templateId: string) => void;
   // Per-element text sizing controls (shown when a text-bearing shape is
   // selected). `fontAuto`/`fontSize` reflect the current selection.
@@ -157,6 +161,8 @@ export const BoardToolbar = ({
   onDelete,
   onDuplicate,
   onExport,
+  onExportSvg,
+  onExportPdf,
   onInsertTemplate,
   fontControlsVisible,
   fontAuto,
@@ -258,6 +264,12 @@ export const BoardToolbar = ({
             </ToolbarButton>
             <ToolbarButton title="Export PNG" onClick={onExport}>
               <Download className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Export SVG" onClick={onExportSvg}>
+              <FileCode className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Print / PDF" onClick={onExportPdf}>
+              <Printer className="size-4" />
             </ToolbarButton>
 
             <div className="relative" ref={templateWrapRef}>
