@@ -4,6 +4,7 @@ import { BlockquoteCommand } from '@colanode/ui/editor/commands/blockquote';
 import { BulletListCommand } from '@colanode/ui/editor/commands/bullet-list';
 import { BookmarkCommand } from '@colanode/ui/editor/commands/bookmark';
 import { EmbedCommand } from '@colanode/ui/editor/commands/embed';
+import { PlaneCommand } from '@colanode/ui/editor/commands/plane';
 import { CalloutCommand } from '@colanode/ui/editor/commands/callout';
 import { ColumnsCommand } from '@colanode/ui/editor/commands/columns';
 import { CodeBlockCommand } from '@colanode/ui/editor/commands/code-block';
@@ -37,6 +38,7 @@ export {
   CalloutCommand,
   BookmarkCommand,
   EmbedCommand,
+  PlaneCommand,
   ColumnsCommand,
   TableOfContentsCommand,
   CodeBlockCommand,

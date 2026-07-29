@@ -61,6 +61,7 @@ export enum ApiErrorCode {
   PlaneWorkspaceMismatch = 'plane_workspace_mismatch',
   PlaneIssueNotFound = 'plane_issue_not_found',
   PlaneFetchFailed = 'plane_fetch_failed',
+  PlaneProjectNotFound = 'plane_project_not_found',
 
   AiNotConfigured = 'ai_not_configured',
   AiProviderUnsupported = 'ai_provider_unsupported',

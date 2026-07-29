@@ -33,6 +33,7 @@ import {
   CalloutCommand,
   BookmarkCommand,
   EmbedCommand,
+  PlaneCommand,
   ColumnsCommand,
   TableOfContentsCommand,
   CodeBlockCommand,
@@ -101,6 +102,7 @@ import {
   CalloutNode,
   BookmarkNode,
   EmbedNode,
+  PlaneEmbedNode,
   ColumnsNode,
   ColumnNode,
   TableOfContentsNode,
@@ -312,6 +314,7 @@ export const DocumentEditor = ({
         // handlePaste that turns a bare Google Drive/Docs/Slides/Sheets/
         // YouTube URL into an embed block, and must precede ParserExtension.
         EmbedNode,
+        PlaneEmbedNode,
         ParserExtension,
         Markdown,
         DocumentNode,
@@ -400,6 +403,7 @@ export const DocumentEditor = ({
             TableOfContentsCommand,
             BookmarkCommand,
             EmbedCommand,
+            PlaneCommand,
             ColumnsCommand,
             FileCommand,
             FolderCommand,
