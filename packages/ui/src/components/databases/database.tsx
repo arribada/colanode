@@ -42,6 +42,7 @@ export const Database = ({ database, role, children }: DatabaseProps) => {
         nameField: database.nameField,
         role,
         fields: Object.values(database.fields),
+        automations: database.automations ?? [],
         canEdit: canEdit,
         isLocked,
         canCreateRecord,

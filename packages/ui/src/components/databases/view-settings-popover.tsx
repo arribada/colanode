@@ -3,6 +3,7 @@ import { Fragment, useState } from 'react';
 
 import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
 import { ViewCsvActions } from '@colanode/ui/components/databases/view-csv-actions';
+import { ViewAutomationsSettings } from '@colanode/ui/components/databases/view-automations-settings';
 import { ViewConditionalColorSettings } from '@colanode/ui/components/databases/view-conditional-color-settings';
 import { ViewCopyLinkAction } from '@colanode/ui/components/databases/view-copy-link-action';
 import { ViewFieldSettings } from '@colanode/ui/components/databases/view-field-settings';
@@ -50,6 +51,8 @@ export const ViewSettingsPopover = () => {
           <ViewFieldSettings />
           <Separator />
           <ViewConditionalColorSettings />
+          <Separator />
+          <ViewAutomationsSettings />
           <Separator />
           <ViewCopyLinkAction closeMenu={() => setOpen(false)} />
           <Separator />

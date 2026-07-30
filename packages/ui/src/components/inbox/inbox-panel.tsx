@@ -1,5 +1,26 @@
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 
+// Renders a compact label for a notification row. Automation notifications
+// (created locally by the client-side database automations engine) carry their
+// message in preview.message; other notifications fall back to type + node id.
+const getNotificationLabel = (
+  type: string,
+  preview: string,
+  sourceNodeId: string
+): string => {
+  if (type === 'automation') {
+    try {
+      const parsed = JSON.parse(preview) as { message?: string };
+      if (parsed.message) {
+        return parsed.message;
+      }
+    } catch {
+      // ignore malformed preview
+    }
+  }
+  return type + ' · ' + sourceNodeId;
+};
+
 interface InboxPanelProps {
   userId: string;
 }
@@ -35,7 +56,7 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
           }}
         >
           <span className={n.read_at ? 'opacity-60' : 'font-semibold'}>
-            {n.type} · {n.source_node_id}
+            {getNotificationLabel(n.type, n.preview, n.source_node_id)}
           </span>
         </button>
       ))}
