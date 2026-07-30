@@ -4,6 +4,7 @@ import {
   Expand,
   Eye,
   Maximize,
+  MessageSquare,
   Minus,
   Plus,
   Radio,
@@ -23,6 +24,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { eq, useLiveQuery } from '@tanstack/react-db';
 
 import { LocalWhiteboardNode } from '@colanode/client/types';
 import {
@@ -37,6 +39,7 @@ import {
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { BoardElementView } from '@colanode/ui/components/whiteboards/board/board-element';
 import { BoardPresenceLayer } from '@colanode/ui/components/whiteboards/board/board-presence-layer';
+import { BoardCommentsPanel } from '@colanode/ui/components/whiteboards/board/board-comments-panel';
 import { BoardToolbar } from '@colanode/ui/components/whiteboards/board/board-toolbar';
 import {
   BoardStyleState,
@@ -204,6 +207,7 @@ export const WhiteboardCanvas = ({
 }: WhiteboardCanvasProps) => {
   const workspace = useWorkspace();
   const canEdit = hasNodeRole(role, 'editor');
+  const canComment = hasNodeRole(role, 'collaborator');
 
   const presences = usePresences(whiteboard.id);
   const { publish: publishPresence } = usePresencePublisher({
@@ -233,6 +237,31 @@ export const WhiteboardCanvas = ({
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [tool, setTool] = useState<BoardTool>('select');
   const [selection, setSelection] = useState<string[]>([]);
+  // Element whose comment-thread panel is open (Miro-style board comments).
+  const [commentElementId, setCommentElementId] = useState<string | null>(
+    null
+  );
+  // All comment `message` nodes parented to this whiteboard. A comment
+  // "belongs" to an element when its optional `anchorId` equals that element
+  // id — reusing the existing message collection, no new store or sync path.
+  const boardCommentsQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.type, 'message'))
+        .where(({ nodes }) => eq(nodes.parentId, whiteboard.id)),
+    [workspace.userId, whiteboard.id]
+  );
+  const commentCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const node of boardCommentsQuery.data ?? []) {
+      const anchorId = (node as { anchorId?: string | null }).anchorId;
+      if (anchorId) {
+        map.set(anchorId, (map.get(anchorId) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [boardCommentsQuery.data]);
   const [style, setStyle] = useState<BoardStyleState>(DEFAULT_BOARD_STYLE);
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(
     null
@@ -2145,6 +2174,13 @@ export const WhiteboardCanvas = ({
               key={el.id}
               data-el-id={el.id}
               style={{ cursor: canEdit ? 'move' : 'default' }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (canComment) {
+                  setCommentElementId(el.id);
+                }
+              }}
             >
               <BoardElementView
                 element={el}
@@ -2471,6 +2507,52 @@ export const WhiteboardCanvas = ({
               </g>
             );
           })}
+
+          {/* Comment pins (screen space): one amber badge per element that has
+              at least one comment thread; clicking opens that element's
+              thread panel. */}
+          {Array.from(commentCounts.entries()).map(([elId, cnt]) => {
+            const el = scene[elId];
+            if (!el || hiddenIds.has(elId)) {
+              return null;
+            }
+            const rect = elementRect(el);
+            const tl = sceneToClient({ x: rect.x, y: rect.y });
+            const cx = tl.x + 12;
+            const cy = tl.y - 12;
+            return (
+              <g
+                key={`cmt-${elId}`}
+                style={{ cursor: 'pointer' }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCommentElementId(elId);
+                }}
+              >
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={10}
+                  fill="#f59e0b"
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                  opacity={0.95}
+                />
+                <text
+                  x={cx}
+                  y={cy}
+                  fontSize={11}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="#ffffff"
+                  style={{ userSelect: 'none' }}
+                >
+                  {cnt > 9 ? '9+' : cnt}
+                </text>
+              </g>
+            );
+          })}
         </g>
 
         {/* remote collaborators' pointers + selections */}
@@ -2581,7 +2663,24 @@ export const WhiteboardCanvas = ({
         fontSize={fontSizeState}
         onFontDelta={onFontDelta}
         onFontAuto={onFontAuto}
+        onComment={() => {
+          const id = selection[0];
+          if (id) {
+            setCommentElementId(id);
+          }
+        }}
+        commentEnabled={canComment && selection.length === 1}
       />
+
+      {commentElementId && scene[commentElementId] && (
+        <BoardCommentsPanel
+          whiteboardId={whiteboard.id}
+          rootId={whiteboard.rootId}
+          role={role}
+          elementId={commentElementId}
+          onClose={() => setCommentElementId(null)}
+        />
+      )}
 
       {presences.length > 0 && (
         <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-2">

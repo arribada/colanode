@@ -10,6 +10,7 @@ import {
   LayoutTemplate,
   Lock,
   LockOpen,
+  MessageSquare,
   MousePointer2,
   Network,
   Pencil,
@@ -138,6 +139,8 @@ interface BoardToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onDelete: () => void;
+  onComment: () => void;
+  commentEnabled: boolean;
   onDuplicate: () => void;
   onToggleLock: () => void;
   onExport: () => void;
@@ -166,6 +169,8 @@ export const BoardToolbar = ({
   onUndo,
   onRedo,
   onDelete,
+  onComment,
+  commentEnabled,
   onDuplicate,
   onToggleLock,
   onExport,
@@ -269,6 +274,13 @@ export const BoardToolbar = ({
               onClick={onDelete}
             >
               <Trash2 className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              title="Commenter la sélection"
+              disabled={!commentEnabled}
+              onClick={onComment}
+            >
+              <MessageSquare className="size-4" />
             </ToolbarButton>
             <ToolbarButton
               title={
