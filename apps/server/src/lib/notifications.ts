@@ -12,6 +12,7 @@ import {
 import { database } from '@colanode/server/data/database';
 import { SelectNotification } from '@colanode/server/data/schema';
 import { eventBus } from '@colanode/server/lib/event-bus';
+import { notifyDashboard } from '@colanode/server/lib/dashboard/notifier';
 import { notifyZulip } from '@colanode/server/lib/zulip/notifier';
 import { WorkspaceContext } from '@colanode/server/types/api';
 
@@ -80,6 +81,19 @@ export const createNotification = async (
     type: input.type,
     sourceNodeId: input.sourceNodeId,
     actorId: input.actorId,
+  });
+
+  // Same shape, same guarantees: relay to the dashboard so one bell shows the
+  // wiki, Plane and the dashboard together. Dormant unless ARRIBADA_NOTIFY_URL
+  // and _SECRET are set, and never able to delay or fail what is already stored.
+  notifyDashboard({
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    rootId: input.rootId,
+    type: input.type,
+    sourceNodeId: input.sourceNodeId,
+    actorId: input.actorId,
+    notificationId: created.id,
   });
 
   return created;
