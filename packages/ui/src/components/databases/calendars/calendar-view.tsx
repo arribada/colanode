@@ -22,9 +22,9 @@ export const CalendarView = () => {
 
   return (
     <Fragment>
-      <div className="flex flex-row justify-between border-b">
+      <div className="sticky top-0 left-0 z-30 flex w-full min-w-0 max-w-full flex-row justify-between border-b bg-background">
         <ViewTabs />
-        <div className="invisible flex flex-row items-center justify-end group-hover/database:visible">
+        <div className="invisible sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2 group-hover/database:visible">
           {groupByField && <CalendarViewNoValueCount field={groupByField} />}
           <ViewFullscreenButton />
           <CalendarViewSettings />

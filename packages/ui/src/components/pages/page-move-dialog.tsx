@@ -1,6 +1,7 @@
 import { eq, useLiveQuery } from '@tanstack/react-db';
 import { toast } from 'sonner';
 
+import { mapNodeAttributes } from '@colanode/client/lib';
 import { LocalPageNode } from '@colanode/client/types';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import {
@@ -49,12 +50,15 @@ export const PageMoveDialog = ({
         type: 'node.update',
         userId: workspace.userId,
         nodeId: page.id,
-        attributes: {
-          type: 'page',
-          name: page.name,
-          avatar: page.avatar ?? null,
-          parentId,
-        },
+        // A move changes exactly one thing: where the page hangs. Listing the
+        // attributes by hand looked equivalent but was a silent delete — a page
+        // also carries `cover`, `isTemplate` and its per-page `collaborators`,
+        // and node.update replaces the attribute set rather than merging into it.
+        // Losing the collaborators was the worst of it: for an admin the move
+        // quietly revoked everyone's explicit access, and for anyone else the
+        // server rejected the change outright (collaborator edits are admin-only),
+        // so the move just failed with no way to tell why.
+        attributes: { ...mapNodeAttributes(page), parentId },
       },
       onSuccess: (output) => {
         if (!output.success) {

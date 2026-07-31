@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import { cloneDeep } from 'lodash-es';
 
 import {
@@ -470,6 +471,19 @@ export const createNodeFromMutation = async (
   }
 };
 
+// Thrown from inside the update transaction when a move would put a node inside
+// its own subtree. It has to be an exception rather than an early return because
+// the check only becomes trustworthy once the transaction holds the space lock —
+// by which point we are already committed to a transaction body.
+class NodeCycleError extends Error {}
+
+/** The parentId an attribute bag carries, when it carries one at all. */
+const readParentId = (attributes: unknown): string | undefined => {
+  if (!attributes || typeof attributes !== 'object') return undefined;
+  const value = (attributes as { parentId?: unknown }).parentId;
+  return typeof value === 'string' ? value : undefined;
+};
+
 export const updateNodeFromMutation = async (
   workspace: WorkspaceContext,
   mutation: UpdateNodeMutationData
@@ -547,10 +561,41 @@ const tryUpdateNodeFromMutation = async (
     attributes
   );
 
+  // Re-parenting is the one attribute change that can corrupt the tree rather
+  // than just the node: drop a page inside its own subtree and that branch is
+  // detached from the space with no path back, so nothing can render it and no
+  // walk up to the root terminates. The client refuses the drag, but it judges
+  // against the tree it holds — two people moving A under B and B under A within
+  // the same second each pass their own check and neither has seen the other.
+  const nextParentId = readParentId(attributes);
+  const isMove =
+    nextParentId !== undefined && nextParentId !== readParentId(node.attributes);
+
   try {
     const { createdCollaborations, updatedCollaborations } = await database
       .transaction()
       .execute(async (trx) => {
+        if (isMove) {
+          // Serialise the moves inside one space. READ COMMITTED alone would let
+          // both transactions read a node_paths that predates the other, and
+          // moves are rare enough that a lock costs nothing.
+          await sql`select pg_advisory_xact_lock(hashtext(${node.root_id}))`.execute(
+            trx
+          );
+          // node_paths carries the self row at level 0, so this single lookup
+          // rejects "into itself" and "into its own descendant" alike.
+          const wouldLoop = await trx
+            .selectFrom('node_paths')
+            .select('descendant_id')
+            .where('ancestor_id', '=', mutation.nodeId)
+            .where('descendant_id', '=', nextParentId)
+            .executeTakeFirst();
+
+          if (wouldLoop) {
+            throw new NodeCycleError();
+          }
+        }
+
         const createdNodeUpdate = await trx
           .insertInto('node_updates')
           .returningAll()
@@ -628,7 +673,12 @@ const tryUpdateNodeFromMutation = async (
     }
 
     return { type: 'success', output: MutationStatus.OK };
-  } catch {
+  } catch (error) {
+    // A cycle is a decision, not a lost race: retrying it would only refuse it
+    // three more times before reporting a server error for a client mistake.
+    if (error instanceof NodeCycleError) {
+      return { type: 'success', output: MutationStatus.FORBIDDEN };
+    }
     return { type: 'retry' };
   }
 };
