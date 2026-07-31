@@ -32,10 +32,12 @@ export const MarkRenderer = ({ node, children }: MarkRendererProps) => {
           <span className={`bg-${mark.attrs.highlight}-200`}>{result}</span>
         );
       } else if (mark.type === 'link' && mark.attrs?.href) {
+        // No target: a link follows in place, and ctrl/cmd-click (or a middle
+        // click) opens a new tab the way it does everywhere else. Forcing
+        // _blank took that choice away and left a trail of tabs behind.
         result = (
           <a
             href={mark.attrs.href}
-            target="_blank"
             className={defaultClasses.link}
             rel="noreferrer"
           >

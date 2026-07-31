@@ -34,7 +34,7 @@ const NAMED_COLORS: Record<string, string> = {
 
 // Fallback categorical palette for groups that carry no intrinsic color
 // (text, dates, users, booleans, ...). Ordered for good visual separation.
-const PALETTE: string[] = [
+export const PALETTE: string[] = [
   '#3b82f6',
   '#22c55e',
   '#f97316',
@@ -195,6 +195,10 @@ interface AggregateOptions {
   aggregate: DatabaseViewChartAggregate;
   valueFieldId: string | null | undefined;
   chartType: DatabaseViewChartType;
+  // Colors the user picked on the legend, keyed by bucket. Beats both the select
+  // option's own color and the palette — it is the only one anybody chose on
+  // purpose for this chart.
+  colorOverrides?: Record<string, string> | null;
 }
 
 interface Accumulator {
@@ -224,6 +228,7 @@ export const aggregateRecords = ({
   aggregate,
   valueFieldId,
   chartType,
+  colorOverrides,
 }: AggregateOptions): ChartBucket[] => {
   const map = new Map<string, Accumulator>();
   let order = 0;
@@ -270,9 +275,13 @@ export const aggregateRecords = ({
       value = acc.count;
     }
 
-    let color = acc.color;
+    // Priority: what the user picked, then the select option's own color, then
+    // the categorical palette. The palette index only advances for groups that
+    // actually consume one, so two charts of the same data stay comparable.
+    let color = colorOverrides?.[acc.key] ?? acc.color;
     if (!color) {
-      color = acc.key === EMPTY_KEY ? EMPTY_COLOR : getPaletteColor(paletteIndex++);
+      color =
+        acc.key === EMPTY_KEY ? EMPTY_COLOR : getPaletteColor(paletteIndex++);
     }
 
     return {

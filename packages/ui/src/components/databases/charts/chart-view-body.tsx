@@ -8,6 +8,7 @@ import {
   aggregateRecords,
   resolveGroupField,
 } from '@colanode/ui/components/databases/charts/chart-aggregation';
+import { ChartColorPicker } from '@colanode/ui/components/databases/charts/chart-color-picker';
 import {
   BarChartGraphic,
   LineChartGraphic,
@@ -15,11 +16,37 @@ import {
 } from '@colanode/ui/components/databases/charts/chart-graphics';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useRecordsQuery } from '@colanode/ui/hooks/use-records-query';
 
 export const ChartViewBody = () => {
   const database = useDatabase();
   const view = useDatabaseView();
+  const workspace = useWorkspace();
+  const canEdit = database.canEdit && !database.isLocked;
+
+  // Colours live on the view, so a chart looks the same for everyone who opens
+  // it — the same rule as every other view setting here.
+  const setBucketColor = (key: string, color: string | null) => {
+    if (!canEdit) {
+      return;
+    }
+
+    workspace.collections.nodes.update(view.id, (draft) => {
+      if (draft.type !== 'database_view') {
+        return;
+      }
+
+      const current = draft.chart ?? { type: 'bar' };
+      const colors = { ...(current.colors ?? {}) };
+      if (color) {
+        colors[key] = color;
+      } else {
+        delete colors[key];
+      }
+      draft.chart = { ...current, type: current.type ?? 'bar', colors };
+    });
+  };
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useRecordsQuery(view.filters, view.sorts, 200);
@@ -55,12 +82,12 @@ export const ChartViewBody = () => {
         aggregate,
         valueFieldId,
         chartType,
+        colorOverrides: chart?.colors,
       }),
-    [data, groupField, aggregate, valueFieldId, chartType]
+    [data, groupField, aggregate, valueFieldId, chartType, chart?.colors]
   );
 
-  const hasGroupBy =
-    chart?.groupBy != null && chart.groupBy !== '';
+  const hasGroupBy = chart?.groupBy != null && chart.groupBy !== '';
 
   const formatValue = (value: number): string => {
     if (Number.isInteger(value)) {
@@ -124,13 +151,15 @@ export const ChartViewBody = () => {
                 key={bucket.key}
                 className="flex flex-row items-center gap-2 text-sm"
               >
-                <span
-                  className="size-3 shrink-0 rounded-sm"
-                  style={{ backgroundColor: bucket.color }}
+                <ChartColorPicker
+                  label={bucket.label}
+                  color={bucket.color}
+                  isCustom={chart?.colors?.[bucket.key] != null}
+                  readOnly={!canEdit}
+                  onPick={(color) => setBucketColor(bucket.key, color)}
+                  onReset={() => setBucketColor(bucket.key, null)}
                 />
-                <span className="truncate text-foreground">
-                  {bucket.label}
-                </span>
+                <span className="truncate text-foreground">{bucket.label}</span>
                 <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
                   {formatValue(bucket.value)}
                   {aggregate === 'count' && (

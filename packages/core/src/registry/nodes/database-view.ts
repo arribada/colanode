@@ -85,9 +85,7 @@ export type DatabaseViewFilterAttributes = z.infer<
 // field), then rendered as a pie, bar or line chart.
 export const databaseViewChartTypeSchema = z.enum(['pie', 'bar', 'line']);
 
-export type DatabaseViewChartType = z.infer<
-  typeof databaseViewChartTypeSchema
->;
+export type DatabaseViewChartType = z.infer<typeof databaseViewChartTypeSchema>;
 
 export const databaseViewChartAggregateSchema = z.enum([
   'count',
@@ -109,6 +107,9 @@ export const databaseViewChartAttributesSchema = z.object({
   aggregate: databaseViewChartAggregateSchema.optional().nullable(),
   // The numeric field summed/averaged when aggregate is sum/average.
   valueFieldId: z.string().nullable().optional(),
+  // Per-series colours the user picked on the legend, keyed by bucket. Absent
+  // keys fall back to the select option's own colour, then to the palette.
+  colors: z.record(z.string(), z.string()).optional().nullable(),
 });
 
 export type DatabaseViewChartAttributes = z.infer<
@@ -148,12 +149,7 @@ export type DatabaseViewAttributes = z.infer<
   typeof databaseViewAttributesSchema
 >;
 export type DatabaseViewLayout =
-  | 'table'
-  | 'board'
-  | 'calendar'
-  | 'gallery'
-  | 'list'
-  | 'chart';
+  'table' | 'board' | 'calendar' | 'gallery' | 'list' | 'chart';
 
 export const databaseViewModel: NodeModel = {
   type: 'database_view',
