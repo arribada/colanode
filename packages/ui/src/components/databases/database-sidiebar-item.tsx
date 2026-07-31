@@ -1,4 +1,3 @@
-import { eq, useLiveQuery } from '@tanstack/react-db';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
@@ -6,6 +5,7 @@ import {
   LocalDatabaseNode,
   LocalDatabaseViewNode,
 } from '@colanode/client/types';
+import { compareString } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { SidebarItem } from '@colanode/ui/components/layouts/sidebars/sidebar-item';
 import {
@@ -14,7 +14,8 @@ import {
   CollapsibleTrigger,
 } from '@colanode/ui/components/ui/collapsible';
 import { Link } from '@colanode/ui/components/ui/link';
-import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useSidebarTree } from '@colanode/ui/contexts/sidebar-tree';
+import { useSidebarNodeDnd } from '@colanode/ui/hooks/use-sidebar-node-dnd';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface DatabaseSidebarItemProps {
@@ -22,23 +23,19 @@ interface DatabaseSidebarItemProps {
 }
 
 export const DatabaseSidebarItem = ({ database }: DatabaseSidebarItemProps) => {
-  const workspace = useWorkspace();
+  const tree = useSidebarTree();
   const [open, setOpen] = useState(false);
 
-  const viewsQuery = useLiveQuery(
-    (q) =>
-      q
-        .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => eq(nodes.parentId, database.id))
-        .where(({ nodes }) => eq(nodes.type, 'database_view'))
-        .orderBy(
-          ({ nodes }) => (nodes as unknown as LocalDatabaseViewNode).index,
-          'asc'
-        ),
-    [workspace.userId, database.id]
-  );
+  // Re-filable like a page, but nothing gets dropped into a database from here.
+  const { ref, isDragging } = useSidebarNodeDnd(database);
 
-  const views = (viewsQuery.data ?? []) as LocalDatabaseViewNode[];
+  // filter() copies, so sorting here never disturbs the shared tree index.
+  const views = tree
+    .childrenOf(database.id)
+    .filter(
+      (child): child is LocalDatabaseViewNode => child.type === 'database_view'
+    )
+    .sort((a, b) => compareString(a.index, b.index));
   const hasViews = views.length > 0;
 
   return (
@@ -51,13 +48,16 @@ export const DatabaseSidebarItem = ({ database }: DatabaseSidebarItemProps) => {
         from="/workspace/$userId"
         to="$nodeId"
         params={{ nodeId: database.id }}
+        draggable={false}
       >
         {({ isActive }) => (
           <div
+            ref={ref}
             className={cn(
               'group/database-row text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
               isActive &&
-                'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
+              isDragging && 'opacity-50'
             )}
           >
             {hasViews ? (

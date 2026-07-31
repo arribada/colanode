@@ -1,4 +1,3 @@
-import { eq, useLiveQuery } from '@tanstack/react-db';
 import { ChevronRight } from 'lucide-react';
 
 import { LocalSpaceNode } from '@colanode/client/types';
@@ -11,34 +10,32 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@colanode/ui/components/ui/collapsible';
-import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useSidebarTree } from '@colanode/ui/contexts/sidebar-tree';
 import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
+import { useSidebarNodeDnd } from '@colanode/ui/hooks/use-sidebar-node-dnd';
 import {
   groupSpaceChildrenByType,
   sortSpaceChildren,
 } from '@colanode/ui/lib/spaces';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface SpaceSidebarItemProps {
   space: LocalSpaceNode;
 }
 
 export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
-  const workspace = useWorkspace();
+  const tree = useSidebarTree();
   const [showChat] = useChatVisibility();
 
-  const nodeChildrenGetQuery = useLiveQuery(
-    (q) =>
-      q
-        .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => eq(nodes.parentId, space.id)),
-    [workspace.userId, space.id]
-  );
+  // Dropping onto the space row files the node at the top level of that space.
+  const { ref, isDropTarget } = useSidebarNodeDnd(space, { droppable: true });
 
   // Channels (including the default "Discussions" channel every workspace is
   // seeded with) stay out of the tree while chat is hidden.
+  const spaceChildren = tree.childrenOf(space.id);
   const visibleChildren = showChat
-    ? nodeChildrenGetQuery.data
-    : nodeChildrenGetQuery.data.filter((node) => node.type !== 'channel');
+    ? spaceChildren
+    : spaceChildren.filter((node) => node.type !== 'channel');
 
   const children = sortSpaceChildren(space, visibleChildren);
   const groups = groupSpaceChildrenByType(children);
@@ -50,8 +47,12 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
       className="group/sidebar-space"
     >
       <div
+        ref={ref}
         data-testid={`space-sidebar-item-${space.id}`}
-        className="group/space-row text-sm flex h-7 items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer"
+        className={cn(
+          'group/space-row text-sm flex h-7 items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
+          isDropTarget && 'bg-sidebar-accent ring-1 ring-sidebar-ring'
+        )}
       >
         <CollapsibleTrigger asChild>
           <button className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md text-left text-sm flex-1 cursor-pointer">
