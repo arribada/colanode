@@ -77,7 +77,12 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
 
   const options = useMemo(
     () => ({
-      strategy: 'absolute' as const,
+      // 'fixed', not 'absolute': the bubble is shown through the native Popover
+      // API, so it lives in the top layer, where an absolutely positioned element
+      // resolves against the initial containing block rather than an offsetParent.
+      // Coordinates computed for an offsetParent then land the toolbar — and the
+      // AI menu hanging off it — in the top-left corner of the window.
+      strategy: 'fixed' as const,
       placement: 'top' as const,
       offset: 8,
       onHide: () => {
