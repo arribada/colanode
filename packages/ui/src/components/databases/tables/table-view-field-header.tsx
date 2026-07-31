@@ -229,7 +229,8 @@ export const TableViewFieldHeader = ({
             <Separator />
             {canSort && (
               <Fragment>
-                <div
+                <button
+                  type="button"
                   className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                   onClick={() => {
                     view.initFieldSort(viewField.field.id, 'asc');
@@ -238,9 +239,10 @@ export const TableViewFieldHeader = ({
                 >
                   <ArrowDownAz className="size-4" />
                   <span>Sort ascending</span>
-                </div>
+                </button>
 
-                <div
+                <button
+                  type="button"
                   className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                   onClick={() => {
                     view.initFieldSort(viewField.field.id, 'desc');
@@ -249,11 +251,12 @@ export const TableViewFieldHeader = ({
                 >
                   <ArrowDownZa className="size-4" />
                   <span>Sort descending</span>
-                </div>
+                </button>
               </Fragment>
             )}
             {canFilter && (
-              <div
+              <button
+                type="button"
                 className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                 onClick={() => {
                   view.initFieldFilter(viewField.field.id);
@@ -262,20 +265,22 @@ export const TableViewFieldHeader = ({
               >
                 <Filter className="size-4" />
                 <span>Filter</span>
-              </div>
+              </button>
             )}
             <Separator />
             {database.canEdit && (
-              <div
+              <button
+                type="button"
                 className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                 onClick={hide}
               >
                 <EyeOff className="size-4" />
                 <span>Hide in view</span>
-              </div>
+              </button>
             )}
             {database.canEdit && (
-              <div
+              <button
+                type="button"
                 className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                 onClick={() => {
                   setShowDeleteDialog(true);
@@ -283,7 +288,7 @@ export const TableViewFieldHeader = ({
               >
                 <Trash2 className="size-4" />
                 <span>Delete field</span>
-              </div>
+              </button>
             )}
           </PopoverContent>
         </Popover>

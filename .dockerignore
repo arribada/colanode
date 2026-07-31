@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.turbo
+.git
+.github
+**/.next
+**/.expo
+**/*.log
+apps/desktop/out
+apps/desktop/release
+apps/mobile/ios
+apps/mobile/android

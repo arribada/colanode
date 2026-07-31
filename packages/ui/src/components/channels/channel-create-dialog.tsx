@@ -82,6 +82,7 @@ export const ChannelCreateDialog = ({
             name: '',
           }}
           submitText="Create"
+          testId="channel-create-submit"
           onCancel={() => {
             onOpenChange(false);
           }}

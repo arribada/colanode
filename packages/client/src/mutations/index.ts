@@ -1,19 +1,29 @@
 export * from './accounts/account-logout';
 export * from './accounts/account-update';
+export * from './ai/ai-agent';
+export * from './ai/ai-chat';
+export * from './ai/ai-complete';
+export * from './ai/ai-settings-update';
+export * from './ai/ai-settings-workspace-update';
+export * from './ai/mcp-token-create';
+export * from './ai/mcp-token-revoke';
 export * from './auth/email-login';
 export * from './auth/email-password-reset-complete';
 export * from './auth/email-password-reset-init';
 export * from './auth/email-register';
 export * from './auth/email-verify';
 export * from './auth/google-login';
+export * from './auth/oidc-login';
 export * from './apps/metadata-delete';
 export * from './apps/metadata-update';
 export * from './avatars/avatar-upload';
 export * from './chats/chat-create';
+export * from './documents/document-restore';
 export * from './documents/document-update';
 export * from './files/file-create';
 export * from './files/file-download';
 export * from './messages/message-create';
+export * from './messages/message-task-set';
 export * from './nodes/node-collaborator-create';
 export * from './nodes/node-collaborator-delete';
 export * from './nodes/node-collaborator-update';
@@ -37,7 +47,22 @@ export * from './servers/server-sync';
 export * from './apps/tab-delete';
 export * from './nodes/node-delete';
 export * from './nodes/node-create';
+export * from './pages/page-duplicate';
 export * from './nodes/node-update';
+export * from './nodes/node-trash';
+export * from './nodes/node-restore';
+export * from './notifications/notification-read';
+export * from './notifications/mute-set';
+export * from './push-subscriptions/push-subscription-create';
+export * from './push-subscriptions/push-subscription-delete';
+export * from './apns-subscriptions/apns-subscription-create';
+export * from './apns-subscriptions/apns-subscription-delete';
+export * from './pages/page-template-save';
+export * from './pages/page-template-create';
+export * from './records/record-template-save';
+export * from './records/record-template-create';
+export * from './presence/presence-update';
+export * from './presence/presence-leave';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface MutationMap {}
@@ -152,4 +177,5 @@ export enum MutationErrorCode {
   MessageNotFound = 'message_not_found',
   NodeReactionCreateForbidden = 'node_reaction_create_forbidden',
   DownloadFailed = 'download_failed',
+  DocumentRestoreFailed = 'document_restore_failed',
 }

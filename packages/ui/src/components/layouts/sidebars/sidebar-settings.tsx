@@ -5,6 +5,7 @@ import {
   LogOut,
   Palette,
   Settings,
+  Trash2,
   Upload,
   Users,
 } from 'lucide-react';
@@ -44,7 +45,11 @@ export const SidebarSettings = () => {
     <div className="flex flex-col gap-4 h-full px-2 group/sidebar">
       <div className="flex w-full min-w-0 flex-col gap-1">
         <SidebarHeader title="Workspace settings" />
-        <Link from="/workspace/$userId" to="settings">
+        <Link
+          from="/workspace/$userId"
+          to="settings"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="General"
@@ -54,7 +59,11 @@ export const SidebarSettings = () => {
           )}
         </Link>
 
-        <Link from="/workspace/$userId" to="users">
+        <Link
+          from="/workspace/$userId"
+          to="users"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="Users"
@@ -63,7 +72,11 @@ export const SidebarSettings = () => {
             />
           )}
         </Link>
-        <Link from="/workspace/$userId" to="uploads">
+        <Link
+          from="/workspace/$userId"
+          to="uploads"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="Uploads"
@@ -79,7 +92,11 @@ export const SidebarSettings = () => {
           )}
         </Link>
         {app.type === 'desktop' && (
-          <Link from="/workspace/$userId" to="downloads">
+          <Link
+            from="/workspace/$userId"
+            to="downloads"
+            activeProps={{ 'aria-current': 'page' }}
+          >
             {({ isActive }) => (
               <SidebarSettingsItem
                 title="Downloads"
@@ -89,10 +106,27 @@ export const SidebarSettings = () => {
             )}
           </Link>
         )}
+        <Link
+          from="/workspace/$userId"
+          to="trash"
+          activeProps={{ 'aria-current': 'page' }}
+        >
+          {({ isActive }) => (
+            <SidebarSettingsItem
+              title="Trash"
+              icon={Trash2}
+              isActive={isActive}
+            />
+          )}
+        </Link>
       </div>
       <div className="flex w-full min-w-0 flex-col gap-1">
         <SidebarHeader title="Account settings" />
-        <Link from="/workspace/$userId" to="account">
+        <Link
+          from="/workspace/$userId"
+          to="account"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="General"
@@ -104,7 +138,11 @@ export const SidebarSettings = () => {
       </div>
       <div className="flex w-full min-w-0 flex-col gap-1">
         <SidebarHeader title="App settings" />
-        <Link from="/workspace/$userId" to="appearance">
+        <Link
+          from="/workspace/$userId"
+          to="appearance"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="Appearance"
@@ -113,7 +151,11 @@ export const SidebarSettings = () => {
             />
           )}
         </Link>
-        <Link from="/workspace/$userId" to="info">
+        <Link
+          from="/workspace/$userId"
+          to="info"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="Info"
@@ -125,7 +167,11 @@ export const SidebarSettings = () => {
       </div>
       <div className="flex w-full min-w-0 flex-col gap-1">
         <Separator className="my-2" />
-        <Link from="/workspace/$userId" to="logout">
+        <Link
+          from="/workspace/$userId"
+          to="logout"
+          activeProps={{ 'aria-current': 'page' }}
+        >
           {({ isActive }) => (
             <SidebarSettingsItem
               title="Logout"

@@ -1,8 +1,9 @@
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { MessagesSquare, Reply, Trash2 } from 'lucide-react';
-import { useCallback } from 'react';
+import { MessagesSquare, Quote, Reply, SquareCheckBig, Trash2 } from 'lucide-react';
+import { Fragment, useCallback, useState } from 'react';
 
 import { LocalMessageNode } from '@colanode/client/types';
+import { MessageCreateTaskDialog } from '@colanode/ui/components/messages/message-create-task-dialog';
 import { MessageQuickReaction } from '@colanode/ui/components/messages/message-quick-reaction';
 import { MessageReactionCreatePopover } from '@colanode/ui/components/messages/message-reaction-create-popover';
 import {
@@ -53,8 +54,7 @@ export const MessageMenuMobile = ({
   const workspace = useWorkspace();
   const conversation = useConversation();
   const message = useMessage();
-
-  const canReplyInThread = false;
+  const [openCreateTask, setOpenCreateTask] = useState(false);
 
   const handleReactionClick = useCallback(
     (reaction: string) => {
@@ -85,7 +85,18 @@ export const MessageMenuMobile = ({
     onOpenChange(false);
   };
 
+  const handleOpenThread = () => {
+    conversation.onOpenThread(message.id);
+    onOpenChange(false);
+  };
+
+  const handleQuoteReply = () => {
+    conversation.onQuoteReply(message);
+    onOpenChange(false);
+  };
+
   return (
+    <Fragment>
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <VisuallyHidden>
         <SheetTitle>Message Actions</SheetTitle>
@@ -130,10 +141,17 @@ export const MessageMenuMobile = ({
 
           {/* Actions Section */}
           <div className="space-y-1">
-            {canReplyInThread && (
-              <MenuAction onClick={handleReply}>
+            {message.canReplyInThread && (
+              <MenuAction onClick={handleOpenThread}>
                 <MessagesSquare className="size-5 text-muted-foreground" />
                 <span>Reply in thread</span>
+              </MenuAction>
+            )}
+
+            {conversation.canCreateMessage && (
+              <MenuAction onClick={handleQuoteReply}>
+                <Quote className="size-5 text-muted-foreground" />
+                <span>Quote reply</span>
               </MenuAction>
             )}
 
@@ -141,6 +159,18 @@ export const MessageMenuMobile = ({
               <MenuAction onClick={handleReply}>
                 <Reply className="size-5 text-muted-foreground" />
                 <span>Reply</span>
+              </MenuAction>
+            )}
+
+            {message.createdBy === workspace.userId && !message.taskId && (
+              <MenuAction
+                onClick={() => {
+                  onOpenChange(false);
+                  setOpenCreateTask(true);
+                }}
+              >
+                <SquareCheckBig className="size-5 text-muted-foreground" />
+                <span>Create task</span>
               </MenuAction>
             )}
 
@@ -159,5 +189,12 @@ export const MessageMenuMobile = ({
         </div>
       </SheetContent>
     </Sheet>
+    {openCreateTask && (
+      <MessageCreateTaskDialog
+        open={openCreateTask}
+        onOpenChange={setOpenCreateTask}
+      />
+    )}
+    </Fragment>
   );
 };

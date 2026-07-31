@@ -1,7 +1,17 @@
 import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
 
-import { build, ServerConfig, serverConfigSchema } from '@colanode/core';
+import {
+  build,
+  ServerConfig,
+  ServerOidcConfig,
+  serverConfigSchema,
+} from '@colanode/core';
+import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
 import { config } from '@colanode/server/lib/config';
+import { createLogger } from '@colanode/server/lib/logger';
+import { buildOidcAuthorizeUrl, resolveOidcEndpoints } from '@colanode/server/lib/oidc';
+
+const logger = createLogger('api:client:config');
 
 export const configGetRoute: FastifyPluginCallbackZod = (instance, _, done) => {
   instance.route({
@@ -13,6 +23,28 @@ export const configGetRoute: FastifyPluginCallbackZod = (instance, _, done) => {
       },
     },
     handler: async (request) => {
+      let oidc: ServerOidcConfig = { enabled: false };
+
+      if (config.account.oidc.enabled) {
+        try {
+          const endpoints = await resolveOidcEndpoints(config.account.oidc);
+          oidc = {
+            enabled: true,
+            authorizeUrl: buildOidcAuthorizeUrl(
+              config.account.oidc,
+              endpoints.authorizationUrl
+            ),
+            buttonLabel: config.account.oidc.buttonLabel,
+          };
+        } catch (error) {
+          logger.error(
+            toSafeLogFields(error),
+            'Failed to resolve OIDC endpoints for /config'
+          );
+          oidc = { enabled: false };
+        }
+      }
+
       const output: ServerConfig = {
         name: config.name,
         avatar: config.avatar ?? '',
@@ -29,7 +61,14 @@ export const configGetRoute: FastifyPluginCallbackZod = (instance, _, done) => {
             : {
                 enabled: false,
               },
+          oidc,
         },
+        push: config.push.enabled
+          ? { enabled: true, publicKey: config.push.publicKey }
+          : { enabled: false },
+        apns: config.apns.enabled
+          ? { enabled: true, bundleId: config.apns.bundleId }
+          : { enabled: false },
       };
 
       return output;

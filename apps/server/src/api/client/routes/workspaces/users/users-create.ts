@@ -16,6 +16,7 @@ import {
 import { database } from '@colanode/server/data/database';
 import { SelectAccount } from '@colanode/server/data/schema';
 import { eventBus } from '@colanode/server/lib/event-bus';
+import { addUserToPublicSpaces } from '@colanode/server/lib/spaces';
 import { getNameFromEmail } from '@colanode/server/lib/utils';
 import { jobService } from '@colanode/server/services/job-service';
 
@@ -137,6 +138,13 @@ export const usersCreateRoute: FastifyPluginCallbackZod = (
           accountId: account.id,
           userId: userId,
           workspaceId: workspaceId,
+        });
+
+        await addUserToPublicSpaces({
+          workspaceId: workspaceId,
+          userId: userId,
+          workspaceRole: user.role,
+          addedBy: workspace.user.id,
         });
 
         await jobService.addJob({

@@ -23,6 +23,9 @@ export const ChannelSidebarItem = ({ channel }: ChannelSidebarItemProps) => {
       from="/workspace/$userId"
       to="$nodeId"
       params={{ nodeId: channel.id }}
+      data-testid={`channel-item-${channel.id}`}
+      data-unread={unreadState.hasUnread}
+      activeProps={{ 'aria-current': 'page' }}
     >
       {({ isActive }) => (
         <InView

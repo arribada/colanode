@@ -32,6 +32,7 @@ export const RecordUrlValue = ({ field, readOnly }: RecordUrlValueProps) => {
     <HoverCard openDelay={300}>
       <HoverCardTrigger>
         <Input
+          aria-label={field.name}
           value={url}
           readOnly={!record.canEdit || readOnly}
           onChange={(e) => {
@@ -60,8 +61,9 @@ export const RecordUrlValue = ({ field, readOnly }: RecordUrlValueProps) => {
           !canOpen && 'hidden'
         )}
       >
-        <a
-          className="text-blue-500 underline cursor-pointer hover:text-blue-600 text-ellipsis w-full overflow-hidden whitespace-nowrap"
+        <button
+          type="button"
+          className="text-blue-500 underline cursor-pointer hover:text-blue-600 text-ellipsis w-full overflow-hidden whitespace-nowrap text-left"
           onClick={() => {
             if (!canOpen) return;
 
@@ -69,7 +71,7 @@ export const RecordUrlValue = ({ field, readOnly }: RecordUrlValueProps) => {
           }}
         >
           {url}
-        </a>
+        </button>
         <ExternalLink className="size-4 min-h-4 min-w-4 text-muted-foreground" />
       </HoverCardContent>
     </HoverCard>

@@ -35,15 +35,28 @@ export const WorkspaceDownloadFile = ({
 
   const file = fileQuery.data as LocalFileNode | undefined;
 
+  const openFile = () => {
+    if (file) {
+      navigate({
+        to: '$nodeId',
+        params: { nodeId: file.id },
+      });
+    }
+  };
+
   return (
     <div
       className="border rounded-lg p-4 bg-card hover:bg-accent/50 transition-colors flex items-center gap-6 cursor-pointer"
-      onClick={() => {
-        if (file) {
-          navigate({
-            to: '$nodeId',
-            params: { nodeId: file.id },
-          });
+      role="button"
+      tabIndex={0}
+      onClick={openFile}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) {
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openFile();
         }
       }}
     >
@@ -68,7 +81,8 @@ export const WorkspaceDownloadFile = ({
         </p>
         <Tooltip>
           <TooltipTrigger asChild>
-            <p
+            <button
+              type="button"
               className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
@@ -77,7 +91,7 @@ export const WorkspaceDownloadFile = ({
             >
               <Folder className="size-4" />
               <span className="truncate">{download.path}</span>
-            </p>
+            </button>
           </TooltipTrigger>
           <TooltipContent>Show in folder</TooltipContent>
         </Tooltip>

@@ -20,24 +20,27 @@ const DesktopLinkComponent = React.forwardRef<
   React.AnchorHTMLAttributes<HTMLAnchorElement>
 >((props, ref) => {
   const layout = useLayout();
-  const { onClick, target, ...rest } = props;
+  const { onClick, target, href, children, ...rest } = props;
 
   return (
     <a
       ref={ref}
       {...rest}
+      href={href}
       target={target}
       onClick={(e) => {
-        if (rest.href && isNewTabClick(e, target)) {
+        if (href && isNewTabClick(e, target)) {
           e.preventDefault();
           e.stopPropagation();
-          layout.openInNewTab(rest.href as string);
+          layout.openInNewTab(href as string);
           return;
         }
 
         onClick?.(e);
       }}
-    />
+    >
+      {children}
+    </a>
   );
 });
 
@@ -46,13 +49,19 @@ const BasicLinkComponent = React.forwardRef<
   React.AnchorHTMLAttributes<HTMLAnchorElement>
 >((props, ref) => {
   const app = useApp();
+  const { children, ...rest } = props;
+
   if (app.type === 'desktop') {
     return (
       <DesktopLinkComponent ref={ref} {...props} data-router-link="true" />
     );
   }
 
-  return <a ref={ref} {...props} data-router-link="true" />;
+  return (
+    <a ref={ref} {...rest} data-router-link="true">
+      {children}
+    </a>
+  );
 });
 
 const CreatedLinkComponent = createLink(BasicLinkComponent);

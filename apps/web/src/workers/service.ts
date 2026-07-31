@@ -62,3 +62,48 @@ export const downloadIcons = async () => {
 self.addEventListener('install', (event: ExtendableEvent) => {
   event.waitUntil(Promise.all([downloadDbs(), self.skipWaiting()]));
 });
+
+self.addEventListener('push', (event: PushEvent) => {
+  if (!event.data) return;
+  let payload: { title?: string; body?: string; url?: string; rootId?: string };
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'New message', body: event.data.text() };
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title ?? 'New message', {
+      body: payload.body ?? '',
+      data: { url: payload.url ?? '/' },
+      tag: payload.rootId,
+      icon: '/assets/colanode-logo-192.jpg',
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event: NotificationEvent) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string })?.url ?? '/';
+  event.waitUntil(
+    (async () => {
+      const clientsArr = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      for (const client of clientsArr) {
+        if ('focus' in client) {
+          await client.focus();
+          if ('navigate' in client) {
+            try {
+              await client.navigate(url);
+            } catch {
+              /* ignore cross-origin navigate errors */
+            }
+          }
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })()
+  );
+});

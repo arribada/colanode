@@ -22,14 +22,20 @@ import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useViewFilter } from '@colanode/ui/hooks/use-view-filter';
 import { updatedAtFieldFilterOperators } from '@colanode/ui/lib/databases';
 
+const isOperatorWithoutValue = (operator: string) => {
+  return (
+    operator === 'is_empty' ||
+    operator === 'is_not_empty' ||
+    operator === 'is_today' ||
+    operator === 'is_this_week' ||
+    operator === 'is_this_month'
+  );
+};
+
 interface ViewUpdatedAtFieldFilterProps {
   field: UpdatedAtFieldAttributes;
   filter: DatabaseViewFieldFilterAttributes;
 }
-
-const isOperatorWithoutValue = (operator: string) => {
-  return operator === 'is_empty' || operator === 'is_not_empty';
-};
 
 export const ViewUpdatedAtFieldFilter = ({
   field,
@@ -70,6 +76,7 @@ export const ViewUpdatedAtFieldFilter = ({
           variant="outline"
           size="sm"
           className="border-dashed text-xs text-muted-foreground"
+          data-testid={`view-filter-chip-${filter.id}`}
         >
           {field.name}
         </Button>
@@ -82,10 +89,13 @@ export const ViewUpdatedAtFieldFilter = ({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent">
+              <button
+                type="button"
+                className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent"
+              >
                 <p>{operator.label}</p>
                 <ChevronDown className="size-4 text-muted-foreground" />
-              </div>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {updatedAtFieldFilterOperators.map((operator) => (
@@ -108,28 +118,36 @@ export const ViewUpdatedAtFieldFilter = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={removeFilter}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={removeFilter}
+            aria-label={`Remove ${field.name} filter`}
+            data-testid={`view-filter-remove-${filter.id}`}
+          >
             <Trash2 className="size-4" />
           </Button>
         </div>
-        <DatePicker
-          value={dateValue}
-          onChange={(newValue) => {
-            if (newValue === null || newValue === undefined) {
-              updateFilter({
-                ...filter,
-                value: null,
-              });
-            } else {
-              updateFilter({
-                ...filter,
-                value: newValue.toISOString(),
-              });
-            }
-          }}
-          placeholder="Select date"
-          className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
-        />
+        {!isOperatorWithoutValue(operator.value) && (
+          <DatePicker
+            value={dateValue}
+            onChange={(newValue) => {
+              if (newValue === null || newValue === undefined) {
+                updateFilter({
+                  ...filter,
+                  value: null,
+                });
+              } else {
+                updateFilter({
+                  ...filter,
+                  value: newValue.toISOString(),
+                });
+              }
+            }}
+            placeholder="Select date"
+            className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2 text-sm"
+          />
+        )}
       </PopoverContent>
     </Popover>
   );

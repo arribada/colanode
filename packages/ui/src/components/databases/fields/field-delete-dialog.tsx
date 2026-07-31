@@ -41,6 +41,7 @@ export const FieldDeleteDialog = ({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <Button
             variant="destructive"
+            data-testid="field-delete-confirm-button"
             onClick={async () => {
               const nodes = workspace.collections.nodes;
               nodes.update(database.id, (draft) => {

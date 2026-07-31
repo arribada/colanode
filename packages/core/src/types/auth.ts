@@ -102,3 +102,9 @@ export const googleLoginInputSchema = z.object({
 });
 
 export type GoogleLoginInput = z.infer<typeof googleLoginInputSchema>;
+
+export const oidcLoginInputSchema = z.object({
+  code: z.string(),
+});
+
+export type OidcLoginInput = z.infer<typeof oidcLoginInputSchema>;

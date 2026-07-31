@@ -120,6 +120,7 @@ export const Reset = () => {
                 navigate({ to: '/auth/login' });
               }}
               type="button"
+              data-testid="reset-init-back-to-login-button"
             >
               Back to login
             </Button>
@@ -139,6 +140,7 @@ export const Reset = () => {
                 setState({ type: 'init' });
               }}
               type="button"
+              data-testid="reset-back-to-email-button"
             >
               Back to email input
             </Button>
@@ -163,6 +165,7 @@ export const Reset = () => {
                 navigate({ to: '/auth/login' });
               }}
               type="button"
+              data-testid="reset-success-back-to-login-button"
             >
               Back to login
             </Button>

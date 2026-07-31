@@ -31,7 +31,8 @@ export const CodeBlockRenderer = ({
     <pre className={defaultClasses.codeBlock}>
       <div className={defaultClasses.codeBlockHeader}>
         {<p>{languageName}</p>}
-        <div
+        <button
+          type="button"
           className="flex cursor-pointer flex-row items-center gap-1"
           onClick={() => {
             navigator.clipboard.writeText(code).then(() => {
@@ -41,7 +42,7 @@ export const CodeBlockRenderer = ({
         >
           <Clipboard className="size-4" />
           <p>{copied ? 'Copied' : 'Copy code'}</p>
-        </div>
+        </button>
       </div>
       {highlight && highlight.language && highlight.nodes?.length > 0 ? (
         <code

@@ -12,4 +12,4 @@ export type Workspace = {
   status: WorkspaceStatus;
 };
 
-export type SidebarMenuType = 'chats' | 'spaces' | 'settings';
+export type SidebarMenuType = 'chats' | 'spaces' | 'inbox' | 'settings';

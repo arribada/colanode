@@ -32,6 +32,18 @@ import { addWorkspaceStorageLimitColumns } from './00029-add-workspace-storage-l
 import { addWorkspaceIndexToUploads } from './00030-add-workspace-index-to-uploads';
 import { addCreatedAtIndexToUploads } from './00031-add-created-at-index-to-uploads';
 import { cleanupCounterTriggers } from './00032-cleanup-counter-triggers';
+import { createNotificationsTable } from './00033-create-notifications-table';
+import { createPushSubscriptionsTable } from './00034-create-push-subscriptions-table';
+import { createNotificationMutesTable } from './00035-create-notification-mutes-table';
+import { createApnsSubscriptionsTable } from './00036-create-apns-subscriptions-table';
+import { createDocumentSnapshotsTable } from './00037-create-document-snapshots-table';
+import { createUserAiSettingsTable } from './00038-create-user-ai-settings-table';
+import { createWorkspaceAiSettingsTable } from './00039-create-workspace-ai-settings-table';
+import { createMcpAccessTokensTable } from './00040-create-mcp-access-tokens-table';
+import { addOauthColumnsToMcpAccessTokens } from './00041-add-oauth-columns-to-mcp-access-tokens';
+import { createMcpOauthClientsTable } from './00042-create-mcp-oauth-clients-table';
+import { createMcpOauthCodesTable } from './00043-create-mcp-oauth-codes-table';
+import { fixNodePathUpdateTrigger } from './00044-fix-node-path-update-trigger';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -70,4 +82,16 @@ export const databaseMigrations: Record<string, Migration> = {
   '00030_add_workspace_index_to_uploads': addWorkspaceIndexToUploads,
   '00031_add_created_at_index_to_uploads': addCreatedAtIndexToUploads,
   '00032_cleanup_counter_triggers': cleanupCounterTriggers,
+  '00033_create_notifications_table': createNotificationsTable,
+  '00034_create_push_subscriptions_table': createPushSubscriptionsTable,
+  '00035_create_notification_mutes_table': createNotificationMutesTable,
+  '00036_create_apns_subscriptions_table': createApnsSubscriptionsTable,
+  '00037_create_document_snapshots_table': createDocumentSnapshotsTable,
+  '00038_create_user_ai_settings_table': createUserAiSettingsTable,
+  '00039_create_workspace_ai_settings_table': createWorkspaceAiSettingsTable,
+  '00040_create_mcp_access_tokens_table': createMcpAccessTokensTable,
+  '00041_add_oauth_columns_to_mcp_access_tokens': addOauthColumnsToMcpAccessTokens,
+  '00042_create_mcp_oauth_clients_table': createMcpOauthClientsTable,
+  '00043_create_mcp_oauth_codes_table': createMcpOauthCodesTable,
+  '00044_fix_node_path_update_trigger': fixNodePathUpdateTrigger,
 };

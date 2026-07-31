@@ -22,10 +22,19 @@ type MenuState = {
 };
 
 export const ActionMenu = ({ editor }: ActionMenuProps) => {
-  const view = useRef(editor!.view!);
+  // Do NOT read editor.view during render: @tiptap/react v3 creates the view
+  // asynchronously, so editor.view can throw "editor view is not available"
+  // in the window before it is attached. Populate the ref in an effect instead.
+  const view = useRef<Editor['view']>(null as unknown as Editor['view']);
   const [menuState, setMenuState] = useState<MenuState>({
     show: false,
   });
+
+  useEffect(() => {
+    if (editor) {
+      view.current = editor.view;
+    }
+  }, [editor]);
 
   const { refs, floatingStyles } = useFloating({
     placement: 'left',
@@ -146,6 +155,18 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
     return null;
   }
 
+  const insertBlock = () => {
+    if (menuState.pos === undefined || !menuState.domNode) {
+      return;
+    }
+
+    editor
+      .chain()
+      .insertContentAt(menuState.pos, { type: 'paragraph' })
+      .focus()
+      .run();
+  };
+
   return (
     <FloatingPortal>
       <div
@@ -153,22 +174,21 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
         style={{ ...floatingStyles, zIndex: 50 }}
         className="flex items-center text-muted-foreground p-1 mr-2"
       >
-        <Plus
-          className="size-4 cursor-pointer hover:text-foreground"
-          onClick={() => {
-            if (menuState.pos === undefined || !menuState.domNode) {
-              return;
-            }
-
-            editor
-              .chain()
-              .insertContentAt(menuState.pos, { type: 'paragraph' })
-              .focus()
-              .run();
-          }}
-        />
+        <button
+          type="button"
+          className="flex items-center justify-center"
+          aria-label="Insert block below"
+          data-testid="editor-action-menu-insert-button"
+          onClick={insertBlock}
+        >
+          <Plus className="size-4 cursor-pointer hover:text-foreground" />
+        </button>
         <div
+          role="button"
+          tabIndex={0}
           draggable={true}
+          aria-label="Drag block"
+          data-testid="editor-action-menu-drag-handle"
           onDragStart={(event) => {
             if (menuState.pos === undefined || !menuState.domNode) {
               return;

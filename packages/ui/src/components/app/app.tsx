@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { DndProvider } from 'react-dnd';
 
 import { AppType } from '@colanode/client/types';
+import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
 import { AppProvider } from '@colanode/ui/components/app/app-provider';
 import { Toaster } from '@colanode/ui/components/ui/sonner';
 import { TooltipProvider } from '@colanode/ui/components/ui/tooltip';
@@ -17,13 +18,15 @@ export const App = ({ type }: AppProps) => {
   const queryClientRef = useRef<QueryClient>(buildQueryClient());
 
   return (
-    <QueryClientProvider client={queryClientRef.current}>
-      <DndProvider backend={HTML5Backend}>
-        <TooltipProvider>
-          <AppProvider type={type} />
-        </TooltipProvider>
-        <Toaster />
-      </DndProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary context={`app-${type}`}>
+      <QueryClientProvider client={queryClientRef.current}>
+        <DndProvider backend={HTML5Backend}>
+          <TooltipProvider>
+            <AppProvider type={type} />
+          </TooltipProvider>
+          <Toaster />
+        </DndProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 };

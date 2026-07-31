@@ -69,6 +69,8 @@ export const SelectFieldOptions = ({
                   onSelect(option.id);
                 }}
                 className="group flex w-full cursor-pointer flex-row items-center gap-1"
+                data-testid={`select-field-option-${option.id}`}
+                aria-checked={isSelected}
               >
                 <div className="flex-1">
                   <SelectOptionBadge name={option.name} color={option.color} />
@@ -84,10 +86,17 @@ export const SelectFieldOptions = ({
                   )}
                 </div>
                 <div
+                  role="presentation"
                   className="opacity-0 group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }
                   }}
                 >
                   <SelectOptionSettingsPopover
@@ -104,6 +113,7 @@ export const SelectFieldOptions = ({
             <CommandItem
               key={inputValue.trim()}
               value={inputValue.trim()}
+              data-testid="select-field-option-create"
               onSelect={() => {
                 if (inputValue.trim().length === 0) {
                   return;

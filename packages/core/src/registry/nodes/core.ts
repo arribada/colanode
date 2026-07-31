@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 
+import { DocumentContent } from '@colanode/core/registry/documents';
 import { Node, NodeAttributes } from '@colanode/core/registry/nodes';
 import { Mention } from '@colanode/core/types/mentions';
 import { WorkspaceRole } from '@colanode/core/types/workspaces';
@@ -11,6 +12,18 @@ export const nodeRoleEnum = z.enum([
   'collaborator',
   'viewer',
 ]);
+
+// Optional decorative banner shown at the top of a node container (pages and
+// records). The value is a preset key resolved by the UI; unknown values fall
+// back to a neutral banner so the palette can evolve safely.
+export const nodeCoverSchema = z.object({
+  // 'image' value is either a full https URL (e.g. Unsplash) or an uploaded
+  // avatar id resolved through the local asset cache.
+  type: z.enum(['color', 'gradient', 'image']),
+  value: z.string(),
+});
+
+export type NodeCover = z.infer<typeof nodeCoverSchema>;
 
 export interface NodeMutationUser {
   id: string;
@@ -66,4 +79,5 @@ export interface NodeModel {
   canReact: (context: CanReactNodeContext) => boolean;
   extractText: (id: string, attributes: NodeAttributes) => NodeText | null;
   extractMentions: (id: string, attributes: NodeAttributes) => Mention[];
+  extractDocumentMentions?: (id: string, content: DocumentContent) => Mention[];
 }

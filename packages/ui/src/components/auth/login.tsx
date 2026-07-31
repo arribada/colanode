@@ -6,6 +6,7 @@ import { LoginOutput } from '@colanode/core';
 import { LoginForm } from '@colanode/ui/components/auth/email-login-form';
 import { EmailVerifyForm } from '@colanode/ui/components/auth/email-verify-form';
 import { GoogleLogin } from '@colanode/ui/components/auth/google-login';
+import { OidcLogin } from '@colanode/ui/components/auth/oidc-login';
 import { Button } from '@colanode/ui/components/ui/button';
 import { useAuth } from '@colanode/ui/contexts/auth';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
@@ -161,6 +162,12 @@ export const Login = () => {
               onLogin={handleGoogleLogin}
               isPending={isGoogleLoginPending}
             />
+            <OidcLogin
+              context="login"
+              disabled={
+                isEmailLoginPending || isEmailVerifyPending || isGoogleLoginPending
+              }
+            />
             <Button
               variant="link"
               className="w-full text-muted-foreground"
@@ -168,6 +175,7 @@ export const Login = () => {
                 navigate({ to: '/auth/register' });
               }}
               type="button"
+              data-testid="login-register-link-button"
             >
               No account yet? Register
             </Button>
@@ -187,6 +195,7 @@ export const Login = () => {
                 setState({ type: 'login' });
               }}
               type="button"
+              data-testid="login-back-to-login-button"
             >
               Back to login
             </Button>

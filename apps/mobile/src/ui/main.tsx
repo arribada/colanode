@@ -1,15 +1,22 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+import superjson from 'superjson';
+
 import { eventBus } from '@colanode/client/lib';
 import { MutationInput, MutationResult } from '@colanode/client/mutations';
+import { AppInitOutput } from '@colanode/client/types';
 import { QueryInput, QueryMap } from '@colanode/client/queries';
 import { generateId, IdType } from '@colanode/core/lib/id';
 import {
   InitMessage,
   Message,
+  MobilePushState,
   MutationMessage,
   PendingPromise,
+  PushDisableMessage,
+  PushEnableMessage,
+  PushGetStateMessage,
   QueryAndSubscribeMessage,
   QueryMessage,
   QueryUnsubscribeMessage,
@@ -20,16 +27,85 @@ const windowId = generateId(IdType.Window);
 const pendingPromises = new Map<string, PendingPromise>();
 
 const postMessage = (message: Message) => {
-  window.ReactNativeWebView?.postMessage(JSON.stringify(message));
+  window.ReactNativeWebView?.postMessage(superjson.stringify(message));
 };
 
 window.colanode = {
+  // Native reset isn't bridged to the RN host yet; reloading the WebView is the
+  // best-effort equivalent until a dedicated reset message is added to the bridge.
+  reset: async () => {
+    window.location.reload();
+  },
+  // Native push is APNs via expo-notifications, bridged to the RN host —
+  // the VAPID key web push uses has no meaning here, so it's ignored.
+  push: {
+    enable: async (userId) => {
+      const requestId = generateId(IdType.Query);
+      const message: PushEnableMessage = {
+        type: 'push_enable',
+        requestId,
+        userId,
+      };
+
+      const promise = new Promise<boolean>((resolve, reject) => {
+        pendingPromises.set(requestId, {
+          type: 'push_enable',
+          requestId,
+          resolve,
+          reject,
+        });
+      });
+
+      postMessage(message);
+      return promise;
+    },
+    disable: async (userId) => {
+      const requestId = generateId(IdType.Query);
+      const message: PushDisableMessage = {
+        type: 'push_disable',
+        requestId,
+        userId,
+      };
+
+      const promise = new Promise<void>((resolve, reject) => {
+        pendingPromises.set(requestId, {
+          type: 'push_disable',
+          requestId,
+          resolve,
+          reject,
+        });
+      });
+
+      postMessage(message);
+      return promise;
+    },
+    getState: async () => {
+      const requestId = generateId(IdType.Query);
+      const message: PushGetStateMessage = {
+        type: 'push_get_state',
+        requestId,
+      };
+
+      const promise = new Promise<MobilePushState>((resolve, reject) => {
+        pendingPromises.set(requestId, {
+          type: 'push_get_state',
+          requestId,
+          resolve,
+          reject,
+        });
+      });
+
+      postMessage(message);
+      return promise;
+    },
+    isSupported: () => true,
+  },
   init: async () => {
     const message: InitMessage = {
       type: 'init',
     };
 
-    const promise = new Promise<void>((resolve, reject) => {
+    const promise = new Promise<AppInitOutput>((resolve, reject) => {
       pendingPromises.set('init', {
         type: 'init',
         resolve,
@@ -142,7 +218,7 @@ const handleMessage = (message: Message) => {
       return;
     }
 
-    promise.resolve();
+    promise.resolve(message.output);
     pendingPromises.delete('init');
   } else if (message.type === 'mutation_result') {
     const promise = pendingPromises.get(message.mutationId);
@@ -152,6 +228,30 @@ const handleMessage = (message: Message) => {
 
     promise.resolve(message.result);
     pendingPromises.delete(message.mutationId);
+  } else if (message.type === 'push_enable_result') {
+    const promise = pendingPromises.get(message.requestId);
+    if (!promise || promise.type !== 'push_enable') {
+      return;
+    }
+
+    promise.resolve(message.success);
+    pendingPromises.delete(message.requestId);
+  } else if (message.type === 'push_disable_result') {
+    const promise = pendingPromises.get(message.requestId);
+    if (!promise || promise.type !== 'push_disable') {
+      return;
+    }
+
+    promise.resolve();
+    pendingPromises.delete(message.requestId);
+  } else if (message.type === 'push_get_state_result') {
+    const promise = pendingPromises.get(message.requestId);
+    if (!promise || promise.type !== 'push_get_state') {
+      return;
+    }
+
+    promise.resolve(message.state);
+    pendingPromises.delete(message.requestId);
   } else if (message.type === 'query_result') {
     const promise = pendingPromises.get(message.queryId);
     if (!promise || promise.type !== 'query') {
@@ -174,7 +274,7 @@ const handleMessage = (message: Message) => {
 };
 
 window.addEventListener('message', (event) => {
-  const message = JSON.parse(event.data) as Message;
+  const message = superjson.parse<Message>(event.data);
   handleMessage(message);
 });
 

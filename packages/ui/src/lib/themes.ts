@@ -72,6 +72,38 @@ const baseDarkVariables = {
   '--sidebar-ring': 'oklch(0.556 0 0)',
 };
 
+// Arribada brand overlay, applied when no explicit theme color is selected.
+// Accent is the Arribada teal (#1de9b6) with the brand navy (#0a1929) as its
+// foreground (11.3:1 contrast). Dark mode swaps the neutral surfaces for the
+// brand navy (#0a1929 background, #132f4c cards/sidebar). Kept as a separate
+// token overlay (not edits to the base variables) so upstream merges stay easy.
+const arribadaLightVariables = {
+  '--primary': 'oklch(0.832 0.162 169.2)',
+  '--primary-foreground': 'oklch(0.209 0.038 251.5)',
+  '--ring': 'oklch(0.65 0.13 169.2)',
+  '--sidebar-primary': 'oklch(0.832 0.162 169.2)',
+  '--sidebar-primary-foreground': 'oklch(0.209 0.038 251.5)',
+  '--sidebar-ring': 'oklch(0.65 0.13 169.2)',
+};
+
+const arribadaDarkVariables = {
+  '--background': 'oklch(0.209 0.038 251.5)',
+  '--card': 'oklch(0.3 0.063 251.4)',
+  '--popover': 'oklch(0.3 0.063 251.4)',
+  '--primary': 'oklch(0.832 0.162 169.2)',
+  '--primary-foreground': 'oklch(0.209 0.038 251.5)',
+  '--secondary': 'oklch(0.345 0.075 254.2)',
+  '--muted': 'oklch(0.345 0.075 254.2)',
+  '--muted-foreground': 'oklch(0.75 0.03 240)',
+  '--accent': 'oklch(0.345 0.075 254.2)',
+  '--ring': 'oklch(0.72 0.14 169.2)',
+  '--sidebar': 'oklch(0.3 0.063 251.4)',
+  '--sidebar-primary': 'oklch(0.832 0.162 169.2)',
+  '--sidebar-primary-foreground': 'oklch(0.209 0.038 251.5)',
+  '--sidebar-accent': 'oklch(0.345 0.075 254.2)',
+  '--sidebar-ring': 'oklch(0.72 0.14 169.2)',
+};
+
 const colorVariablesMap: Record<
   ThemeColor,
   Record<ThemeMode, Record<string, string>>
@@ -376,7 +408,12 @@ export const getThemeVariables = (
   mode: ThemeMode,
   color: ThemeColor | undefined
 ): Record<string, string> => {
-  const colorVariables = color ? colorVariablesMap[color][mode] : {};
+  // Without an explicit color selection the Arribada brand overlay applies.
+  const colorVariables = color
+    ? (colorVariablesMap[color]?.[mode] ?? {})
+    : mode === 'light'
+      ? arribadaLightVariables
+      : arribadaDarkVariables;
 
   return {
     ...baseVariables,

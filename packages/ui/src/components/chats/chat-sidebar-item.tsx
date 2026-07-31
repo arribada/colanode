@@ -42,7 +42,14 @@ export const ChatSidebarItem = ({ chat }: ChatSidebarItemProps) => {
   const unreadState = radar.getNodeState(workspace.userId, chat.id);
 
   return (
-    <Link from="/workspace/$userId" to="$nodeId" params={{ nodeId: chat.id }}>
+    <Link
+      from="/workspace/$userId"
+      to="$nodeId"
+      params={{ nodeId: chat.id }}
+      data-testid={`chat-item-${chat.id}`}
+      data-unread={unreadState.hasUnread}
+      activeProps={{ 'aria-current': 'page' }}
+    >
       {({ isActive }) => (
         <InView
           rootMargin="20px"

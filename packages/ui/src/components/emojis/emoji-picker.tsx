@@ -21,6 +21,7 @@ export const EmojiPicker = ({ onPick }: EmojiPickerProps) => {
         <Input
           type="text"
           placeholder="Search emojis..."
+          aria-label="Search emojis"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

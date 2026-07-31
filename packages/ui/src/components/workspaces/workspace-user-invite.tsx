@@ -26,19 +26,25 @@ export const WorkspaceUserInvite = () => {
           {emails.map((email) => (
             <p
               key={email}
+              data-testid={`workspace-invite-email-${email}`}
               className="flex h-full flex-row items-center gap-1 border border-border bg-accent p-0.5 px-1 text-foreground shadow"
             >
               <span>{email}</span>
-              <X
-                className="size-3 text-muted-foreground cursor-pointer hover:text-foreground"
+              <button
+                type="button"
+                aria-label={`Remove ${email}`}
+                className="cursor-pointer text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   setEmails((emails) => emails.filter((e) => e !== email));
                 }}
-              />
+              >
+                <X className="size-3" />
+              </button>
             </p>
           ))}
           <input
             value={input}
+            aria-label="Email addresses to invite"
             className="grow px-1 focus-visible:outline-none"
             onChange={(e) => setInput(e.target.value.trim())}
             placeholder="Enter email addresses"
@@ -65,6 +71,7 @@ export const WorkspaceUserInvite = () => {
         <Button
           variant="outline"
           className="w-32"
+          data-testid="workspace-invite-submit"
           disabled={isPending || (emails.length == 0 && !isInputValidEmail)}
           onClick={() => {
             if (isPending) {

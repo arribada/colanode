@@ -1,0 +1,34 @@
+name: Bug loop - repro
+on:
+  issues:
+    types: [labeled]
+concurrency:
+  group: bug-loop-staging   # staging port is exclusive
+jobs:
+  repro:
+    if: vars.AUTOFIX_ENABLED == 'true' && github.event.label.name == 'bug'
+    runs-on: [self-hosted, colanode]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main }
+      - name: Boot staging
+        run: ./scripts/staging-stack.sh up
+      - name: Reproduce
+        env:
+          GH_TOKEN: ${{ secrets.AUTOFIX_PAT }}
+          CLIPS_BASE: https://repro.kvotaflow.ru
+        run: |
+          claude -p "$(sed 's/{{ISSUE}}/${{ github.event.issue.number }}/g' .github/bug-loop/repro-prompt.md)" \
+            --max-turns 120 \
+            --allowedTools "Bash,Read,Write,Grep,Glob,Skill"
+      - name: Teardown
+        if: always()
+        run: ./scripts/staging-stack.sh down
+      - name: Escalate on crash
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          .github/bug-loop/notify.sh "repro job crashed for issue #${{ github.event.issue.number }} — see Actions log"

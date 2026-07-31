@@ -47,7 +47,10 @@ export const NodeCollaborator = ({
   }
 
   return (
-    <div className="flex items-center justify-between space-x-3">
+    <div
+      className="flex items-center justify-between space-x-3"
+      data-testid={`collaborator-row-${collaboratorId}`}
+    >
       <div className="flex items-center space-x-3">
         <Avatar id={user.id} name={user.name} avatar={user.avatar} />
         <div className="grow">
@@ -75,8 +78,11 @@ export const NodeCollaborator = ({
           }}
         />
         {canRemove && (
-          <Trash2
-            className="size-4 cursor-pointer text-muted-foreground hover:text-foreground"
+          <button
+            type="button"
+            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            aria-label={`Remove ${user.name}`}
+            data-testid={`collaborator-remove-${collaboratorId}`}
             onClick={() => {
               mutate({
                 input: {
@@ -87,7 +93,9 @@ export const NodeCollaborator = ({
                 },
               });
             }}
-          />
+          >
+            <Trash2 className="size-4" />
+          </button>
         )}
       </div>
     </div>

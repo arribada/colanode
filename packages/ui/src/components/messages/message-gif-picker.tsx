@@ -13,9 +13,13 @@ export const MessageGifPicker = () => {
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
-        <span className="cursor-pointer">
+        <button
+          type="button"
+          aria-label="Insert GIF"
+          className="cursor-pointer border-0 bg-transparent p-0"
+        >
           <ImagePlay size={20} />
-        </span>
+        </button>
       </PopoverTrigger>
       <PopoverContent
         className="mr-6 h-128 w-128 overflow-hidden p-2"

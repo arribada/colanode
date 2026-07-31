@@ -17,7 +17,11 @@ import {
 } from '@colanode/client/lib/mentions';
 import { deleteNodeRelations, fetchNodeTree } from '@colanode/client/lib/utils';
 import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
-import { DownloadStatus, LocalNode } from '@colanode/client/types';
+import {
+  DownloadStatus,
+  LocalNode,
+  LocalDatabaseNode,
+} from '@colanode/client/types';
 import {
   generateId,
   IdType,
@@ -32,8 +36,20 @@ import {
   CanCreateNodeContext,
   CanUpdateAttributesContext,
   CanDeleteNodeContext,
+  DatabaseAutomationAction,
+  FieldValue,
+  FieldAttributes,
+  AiCompleteInput,
+  AiCompleteOutput,
 } from '@colanode/core';
 import { decodeState, encodeState, YDoc } from '@colanode/crdt';
+import {
+  buildAutomationAiContext,
+  buildAutomationFieldValue,
+  changedFieldIds,
+  matchingAutomations,
+  AutomationTriggerType,
+} from '@colanode/client/lib/database-automations';
 
 const UPDATE_RETRIES_LIMIT = 20;
 
@@ -54,6 +70,11 @@ const debug = createDebugger('desktop:service:node');
 
 export class NodeService {
   private readonly workspace: WorkspaceService;
+
+  // Records whose automations are currently running. Guards against infinite
+  // loops: a set_field/ai_fill action issues its own node.update, which would
+  // otherwise re-trigger this database's record_updated automations.
+  private readonly automationsInFlight = new Set<string>();
 
   constructor(workspaceService: WorkspaceService) {
     this.workspace = workspaceService;
@@ -164,6 +185,11 @@ export class NodeService {
         }
 
         if (nodeText) {
+          await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', input.id)
+            .execute();
+
           await trx
             .insertInto('node_texts')
             .values({
@@ -336,6 +362,11 @@ export class NodeService {
 
         if (nodeText) {
           await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', id)
+            .execute();
+
+          await trx
             .insertInto('node_texts')
             .values({
               id: id,
@@ -391,6 +422,19 @@ export class NodeService {
         },
         nodeReference: mapNodeReference(createdNodeReference),
       });
+    }
+
+    if (attributes.type === 'record') {
+      const databaseNode = tree[tree.length - 1];
+      if (databaseNode && databaseNode.type === 'database') {
+        await this.runRecordAutomations(
+          'record_created',
+          id,
+          databaseNode,
+          attributes.fields,
+          undefined
+        );
+      }
     }
 
     this.workspace.mutations.scheduleSync();
@@ -538,6 +582,11 @@ export class NodeService {
 
       if (nodeText) {
         await trx
+          .deleteFrom('node_texts')
+          .where('id', '=', nodeId)
+          .execute();
+
+        await trx
           .insertInto('node_texts')
           .values({
             id: nodeId,
@@ -609,10 +658,218 @@ export class NodeService {
     }
 
     if (updatedNode) {
+      if (attributes.type === 'record') {
+        const databaseNode = tree[tree.length - 2];
+        if (databaseNode && databaseNode.type === 'database') {
+          const before =
+            node.type === 'record' ? node.fields : undefined;
+          const changed = changedFieldIds(before, attributes.fields);
+          await this.runRecordAutomations(
+            'record_updated',
+            nodeId,
+            databaseNode,
+            attributes.fields,
+            changed
+          );
+        }
+      }
       return 'success';
     }
 
     return null;
+  }
+
+  // --- Database automations engine (client-side) ---------------------------
+  // Evaluates a parent database's enabled automations after a record is
+  // created/updated and applies their actions. Runs on the ACTING CLIENT only
+  // (the client that made the record mutation); it does not run server-side.
+  private async runRecordAutomations(
+    trigger: AutomationTriggerType,
+    recordId: string,
+    databaseNode: LocalDatabaseNode,
+    recordFields: Record<string, FieldValue>,
+    changed: Set<string> | undefined
+  ): Promise<void> {
+    // Loop guard: if we are already inside this record's automations, a
+    // set_field/ai_fill action's own node.update must NOT re-trigger them.
+    if (this.automationsInFlight.has(recordId)) {
+      return;
+    }
+
+    const automations = matchingAutomations(
+      databaseNode.automations,
+      trigger,
+      changed
+    );
+    if (automations.length === 0) {
+      return;
+    }
+
+    this.automationsInFlight.add(recordId);
+    try {
+      for (const automation of automations) {
+        for (const action of automation.actions) {
+          try {
+            await this.applyAutomationAction(
+              recordId,
+              databaseNode,
+              recordFields,
+              automation.name,
+              action
+            );
+          } catch (error) {
+            debug(
+              'Automation ' +
+                automation.name +
+                ' action ' +
+                action.type +
+                ' failed: ' +
+                String(error)
+            );
+          }
+        }
+      }
+    } finally {
+      this.automationsInFlight.delete(recordId);
+    }
+  }
+
+  private async applyAutomationAction(
+    recordId: string,
+    databaseNode: LocalDatabaseNode,
+    recordFields: Record<string, FieldValue>,
+    automationName: string,
+    action: DatabaseAutomationAction
+  ): Promise<void> {
+    if (action.type === 'notify') {
+      const message =
+        typeof action.value === 'string' && action.value.trim().length > 0
+          ? action.value
+          : 'Automation ' + automationName + ' ran';
+      await this.createLocalNotification(
+        recordId,
+        databaseNode.rootId,
+        message
+      );
+      return;
+    }
+
+    if (!action.fieldId) {
+      return;
+    }
+
+    const fieldDef = databaseNode.fields[action.fieldId] as
+      | FieldAttributes
+      | undefined;
+    if (!fieldDef) {
+      return;
+    }
+
+    if (action.type === 'set_field') {
+      const fieldValue = buildAutomationFieldValue(fieldDef.type, action.value);
+      if (fieldValue === undefined) {
+        return;
+      }
+      await this.writeRecordField(recordId, action.fieldId, fieldValue);
+      return;
+    }
+
+    if (action.type === 'ai_fill') {
+      const context = buildAutomationAiContext(
+        recordFields,
+        databaseNode.fields,
+        action.fieldId
+      );
+      const prompt =
+        action.prompt && action.prompt.trim().length > 0
+          ? action.prompt
+          : 'You are filling in the ' +
+            fieldDef.name +
+            ' property of a database record. Using the other properties as ' +
+            'context, provide a concise, plausible value for ' +
+            fieldDef.name +
+            '. Return only the value text, with no labels or quotes.';
+
+      const body: AiCompleteInput = {
+        action: 'custom',
+        prompt,
+        selection: '',
+        context,
+      };
+
+      const output = await this.workspace.account.client
+        .post('v1/workspaces/' + this.workspace.workspaceId + '/ai/complete', {
+          json: body,
+        })
+        .json<AiCompleteOutput>();
+
+      const text = (output.text ?? '').trim();
+      if (!text) {
+        return;
+      }
+
+      const fieldValue = buildAutomationFieldValue(fieldDef.type, text);
+      if (fieldValue === undefined || fieldValue === null) {
+        return;
+      }
+      await this.writeRecordField(recordId, action.fieldId, fieldValue);
+    }
+  }
+
+  private async writeRecordField(
+    recordId: string,
+    fieldId: string,
+    value: FieldValue | null
+  ): Promise<void> {
+    await this.updateNode(recordId, (attributes) => {
+      if (attributes.type !== 'record') {
+        return attributes;
+      }
+      if (value === null) {
+        const next = { ...attributes.fields };
+        delete next[fieldId];
+        attributes.fields = next;
+      } else {
+        attributes.fields = { ...attributes.fields, [fieldId]: value };
+      }
+      return attributes;
+    });
+  }
+
+  private async createLocalNotification(
+    recordId: string,
+    rootId: string,
+    message: string
+  ): Promise<void> {
+    const notificationId = generateId(IdType.Notification);
+    const now = new Date().toISOString();
+
+    await this.workspace.database
+      .insertInto('notifications')
+      .values({
+        id: notificationId,
+        user_id: this.workspace.userId,
+        workspace_id: this.workspace.workspaceId,
+        root_id: rootId,
+        type: 'automation',
+        source_node_id: recordId,
+        actor_id: this.workspace.userId,
+        preview: JSON.stringify({ message }),
+        created_at: now,
+        read_at: null,
+        revision: '0',
+      })
+      .execute();
+
+    eventBus.publish({
+      type: 'notification.created',
+      workspace: {
+        workspaceId: this.workspace.workspaceId,
+        userId: this.workspace.userId,
+        accountId: this.workspace.accountId,
+      },
+      notificationId,
+    });
   }
 
   public async deleteNode(nodeId: string) {
@@ -826,6 +1083,11 @@ export class NodeService {
 
         if (nodeText) {
           await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', update.nodeId)
+            .execute();
+
+          await trx
             .insertInto('node_texts')
             .values({
               id: update.nodeId,
@@ -974,6 +1236,11 @@ export class NodeService {
         }
 
         if (nodeText) {
+          await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', existingNode.id)
+            .execute();
+
           await trx
             .insertInto('node_texts')
             .values({
@@ -1295,6 +1562,11 @@ export class NodeService {
           .execute();
 
         if (nodeText) {
+          await trx
+            .deleteFrom('node_texts')
+            .where('id', '=', node.id)
+            .execute();
+
           await trx
             .insertInto('node_texts')
             .values({

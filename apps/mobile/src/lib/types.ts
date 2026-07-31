@@ -1,6 +1,6 @@
 import { MutationInput, MutationResult } from '@colanode/client/mutations';
 import { QueryInput, QueryMap } from '@colanode/client/queries';
-import { Event } from '@colanode/client/types';
+import { AppInitOutput, Event } from '@colanode/client/types';
 
 declare global {
   interface Window {
@@ -10,12 +10,19 @@ declare global {
   }
 }
 
+// Mirrors @colanode/ui/window's WebPushState. Defined here (not in
+// services/push-service.ts) so it can be imported by main.tsx, which is
+// bundled into the WebView content and must never pull in a react-native /
+// expo-notifications import.
+export type MobilePushState = 'unsupported' | 'denied' | 'enabled' | 'disabled';
+
 export type InitMessage = {
   type: 'init';
 };
 
 export type InitResultMessage = {
   type: 'init_result';
+  output: AppInitOutput;
 };
 
 export type MutationMessage = {
@@ -28,6 +35,40 @@ export type MutationResultMessage = {
   type: 'mutation_result';
   mutationId: string;
   result: MutationResult<MutationInput>;
+};
+
+export type PushEnableMessage = {
+  type: 'push_enable';
+  requestId: string;
+  userId: string;
+};
+
+export type PushEnableResultMessage = {
+  type: 'push_enable_result';
+  requestId: string;
+  success: boolean;
+};
+
+export type PushDisableMessage = {
+  type: 'push_disable';
+  requestId: string;
+  userId: string;
+};
+
+export type PushDisableResultMessage = {
+  type: 'push_disable_result';
+  requestId: string;
+};
+
+export type PushGetStateMessage = {
+  type: 'push_get_state';
+  requestId: string;
+};
+
+export type PushGetStateResultMessage = {
+  type: 'push_get_state_result';
+  requestId: string;
+  state: MobilePushState;
 };
 
 export type QueryMessage = {
@@ -82,6 +123,12 @@ export type Message =
   | InitResultMessage
   | MutationMessage
   | MutationResultMessage
+  | PushEnableMessage
+  | PushEnableResultMessage
+  | PushDisableMessage
+  | PushDisableResultMessage
+  | PushGetStateMessage
+  | PushGetStateResultMessage
   | QueryMessage
   | QueryResultMessage
   | QueryAndSubscribeMessage
@@ -92,7 +139,7 @@ export type Message =
 
 export type PendingInit = {
   type: 'init';
-  resolve: () => void;
+  resolve: (result: AppInitOutput) => void;
   reject: (error: string) => void;
 };
 
@@ -122,8 +169,32 @@ export type PendingMutation = {
   reject: (error: string) => void;
 };
 
+export type PendingPushEnable = {
+  type: 'push_enable';
+  requestId: string;
+  resolve: (result: boolean) => void;
+  reject: (error: string) => void;
+};
+
+export type PendingPushDisable = {
+  type: 'push_disable';
+  requestId: string;
+  resolve: () => void;
+  reject: (error: string) => void;
+};
+
+export type PendingPushGetState = {
+  type: 'push_get_state';
+  requestId: string;
+  resolve: (result: MobilePushState) => void;
+  reject: (error: string) => void;
+};
+
 export type PendingPromise =
   | PendingInit
   | PendingQuery
   | PendingQueryAndSubscribe
-  | PendingMutation;
+  | PendingMutation
+  | PendingPushEnable
+  | PendingPushDisable
+  | PendingPushGetState;

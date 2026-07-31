@@ -4,13 +4,24 @@ import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus';
 import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { AiButton } from '@colanode/ui/editor/menus/ai-button';
 import { ColorButton } from '@colanode/ui/editor/menus/color-button';
+import { CommentButton } from '@colanode/ui/editor/menus/comment-button';
 import { HighlightButton } from '@colanode/ui/editor/menus/highlight-button';
 import { LinkButton } from '@colanode/ui/editor/menus/link-button';
 import { MarkButton } from '@colanode/ui/editor/menus/mark-button';
 
 interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
   editor: Editor;
+  // Provided only for page documents: creates/opens an inline comment thread
+  // for the current selection. Omitted (e.g. record documents) hides the button.
+  onAddComment?: (threadId: string) => void;
+  // The requesting user's id. When present the "Ask AI" button is shown; it
+  // runs editor AI actions with the user's own configured AI credentials.
+  userId?: string;
+  // The node id of the page being edited. Forwarded to the AI button so the
+  // wiki agent knows which page the request is anchored to.
+  pageId?: string;
 }
 
 export const ToolbarMenu = (props: ToolbarMenuProps) => {
@@ -87,8 +98,19 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
       editor={props.editor}
       shouldShow={shouldShow}
       options={options}
-      className="flex flex-row items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl transition-transform duration-150 ease-out"
+      data-testid="editor-toolbar-menu"
+      className="flex flex-row items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl"
     >
+      {props.userId && (
+        <>
+          <AiButton
+            editor={props.editor}
+            userId={props.userId}
+            pageId={props.pageId}
+          />
+          <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+        </>
+      )}
       <LinkButton
         editor={props.editor}
         isOpen={isLinkButtonOpen}
@@ -102,26 +124,36 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
         isActive={state?.isBoldActive ?? false}
         onClick={() => props.editor?.chain().focus().toggleBold().run()}
         icon={Bold}
+        label="Bold"
+        testId="editor-toolbar-bold"
       />
       <MarkButton
         isActive={state?.isItalicActive ?? false}
         onClick={() => props.editor?.chain().focus().toggleItalic().run()}
         icon={Italic}
+        label="Italic"
+        testId="editor-toolbar-italic"
       />
       <MarkButton
         isActive={state?.isUnderlineActive ?? false}
         onClick={() => props.editor?.chain().focus().toggleUnderline().run()}
         icon={Underline}
+        label="Underline"
+        testId="editor-toolbar-underline"
       />
       <MarkButton
         isActive={state?.isStrikeActive ?? false}
         onClick={() => props.editor?.chain().focus().toggleStrike().run()}
         icon={Strikethrough}
+        label="Strikethrough"
+        testId="editor-toolbar-strikethrough"
       />
       <MarkButton
         isActive={state?.isCodeActive ?? false}
         onClick={() => props.editor?.chain().focus().toggleCode().run()}
         icon={Code}
+        label="Code"
+        testId="editor-toolbar-code"
       />
       <ColorButton
         editor={props.editor}
@@ -141,6 +173,12 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
           setIsLinkButtonOpen(false);
         }}
       />
+      {props.onAddComment && (
+        <CommentButton
+          editor={props.editor}
+          onAddComment={props.onAddComment}
+        />
+      )}
     </BubbleMenu>
   );
 };

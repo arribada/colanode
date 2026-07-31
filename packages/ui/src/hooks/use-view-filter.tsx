@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { LocalNode } from '@colanode/client/types';
 import { DatabaseViewFilterAttributes } from '@colanode/core';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
 import { applyNodeTransaction } from '@colanode/ui/lib/nodes';
 
 interface Input {
@@ -13,6 +14,7 @@ interface Input {
 
 export const useViewFilter = ({ viewId, filterId }: Input) => {
   const workspace = useWorkspace();
+  const scope = useViewScope(viewId);
 
   const mutate = usePacedMutations<
     DatabaseViewFilterAttributes | null,
@@ -41,11 +43,21 @@ export const useViewFilter = ({ viewId, filterId }: Input) => {
   });
 
   const updateFilter = useCallback(
-    (nextFilter: DatabaseViewFilterAttributes) => mutate(nextFilter),
-    [mutate]
+    (nextFilter: DatabaseViewFilterAttributes) => {
+      if (scope.mode === 'personal') {
+        return scope.setFilter(filterId, nextFilter);
+      }
+      return mutate(nextFilter);
+    },
+    [scope, filterId, mutate]
   );
 
-  const removeFilter = useCallback(() => mutate(null), [mutate]);
+  const removeFilter = useCallback(() => {
+    if (scope.mode === 'personal') {
+      return scope.setFilter(filterId, null);
+    }
+    return mutate(null);
+  }, [scope, filterId, mutate]);
 
   return { updateFilter, removeFilter };
 };

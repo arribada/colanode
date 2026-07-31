@@ -25,12 +25,19 @@ export const MessageReactionCountTooltip = ({
 
   return (
     <Tooltip>
-      <TooltipTrigger>{children}</TooltipTrigger>
-      <TooltipContent className="p-2 shadow-md cursor-pointer" onClick={onOpen}>
-        <MessageReactionCountTooltipContent
-          message={message}
-          reactionCount={reactionCount}
-        />
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent className="p-2 shadow-md">
+        <button
+          type="button"
+          aria-label="View who reacted"
+          className="w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+          onClick={onOpen}
+        >
+          <MessageReactionCountTooltipContent
+            message={message}
+            reactionCount={reactionCount}
+          />
+        </button>
       </TooltipContent>
     </Tooltip>
   );

@@ -130,7 +130,8 @@ export const TableViewNameHeader = () => {
           <Separator />
           {database.canEdit && !database.isLocked && (
             <Fragment>
-              <div
+              <button
+                type="button"
                 className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                 onClick={() => {
                   view.initFieldSort(SpecialId.Name, 'asc');
@@ -139,9 +140,10 @@ export const TableViewNameHeader = () => {
               >
                 <ArrowDownAz className="size-4" />
                 <span>Sort ascending</span>
-              </div>
+              </button>
 
-              <div
+              <button
+                type="button"
                 className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
                 onClick={() => {
                   view.initFieldSort(SpecialId.Name, 'desc');
@@ -150,10 +152,11 @@ export const TableViewNameHeader = () => {
               >
                 <ArrowDownZa className="size-4" />
                 <span>Sort descending</span>
-              </div>
+              </button>
             </Fragment>
           )}
-          <div
+          <button
+            type="button"
             className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
             onClick={() => {
               view.initFieldFilter(SpecialId.Name);
@@ -162,7 +165,7 @@ export const TableViewNameHeader = () => {
           >
             <Filter className="size-4" />
             <span>Filter</span>
-          </div>
+          </button>
         </PopoverContent>
       </Popover>
     </Resizable>

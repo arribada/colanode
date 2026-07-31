@@ -1,5 +1,6 @@
 import {
   Cable,
+  Calculator,
   Calendar,
   File,
   Hash,
@@ -8,6 +9,7 @@ import {
   ListChecks,
   Mail,
   ShieldQuestion,
+  Sigma,
   Smartphone,
   SquareCheck,
   Text,
@@ -37,6 +39,8 @@ export const FieldIcon = ({ type, className }: FieldIconProps) => {
       return <Mail className={className} />;
     case 'file':
       return <File className={className} />;
+    case 'formula':
+      return <Calculator className={className} />;
     case 'multi_select':
       return <ListChecks className={className} />;
     case 'number':
@@ -47,6 +51,8 @@ export const FieldIcon = ({ type, className }: FieldIconProps) => {
       return <ListCheck className={className} />;
     case 'relation':
       return <Cable className={className} />;
+    case 'rollup':
+      return <Sigma className={className} />;
     case 'text':
       return <Text className={className} />;
     case 'url':

@@ -71,6 +71,7 @@ export const ViewPhoneFieldFilter = ({
           variant="outline"
           size="sm"
           className="border-dashed text-xs text-muted-foreground"
+          data-testid={`view-filter-chip-${filter.id}`}
         >
           {field.name}
         </Button>
@@ -83,10 +84,13 @@ export const ViewPhoneFieldFilter = ({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent">
+              <button
+                type="button"
+                className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent"
+              >
                 <p>{operator.label}</p>
                 <ChevronDown className="size-4 text-muted-foreground" />
-              </div>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {phoneFieldFilterOperators.map((operator) => (
@@ -109,13 +113,20 @@ export const ViewPhoneFieldFilter = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={removeFilter}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={removeFilter}
+            aria-label={`Remove ${field.name} filter`}
+            data-testid={`view-filter-remove-${filter.id}`}
+          >
             <Trash2 className="size-4" />
           </Button>
         </div>
         {!hideInput && (
           <Input
             value={phoneValue ?? ''}
+            aria-label={`${field.name} filter value`}
             onChange={(e) => {
               const value = e.target.value;
               updateFilter({

@@ -103,6 +103,7 @@ export const ViewRelationFieldFilter = ({
           variant="outline"
           size="sm"
           className="border-dashed text-xs text-muted-foreground"
+          data-testid={`view-filter-chip-${filter.id}`}
         >
           {field.name}
         </Button>
@@ -115,10 +116,13 @@ export const ViewRelationFieldFilter = ({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent">
+              <button
+                type="button"
+                className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent"
+              >
                 <p>{operator.label}</p>
                 <ChevronDown className="size-4 text-muted-foreground" />
-              </div>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {relationFieldFilterOperators.map((operator) => (
@@ -141,14 +145,23 @@ export const ViewRelationFieldFilter = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={removeFilter}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={removeFilter}
+            aria-label={`Remove ${field.name} filter`}
+            data-testid={`view-filter-remove-${filter.id}`}
+          >
             <Trash2 className="size-4" />
           </Button>
         </div>
         {!hideInput && (
           <Popover>
             <PopoverTrigger asChild>
-              <div className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2">
+              <button
+                type="button"
+                className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2"
+              >
                 {relations.slice(0, 1).map((relation) => (
                   <RelationBadge key={relation.id} record={relation} />
                 ))}
@@ -165,7 +178,7 @@ export const ViewRelationFieldFilter = ({
                     +{relations.length - 1}
                   </Badge>
                 )}
-              </div>
+              </button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-1">
               {relations.length > 0 && (
@@ -176,8 +189,11 @@ export const ViewRelationFieldFilter = ({
                       className="flex w-full flex-row items-center gap-2"
                     >
                       <RelationBadge record={relation} />
-                      <X
-                        className="size-4 cursor-pointer"
+                      <button
+                        type="button"
+                        className="cursor-pointer"
+                        aria-label={`Remove ${relation.name ?? 'Unnamed'}`}
+                        data-testid={`view-filter-relation-remove-${relation.id}`}
                         onClick={() => {
                           const newRelations = relationIds.filter(
                             (id) => id !== relation.id
@@ -188,7 +204,9 @@ export const ViewRelationFieldFilter = ({
                             value: newRelations,
                           });
                         }}
-                      />
+                      >
+                        <X className="size-4" />
+                      </button>
                     </div>
                   ))}
                   <Separator className="w-full my-2" />

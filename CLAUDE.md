@@ -432,3 +432,7 @@ All mutations are optimistic:
 - **CRDT Limitations:** Not all data types use CRDTs (e.g., messages and files use simpler database tables).
 - **Mobile App:** The `apps/mobile` is experimental and not production-ready.
 - **Performance:** For large workspaces, synchronizers per root node can cause memory pressure. Monitor closely.
+
+## Conventions
+
+**Notifications:** when adding a feature, decide whether it should emit notifications. If yes, attach a producer for its event(s) to `apps/server/src/services/notification-service.ts` (subscribe to the relevant `eventBus` event → `createNotification(...)`), and add the new `type` to the `SyncNotificationData['notificationType']` union and the settings list.

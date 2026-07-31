@@ -2,6 +2,9 @@ import { Lock, LockOpen, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
+import { ViewCsvActions } from '@colanode/ui/components/databases/view-csv-actions';
+import { ViewConditionalColorSettings } from '@colanode/ui/components/databases/view-conditional-color-settings';
+import { ViewCopyLinkAction } from '@colanode/ui/components/databases/view-copy-link-action';
 import { ViewFieldSettings } from '@colanode/ui/components/databases/view-field-settings';
 import { ViewRenameInput } from '@colanode/ui/components/databases/view-rename-input';
 import { ViewSettingsButton } from '@colanode/ui/components/databases/view-settings-button';
@@ -45,13 +48,20 @@ export const BoardViewSettings = () => {
           </div>
           <Separator />
           <ViewFieldSettings />
+          <Separator />
+          <ViewConditionalColorSettings />
+          <Separator />
+          <ViewCopyLinkAction closeMenu={() => setOpen(false)} />
+          <Separator />
+          <ViewCsvActions closeMenu={() => setOpen(false)} />
           {database.canEdit && (
             <Fragment>
               <Separator />
               <div className="flex flex-col gap-2 text-sm">
                 <p className="my-1 font-semibold">Settings</p>
-                <div
-                  className="flex cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 hover:bg-accent"
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"
                   onClick={() => {
                     database.toggleLock();
                   }}
@@ -64,10 +74,11 @@ export const BoardViewSettings = () => {
                   <span>
                     {database.isLocked ? 'Unlock database' : 'Lock database'}
                   </span>
-                </div>
+                </button>
                 {!database.isLocked && (
-                  <div
-                    className="flex cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 hover:bg-accent"
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"
                     onClick={() => {
                       setOpenDelete(true);
                       setOpen(false);
@@ -75,7 +86,7 @@ export const BoardViewSettings = () => {
                   >
                     <Trash2 className="size-4" />
                     <span>Delete view</span>
-                  </div>
+                  </button>
                 )}
               </div>
             </Fragment>

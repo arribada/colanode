@@ -15,22 +15,27 @@ export const RecordDateValue = ({ field, readOnly }: RecordDateValueProps) => {
   });
 
   return (
-    <DatePicker
-      value={value ? new Date(value.value) : null}
-      readonly={!record.canEdit || readOnly}
-      onChange={(newValue) => {
-        if (!record.canEdit || readOnly) return;
+    <div
+      data-testid={`record-date-value-${field.id}`}
+      className="h-full w-full"
+    >
+      <DatePicker
+        value={value ? new Date(value.value) : null}
+        readonly={!record.canEdit || readOnly}
+        onChange={(newValue) => {
+          if (!record.canEdit || readOnly) return;
 
-        if (newValue === null || newValue === undefined) {
-          clearValue();
-        } else {
-          setValue({
-            type: 'string',
-            value: newValue.toISOString(),
-          });
-        }
-      }}
-      className="flex h-full w-full cursor-pointer flex-row items-center gap-1 border-none text-sm focus-visible:cursor-text p-0"
-    />
+          if (newValue === null || newValue === undefined) {
+            clearValue();
+          } else {
+            setValue({
+              type: 'string',
+              value: newValue.toISOString(),
+            });
+          }
+        }}
+        className="flex h-full w-full cursor-pointer flex-row items-center gap-1 border-none text-sm focus-visible:cursor-text p-0"
+      />
+    </div>
   );
 };

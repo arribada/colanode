@@ -34,6 +34,7 @@ export const WorkspaceDelete = () => {
         <div className="shrink-0">
           <Button
             variant="destructive"
+            data-testid="workspace-delete-trigger"
             onClick={() => {
               setShowDeleteModal(true);
             }}
@@ -55,10 +56,13 @@ export const WorkspaceDelete = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="workspace-delete-cancel">
+              Cancel
+            </AlertDialogCancel>
             <Button
               variant="destructive"
               disabled={isPending}
+              data-testid="workspace-delete-confirm"
               onClick={() => {
                 mutate({
                   input: {

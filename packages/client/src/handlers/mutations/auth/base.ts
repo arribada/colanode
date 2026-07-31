@@ -32,6 +32,14 @@ export abstract class AuthMutationHandlerBase {
             avatar: login.account.avatar,
             created_at: new Date().toISOString(),
           })
+          .onConflict((oc) =>
+            oc.columns(['id']).doUpdateSet({
+              name: login.account.name,
+              token: login.token,
+              avatar: login.account.avatar,
+              updated_at: new Date().toISOString(),
+            })
+          )
           .executeTakeFirst();
 
         if (!createdAccount) {
@@ -59,6 +67,7 @@ export abstract class AuthMutationHandlerBase {
                 created_at: new Date().toISOString(),
                 status: workspace.status,
               })
+              .onConflict((oc) => oc.columns(['user_id']).doNothing())
               .executeTakeFirst();
 
             if (createdWorkspace) {

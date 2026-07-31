@@ -1,0 +1,67 @@
+feature: issue-10-sidebar-settings-label-typo
+description: >
+  Reproduces GitHub issue #10 — the sidebar settings entry is misspelled.
+  The settings control in the left icon rail is an icon-only <button> whose
+  accessible name comes from its aria-label. On the buggy build that label is
+  "Setings??" (packages/ui/src/components/layouts/sidebars/sidebar-menu.tsx:97),
+  so no control with the accessible name "Settings" exists. This scenario seeds a
+  fresh account in-flow (empty DB), lands on the workspace home, and asserts the
+  correctly-spelled "Settings" button is present. It FAILS on the buggy build
+  (AR: correct label absent) and would PASS once the typo is fixed.
+
+environment:
+  kind: staging
+  base_url: "__BT_BASE_URL__"
+  auth:
+    strategy: none
+
+scenarios:
+  - id: sidebar-settings-label-spelled-correctly
+    ref: issue-10
+    # Start at the register route; a fresh context has no account so the auth
+    # flow shows the pre-configured server list first, then the register form.
+    url: /auth/register
+    entry_sequence:
+      # 1) Select the web build's own pre-configured server.
+      - click: { text: "Colanode Staging" }
+      - wait: { text: "Create an account", timeout_ms: 10000 }
+      # 2) Seed a fresh account (in-flow). Values set via the native value setter
+      #    + input/change events so the TanStack-Form controlled inputs register
+      #    them (verified live in Mode A — plain fill() left stale state on some
+      #    controlled inputs).
+      - evaluate:
+          js: |
+            (() => {
+              const set = (sel, val) => {
+                const el = document.querySelector(sel);
+                if (!el) throw new Error('missing ' + sel);
+                const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+                d.set.call(el, val);
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+              };
+              set('[data-testid=register-name-input]', 'BT Issue10');
+              set('[data-testid=register-email-input]', 'bt-issue10@bt.local');
+              set('[data-testid=register-password-input]', 'Bt-10-pass1');
+              set('[data-testid=register-confirm-password-input]', 'Bt-10-pass1');
+              return 'seeded';
+            })()
+      # 3) Submit registration → automatic verification → workspace auto-provisioned
+      #    → lands on the workspace home with the sidebar rendered.
+      - click: { test_id: register-submit-button }
+      - wait: { text: "What did you get done this week?", timeout_ms: 20000 }
+    actions: []
+    assertions:
+      # The defect: a correctly-spelled "Settings" button must exist. On the buggy
+      # build getByRole('button', {name:'Settings'}) matches nothing → AR FAIL.
+      # (Deliberately no assertion pinning the misspelled "Setings??" name here —
+      # that was only true pre-fix; asserting it would make this regression lock-in
+      # manifest permanently unable to pass once the label is corrected.)
+      - oracle: action-result
+        description: the sidebar settings button must read "Settings" (correct spelling)
+        effect:
+          any_of:
+            - element_visible: { role: button, name: "Settings" }
+        timeout_ms: 5000
+    evidence:
+      screenshot_on_fail: true

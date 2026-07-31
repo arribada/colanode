@@ -56,7 +56,11 @@ export const RecordMultiSelectValue = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="flex h-full w-full cursor-pointer flex-wrap gap-1 p-0">
+        <button
+          type="button"
+          aria-label={field.name}
+          className="flex h-full w-full cursor-pointer flex-wrap gap-1 p-0 text-left"
+        >
           {selectedOptions?.map((option) => (
             <SelectOptionBadge
               key={option.id}
@@ -65,7 +69,7 @@ export const RecordMultiSelectValue = ({
             />
           ))}
           {selectedOptions?.length === 0 && ' '}
-        </div>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-1">
         <SelectFieldOptions

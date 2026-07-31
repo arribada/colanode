@@ -6,6 +6,7 @@ export type MessageCreateMutationInput = {
   parentId: string;
   content: JSONContent;
   referenceId?: string;
+  anchorId?: string;
 };
 
 export type MessageCreateMutationOutput = {

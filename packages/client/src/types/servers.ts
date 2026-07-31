@@ -3,6 +3,11 @@ export type ServerAccountAttributes = {
     enabled: boolean;
     clientId: string;
   };
+  oidc?: {
+    enabled: boolean;
+    authorizeUrl?: string;
+    buttonLabel?: string;
+  };
 };
 
 export type ServerAttributes = {
@@ -10,6 +15,8 @@ export type ServerAttributes = {
   insecure?: boolean;
   account?: ServerAccountAttributes;
   sha?: string | null;
+  push?: { enabled: boolean; publicKey?: string };
+  apns?: { enabled: boolean; bundleId?: string };
 };
 
 export type ServerState = {

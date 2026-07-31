@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "MCP",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@colanode/agent-tools/*": ["../../packages/agent-tools/src/*"],
+      "@colanode/mcp/*": ["src/*"],
+      "@colanode/core/*": ["../../packages/core/src/*"],
+      "@colanode/crdt/*": ["../../packages/crdt/src/*"],
+      "@colanode/client/*": ["../../packages/client/src/*"]
+    }
+  },
+  "references": [
+    { "path": "../../packages/agent-tools/tsconfig.json" },
+    { "path": "../../packages/core/tsconfig.json" },
+    { "path": "../../packages/crdt/tsconfig.json" },
+    { "path": "../../packages/client/tsconfig.json" },
+    { "path": "../../packages/client-node/tsconfig.json" }
+  ],
+  "include": ["src/**/*.ts"]
+}

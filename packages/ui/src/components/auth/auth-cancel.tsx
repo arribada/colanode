@@ -30,6 +30,8 @@ export const AuthCancel = () => {
       size="icon"
       className="absolute left-5 top-5"
       type="button"
+      aria-label="Back to workspace"
+      data-testid="auth-cancel-button"
       onClick={() => {
         const defaultWorkspaceUserId = getDefaultWorkspaceUserId();
         if (!defaultWorkspaceUserId) {

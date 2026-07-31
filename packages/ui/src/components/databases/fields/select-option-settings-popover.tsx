@@ -115,13 +115,18 @@ export const SelectOptionSettingsPopover = ({
         open={openSetttingsPopover}
         onOpenChange={setOpenSetttingsPopover}
       >
-        <PopoverTrigger className="flex cursor-pointer items-center justify-center">
+        <PopoverTrigger
+          className="flex cursor-pointer items-center justify-center"
+          aria-label={`${option.name} settings`}
+          data-testid={`select-option-settings-${option.id}`}
+        >
           <Ellipsis className="size-4" />
         </PopoverTrigger>
         <PopoverContent className="ml-1 flex w-72 flex-col gap-1 p-2 text-sm">
           <div className="p-1">
             <Input
               value={option.name}
+              aria-label="Option name"
               onChange={(event) => {
                 const newName = event.target.value;
                 if (newName === option.name) return;
@@ -134,8 +139,9 @@ export const SelectOptionSettingsPopover = ({
           <Label>Color</Label>
           {selectOptionColors.map((color) => {
             return (
-              <div
+              <button
                 key={color.value}
+                type="button"
                 className="flex cursor-pointer flex-row items-center gap-2 rounded-md p-1 hover:bg-accent"
                 onClick={() => {
                   mutateColor(color.value);
@@ -143,11 +149,12 @@ export const SelectOptionSettingsPopover = ({
               >
                 <span className={cn('h-4 w-4 rounded-md', color.class)} />
                 <span>{color.label}</span>
-              </div>
+              </button>
             );
           })}
           <Separator className="my-1" />
-          <div
+          <button
+            type="button"
             className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-md"
             onClick={() => {
               setOpenDeleteDialog(true);
@@ -156,7 +163,7 @@ export const SelectOptionSettingsPopover = ({
           >
             <Trash2 className="size-4" />
             <span>Delete option</span>
-          </div>
+          </button>
         </PopoverContent>
       </Popover>
       <SelectOptionDeleteDialog

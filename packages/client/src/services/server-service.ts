@@ -100,17 +100,43 @@ export class ServerService {
   public async sync(): Promise<boolean> {
     const config = await ServerService.fetchServerConfig(this.configUrl);
     if (config) {
+      // Google and OIDC are independent providers — a server can have
+      // either, both, or neither enabled, so the presence of `account`
+      // (and each provider's key within it) must not be coupled to any
+      // single provider's `enabled` flag.
+      const googleConfig = config.account?.google;
+      const oidcConfig = config.account?.oidc;
+      const googleEnabled = googleConfig?.enabled ?? false;
+      const oidcEnabled = oidcConfig?.enabled ?? false;
+
       const attributes: ServerAttributes = {
         ...this.attributes,
         sha: config.sha,
-        account: config.account?.google.enabled
-          ? {
-              google: {
-                enabled: config.account.google.enabled,
-                clientId: config.account.google.clientId,
-              },
-            }
-          : undefined,
+        account:
+          googleEnabled || oidcEnabled
+            ? {
+                google:
+                  googleEnabled && googleConfig?.enabled
+                    ? { enabled: true, clientId: googleConfig.clientId }
+                    : { enabled: false, clientId: '' },
+                oidc:
+                  oidcEnabled && oidcConfig?.enabled
+                    ? {
+                        enabled: true,
+                        authorizeUrl: oidcConfig.authorizeUrl,
+                        buttonLabel: oidcConfig.buttonLabel,
+                      }
+                    : { enabled: false },
+              }
+            : undefined,
+        push:
+          config.push && config.push.enabled
+            ? { enabled: true, publicKey: config.push.publicKey }
+            : { enabled: false },
+        apns:
+          config.apns && config.apns.enabled
+            ? { enabled: true, bundleId: config.apns.bundleId }
+            : { enabled: false },
       };
 
       this.attributes = attributes;

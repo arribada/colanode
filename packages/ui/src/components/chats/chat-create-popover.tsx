@@ -22,7 +22,14 @@ export const ChatCreatePopover = () => {
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
-        <SquarePen className="size-4 cursor-pointer" />
+        <button
+          type="button"
+          aria-label="New chat"
+          data-testid="chat-create-button"
+          className="flex items-center justify-center cursor-pointer"
+        >
+          <SquarePen className="size-4" />
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-1">
         <UserSearch

@@ -19,6 +19,7 @@ export const RecordEmailValue = ({
 
   return (
     <Input
+      aria-label={field.name}
       value={value?.value ?? ''}
       readOnly={!record.canEdit || readOnly}
       onChange={(e) => {

@@ -1,6 +1,6 @@
 import { generateKeyBetween } from 'fractional-indexing-jittered';
 
-import { Node, NodeAttributes, NodeRole } from '@colanode/core';
+import { Node, NodeAttributes, NodeRole, NodeType } from '@colanode/core';
 
 export const extractNodeCollaborators = (
   attributes: NodeAttributes | NodeAttributes[]
@@ -54,6 +54,30 @@ export const extractNodeRole = (
   return role;
 };
 
+// Returns true when the node-level collaborators record differs between two
+// attribute snapshots. Used by node models to require admin role for
+// permission changes while keeping regular edits at editor level.
+export const haveNodeCollaboratorsChanged = (
+  before: Node | NodeAttributes,
+  after: Node | NodeAttributes
+): boolean => {
+  const beforeCollaborators = extractNodeCollaborators(before);
+  const afterCollaborators = extractNodeCollaborators(after);
+
+  const beforeEntries = Object.entries(beforeCollaborators);
+  if (beforeEntries.length !== Object.keys(afterCollaborators).length) {
+    return true;
+  }
+
+  for (const [collaboratorId, role] of beforeEntries) {
+    if (afterCollaborators[collaboratorId] !== role) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const generateFractionalIndex = (
   previous?: string | null,
   next?: string | null
@@ -62,4 +86,49 @@ export const generateFractionalIndex = (
   const upper = next === undefined ? null : next;
 
   return generateKeyBetween(lower, upper);
+};
+
+// Node types that support soft delete (trash). Deleting them from the UI sets
+// a deletedAt/deletedBy attribute (synced as a normal update); a hard
+// node.delete only happens from the trash ("Delete forever") or for the
+// remaining types (space, channel, chat, message, database_view).
+export const softDeletableNodeTypes: NodeType[] = [
+  'page',
+  'folder',
+  'database',
+  'record',
+  'file',
+  'whiteboard',
+];
+
+export const isSoftDeletableNodeType = (type: NodeType): boolean => {
+  return softDeletableNodeTypes.includes(type);
+};
+
+export const isNodeTrashed = (
+  node: Node | NodeAttributes | { deletedAt?: string | null }
+): boolean => {
+  return (
+    'deletedAt' in node &&
+    typeof node.deletedAt === 'string' &&
+    node.deletedAt.length > 0
+  );
+};
+
+// Node types that support templates. Saving a record/page as a template
+// deep-copies it into a new node of the same type with isTemplate set; the
+// source node is left untouched. Template nodes are hidden from the shared
+// browsing collection (see notTemplateSql in @colanode/client) and are only
+// listed through the dedicated record.template.list / page.template.list
+// queries and "New from template" menus.
+export const templatableNodeTypes: NodeType[] = ['page', 'record'];
+
+export const isTemplatableNodeType = (type: NodeType): boolean => {
+  return templatableNodeTypes.includes(type);
+};
+
+export const isNodeTemplate = (
+  node: Node | NodeAttributes | { isTemplate?: boolean | null }
+): boolean => {
+  return 'isTemplate' in node && node.isTemplate === true;
 };

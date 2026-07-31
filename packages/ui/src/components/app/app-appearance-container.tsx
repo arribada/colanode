@@ -2,6 +2,8 @@ import { Check, Laptop, Moon, Sun } from 'lucide-react';
 
 import { ThemeColor, ThemeMode } from '@colanode/client/types';
 import { AppAppearanceBreadcrumb } from '@colanode/ui/components/app/app-appearance-breadcrumb';
+import { AppChatSettings } from '@colanode/ui/components/app/app-chat-settings';
+import { AppNotificationSettings } from '@colanode/ui/components/app/app-notification-settings';
 import { Container } from '@colanode/ui/components/layouts/containers/container';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Separator } from '@colanode/ui/components/ui/separator';
@@ -40,14 +42,12 @@ const themeModeOptions: ThemeModeOption[] = [
   },
 ];
 
+// Arribada teal is the branded default; a small set of alternates remains
+// selectable (their token definitions are kept intact in themes.ts).
 const themeColorOptions = [
-  { value: 'default', label: 'Default', color: 'oklch(0.205 0 0)' },
+  { value: 'default', label: 'Arribada', color: '#1de9b6' },
   { value: 'blue', label: 'Blue', color: 'oklch(0.623 0.214 259.815)' },
-  { value: 'red', label: 'Red', color: 'oklch(0.637 0.237 25.331)' },
-  { value: 'rose', label: 'Rose', color: 'oklch(0.645 0.246 16.439)' },
   { value: 'orange', label: 'Orange', color: 'oklch(0.705 0.213 47.604)' },
-  { value: 'green', label: 'Green', color: 'oklch(0.723 0.219 149.579)' },
-  { value: 'yellow', label: 'Yellow', color: 'oklch(0.795 0.184 86.047)' },
   { value: 'violet', label: 'Violet', color: 'oklch(0.606 0.25 292.717)' },
 ];
 
@@ -73,6 +73,7 @@ export const AppAppearanceContainer = () => {
               <Button
                 key={option.key}
                 variant="outline"
+                aria-pressed={isActive}
                 onClick={() => {
                   setThemeMode(option.value ?? undefined);
                 }}
@@ -107,6 +108,7 @@ export const AppAppearanceContainer = () => {
               <Button
                 key={option.value}
                 variant="outline"
+                aria-pressed={isActive}
                 onClick={() => {
                   if (isDefault) {
                     setThemeColor(undefined);
@@ -132,6 +134,10 @@ export const AppAppearanceContainer = () => {
             );
           })}
         </div>
+
+        <AppChatSettings />
+
+        <AppNotificationSettings />
       </div>
     </Container>
   );

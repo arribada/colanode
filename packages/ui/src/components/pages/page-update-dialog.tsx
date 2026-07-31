@@ -61,6 +61,7 @@ export const PageUpdateDialog = ({
             avatar: page.avatar,
           }}
           submitText="Update"
+          testId="page-update-submit"
           readOnly={!canEdit}
           onCancel={() => {
             onOpenChange(false);

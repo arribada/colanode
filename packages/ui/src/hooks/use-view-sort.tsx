@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { LocalNode } from '@colanode/client/types';
 import { DatabaseViewSortAttributes } from '@colanode/core';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
 import { applyNodeTransaction } from '@colanode/ui/lib/nodes';
 
 interface Options {
@@ -13,6 +14,7 @@ interface Options {
 
 export const useViewSort = ({ viewId, sortId }: Options) => {
   const workspace = useWorkspace();
+  const scope = useViewScope(viewId);
 
   const mutate = usePacedMutations<DatabaseViewSortAttributes | null, LocalNode>(
     {
@@ -40,11 +42,21 @@ export const useViewSort = ({ viewId, sortId }: Options) => {
   );
 
   const updateSort = useCallback(
-    (nextSort: DatabaseViewSortAttributes) => mutate(nextSort),
-    [mutate]
+    (nextSort: DatabaseViewSortAttributes) => {
+      if (scope.mode === 'personal') {
+        return scope.setSort(sortId, nextSort);
+      }
+      return mutate(nextSort);
+    },
+    [scope, sortId, mutate]
   );
 
-  const removeSort = useCallback(() => mutate(null), [mutate]);
+  const removeSort = useCallback(() => {
+    if (scope.mode === 'personal') {
+      return scope.setSort(sortId, null);
+    }
+    return mutate(null);
+  }, [scope, sortId, mutate]);
 
   return { updateSort, removeSort };
 };

@@ -60,6 +60,7 @@ export const PasswordResetInitForm = ({
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={isInvalid}
                 placeholder="hi@example.com"
+                data-testid="reset-init-email-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -71,6 +72,7 @@ export const PasswordResetInitForm = ({
         variant="outline"
         className="w-full"
         disabled={isPending}
+        data-testid="reset-init-submit-button"
       >
         {isPending ? (
           <Spinner className="mr-1 size-4" />

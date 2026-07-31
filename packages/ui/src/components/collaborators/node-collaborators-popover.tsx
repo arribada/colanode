@@ -22,7 +22,14 @@ export const NodeCollaboratorsPopover = ({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <UserRoundPlus className="size-5 cursor-pointer text-muted-foreground hover:text-foreground" />
+        <button
+          type="button"
+          className="cursor-pointer text-muted-foreground hover:text-foreground"
+          aria-label="Add collaborators"
+          data-testid="collaborators-add-button"
+        >
+          <UserRoundPlus className="size-5" />
+        </button>
       </PopoverTrigger>
       <PopoverContent className="mr-2 max-h-128 w-lg overflow-auto">
         <NodeCollaborators node={node} nodes={nodes} role={role} />

@@ -8,7 +8,11 @@ import {
   generateId,
   IdType,
 } from '@colanode/core';
+import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
+import { createLogger } from '@colanode/server/lib/logger';
 import { storage } from '@colanode/server/lib/storage';
+
+const logger = createLogger('api:client:avatars:avatar-upload');
 
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
@@ -71,7 +75,11 @@ export const avatarUploadRoute: FastifyPluginCallbackZod = (
         await storage.upload(`avatars/${avatarId}.jpeg`, jpegBuffer, 'image/jpeg');
 
         return { success: true, id: avatarId };
-      } catch {
+      } catch (error) {
+        logger.error(
+          toSafeLogFields(error),
+          `Failed to process/upload avatar (content-type: ${request.headers['content-type']})`
+        );
         return reply.code(500).send({
           code: ApiErrorCode.AvatarUploadFailed,
           message: 'Failed to upload avatar',

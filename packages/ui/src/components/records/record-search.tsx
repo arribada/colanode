@@ -56,6 +56,7 @@ export const RecordSearch = ({
               {recordSearchQuery.data?.map((record) => (
                 <CommandItem
                   key={record.id}
+                  data-testid={`record-search-item-${record.id}`}
                   onSelect={() => {
                     onSelect(record);
                     setQuery('');

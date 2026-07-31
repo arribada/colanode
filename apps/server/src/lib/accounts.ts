@@ -3,6 +3,7 @@ import ms from 'ms';
 
 import {
   IdType,
+  AccountStatus,
   UserStatus,
   WorkspaceRole,
   WorkspaceOutput,
@@ -36,6 +37,42 @@ import {
   AccountVerifyOtpAttributes,
   AccountPasswordResetOtpAttributes,
 } from '@colanode/server/types/otps';
+
+/**
+ * Shared `accounts` table insert — canonical (src-side) home so both
+ * production code (the dev-gated `/test/seed` route) and test fixtures
+ * (`test/helpers/seed.ts`'s `createAccount`) write the exact same row
+ * shape from a single definition. Tests import this from src; src never
+ * imports from test.
+ */
+export const insertAccount = async (input: {
+  email: string;
+  name: string;
+  status: AccountStatus;
+  passwordHash: string | null;
+}): Promise<SelectAccount> => {
+  const account = await database
+    .insertInto('accounts')
+    .returningAll()
+    .values({
+      id: generateId(IdType.Account),
+      name: input.name,
+      email: input.email,
+      avatar: null,
+      password: input.passwordHash,
+      attributes: null,
+      created_at: new Date(),
+      updated_at: null,
+      status: input.status,
+    })
+    .executeTakeFirst();
+
+  if (!account) {
+    throw new Error('Failed to create account.');
+  }
+
+  return account;
+};
 
 export const generatePasswordHash = async (
   password: string

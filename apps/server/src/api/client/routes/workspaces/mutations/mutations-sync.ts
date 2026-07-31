@@ -8,7 +8,13 @@ import {
   ApiErrorCode,
   WorkspaceStatus,
 } from '@colanode/core';
+import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
+import {
+  createApnsSubscription,
+  deleteApnsSubscription,
+} from '@colanode/server/lib/apns-subscriptions';
 import { updateDocumentFromMutation } from '@colanode/server/lib/documents';
+import { createLogger } from '@colanode/server/lib/logger';
 import {
   markNodeAsOpened,
   markNodeAsSeen,
@@ -22,7 +28,15 @@ import {
   updateNodeFromMutation,
   deleteNodeFromMutation,
 } from '@colanode/server/lib/nodes';
+import { setNotificationMute } from '@colanode/server/lib/notification-mutes';
+import { markNotificationRead } from '@colanode/server/lib/notifications';
+import {
+  createPushSubscription,
+  deletePushSubscription,
+} from '@colanode/server/lib/push-subscriptions';
 import { WorkspaceContext } from '@colanode/server/types/api';
+
+const logger = createLogger('api:client:workspaces:mutations-sync');
 
 export const mutationsSyncRoute: FastifyPluginCallbackZod = (
   instance,
@@ -54,7 +68,11 @@ export const mutationsSyncRoute: FastifyPluginCallbackZod = (
             id: mutation.id,
             status: status,
           });
-        } catch {
+        } catch (error) {
+          logger.error(
+            toSafeLogFields(error),
+            `Failed to apply mutation ${mutation.id} (type: ${mutation.type}) for workspace ${workspace.id}`
+          );
           results.push({
             id: mutation.id,
             status: MutationStatus.INTERNAL_SERVER_ERROR,
@@ -89,6 +107,18 @@ const handleMutation = async (
     return await markNodeAsOpened(workspace, mutation);
   } else if (mutation.type === 'document.update') {
     return await updateDocumentFromMutation(workspace, mutation.data);
+  } else if (mutation.type === 'notification.read') {
+    return await markNotificationRead(workspace, mutation);
+  } else if (mutation.type === 'pushSubscription.create') {
+    return await createPushSubscription(workspace, mutation);
+  } else if (mutation.type === 'pushSubscription.delete') {
+    return await deletePushSubscription(workspace, mutation);
+  } else if (mutation.type === 'apnsSubscription.create') {
+    return await createApnsSubscription(workspace, mutation);
+  } else if (mutation.type === 'apnsSubscription.delete') {
+    return await deleteApnsSubscription(workspace, mutation);
+  } else if (mutation.type === 'mute.set') {
+    return await setNotificationMute(workspace, mutation);
   } else {
     return MutationStatus.METHOD_NOT_ALLOWED;
   }

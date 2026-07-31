@@ -2,6 +2,8 @@ import { WebSocket } from 'ws';
 
 import {
   Message,
+  PresenceLeaveMessage,
+  PresenceUpdateMessage,
   SynchronizerInput,
   SynchronizerInputMessage,
   UserStatus,
@@ -15,6 +17,8 @@ import { NodeInteractionSynchronizer } from '@colanode/server/synchronizers/node
 import { NodeReactionSynchronizer } from '@colanode/server/synchronizers/node-reactions';
 import { NodeTombstoneSynchronizer } from '@colanode/server/synchronizers/node-tombstones';
 import { NodeUpdatesSynchronizer } from '@colanode/server/synchronizers/node-updates';
+import { NotificationMuteSynchronizer } from '@colanode/server/synchronizers/notification-mutes';
+import { NotificationSynchronizer } from '@colanode/server/synchronizers/notifications';
 import { UserSynchronizer } from '@colanode/server/synchronizers/users';
 import {
   AccountUpdatedEvent,
@@ -35,6 +39,42 @@ type SocketUser = {
   synchronizers: Map<string, BaseSynchronizer<SynchronizerInput>>;
 };
 
+// Ephemeral presence relayed from this connection to sibling connections.
+// Tracked so that, when the socket drops, we can broadcast a matching leave.
+type PublishedPresence = {
+  userId: string;
+  workspaceId: string;
+  rootId: string;
+  nodeId: string;
+  kind: PresenceUpdateMessage['presence']['kind'];
+};
+
+type PresenceRelayMessage = PresenceUpdateMessage | PresenceLeaveMessage;
+
+/**
+ * A connection should receive a presence message only when at least one of its
+ * authenticated users is a collaborator of the presence's root. This is the
+ * same authorization used for node/document synchronizers, applied to the
+ * ephemeral relay. Exported so the authorization can be unit-tested without a
+ * live socket or database.
+ */
+export const canRelayPresenceToConnection = (
+  users: Iterable<{ rootIds: Set<string> }>,
+  rootId: string
+): boolean => {
+  for (const user of users) {
+    if (user.rootIds.has(rootId)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+export type PresenceBroadcaster = (
+  originDeviceId: string,
+  message: PresenceRelayMessage
+) => void;
+
 const logger = createLogger('server:service:socket-connection');
 
 export class SocketConnection {
@@ -45,11 +85,23 @@ export class SocketConnection {
   private readonly pendingUsers: Map<string, Promise<SocketUser | null>> =
     new Map();
 
-  constructor(context: SocketContext, socket: WebSocket, onClose: () => void) {
+  // Presence this connection has announced, keyed by `${userId}:${nodeId}:${kind}`,
+  // so a leave can be broadcast for each when the socket closes.
+  private readonly publishedPresence: Map<string, PublishedPresence> =
+    new Map();
+  private readonly broadcastPresence: PresenceBroadcaster;
+
+  constructor(
+    context: SocketContext,
+    socket: WebSocket,
+    onClose: () => void,
+    broadcastPresence: PresenceBroadcaster = () => {}
+  ) {
     logger.debug(context, 'New socket connection');
 
     this.context = context;
     this.socket = socket;
+    this.broadcastPresence = broadcastPresence;
 
     this.socket.on('message', (data) => {
       const message = JSON.parse(data.toString()) as Message;
@@ -59,6 +111,7 @@ export class SocketConnection {
     this.socket.on('close', () => {
       logger.debug(this.context, 'Socket connection closed');
 
+      this.broadcastPresenceLeaveOnClose();
       onClose();
     });
   }
@@ -90,7 +143,103 @@ export class SocketConnection {
 
     if (message.type === 'synchronizer.input') {
       this.handleSynchronizerInput(message);
+    } else if (message.type === 'presence.update') {
+      this.handlePresenceUpdate(message);
+    } else if (message.type === 'presence.leave') {
+      this.handlePresenceLeave(message);
     }
+  }
+
+  /**
+   * A client published its ephemeral presence. Authorize it (the user must be a
+   * collaborator of the presence's root), stamp the authoritative device id and
+   * relay it to every other connection that shares the root. Never persisted.
+   */
+  private async handlePresenceUpdate(message: PresenceUpdateMessage) {
+    const presence = message.presence;
+    const user = await this.getOrCreateUser(presence.userId);
+    if (user === null) {
+      return;
+    }
+
+    // The publisher can only announce presence in a root they collaborate on.
+    if (!user.rootIds.has(presence.rootId)) {
+      return;
+    }
+
+    // Authoritative device id (prevents a client from spoofing another device).
+    const relayed: PresenceUpdateMessage = {
+      type: 'presence.update',
+      presence: {
+        ...presence,
+        deviceId: this.context.deviceId,
+      },
+    };
+
+    const key = `${presence.userId}:${presence.nodeId}:${presence.kind}`;
+    this.publishedPresence.set(key, {
+      userId: presence.userId,
+      workspaceId: presence.workspaceId,
+      rootId: presence.rootId,
+      nodeId: presence.nodeId,
+      kind: presence.kind,
+    });
+
+    this.broadcastPresence(this.context.deviceId, relayed);
+  }
+
+  private async handlePresenceLeave(message: PresenceLeaveMessage) {
+    const user = await this.getOrCreateUser(message.userId);
+    if (user === null) {
+      return;
+    }
+
+    if (!user.rootIds.has(message.rootId)) {
+      return;
+    }
+
+    const relayed: PresenceLeaveMessage = {
+      ...message,
+      deviceId: this.context.deviceId,
+    };
+
+    const key = `${message.userId}:${message.nodeId}:${message.kind}`;
+    this.publishedPresence.delete(key);
+
+    this.broadcastPresence(this.context.deviceId, relayed);
+  }
+
+  /**
+   * Deliver a relayed presence message to this connection's socket when one of
+   * its users is authorized for the presence's root. Called by the socket
+   * service for every connection except the origin.
+   */
+  public relayPresence(message: PresenceRelayMessage) {
+    const rootId =
+      message.type === 'presence.update'
+        ? message.presence.rootId
+        : message.rootId;
+
+    if (!canRelayPresenceToConnection(this.users.values(), rootId)) {
+      return;
+    }
+
+    this.sendMessage(message);
+  }
+
+  private broadcastPresenceLeaveOnClose() {
+    for (const presence of this.publishedPresence.values()) {
+      this.broadcastPresence(this.context.deviceId, {
+        type: 'presence.leave',
+        userId: presence.userId,
+        deviceId: this.context.deviceId,
+        workspaceId: presence.workspaceId,
+        rootId: presence.rootId,
+        nodeId: presence.nodeId,
+        kind: presence.kind,
+      });
+    }
+    this.publishedPresence.clear();
   }
 
   public async handleEvent(event: Event) {
@@ -197,6 +346,20 @@ export class SocketConnection {
       }
 
       return new DocumentUpdateSynchronizer(
+        message.id,
+        user.user,
+        message.input,
+        cursor
+      );
+    } else if (message.input.type === 'notifications') {
+      return new NotificationSynchronizer(
+        message.id,
+        user.user,
+        message.input,
+        cursor
+      );
+    } else if (message.input.type === 'notification-mutes') {
+      return new NotificationMuteSynchronizer(
         message.id,
         user.user,
         message.input,

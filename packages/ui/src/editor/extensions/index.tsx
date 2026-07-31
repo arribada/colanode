@@ -8,9 +8,18 @@ import UnderlineMark from '@tiptap/extension-underline';
 import { AutoJoiner } from '@colanode/ui/editor/extensions/auto-joiner';
 import { BlockquoteNode } from '@colanode/ui/editor/extensions/blockquote';
 import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
+import { BookmarkNode } from '@colanode/ui/editor/extensions/bookmark';
+import { EmbedNode } from '@colanode/ui/editor/extensions/embed';
+import { PlaneEmbedNode } from '@colanode/ui/editor/extensions/plane-embed';
+import { CalloutNode } from '@colanode/ui/editor/extensions/callout';
+import {
+  ColumnNode,
+  ColumnsNode,
+} from '@colanode/ui/editor/extensions/columns';
 import { CodeMark } from '@colanode/ui/editor/extensions/code';
 import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
 import { ColorMark } from '@colanode/ui/editor/extensions/color';
+import { CommentMark } from '@colanode/ui/editor/extensions/comment';
 import { CommanderExtension } from '@colanode/ui/editor/extensions/commander';
 import { DatabaseNode } from '@colanode/ui/editor/extensions/database';
 import { DeleteControlExtension } from '@colanode/ui/editor/extensions/delete-control';
@@ -28,6 +37,11 @@ import { LinkMark } from '@colanode/ui/editor/extensions/link';
 import { ListItemNode } from '@colanode/ui/editor/extensions/list-item';
 import { ListKeymapExtension } from '@colanode/ui/editor/extensions/list-keymap';
 import { Markdown } from '@colanode/ui/editor/extensions/markdown';
+import {
+  MathBlockNode,
+  MathInlineNode,
+} from '@colanode/ui/editor/extensions/math';
+import { MermaidNode } from '@colanode/ui/editor/extensions/mermaid';
 import { MentionExtension } from '@colanode/ui/editor/extensions/mention';
 import { MessageNode } from '@colanode/ui/editor/extensions/message';
 import { OrderedListNode } from '@colanode/ui/editor/extensions/ordered-list';
@@ -35,7 +49,14 @@ import { PageNode } from '@colanode/ui/editor/extensions/page';
 import { ParagraphNode } from '@colanode/ui/editor/extensions/paragraph';
 import { ParserExtension } from '@colanode/ui/editor/extensions/parser';
 import { PlaceholderExtension } from '@colanode/ui/editor/extensions/placeholder';
+import { PlaneIssueLinkExtension } from '@colanode/ui/editor/extensions/plane-issue-link';
+import {
+  PresenceExtension,
+  setRemoteCarets,
+  type RemoteCaret,
+} from '@colanode/ui/editor/extensions/presence';
 import { TabKeymapExtension } from '@colanode/ui/editor/extensions/tab-keymap';
+import { TableOfContentsNode } from '@colanode/ui/editor/extensions/table-of-contents';
 import { TableNode } from '@colanode/ui/editor/extensions/table';
 import { TableCellNode } from '@colanode/ui/editor/extensions/table-cell';
 import { TableHeaderNode } from '@colanode/ui/editor/extensions/table-header';
@@ -43,6 +64,11 @@ import { TableRowNode } from '@colanode/ui/editor/extensions/table-row';
 import { TaskItemNode } from '@colanode/ui/editor/extensions/task-item';
 import { TaskListNode } from '@colanode/ui/editor/extensions/task-list';
 import { TempFileNode } from '@colanode/ui/editor/extensions/temp-file';
+import {
+  ToggleContentNode,
+  ToggleNode,
+  ToggleSummaryNode,
+} from '@colanode/ui/editor/extensions/toggle';
 import { TrailingNode } from '@colanode/ui/editor/extensions/trailing-node';
 
 export {
@@ -52,6 +78,7 @@ export {
   CodeBlockNode,
   CodeMark,
   ColorMark,
+  CommentMark,
   CommanderExtension,
   DeleteControlExtension,
   DividerNode,
@@ -69,6 +96,9 @@ export {
   LinkMark,
   ListItemNode,
   ListKeymapExtension,
+  MathBlockNode,
+  MathInlineNode,
+  MermaidNode,
   MessageNode,
   OrderedListNode,
   PageNode,
@@ -83,12 +113,27 @@ export {
   TaskItemNode,
   TaskListNode,
   TextNode,
+  ToggleContentNode,
+  ToggleNode,
+  ToggleSummaryNode,
+  CalloutNode,
+  BookmarkNode,
+  EmbedNode,
+  PlaneEmbedNode,
+  ColumnsNode,
+  ColumnNode,
+  TableOfContentsNode,
   TrailingNode,
   UnderlineMark,
   DatabaseNode,
   AutoJoiner,
   MentionExtension,
+  PlaneIssueLinkExtension,
   HardBreakNode,
   ParserExtension,
   Markdown,
+  PresenceExtension,
+  setRemoteCarets,
 };
+
+export type { RemoteCaret };

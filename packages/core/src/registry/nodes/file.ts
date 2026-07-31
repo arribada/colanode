@@ -17,6 +17,8 @@ export const fileAttributesSchema = z.object({
   size: z.number(),
   version: z.string(),
   status: z.number(),
+  deletedAt: z.string().nullable().optional(),
+  deletedBy: z.string().nullable().optional(),
 });
 
 export type FileAttributes = z.infer<typeof fileAttributesSchema>;

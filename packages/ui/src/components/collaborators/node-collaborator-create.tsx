@@ -42,6 +42,7 @@ export const NodeCollaboratorCreate = ({
           variant="default"
           className="shrink-0"
           size="sm"
+          data-testid="collaborator-invite-button"
           disabled={users.length === 0 || isPending}
           onClick={() => {
             if (isPending) {

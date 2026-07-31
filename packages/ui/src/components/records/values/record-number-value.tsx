@@ -54,6 +54,7 @@ export const RecordNumberValue = ({
 
   return (
     <Input
+      aria-label={field.name}
       value={localValue}
       readOnly={!record.canEdit || readOnly}
       onChange={(e) => {

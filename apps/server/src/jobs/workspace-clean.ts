@@ -118,6 +118,11 @@ const deleteWorkspaceNodes = async (workspaceId: string) => {
       .execute();
 
     await database
+      .deleteFrom('document_snapshots')
+      .where('document_id', 'in', nodeIds)
+      .execute();
+
+    await database
       .deleteFrom('document_embeddings')
       .where('document_id', 'in', nodeIds)
       .execute();

@@ -3,7 +3,10 @@ import { FastifyPluginCallback } from 'fastify';
 import { accountAuthenticator } from '@colanode/server/api/client/plugins/account-auth';
 import { workspaceAuthenticator } from '@colanode/server/api/client/plugins/workspace-auth';
 
+import { aiRoutes } from './ai';
+import { documentRoutes } from './documents';
 import { fileRoutes } from './files';
+import { planeIntegrationRoutes } from './integrations/plane';
 import { mutationsRoutes } from './mutations';
 import { userRoutes } from './users';
 import { workspaceCreateRoute } from './workspace-create';
@@ -24,9 +27,14 @@ export const workspaceRoutes: FastifyPluginCallback = (instance, _, done) => {
       subInstance.register(workspaceGetRoute);
       subInstance.register(workspaceUpdateRoute);
 
+      subInstance.register(documentRoutes, { prefix: '/documents' });
       subInstance.register(fileRoutes, { prefix: '/files' });
       subInstance.register(userRoutes, { prefix: '/users' });
       subInstance.register(mutationsRoutes, { prefix: '/mutations' });
+      subInstance.register(aiRoutes, { prefix: '/ai' });
+      subInstance.register(planeIntegrationRoutes, {
+        prefix: '/integrations/plane',
+      });
     },
     {
       prefix: '/:workspaceId',

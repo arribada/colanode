@@ -19,6 +19,12 @@ export const EditorNodeTypes = {
   TableHeader: 'tableHeader',
   TableCell: 'tableCell',
   TableRow: 'tableRow',
+  Toggle: 'toggle',
+  ToggleSummary: 'toggleSummary',
+  ToggleContent: 'toggleContent',
+  Callout: 'callout',
+  MathBlock: 'mathBlock',
+  MathInline: 'mathInline',
 };
 
 export type SortDirection = 'asc' | 'desc';

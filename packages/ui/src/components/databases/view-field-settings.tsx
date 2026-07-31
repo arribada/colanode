@@ -57,7 +57,10 @@ export const ViewFieldSettings = () => {
   return (
     <Fragment>
       <div className="flex flex-col gap-2 text-sm">
-        <p className="my-1 font-semibold">Fields</p>
+        <p className="my-1 font-semibold">
+          Property visibility{' '}
+          <span className="text-muted-foreground">({view.fields.length})</span>
+        </p>
         {database.fields.map((field) => {
           const isDisplayed =
             view.fields.find((f) => f.field.id === field.id)?.display ?? false;
@@ -76,28 +79,27 @@ export const ViewFieldSettings = () => {
               </div>
               <div className="flex flex-row items-center gap-2">
                 <Tooltip>
-                  <TooltipTrigger>
-                    <span
-                      className={cn(
-                        database.canEdit && !database.isLocked
-                          ? 'cursor-pointer'
-                          : 'opacity-50'
-                      )}
-                      onClick={() => {
-                        if (!database.canEdit || database.isLocked) return;
+                  <TooltipTrigger
+                    type="button"
+                    className={cn(
+                      database.canEdit && !database.isLocked
+                        ? 'cursor-pointer'
+                        : 'opacity-50'
+                    )}
+                    onClick={() => {
+                      if (!database.canEdit || database.isLocked) return;
 
-                        handleDisplayChange({
-                          id: field.id,
-                          display: !isDisplayed,
-                        });
-                      }}
-                    >
-                      {isDisplayed ? (
-                        <Eye className="size-4" />
-                      ) : (
-                        <EyeOff className="size-4" />
-                      )}
-                    </span>
+                      handleDisplayChange({
+                        id: field.id,
+                        display: !isDisplayed,
+                      });
+                    }}
+                  >
+                    {isDisplayed ? (
+                      <Eye className="size-4" />
+                    ) : (
+                      <EyeOff className="size-4" />
+                    )}
                   </TooltipTrigger>
                   <TooltipContent className="flex flex-row items-center gap-2">
                     {isDisplayed
@@ -107,18 +109,14 @@ export const ViewFieldSettings = () => {
                 </Tooltip>
                 {database.canEdit && !database.isLocked && (
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Trash2
-                        className={cn(
-                          'size-4',
-                          database.canEdit && !database.isLocked
-                            ? 'cursor-pointer'
-                            : 'opacity-50'
-                        )}
-                        onClick={() => {
-                          setDeleteFieldId(field.id);
-                        }}
-                      />
+                    <TooltipTrigger
+                      type="button"
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setDeleteFieldId(field.id);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
                     </TooltipTrigger>
                     <TooltipContent className="flex flex-row items-center gap-2">
                       Delete field from database

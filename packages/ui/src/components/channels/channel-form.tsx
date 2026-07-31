@@ -19,6 +19,7 @@ interface ChannelFormProps {
   id: string;
   values: z.infer<typeof formSchema>;
   submitText: string;
+  testId?: string;
   onCancel: () => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   readOnly?: boolean;
@@ -28,6 +29,7 @@ export const ChannelForm = ({
   id,
   values,
   submitText,
+  testId = 'channel-form-submit',
   onCancel,
   onSubmit,
   readOnly = false,
@@ -67,7 +69,12 @@ export const ChannelForm = ({
     >
       <div className="grow flex flex-row items-end gap-2 py-2 pb-4">
         {readOnly ? (
-          <Button type="button" variant="outline" size="icon">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Channel avatar"
+          >
             <Avatar id={id} name={name} avatar={avatar} className="h-6 w-6" />
           </Button>
         ) : (
@@ -78,7 +85,12 @@ export const ChannelForm = ({
               form.setFieldValue('avatar', newAvatar);
             }}
           >
-            <Button type="button" variant="outline" size="icon">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Change channel avatar"
+            >
               <Avatar id={id} name={name} avatar={avatar} className="size-6" />
             </Button>
           </AvatarPopover>
@@ -98,6 +110,7 @@ export const ChannelForm = ({
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                   aria-invalid={isInvalid}
+                  aria-label="Name"
                   readOnly={readOnly}
                   placeholder="Name"
                 />
@@ -111,7 +124,7 @@ export const ChannelForm = ({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={readOnly}>
+        <Button type="submit" disabled={readOnly} data-testid={testId}>
           {submitText}
         </Button>
       </div>

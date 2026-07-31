@@ -37,7 +37,12 @@ export const MessageReplyBanner = ({
       <p className="text-sm">
         Replying to <span className="font-semibold">{user.name}</span>
       </p>
-      <button className="cursor-pointer" onClick={onCancel}>
+      <button
+        type="button"
+        aria-label="Cancel reply"
+        className="cursor-pointer"
+        onClick={onCancel}
+      >
         <CircleX className="size-4" />
       </button>
     </div>

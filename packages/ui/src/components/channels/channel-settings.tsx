@@ -1,4 +1,12 @@
-import { Copy, Image, LetterText, Settings, Trash2 } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  Copy,
+  Image,
+  LetterText,
+  Settings,
+  Trash2,
+} from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import { LocalChannelNode } from '@colanode/client/types';
@@ -14,6 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useChannelMute } from '@colanode/ui/hooks/use-channel-mute';
 
 interface ChannelSettingsProps {
   channel: LocalChannelNode;
@@ -21,6 +31,8 @@ interface ChannelSettingsProps {
 }
 
 export const ChannelSettings = ({ channel, role }: ChannelSettingsProps) => {
+  const workspace = useWorkspace();
+  const { muted } = useChannelMute(workspace.userId, channel.id);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
 
@@ -84,6 +96,25 @@ export const ChannelSettings = ({ channel, role }: ChannelSettingsProps) => {
           >
             <Trash2 className="size-4" />
             Delete
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              window.colanode.executeMutation({
+                type: 'mute.set',
+                userId: workspace.userId,
+                nodeId: channel.id,
+                muted: !muted,
+              });
+            }}
+          >
+            {muted ? (
+              <Bell className="size-4" />
+            ) : (
+              <BellOff className="size-4" />
+            )}
+            {muted ? 'Unmute notifications' : 'Mute notifications'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Created by</DropdownMenuLabel>

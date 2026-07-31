@@ -65,6 +65,7 @@ export const EmailVerifyForm = ({
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={isInvalid}
                 placeholder="123456"
+                data-testid="verify-otp-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
               <div className="flex flex-col items-center gap-1">
@@ -84,6 +85,7 @@ export const EmailVerifyForm = ({
         variant="outline"
         className="w-full"
         disabled={isPending || remainingSeconds <= 0}
+        data-testid="verify-submit-button"
       >
         {isPending ? (
           <Spinner className="mr-1 size-4" />

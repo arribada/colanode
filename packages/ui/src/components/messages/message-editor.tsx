@@ -21,6 +21,7 @@ import {
   MessageNode,
   ParagraphNode,
   PlaceholderExtension,
+  PlaneIssueLinkExtension,
   StrikethroughMark,
   TabKeymapExtension,
   TextNode,
@@ -37,6 +38,7 @@ interface MessageEditorProps {
   workspaceId: string;
   conversationId: string;
   rootId: string;
+  placeholder?: string;
   onChange?: (content: JSONContent) => void;
   onSubmit: () => void;
 }
@@ -55,6 +57,10 @@ export const MessageEditor = forwardRef<
     {
       extensions: [
         IdExtension,
+        // See the comment in document-editor.tsx: this recognizes a bare
+        // pasted Plane issue URL and must be registered ahead of anything
+        // that would otherwise treat the paste as plain text/a normal link.
+        PlaneIssueLinkExtension,
         MessageNode,
         TextNode,
         ParagraphNode,
@@ -62,7 +68,7 @@ export const MessageEditor = forwardRef<
         CodeBlockNode,
         TabKeymapExtension,
         PlaceholderExtension.configure({
-          message: 'Write a message',
+          message: props.placeholder ?? 'Write a message',
         }),
         DividerNode,
         TrailingNode,
@@ -91,6 +97,8 @@ export const MessageEditor = forwardRef<
         attributes: {
           class:
             'prose-lg prose-stone dark:prose-invert prose-headings:font-title font-default focus:outline-none max-w-full',
+          'aria-label': props.placeholder ?? 'Write a message',
+          'data-testid': 'message-composer-input',
         },
         handleKeyDown: (_, event) => {
           return isHotkey('enter', event);
@@ -111,6 +119,7 @@ export const MessageEditor = forwardRef<
       onUpdate: (e) => {
         props.onChange?.(e.editor.getJSON());
       },
+      immediatelyRender: true,
       autofocus: 'end',
     },
     [props.conversationId]

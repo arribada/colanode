@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 import { editorHasContent } from '@colanode/client/lib';
 import { LocalMessageNode } from '@colanode/client/types';
+import { IdType, getIdType } from '@colanode/core';
 import {
   MessageEditor,
   MessageEditorRefProps,
@@ -43,6 +44,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
   const [replyTo, setReplyTo] = useState<LocalMessageNode | null>(null);
 
   const hasContent = content != null && editorHasContent(content);
+  const isPageConversation = getIdType(conversation.id) === IdType.Page;
 
   useImperativeHandle(ref, () => ({
     setReplyTo: (replyTo) => {
@@ -78,6 +80,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
         userId: workspace.userId,
         referenceId: replyTo?.id,
         rootId: conversation.rootId,
+        anchorId: conversation.anchorId ?? undefined,
       },
       onSuccess: () => {
         setReplyTo(null);
@@ -93,6 +96,8 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
   }, [
     conversation.id,
     conversation.canCreateMessage,
+    conversation.anchorId,
+    conversation.rootId,
     content,
     replyTo,
     workspace.userId,
@@ -128,6 +133,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
             <DropdownMenuTrigger
               disabled={isPending || !conversation.canCreateMessage}
               className="cursor-pointer hover:bg-accent"
+              aria-label="Add attachment"
             >
               <span>
                 <Plus size={20} />
@@ -159,6 +165,7 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
               workspaceId={workspace.workspaceId}
               conversationId={conversation.id}
               rootId={conversation.rootId}
+              placeholder={isPageConversation ? 'Write a comment' : undefined}
               onChange={setContent}
               onSubmit={handleSubmit}
             />
@@ -175,6 +182,9 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
           ) : (
             <button
               type="submit"
+              aria-label="Send message"
+              data-testid="message-composer-send"
+              aria-disabled={!(conversation.canCreateMessage && hasContent)}
               className={`${
                 conversation.canCreateMessage && hasContent
                   ? 'cursor-pointer text-blue-600'

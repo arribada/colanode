@@ -77,6 +77,7 @@ export const RegisterForm = ({ isPending, onSubmit }: RegisterFormProps) => {
                 aria-invalid={isInvalid}
                 placeholder="John Doe"
                 autoComplete="name"
+                data-testid="register-name-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -100,6 +101,7 @@ export const RegisterForm = ({ isPending, onSubmit }: RegisterFormProps) => {
                 aria-invalid={isInvalid}
                 placeholder="hi@example.com"
                 autoComplete="email"
+                data-testid="register-email-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -124,6 +126,7 @@ export const RegisterForm = ({ isPending, onSubmit }: RegisterFormProps) => {
                 aria-invalid={isInvalid}
                 autoComplete="new-password"
                 placeholder="********"
+                data-testid="register-password-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -148,6 +151,7 @@ export const RegisterForm = ({ isPending, onSubmit }: RegisterFormProps) => {
                 aria-invalid={isInvalid}
                 autoComplete="new-password"
                 placeholder="********"
+                data-testid="register-confirm-password-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -159,6 +163,7 @@ export const RegisterForm = ({ isPending, onSubmit }: RegisterFormProps) => {
         variant="outline"
         className="w-full"
         disabled={isPending}
+        data-testid="register-submit-button"
       >
         {isPending ? (
           <Spinner className="mr-1 size-4" />

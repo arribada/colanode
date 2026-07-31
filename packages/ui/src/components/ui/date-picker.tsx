@@ -60,11 +60,17 @@ export const DatePicker = ({
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
-        <div
-          className={cn(!dateObj && 'text-sm text-muted-foreground', className)}
+        <button
+          type="button"
+          aria-label={!dateObj && !placeHolderText ? 'Select date' : undefined}
+          className={cn(
+            'text-left',
+            !dateObj && 'text-sm text-muted-foreground',
+            className
+          )}
         >
           {dateObj ? dateObj.toLocaleDateString() : placeHolderText}
-        </div>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
@@ -77,6 +83,7 @@ export const DatePicker = ({
               onChange(toUTCDate(date));
             }
           }}
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: primary field in popover, focus expected on open
           autoFocus={true}
         />
       </PopoverContent>

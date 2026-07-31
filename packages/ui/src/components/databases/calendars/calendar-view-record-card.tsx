@@ -16,6 +16,7 @@ export const CalendarViewRecordCard = () => {
       to="modal/$modalNodeId"
       params={{ modalNodeId: record.id }}
       key={record.id}
+      data-testid={`calendar-card-${record.id}`}
       className="animate-fade-in flex justify-start items-start cursor-pointer flex-col gap-1 rounded-md border p-1 pl-2 hover:bg-accent"
     >
       <p className={hasName ? '' : 'text-muted-foreground'}>

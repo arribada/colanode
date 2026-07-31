@@ -64,10 +64,13 @@ export const NodeCollaboratorRoleDropdown = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <p className="flex cursor-pointer flex-row items-center p-1 text-sm text-muted-foreground hover:bg-accent">
+        <button
+          type="button"
+          className="flex cursor-pointer flex-row items-center p-1 text-sm text-muted-foreground hover:bg-accent"
+        >
           {currentRole?.name}
           <ChevronDown className="ml-2 size-4 text-muted-foreground" />
-        </p>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         {roles.map((role) => (

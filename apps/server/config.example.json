@@ -18,6 +18,16 @@
       "enabled": false,
       "clientId": "env://ACCOUNT_GOOGLE_CLIENT_ID",
       "clientSecret": "env://ACCOUNT_GOOGLE_CLIENT_SECRET"
+    },
+    "oidc": {
+      "_comment": "Generic OIDC/OAuth2 login (e.g. a self-hosted GitLab-compatible provider). Set either \"issuer\" (endpoints are discovered from {issuer}/.well-known/openid-configuration) or all three of authorizationUrl/tokenUrl/userinfoUrl explicitly.",
+      "enabled": false,
+      "issuer": "https://your-oidc-provider.example.com",
+      "clientId": "env://ACCOUNT_OIDC_CLIENT_ID",
+      "clientSecret": "env://ACCOUNT_OIDC_CLIENT_SECRET",
+      "redirectUri": "https://your-colanode-domain.example.com/auth/sso-callback",
+      "scopes": "openid profile email",
+      "buttonLabel": "Continue with SSO"
     }
   },
   "postgres": {
@@ -69,6 +79,20 @@
         "password": "env://EMAIL_SMTP_PASSWORD"
       }
     }
+  },
+  "push": {
+    "enabled": false,
+    "subject": "mailto:admin@example.com",
+    "publicKey": "env://PUSH_VAPID_PUBLIC_KEY",
+    "privateKey": "env://PUSH_VAPID_PRIVATE_KEY"
+  },
+  "zulip": {
+    "_comment": "Outgoing notification integration: relays mentions/messages to a Zulip stream via a bot. Disabled by default. Two ways to turn it on: (1) leave this whole \"zulip\" key out of config.json entirely and just set ZULIP_ENABLED=true plus the four ZULIP_* env vars below — every field already falls back to its own env:// reference; or (2) set \"enabled\": true here explicitly, as shown, with literal values or env:// pointers of your choice.",
+    "enabled": false,
+    "site": "env://ZULIP_SITE",
+    "botEmail": "env://ZULIP_BOT_EMAIL",
+    "apiKey": "env://ZULIP_API_KEY",
+    "stream": "env://ZULIP_STREAM"
   },
   "jobs": {
     "queue": {

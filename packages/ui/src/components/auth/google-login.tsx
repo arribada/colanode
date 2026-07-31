@@ -31,6 +31,7 @@ const GoogleLoginButton = ({
       onClick={() => login()}
       disabled={isPending}
       type="button"
+      data-testid={`google-${context}-button`}
     >
       {isPending ? (
         <Spinner className="mr-1 size-4" />

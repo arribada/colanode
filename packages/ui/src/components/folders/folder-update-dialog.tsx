@@ -61,6 +61,7 @@ export const FolderUpdateDialog = ({
             avatar: folder.avatar,
           }}
           submitText="Update"
+          testId="folder-update-submit"
           readOnly={!canEdit}
           onCancel={() => {
             onOpenChange(false);

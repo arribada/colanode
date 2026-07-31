@@ -1,0 +1,59 @@
+version: 2
+feature: chats-sidebar-icon-accessible-label
+description: >-
+  Issue #14 — the "Chats" icon in the left sidebar icon rail is an icon-only
+  button whose accessible name (aria-label) is the sole label. On the buggy
+  build it reads "Chatts" (extra "t"), so a screen reader / a11y tree announces
+  the wrong word. This scenario seeds a fresh account in-flow, lands on the
+  workspace home (which renders the icon rail), and asserts that a button with
+  the correct accessible name "Chats" exists. It FAILS on the buggy build
+  ("Chatts" ≠ "Chats") and PASSES once the label is spelled correctly.
+
+environment:
+  base_url: "__BT_BASE_URL__"
+  kind: localhost
+  # Register in-flow — no pre-existing auth. Each run starts unauthenticated
+  # against an empty database and creates its own account + default workspace.
+  auth:
+    strategy: none
+
+scenarios:
+  - id: chats-rail-icon-has-correct-accessible-name
+    description: >-
+      Register bt-issue14@bt.local, reach the workspace home, and verify the
+      Chats rail icon exposes the accessible name "Chats".
+    actions:
+      # --- in-flow seed: register a fresh account ---
+      - navigate: /auth/register
+      # Select the (single) auto-registered server card. NOT by display name —
+      # that's env-specific (staging config.json name="Colanode Staging" vs prod
+      # "Quota Chat"; this manifest runs unmodified against both, per __BT_BASE_URL__).
+      # data-testid is "server-card-${domain}" (also env-specific), so match by
+      # prefix and take the card's first button — its second button is "Server
+      # settings", not this one.
+      - click: { css: '[data-testid^="server-card-"] button:first-of-type' }
+      - type: { into: { test_id: register-name-input }, text: "BT Issue14" }
+      - type: { into: { test_id: register-email-input }, text: "bt-issue14@bt.local" }
+      - type: { into: { test_id: register-password-input }, text: "Bt-14-pass1" }
+      - type: { into: { test_id: register-confirm-password-input }, text: "Bt-14-pass1" }
+      - click: { test_id: register-submit-button }
+      # --- wait for the workspace home (icon rail is rendered here) ---
+      - wait: { text: "Spaces", timeout_ms: 20000 }
+    assertions:
+      # FIX oracle: the rail icon button must announce "Chats". Targets role=button
+      # so it can only match the icon-only rail control (the sidebar panel header
+      # "Chats" is a paragraph, never a button) — no false pass. "Chats" is not a
+      # substring of the buggy "Chatts", so this FAILS on the buggy build for the
+      # right reason and PASSES once the aria-label is corrected.
+      - oracle: action-result
+        timeout_ms: 10000
+        effect:
+          any_of:
+            - element_visible: { role: button, name: "Chats" }
+      # Registration must have completed and produced no server errors.
+      - oracle: network-completeness
+        required:
+          - url_matches: "/client/v1/auth/email/register"
+            status_in: [200]
+        forbidden:
+          - status_gte: 500

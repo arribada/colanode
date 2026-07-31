@@ -37,6 +37,19 @@ export const parseApiError = async (
     }
   }
 
+  // Non-HTTP failures (network/DNS/TLS/offline, or an error thrown further down
+  // the mutation path such as a local SQLite failure) never reach the HTTPError
+  // branch above. Preserve the underlying message instead of collapsing every
+  // one of them into a contentless "unknown error" — this is the difference
+  // between a debuggable failure and a dead end for the user and for us.
+  if (error instanceof Error) {
+    console.error('[parseApiError] non-HTTP error', error);
+    return {
+      code: ApiErrorCode.Unknown,
+      message: error.message || 'An unknown error occurred',
+    };
+  }
+
   return {
     code: ApiErrorCode.Unknown,
     message: 'An unknown error occurred',

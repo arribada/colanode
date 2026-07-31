@@ -62,6 +62,14 @@ export class NodeCountersService {
 
         const parentIdType = getIdType(node.parent_id);
         const types: NodeCounterType[] = [];
+
+        // Thread replies (parentId is a Message) are intentionally skipped:
+        // a mention counter keyed to a message-id would inflate the workspace
+        // badge with no surface to discover or clear it (no Threads inbox yet).
+        if (parentIdType === IdType.Message) {
+          return;
+        }
+
         if (isMentioned) {
           types.push('unread.mentions');
         } else if (parentIdType === IdType.Channel) {
@@ -104,6 +112,12 @@ export class NodeCountersService {
       this.getLockKey(node.id),
       async () => {
         if (!node.parent_id) {
+          return;
+        }
+
+        // Thread replies (parentId is a Message) never created counters,
+        // so there is nothing to delete — symmetric with the creation guard.
+        if (getIdType(node.parent_id) === IdType.Message) {
           return;
         }
 
@@ -182,6 +196,12 @@ export class NodeCountersService {
         const isMentioned = this.isUserMentioned(nodeReferences);
         const parentIdType = getIdType(node.parent_id);
         const types: NodeCounterType[] = [];
+
+        // Thread replies (parentId is a Message) have no counters to decrease —
+        // symmetric with the creation guard above.
+        if (parentIdType === IdType.Message) {
+          return;
+        }
 
         if (isMentioned) {
           types.push('unread.mentions');

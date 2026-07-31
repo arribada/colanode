@@ -63,6 +63,7 @@ export const ChannelUpdateDialog = ({
             avatar: channel.avatar,
           }}
           submitText="Update"
+          testId="channel-update-submit"
           readOnly={!canEdit}
           onCancel={() => {
             onOpenChange(false);

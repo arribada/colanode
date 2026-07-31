@@ -124,3 +124,27 @@
     fade-fill 0.75s ease-in-out 3.3s forwards,
     hide-stroke 0.15s ease-in-out 3.9s forwards;
 }
+
+/*
+ * Test-mode animation kill-switch.
+ *
+ * Tests should not have to race CSS transitions/animations or sleep
+ * through them. When the document root carries the `data-testing`
+ * attribute (e.g. `document.documentElement.setAttribute('data-testing', 'true')`
+ * or `<html data-testing="true">` set by the test harness before the app
+ * mounts), all transitions/animations are collapsed to ~0 duration so the
+ * DOM settles into its final state immediately.
+ *
+ * Usage from a test/e2e harness:
+ *   document.documentElement.setAttribute('data-testing', 'true')
+ */
+html[data-testing] *,
+html[data-testing] *::before,
+html[data-testing] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}

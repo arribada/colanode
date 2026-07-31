@@ -1,0 +1,20 @@
+name: Bug loop - triage
+on:
+  issues:
+    types: [opened]
+concurrency:
+  group: bug-loop-${{ github.event.issue.number }}
+jobs:
+  triage:
+    if: vars.AUTOFIX_ENABLED == 'true'
+    runs-on: [self-hosted, colanode]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Triage
+        env:
+          GH_TOKEN: ${{ secrets.AUTOFIX_PAT }}
+        run: |
+          claude -p "$(sed 's/{{ISSUE}}/${{ github.event.issue.number }}/g' .github/bug-loop/triage-prompt.md)" \
+            --max-turns 15 \
+            --allowedTools "Bash(gh issue:*),Read,Grep,Glob"

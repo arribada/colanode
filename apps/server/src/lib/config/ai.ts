@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-export const aiProviderSchema = z.enum(['openai', 'google']);
+export const aiProviderSchema = z.enum(['openai', 'google', 'anthropic']);
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 
 export const aiProviderConfigSchema = z.object({
@@ -50,6 +50,9 @@ export const aiConfigSchema = z
       providers: z.object({
         openai: aiProviderConfigSchema,
         google: aiProviderConfigSchema,
+        // Non-breaking for configs that pre-date the Anthropic provider:
+        // defaults to a disabled, empty-key provider when omitted.
+        anthropic: aiProviderConfigSchema.prefault({}),
       }),
       langfuse: z.object({
         enabled: z.boolean().default(false),

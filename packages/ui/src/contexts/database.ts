@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 
 import {
+  DatabaseAutomation,
   DatabaseNameFieldAttributes,
   FieldAttributes,
   NodeRole,
@@ -11,6 +12,7 @@ interface DatabaseContext {
   name: string;
   nameField: DatabaseNameFieldAttributes | null | undefined;
   fields: FieldAttributes[];
+  automations: DatabaseAutomation[];
   canEdit: boolean;
   isLocked: boolean;
   canCreateRecord: boolean;

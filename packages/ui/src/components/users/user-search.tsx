@@ -40,6 +40,7 @@ export const UserSearch = ({ exclude, onSelect }: UserSearchProps) => {
         value={query}
         onValueChange={setQuery}
         placeholder="Search users..."
+        aria-label="Search users"
         className="h-9"
       />
       <CommandEmpty>No user found.</CommandEmpty>
@@ -50,6 +51,7 @@ export const UserSearch = ({ exclude, onSelect }: UserSearchProps) => {
               {userSearchQuery.data?.map((user) => (
                 <CommandItem
                   key={user.id}
+                  data-testid={`user-search-result-${user.id}`}
                   onSelect={() => {
                     onSelect(user);
                     setQuery('');

@@ -20,6 +20,7 @@ export const RecordBooleanValue = ({
   return (
     <div className="flex h-full w-full flex-row items-center justify-start p-0">
       <Checkbox
+        aria-label={field.name}
         checked={value?.value ?? false}
         disabled={!record.canEdit || readOnly}
         onCheckedChange={(e) => {

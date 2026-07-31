@@ -1,0 +1,86 @@
+name: Bug loop - ship
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: bug-loop-staging
+jobs:
+  ship:
+    if: vars.AUTOFIX_ENABLED == 'true' && contains(github.event.head_commit.message, '[bug-loop#')
+    runs-on: [self-hosted, colanode]
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.AUTOFIX_PAT }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, token: "${{ secrets.AUTOFIX_PAT }}" }
+      - name: Parse issue number
+        id: meta
+        run: |
+          N=$(git log -1 --format=%s | grep -oP 'bug-loop#\K[0-9]+')
+          echo "issue=$N" >> "$GITHUB_OUTPUT"
+      - name: Build + boot staging from main
+        run: ./scripts/staging-stack.sh up
+      - name: Post-merge verify on staging
+        id: verify
+        run: |
+          sed "s|__BT_BASE_URL__|http://localhost:55080|" "tests/auto-repro/issue-${{ steps.meta.outputs.issue }}.yaml" > /tmp/bt-ship.yaml
+          node ~/.claude/skills/browser-test-v2/scripts/run-manifest.mjs /tmp/bt-ship.yaml
+      - name: REVERT on staging failure
+        if: failure() && steps.verify.conclusion == 'failure'
+        run: |
+          git config user.name "bug-loop" && git config user.email "bug-loop@kvotaflow.ru"
+          git revert --no-edit HEAD && git push origin main
+          gh issue edit ${{ steps.meta.outputs.issue }} --add-label auto-fix-failed --remove-label reproduced
+          gh issue edit ${{ steps.meta.outputs.issue }} --add-label retry-fix
+          .github/bug-loop/notify.sh "post-merge verify FAILED for issue #${{ steps.meta.outputs.issue }} — merge reverted, retrying as PR-only"
+      - name: Release gate — main must be exactly last release + this fix
+        id: gate
+        run: |
+          LAST=$(git describe --tags --abbrev=0)
+          EXTRA=$(git rev-list "$LAST"..HEAD~1 --count)
+          echo "last=$LAST" >> "$GITHUB_OUTPUT"
+          if [ "$EXTRA" -ne 0 ]; then
+            gh issue comment ${{ steps.meta.outputs.issue }} --body "Fix merged and staging-verified, but main has $EXTRA unreleased commit(s) beyond $LAST — not auto-releasing."
+            .github/bug-loop/notify.sh "issue #${{ steps.meta.outputs.issue }}: fix merged + staging-verified; NOT auto-released ($EXTRA unreleased commits on main). Release manually."
+            echo "release=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish release
+        if: steps.gate.outputs.release == 'yes'
+        run: |
+          NEXT=$(echo "${{ steps.gate.outputs.last }}" | awk -F. -v OFS=. '{$NF=$NF+1; print}')
+          gh release create "$NEXT" --generate-notes --title "$NEXT (auto bug-loop, issue #${{ steps.meta.outputs.issue }})"
+      - name: Deploy to dd
+        if: steps.gate.outputs.release == 'yes'
+        run: ./scripts/deploy-dd.sh
+      - name: Post-prod verify
+        if: steps.gate.outputs.release == 'yes'
+        id: prodverify
+        run: |
+          sed "s|__BT_BASE_URL__|https://chat.kvotaflow.ru|" "tests/auto-repro/issue-${{ steps.meta.outputs.issue }}.yaml" > /tmp/bt-prod.yaml
+          node ~/.claude/skills/browser-test-v2/scripts/run-manifest.mjs /tmp/bt-prod.yaml
+      - name: ROLLBACK on prod failure
+        if: failure() && steps.prodverify.conclusion == 'failure'
+        run: |
+          ./scripts/rollback-dd.sh || echo "::warning::rollback-dd.sh reported unhealthy — dd may still need manual attention, continuing to revert+notify regardless"
+          git config user.name "bug-loop" && git config user.email "bug-loop@kvotaflow.ru"
+          git revert --no-edit HEAD && git push origin main
+          gh issue edit ${{ steps.meta.outputs.issue }} --add-label auto-fix-failed
+          gh issue edit ${{ steps.meta.outputs.issue }} --add-label retry-fix
+          .github/bug-loop/notify.sh "post-PROD verify FAILED for issue #${{ steps.meta.outputs.issue }} — dd rolled back to :prev, merge reverted"
+      - name: Close issue
+        if: steps.gate.outputs.release == 'yes' && steps.prodverify.conclusion == 'success'
+        run: |
+          gh issue close ${{ steps.meta.outputs.issue }} --comment "Fixed, released, and verified on prod (repro manifest green on staging and https://chat.kvotaflow.ru). Evidence: tests/auto-repro/issue-${{ steps.meta.outputs.issue }}.yaml"
+          .github/bug-loop/notify.sh "✅ issue #${{ steps.meta.outputs.issue }} fixed, released, prod-verified"
+      - name: Teardown
+        if: always()
+        run: ./scripts/staging-stack.sh down
+      - name: Cleanup prod throwaway account
+        if: always() && steps.gate.outputs.release == 'yes'
+        run: |
+          ssh dd "docker exec supabase-db psql -U postgres -d colanode -c \"DELETE FROM accounts WHERE email LIKE 'bt-issue%@bt.local';\"" || true

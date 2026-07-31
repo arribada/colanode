@@ -1,0 +1,50 @@
+name: Bug loop - fix
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: bug-loop-fix-${{ github.event.issue.number }}
+
+jobs:
+  fix:
+    if: >-
+      vars.AUTOFIX_ENABLED == 'true' &&
+      (github.event.label.name == 'reproduced' || github.event.label.name == 'retry-fix')
+    runs-on: [self-hosted, colanode]
+    timeout-minutes: 60
+    env:
+      ISSUE: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.AUTOFIX_PAT }}
+      - name: Determine attempt
+        id: attempt
+        env:
+          GH_TOKEN: ${{ secrets.AUTOFIX_PAT }}
+        run: |
+          N=1
+          gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -q '^auto-fix-attempt-1$' && N=2
+          echo "n=$N" >> "$GITHUB_OUTPUT"
+          gh issue edit "$ISSUE" --add-label "auto-fix-attempt-$N" || true
+      - name: Fix
+        env:
+          GH_TOKEN: ${{ secrets.AUTOFIX_PAT }}
+          ATTEMPT: ${{ steps.attempt.outputs.n }}
+        run: |
+          claude -p "$(sed -e "s/{{ISSUE}}/${ISSUE}/g" \
+                           -e "s/{{ATTEMPT}}/${ATTEMPT}/g" \
+                           .github/bug-loop/fix-prompt.md)" \
+            --max-turns 100 \
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob,Skill"
+      - name: Escalate on crash
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          .github/bug-loop/notify.sh "fix job crashed for issue #${ISSUE}"

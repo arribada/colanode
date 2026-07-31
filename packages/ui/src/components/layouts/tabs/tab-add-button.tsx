@@ -15,6 +15,9 @@ export const TabAddButton = () => {
 
   return (
     <button
+      type="button"
+      aria-label="Add new tab"
+      data-testid="tabs-add-button"
       onClick={handleAddTab}
       className="flex items-center justify-center w-10 h-10 bg-sidebar hover:bg-sidebar-accent transition-all duration-200 app-no-drag-region shrink-0 border-l border-border/30 hover:border-border/60 rounded-tl-md"
       title="Add new tab"

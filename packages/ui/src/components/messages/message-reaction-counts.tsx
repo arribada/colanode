@@ -87,8 +87,12 @@ export const MessageReactionCounts = ({
               setOpenDialog(true);
             }}
           >
-            <div
+            <button
+              type="button"
               key={reaction.reaction}
+              data-testid={`message-reaction-${message.id}-${reaction.reaction}`}
+              aria-pressed={hasReacted}
+              aria-label={`${reaction.count} reaction${reaction.count === 1 ? '' : 's'}${hasReacted ? ', you reacted' : ''}`}
               className={cn(
                 'rouded flex flex-row items-center gap-2 p-1 shadow cursor-pointer text-sm text-muted-foreground hover:text-foreground bg-muted hover:bg-input',
                 hasReacted && 'font-bold'
@@ -99,7 +103,7 @@ export const MessageReactionCounts = ({
             >
               <EmojiElement id={reaction.reaction} className="size-5" />
               <span>{reaction.count}</span>
-            </div>
+            </button>
           </MessageReactionCountTooltip>
         );
       })}

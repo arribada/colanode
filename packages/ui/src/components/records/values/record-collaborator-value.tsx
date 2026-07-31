@@ -73,7 +73,11 @@ export const RecordCollaboratorValue = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="flex h-full w-full cursor-pointer flex-wrap gap-1 p-0 overflow-hidden">
+        <button
+          type="button"
+          aria-label={field.name}
+          className="flex h-full w-full cursor-pointer flex-wrap gap-1 p-0 overflow-hidden text-left"
+        >
           {collaborators.slice(0, 1).map((collaborator) => (
             <CollaboratorBadge
               key={collaborator.id}
@@ -91,7 +95,7 @@ export const RecordCollaboratorValue = ({
               +{collaborators.length - 1}
             </Badge>
           )}
-        </div>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-1">
         {collaborators.length > 0 && (
@@ -99,6 +103,7 @@ export const RecordCollaboratorValue = ({
             {collaborators.map((collaborator) => (
               <div
                 key={collaborator.id}
+                data-testid={`record-collaborator-row-${collaborator.id}`}
                 className="flex w-full flex-row items-center gap-2"
               >
                 <Avatar
@@ -114,8 +119,11 @@ export const RecordCollaboratorValue = ({
                   </p>
                 </div>
                 {record.canEdit && !readOnly && (
-                  <X
-                    className="size-4 cursor-pointer"
+                  <button
+                    type="button"
+                    aria-label="Remove collaborator"
+                    data-testid={`record-collaborator-remove-${collaborator.id}`}
+                    className="cursor-pointer"
                     onClick={() => {
                       if (!record.canEdit || readOnly) return;
 
@@ -132,7 +140,9 @@ export const RecordCollaboratorValue = ({
                         });
                       }
                     }}
-                  />
+                  >
+                    <X className="size-4" />
+                  </button>
                 )}
               </div>
             ))}

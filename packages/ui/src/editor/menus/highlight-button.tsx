@@ -39,7 +39,10 @@ export const HighlightButton = ({
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen} modal={true}>
-      <PopoverTrigger>
+      <PopoverTrigger
+        aria-label="Highlight color"
+        data-testid="editor-toolbar-highlight-color"
+      >
         <span
           className={cn(
             'flex size-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
@@ -60,6 +63,7 @@ export const HighlightButton = ({
           {editorColors.map((editorColor) => (
             <button
               key={`highlight-color-${editorColor.color}`}
+              aria-pressed={editorColor.color === activeHighlight.color}
               onClick={() => {
                 if (editorColor.color === 'default') {
                   editor.commands.unsetHighlight();

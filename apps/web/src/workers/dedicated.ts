@@ -82,6 +82,11 @@ navigator.locks.request('colanode', async () => {
   if (isColanodeDomain(domain)) {
     await app.createServer(new URL('https://eu.colanode.com/config'));
     await app.createServer(new URL('https://us.colanode.com/config'));
+  } else {
+    // Self-hosted: seed the server this web app is served from (same-origin).
+    await app.createServer(
+      new URL(`${self.location.protocol}//${self.location.host}/config`)
+    );
   }
 
   appInitOutput = 'success';

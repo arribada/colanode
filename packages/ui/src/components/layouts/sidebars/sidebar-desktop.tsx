@@ -6,6 +6,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMetadata } from '@colanode/ui/hooks/use-metadata';
 
 const DEFAULT_WIDTH = 300;
+const RAIL_WIDTH = 65;
 
 export const SidebarDesktop = () => {
   const workspace = useWorkspace();
@@ -13,6 +14,12 @@ export const SidebarDesktop = () => {
     workspace.userId,
     'sidebar.width'
   );
+  const [collapsed, setCollapsed] = useMetadata<boolean>(
+    workspace.userId,
+    'sidebar.collapsed'
+  );
+
+  const isCollapsed = collapsed ?? false;
 
   const handleResize = useCallback(
     (newWidth: number) => {
@@ -24,16 +31,19 @@ export const SidebarDesktop = () => {
   return (
     <Resizable
       as="aside"
-      size={{ width: width ?? DEFAULT_WIDTH, height: '100%' }}
+      size={{
+        width: isCollapsed ? RAIL_WIDTH : (width ?? DEFAULT_WIDTH),
+        height: '100%',
+      }}
       className="border-r border-sidebar-border"
-      minWidth={200}
+      minWidth={isCollapsed ? RAIL_WIDTH : 200}
       maxWidth={500}
       enable={{
         bottom: false,
         bottomLeft: false,
         bottomRight: false,
         left: false,
-        right: true,
+        right: !isCollapsed,
         top: false,
         topLeft: false,
         topRight: false,
@@ -48,10 +58,15 @@ export const SidebarDesktop = () => {
         },
       }}
       onResize={(_, __, ref) => {
-        handleResize(ref.offsetWidth);
+        if (!isCollapsed) {
+          handleResize(ref.offsetWidth);
+        }
       }}
     >
-      <Sidebar />
+      <Sidebar
+        collapsed={isCollapsed}
+        onToggleCollapsed={() => setCollapsed(!isCollapsed)}
+      />
     </Resizable>
   );
 };

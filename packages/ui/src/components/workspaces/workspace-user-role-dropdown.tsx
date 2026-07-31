@@ -76,14 +76,19 @@ export const WorkspaceUserRoleDropdown = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <p className="flex cursor-pointer flex-row items-center p-1 text-sm text-muted-foreground hover:bg-accent">
+        <button
+          type="button"
+          aria-label={`Change role, currently ${currentRole?.name}`}
+          data-testid={`workspace-user-role-${userId}`}
+          className="flex cursor-pointer flex-row items-center p-1 text-sm text-muted-foreground hover:bg-accent"
+        >
           {currentRole?.name}
           {isPending ? (
             <Spinner className="ml-2 size-4 text-muted-foreground" />
           ) : (
             <ChevronDown className="ml-2 size-4 text-muted-foreground" />
           )}
-        </p>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         {roles

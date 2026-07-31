@@ -9,6 +9,7 @@ import {
 } from '@floating-ui/react';
 import type { Range } from '@tiptap/core';
 import { Editor, Extension } from '@tiptap/core';
+import { PluginKey } from '@tiptap/pm/state';
 import { ReactRenderer } from '@tiptap/react';
 import {
   Suggestion,
@@ -148,6 +149,8 @@ const CommandList = ({
       <div ref={refs.setFloating} style={{ ...floatingStyles, zIndex: 60 }}>
         <div
           id="slash-command"
+          role="listbox"
+          data-testid="editor-slash-menu"
           className="z-50 min-w-32 w-80 rounded-md border bg-popover text-popover-foreground p-1 shadow-md animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 overflow-hidden"
         >
           <ScrollArea className="h-80">
@@ -156,6 +159,9 @@ const CommandList = ({
                 {items.map((item: EditorCommand, index: number) => (
                   <button
                     type="button"
+                    role="option"
+                    aria-selected={index === selectedIndex}
+                    data-testid={`editor-command-${item.key}`}
                     className={`relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-left outline-hidden select-none focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground ${
                       index === selectedIndex
                         ? 'bg-accent text-accent-foreground'
@@ -241,6 +247,7 @@ export const CommanderExtension = Extension.create<CommanderOptions>({
       Suggestion({
         editor: this.editor,
         char: '/',
+        pluginKey: new PluginKey('slashCommandSuggestion'),
         command: async ({
           editor,
           range,

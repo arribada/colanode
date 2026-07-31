@@ -9,7 +9,13 @@ interface FolderSidebarItemProps {
 
 export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
   return (
-    <Link from="/workspace/$userId" to="$nodeId" params={{ nodeId: folder.id }}>
+    <Link
+      from="/workspace/$userId"
+      to="$nodeId"
+      params={{ nodeId: folder.id }}
+      data-testid={`folder-sidebar-item-${folder.id}`}
+      activeProps={{ 'aria-current': 'page' }}
+    >
       {({ isActive }) => (
         <div
           className={cn(

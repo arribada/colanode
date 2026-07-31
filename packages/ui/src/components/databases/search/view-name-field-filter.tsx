@@ -65,6 +65,7 @@ export const ViewNameFieldFilter = ({ filter }: ViewNameFieldFilterProps) => {
           variant="outline"
           size="sm"
           className="text-muted-foregroundc border-dashed text-xs"
+          data-testid={`view-filter-chip-${filter.id}`}
         >
           {database.nameField?.name ?? 'Name'}
         </Button>
@@ -77,10 +78,13 @@ export const ViewNameFieldFilter = ({ filter }: ViewNameFieldFilterProps) => {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent">
+              <button
+                type="button"
+                className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent"
+              >
                 <p>{operator.label}</p>
                 <ChevronDown className="size-4 text-muted-foreground" />
-              </div>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {nameFieldFilterOperators.map((operator) => (
@@ -103,13 +107,20 @@ export const ViewNameFieldFilter = ({ filter }: ViewNameFieldFilterProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={removeFilter}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={removeFilter}
+            aria-label={`Remove ${database.nameField?.name ?? 'Name'} filter`}
+            data-testid={`view-filter-remove-${filter.id}`}
+          >
             <Trash2 className="size-4" />
           </Button>
         </div>
         {!hideInput && (
           <Input
             value={textValue ?? ''}
+            aria-label={`${database.nameField?.name ?? 'Name'} filter value`}
             onChange={(e) => {
               const value = e.target.value;
               updateFilter({

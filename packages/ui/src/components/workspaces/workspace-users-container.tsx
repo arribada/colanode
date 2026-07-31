@@ -64,7 +64,11 @@ export const WorkspaceUsersContainer = () => {
               }
 
               return (
-                <div key={user.id} className="flex items-center space-x-3">
+                <div
+                  key={user.id}
+                  data-testid={`workspace-user-item-${user.id}`}
+                  className="flex items-center space-x-3"
+                >
                   <Avatar id={user.id} name={name} avatar={avatar} />
                   <div className="grow">
                     <p className="text-sm font-medium leading-none">{name}</p>

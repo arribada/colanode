@@ -42,7 +42,8 @@ export const FileSaveButton = ({ file }: FileSaveButtonProps) => {
           to: 'downloads',
         });
       },
-      onError: () => {
+      onError: (error) => {
+        console.error('Failed to save file', { fileId: file.id, error });
         toast.error('Failed to save file');
       },
     });
@@ -106,7 +107,8 @@ export const FileSaveButton = ({ file }: FileSaveButtonProps) => {
       if (downloadBlobUrl) {
         URL.revokeObjectURL(downloadBlobUrl);
       }
-    } catch {
+    } catch (error) {
+      console.error('Failed to save file', { fileId: file.id, error });
       toast.error('Failed to save file');
     } finally {
       setIsSaving(false);
@@ -126,6 +128,8 @@ export const FileSaveButton = ({ file }: FileSaveButtonProps) => {
       variant="outline"
       onClick={handleDownload}
       disabled={mutation.isPending || isSaving}
+      aria-busy={isSaving}
+      data-testid="file-save-button"
     >
       {isSaving ? (
         <Spinner className="size-4" />

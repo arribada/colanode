@@ -148,6 +148,11 @@ const cleanNodeRelations = async (nodeIds: string[]) => {
     .deleteFrom('document_updates')
     .where('document_id', 'in', nodeIds)
     .execute();
+
+  await database
+    .deleteFrom('document_snapshots')
+    .where('document_id', 'in', nodeIds)
+    .execute();
 };
 
 const cleanNodeFiles = async (nodeIds: string[]) => {

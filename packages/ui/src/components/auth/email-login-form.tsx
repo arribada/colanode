@@ -62,6 +62,7 @@ export const LoginForm = ({ isPending, onSubmit }: LoginFormProps) => {
                 aria-invalid={isInvalid}
                 placeholder="hi@example.com"
                 autoComplete="email"
+                data-testid="login-email-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -77,14 +78,16 @@ export const LoginForm = ({ isPending, onSubmit }: LoginFormProps) => {
             <Field data-invalid={isInvalid}>
               <div className="flex flex-row gap-2 items-center">
                 <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-                <p
+                <button
+                  type="button"
                   className="text-xs text-muted-foreground cursor-pointer hover:underline w-full text-right"
                   onClick={() => {
                     navigate({ to: '/auth/reset' });
                   }}
+                  data-testid="login-forgot-password-button"
                 >
                   Forgot password?
-                </p>
+                </button>
               </div>
               <Input
                 id={field.name}
@@ -96,6 +99,7 @@ export const LoginForm = ({ isPending, onSubmit }: LoginFormProps) => {
                 aria-invalid={isInvalid}
                 autoComplete="current-password"
                 placeholder="********"
+                data-testid="login-password-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -107,6 +111,7 @@ export const LoginForm = ({ isPending, onSubmit }: LoginFormProps) => {
         variant="outline"
         className="w-full"
         disabled={isPending}
+        data-testid="login-submit-button"
       >
         {isPending ? (
           <Spinner className="mr-1 size-4" />

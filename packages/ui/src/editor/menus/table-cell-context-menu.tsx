@@ -54,6 +54,9 @@ export const TableCellContextMenu = ({
             <ContextMenuLabel>Alignment</ContextMenuLabel>
             <ContextMenuItem
               onSelect={() => updateAttributes({ align: 'left' })}
+              role="menuitemradio"
+              aria-checked={textAlign === 'left'}
+              data-testid="editor-table-cell-align-left"
               className="flex items-center justify-between"
             >
               <div className="flex items-center gap-2">
@@ -64,6 +67,9 @@ export const TableCellContextMenu = ({
             </ContextMenuItem>
             <ContextMenuItem
               onSelect={() => updateAttributes({ align: 'center' })}
+              role="menuitemradio"
+              aria-checked={textAlign === 'center'}
+              data-testid="editor-table-cell-align-center"
               className="flex items-center justify-between"
             >
               <div className="flex items-center gap-2">
@@ -74,6 +80,9 @@ export const TableCellContextMenu = ({
             </ContextMenuItem>
             <ContextMenuItem
               onSelect={() => updateAttributes({ align: 'right' })}
+              role="menuitemradio"
+              aria-checked={textAlign === 'right'}
+              data-testid="editor-table-cell-align-right"
               className="flex items-center justify-between"
             >
               <div className="flex items-center gap-2">
@@ -97,6 +106,9 @@ export const TableCellContextMenu = ({
                 onSelect={() =>
                   updateAttributes({ backgroundColor: color.color })
                 }
+                role="menuitemradio"
+                aria-checked={backgroundColor === color.color}
+                data-testid={`editor-table-cell-bg-${color.color}`}
                 className="flex items-center justify-between"
               >
                 <div className="flex items-center gap-2">
@@ -118,6 +130,7 @@ export const TableCellContextMenu = ({
         <ContextMenuSeparator />
         <ContextMenuLabel>Column Actions</ContextMenuLabel>
         <ContextMenuItem
+          data-testid="editor-table-column-insert-before"
           onSelect={() => {
             editor.chain().addColumnBefore().focus().run();
           }}
@@ -126,6 +139,7 @@ export const TableCellContextMenu = ({
           Insert column left
         </ContextMenuItem>
         <ContextMenuItem
+          data-testid="editor-table-column-insert-after"
           onSelect={() => {
             editor.chain().addColumnAfter().focus().run();
           }}
@@ -134,6 +148,7 @@ export const TableCellContextMenu = ({
           Insert column right
         </ContextMenuItem>
         <ContextMenuItem
+          data-testid="editor-table-column-delete"
           onSelect={() => {
             editor.chain().focus().deleteColumn().run();
           }}
@@ -144,6 +159,7 @@ export const TableCellContextMenu = ({
         <ContextMenuSeparator />
         <ContextMenuLabel>Row Actions</ContextMenuLabel>
         <ContextMenuItem
+          data-testid="editor-table-row-insert-before"
           onSelect={() => {
             editor.chain().addRowBefore().focus().run();
           }}
@@ -152,6 +168,7 @@ export const TableCellContextMenu = ({
           Insert row above
         </ContextMenuItem>
         <ContextMenuItem
+          data-testid="editor-table-row-insert-after"
           onSelect={() => {
             editor.chain().addRowAfter().focus().run();
           }}
@@ -160,6 +177,7 @@ export const TableCellContextMenu = ({
           Insert row below
         </ContextMenuItem>
         <ContextMenuItem
+          data-testid="editor-table-row-delete"
           onSelect={() => {
             editor.chain().focus().deleteRow().run();
           }}

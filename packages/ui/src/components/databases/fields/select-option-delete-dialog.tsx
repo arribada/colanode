@@ -43,6 +43,7 @@ export const SelectOptionDeleteDialog = ({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <Button
             variant="destructive"
+            data-testid="select-option-delete-confirm-button"
             onClick={() => {
               const nodes = workspace.collections.nodes;
               nodes.update(database.id, (draft) => {

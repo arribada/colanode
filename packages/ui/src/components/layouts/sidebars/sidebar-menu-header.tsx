@@ -57,7 +57,11 @@ export const SidebarMenuHeader = () => {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <button className="flex w-full items-center justify-center relative cursor-pointer outline-none mt-2">
+        <button
+          type="button"
+          aria-label="Workspaces menu"
+          className="flex w-full items-center justify-center relative cursor-pointer outline-none mt-2"
+        >
           <Avatar
             id={currentWorkspace.workspaceId}
             avatar={currentWorkspace.avatar}
@@ -85,6 +89,10 @@ export const SidebarMenuHeader = () => {
           return (
             <DropdownMenuItem
               key={workspaceItem.userId}
+              data-testid={`sidebar-workspace-item-${workspaceItem.userId}`}
+              aria-current={
+                workspaceItem.userId === workspace.userId ? 'true' : undefined
+              }
               className="p-0 cursor-pointer"
               onClick={() => {
                 navigate({
@@ -119,6 +127,7 @@ export const SidebarMenuHeader = () => {
         })}
         <DropdownMenuSeparator className="my-1" />
         <DropdownMenuItem
+          data-testid="sidebar-workspace-create"
           className="gap-2 p-2 text-muted-foreground hover:text-foreground cursor-pointer"
           onClick={() => {
             navigate({

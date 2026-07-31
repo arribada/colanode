@@ -84,6 +84,7 @@ export const PasswordResetCompleteForm = ({
                 aria-invalid={isInvalid}
                 autoComplete="new-password"
                 placeholder="********"
+                data-testid="reset-complete-password-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -108,6 +109,7 @@ export const PasswordResetCompleteForm = ({
                 aria-invalid={isInvalid}
                 autoComplete="new-password"
                 placeholder="********"
+                data-testid="reset-complete-confirm-password-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
             </Field>
@@ -130,6 +132,7 @@ export const PasswordResetCompleteForm = ({
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={isInvalid}
                 placeholder="123456"
+                data-testid="reset-complete-otp-input"
               />
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
               <p className="text-xs text-muted-foreground w-full text-center">
@@ -144,6 +147,7 @@ export const PasswordResetCompleteForm = ({
         variant="outline"
         className="w-full"
         disabled={isPending || remainingSeconds <= 0}
+        data-testid="reset-complete-submit-button"
       >
         {isPending ? (
           <Spinner className="mr-1 size-4" />

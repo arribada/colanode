@@ -36,6 +36,7 @@ export const LogoutContainer = () => {
                 variant="destructive"
                 disabled={isPending}
                 className="w-full cursor-pointer md:w-20"
+                data-testid="logout-submit-button"
                 onClick={async () => {
                   mutate({
                     input: {

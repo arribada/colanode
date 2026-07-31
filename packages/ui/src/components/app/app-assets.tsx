@@ -2,6 +2,15 @@ import { useApp } from '@colanode/ui/contexts/app';
 
 export const AppAssets = () => {
   const app = useApp();
+
+  // Mobile loads fonts via Vite-inlined data: URIs (see apps/mobile MobileFonts)
+  // because the React Native WebView can't resolve the local:// scheme that the
+  // Electron desktop app uses. Emitting the local:// @font-face here too would
+  // just produce failing requests, so skip it on mobile.
+  if (app.type === 'mobile') {
+    return null;
+  }
+
   const fontPrefix = app.type === 'web' ? `/assets/fonts` : `local://fonts`;
 
   return (

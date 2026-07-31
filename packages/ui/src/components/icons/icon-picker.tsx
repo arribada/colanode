@@ -19,6 +19,7 @@ export const IconPicker = ({ onPick }: IconPickerProps) => {
         <Input
           type="text"
           placeholder="Search icons..."
+          aria-label="Search icons"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

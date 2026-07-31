@@ -1,21 +1,21 @@
 {
-  "short_name": "Colanode",
-  "name": "Colanode",
+  "short_name": "Arribada Wiki",
+  "name": "Arribada Wiki",
   "icons": [
     {
       "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
+      "sizes": "48x48 32x32 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "assets/colanode-logo-192.jpg",
-      "type": "image/jpeg",
+      "src": "assets/arribada-icon-192.png",
+      "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/colanode-logo-512.jpg",
-      "type": "image/jpeg",
+      "src": "assets/arribada-icon-512.png",
+      "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
     }
@@ -23,9 +23,9 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#0a1929",
   "background_color": "#ffffff",
   "orientation": "any",
-  "description": "Colanode Web Application",
+  "description": "Arribada Wiki Web Application",
   "prefer_related_applications": false
 }

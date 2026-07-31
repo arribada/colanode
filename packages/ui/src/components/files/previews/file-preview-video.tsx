@@ -3,5 +3,8 @@ interface FilePreviewVideoProps {
 }
 
 export const FilePreviewVideo = ({ url }: FilePreviewVideoProps) => {
-  return <video controls src={url} className="w-full object-contain" />;
+  return (
+    // eslint-disable-next-line jsx-a11y/media-has-caption -- user-uploaded media, no caption track available
+    <video controls src={url} className="w-full object-contain" />
+  );
 };

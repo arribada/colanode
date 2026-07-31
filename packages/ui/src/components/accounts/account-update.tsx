@@ -132,9 +132,12 @@ export const AccountUpdate = () => {
             isMobile ? 'flex justify-center pb-4' : 'size-40'
           )}
         >
-          <div
+          <button
+            type="button"
             className="group relative cursor-pointer"
             onClick={handleAvatarClick}
+            aria-label="Change avatar"
+            data-testid="account-avatar-upload-button"
           >
             <form.Subscribe
               selector={(state) => ({
@@ -163,7 +166,7 @@ export const AccountUpdate = () => {
                 <Upload className="size-5 text-foreground" />
               )}
             </div>
-          </div>
+          </button>
         </div>
         <div
           className={cn('space-y-4 py-2 pb-4', isMobile ? 'w-full' : 'grow')}
@@ -185,6 +188,7 @@ export const AccountUpdate = () => {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       placeholder="Name"
+                      data-testid="account-update-name-input"
                     />
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
@@ -228,6 +232,7 @@ export const AccountUpdate = () => {
           type="submit"
           disabled={isUpdatingAccount || isUploadingAvatar}
           className="w-20"
+          data-testid="account-update-submit-button"
         >
           {isUpdatingAccount && <Spinner className="mr-1" />}
           Save

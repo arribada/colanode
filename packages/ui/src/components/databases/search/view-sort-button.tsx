@@ -9,8 +9,11 @@ export const ViewSortButton = () => {
   if (view.sorts.length > 0) {
     return (
       <button
+        type="button"
         className="flex cursor-pointer items-center rounded-md p-1.5 hover:bg-accent"
         onClick={() => view.openSearchBar()}
+        aria-label="Sort"
+        data-testid="view-sort-button"
       >
         <ArrowDownAz className="size-4" />
       </button>
@@ -19,7 +22,12 @@ export const ViewSortButton = () => {
 
   return (
     <ViewSortAddPopover>
-      <button className="flex cursor-pointer items-center rounded-md p-1.5 hover:bg-accent">
+      <button
+        type="button"
+        className="flex cursor-pointer items-center rounded-md p-1.5 hover:bg-accent"
+        aria-label="Sort"
+        data-testid="view-sort-button"
+      >
         <ArrowDownAz className="size-4" />
       </button>
     </ViewSortAddPopover>

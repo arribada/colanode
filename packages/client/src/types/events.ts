@@ -22,7 +22,7 @@ import {
 import { Server } from '@colanode/client/types/servers';
 import { User } from '@colanode/client/types/users';
 import { Workspace } from '@colanode/client/types/workspaces';
-import { Message } from '@colanode/core';
+import { Message, PresenceState } from '@colanode/core';
 
 export type WorkspaceEventData = {
   workspaceId: string;
@@ -227,6 +227,26 @@ export type AccountConnectionMessageReceivedEvent = {
   message: Message;
 };
 
+// Emitted by PresenceService whenever the set of remote (live-cursor)
+// presences for a node changes. Ephemeral; drives the presence.list live query.
+export type PresenceChangedEvent = {
+  type: 'presence.changed';
+  accountId: string;
+  nodeId: string;
+  presences: PresenceState[];
+};
+
+// Emitted by Synchronizer whenever it successfully applies a batch of
+// items from the server. Purely additive/best-effort telemetry for the
+// UI's "Synchronisation..." indicator -- it does not carry a total (the
+// incremental sync protocol has no upfront count), so consumers can only
+// show a running count / indeterminate activity, not a percentage.
+export type WorkspaceSyncProgressEvent = {
+  type: 'workspace.sync.progress';
+  workspace: WorkspaceEventData;
+  itemCount: number;
+};
+
 export type MetadataUpdatedEvent = {
   type: 'metadata.updated';
   metadata: Metadata;
@@ -327,6 +347,24 @@ export type TabDeletedEvent = {
   tab: Tab;
 };
 
+export type NotificationCreatedEvent = {
+  type: 'notification.created';
+  workspace: WorkspaceEventData;
+  notificationId: string;
+};
+
+export type NotificationReadEvent = {
+  type: 'notification.read';
+  workspace: WorkspaceEventData;
+  notificationId: string;
+};
+
+export type NotificationMuteUpdatedEvent = {
+  type: 'notification.mute.updated';
+  workspace: WorkspaceEventData;
+  nodeId: string;
+};
+
 export type Event =
   | UserCreatedEvent
   | UserUpdatedEvent
@@ -363,6 +401,8 @@ export type Event =
   | AccountConnectionOpenedEvent
   | AccountConnectionClosedEvent
   | AccountConnectionMessageReceivedEvent
+  | PresenceChangedEvent
+  | WorkspaceSyncProgressEvent
   | MetadataUpdatedEvent
   | MetadataDeletedEvent
   | DocumentUpdatedEvent
@@ -380,4 +420,7 @@ export type Event =
   | TempFileDeletedEvent
   | TabCreatedEvent
   | TabUpdatedEvent
-  | TabDeletedEvent;
+  | TabDeletedEvent
+  | NotificationCreatedEvent
+  | NotificationReadEvent
+  | NotificationMuteUpdatedEvent;

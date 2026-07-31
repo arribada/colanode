@@ -7,9 +7,13 @@ import {
   extractNodeRole,
   FileStatus,
 } from '@colanode/core';
+import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
 import { database } from '@colanode/server/data/database';
+import { createLogger } from '@colanode/server/lib/logger';
 import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 import { storage } from '@colanode/server/lib/storage';
+
+const logger = createLogger('api:client:workspaces:file-download');
 
 export const fileDownloadRoute: FastifyPluginCallbackZod = (
   instance,
@@ -83,12 +87,22 @@ export const fileDownloadRoute: FastifyPluginCallbackZod = (
       try {
         const { stream, contentType } = await storage.download(upload.path);
 
-        if (contentType) {
-          reply.header('Content-Type', contentType);
+        // Prefer the content type reported by the storage provider (S3/GCS/Azure
+        // persist it), but fall back to the mime type recorded on the upload row.
+        // The file-system storage provider does not store a content type, so
+        // without this fallback file downloads would carry no Content-Type header
+        // at all (breaking direct-URL previews and content sniffing for e.g. PDFs).
+        const resolvedContentType = contentType ?? upload.mime_type;
+        if (resolvedContentType) {
+          reply.header('Content-Type', resolvedContentType);
         }
 
         return reply.send(stream);
-      } catch {
+      } catch (error) {
+        logger.error(
+          toSafeLogFields(error),
+          `Failed to download file ${fileId} from storage (path: ${upload.path})`
+        );
         return reply.code(404).send({
           code: ApiErrorCode.FileNotFound,
           message: 'File not found.',

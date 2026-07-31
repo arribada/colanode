@@ -45,6 +45,7 @@ const NameEditor = ({ initialValue, onSave, onCancel }: NameEditorProps) => {
       onChange={(e) => setValue(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
+      aria-label="Record name"
       className="flex h-full w-full cursor-text flex-row items-center gap-1 p-1 text-sm"
     />
   );
@@ -85,7 +86,8 @@ export const TableViewNameCell = ({ record }: TableViewNameCellProps) => {
         />
       ) : (
         <Fragment>
-          <div
+          <button
+            type="button"
             onClick={() => canEdit && setIsEditing(true)}
             className="flex h-full w-full cursor-pointer flex-row items-center gap-1 p-1 text-sm"
           >
@@ -94,11 +96,12 @@ export const TableViewNameCell = ({ record }: TableViewNameCellProps) => {
             ) : (
               <span className="text-muted-foreground">Unnamed</span>
             )}
-          </div>
+          </button>
           <Link
             from="/workspace/$userId/$nodeId"
             to="modal/$modalNodeId"
             params={{ modalNodeId: record.id }}
+            data-testid={`table-row-open-${record.id}`}
             className="absolute right-2 flex h-6 cursor-pointer flex-row items-center gap-1 rounded-md border p-1 text-sm text-muted-foreground opacity-0 hover:bg-accent group-hover:opacity-100"
           >
             <SquareArrowOutUpRight className="mr-1 size-4" /> <p>Open</p>

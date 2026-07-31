@@ -336,3 +336,73 @@
 //   Provide only the summary with no additional commentary or explanations.
 // </output_format>`
 // );
+
+// ---------------------------------------------------------------------------
+// Editor completion prompts (Arribada Wiki AI actions)
+//
+// Unlike the (currently disabled) langchain RAG prompts above, these are plain
+// string templates consumed by the AI-SDK completion path
+// (lib/ai/completion.ts). They intentionally have no external dependencies.
+// ---------------------------------------------------------------------------
+import type { AiCompleteInput } from '@colanode/core';
+
+const COMPLETION_SYSTEM_PROMPT =
+  'You are a writing assistant embedded in a collaborative wiki editor. ' +
+  'You transform or generate text based on the requested action. ' +
+  'Return ONLY the resulting text — no preamble, no explanation, no surrounding quotes, and no markdown code fences. ' +
+  'Preserve the original language unless explicitly asked to translate. ' +
+  'Match the tone and formatting of the surrounding document.';
+
+// Build the { system, prompt } pair for a given editor completion action.
+export const buildCompletionPrompt = (
+  input: AiCompleteInput
+): { system: string; prompt: string } => {
+  const selection = input.selection?.trim() ?? '';
+  const context = input.context?.trim() ?? '';
+  const instruction = input.prompt?.trim() ?? '';
+
+  let task: string;
+  switch (input.action) {
+    case 'improve':
+      task =
+        'Improve the writing quality, clarity and flow of the text below without changing its meaning.';
+      break;
+    case 'summarize':
+      task = 'Write a concise summary of the text below.';
+      break;
+    case 'translate':
+      task = `Translate the text below into ${instruction || 'English'}. Return only the translation.`;
+      break;
+    case 'fix':
+      task =
+        'Fix any spelling, grammar and punctuation mistakes in the text below. Keep the wording otherwise unchanged.';
+      break;
+    case 'shorter':
+      task =
+        'Rewrite the text below to be shorter and more concise while keeping the key information.';
+      break;
+    case 'longer':
+      task =
+        'Expand the text below with more detail and explanation while staying on topic.';
+      break;
+    case 'continue':
+      task =
+        'Continue writing from where the text below leaves off, in the same voice and style. Return only the continuation.';
+      break;
+    case 'custom':
+      task = instruction || 'Rewrite the text below.';
+      break;
+    default:
+      task = 'Rewrite the text below.';
+  }
+
+  const contextBlock = context
+    ? `\n\nDocument context:\n"""\n${context}\n"""`
+    : '';
+  const selectionBlock = selection ? `\n\nText:\n"""\n${selection}\n"""` : '';
+
+  return {
+    system: COMPLETION_SYSTEM_PROMPT,
+    prompt: `${task}${contextBlock}${selectionBlock}`,
+  };
+};

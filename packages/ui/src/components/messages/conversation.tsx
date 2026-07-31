@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { InView } from 'react-intersection-observer';
 
-import { NodeRole, hasNodeRole } from '@colanode/core';
+import { IdType, NodeRole, getIdType, hasNodeRole } from '@colanode/core';
 import {
   MessageCreate,
   MessageCreateRefProps,
@@ -9,21 +9,32 @@ import {
 import { MessageList } from '@colanode/ui/components/messages/message-list';
 import { useContainer } from '@colanode/ui/contexts/container';
 import { ConversationContext } from '@colanode/ui/contexts/conversation';
+import { useThreadPanel } from '@colanode/ui/contexts/thread-panel';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
+import { useMetadata } from '@colanode/ui/hooks/use-metadata';
 
 interface ConversationProps {
   conversationId: string;
   rootId: string;
   role: NodeRole;
+  isThread?: boolean;
+  // Inline comment thread id; scopes the message list + composer to one thread.
+  anchorId?: string | null;
 }
 
 export const Conversation = ({
   conversationId,
   rootId,
   role,
+  isThread = false,
+  anchorId = null,
 }: ConversationProps) => {
   const workspace = useWorkspace();
   const container = useContainer();
+  const isMobile = useIsMobile();
+  const { openThread } = useThreadPanel();
+  const [replyDefault] = useMetadata<'thread' | 'quote'>('app', 'chat.reply-default');
 
   const scrollAreaRef = container.scrollAreaRef;
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -88,11 +99,28 @@ export const Conversation = ({
         role,
         rootId,
         canCreateMessage,
+        isThread,
+        anchorId,
         onReply: (message) => {
+          const useThreadDefault =
+            !isMobile &&
+            !isThread &&
+            getIdType(conversationId) === IdType.Channel &&
+            (replyDefault ?? 'thread') === 'thread';
+          if (useThreadDefault) {
+            openThread(message.id);
+          } else {
+            if (messageCreateRef.current) {
+              messageCreateRef.current.setReplyTo(message);
+            }
+          }
+        },
+        onQuoteReply: (message) => {
           if (messageCreateRef.current) {
             messageCreateRef.current.setReplyTo(message);
           }
         },
+        onOpenThread: openThread,
         onLastMessageIdChange: () => {
           if (shouldScrollToBottomRef.current && bottomRef.current) {
             bottomRef.current.scrollIntoView();

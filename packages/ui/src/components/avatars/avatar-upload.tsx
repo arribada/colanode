@@ -39,6 +39,7 @@ export const AvatarUpload = ({ onUpload }: AvatarUploadProps) => {
           type="text"
           name="url"
           placeholder="Paste link to an image..."
+          aria-label="Image URL"
           onChange={(e) => setUrl(e.target.value)}
           autoComplete="off"
         />
@@ -46,6 +47,7 @@ export const AvatarUpload = ({ onUpload }: AvatarUploadProps) => {
           type="submit"
           className="h-auto px-3 py-0 text-sm"
           disabled={!url}
+          data-testid="avatar-upload-url-submit-button"
         >
           Submit
         </Button>
@@ -54,6 +56,7 @@ export const AvatarUpload = ({ onUpload }: AvatarUploadProps) => {
         type="button"
         className="w-full cursor-pointer"
         variant="outline"
+        data-testid="avatar-upload-file-button"
         disabled={isPending}
         onClick={async () => {
           if (isPending) {

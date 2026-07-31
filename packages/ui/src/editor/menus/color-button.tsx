@@ -39,7 +39,10 @@ export const ColorButton = ({
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen} modal={true}>
-      <PopoverTrigger>
+      <PopoverTrigger
+        aria-label="Text color"
+        data-testid="editor-toolbar-text-color"
+      >
         <span className="flex size-8 items-center justify-center rounded-md cursor-pointer hover:bg-input">
           <Baseline className={cn('size-4', activeColor.textClass)} />
         </span>
@@ -54,6 +57,7 @@ export const ColorButton = ({
           {editorColors.map((color) => (
             <button
               key={`text-color-${color.color}`}
+              aria-pressed={color.color === activeColor.color}
               onClick={() => {
                 if (color.color === 'default') {
                   editor.commands.unsetColor();

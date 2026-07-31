@@ -94,3 +94,36 @@ export const buildNodeReactionKey = (
 ) => {
   return `${nodeId}.${collaboratorId}.${reaction}`;
 };
+
+export const collectDescendantIds = (
+  rootId: string,
+  nodes: LocalNode[]
+): Set<string> => {
+  const childrenByParent = new Map<string, string[]>();
+  for (const node of nodes) {
+    if (node.parentId === null) {
+      continue;
+    }
+    const list = childrenByParent.get(node.parentId);
+    if (list) {
+      list.push(node.id);
+    } else {
+      childrenByParent.set(node.parentId, [node.id]);
+    }
+  }
+
+  const descendants = new Set<string>();
+  const queue = [...(childrenByParent.get(rootId) ?? [])];
+  while (queue.length > 0) {
+    const id = queue.pop()!;
+    if (descendants.has(id)) {
+      continue;
+    }
+    descendants.add(id);
+    const children = childrenByParent.get(id);
+    if (children) {
+      queue.push(...children);
+    }
+  }
+  return descendants;
+};

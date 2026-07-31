@@ -55,6 +55,10 @@ const fieldTypes: FieldTypeOption[] = [
     type: 'email',
   },
   {
+    name: 'Formula',
+    type: 'formula',
+  },
+  {
     name: 'Multi Select',
     type: 'multi_select',
   },
@@ -65,6 +69,10 @@ const fieldTypes: FieldTypeOption[] = [
   {
     name: 'Phone',
     type: 'phone',
+  },
+  {
+    name: 'Rollup',
+    type: 'rollup',
   },
   {
     name: 'Select',
@@ -117,6 +125,7 @@ export const FieldTypeSelect = ({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between p-2"
+          data-testid="field-type-select-trigger"
         >
           <span className="flex flex-row items-center gap-1">
             <FieldIcon type={value as FieldType} className="size-4" />
@@ -135,32 +144,34 @@ export const FieldTypeSelect = ({
             <ScrollViewport>
               <CommandList className="max-h-none overflow-hidden">
                 <CommandGroup className="h-min">
-                  {filteredFieldTypes.map((fieldType) => (
-                    <CommandItem
-                      key={fieldType.type}
-                      value={`${fieldType.type} - ${fieldType.name}`}
-                      onSelect={() => {
-                        onChange(fieldType.type);
-                        setOpen(false);
-                      }}
-                    >
-                      <div className="flex w-full flex-row items-center gap-2">
-                        <FieldIcon
-                          type={fieldType.type}
-                          className="size-4 text-foreground"
-                        />
-                        <p>{fieldType.name}</p>
-                        <Check
-                          className={cn(
-                            'ml-auto size-4',
-                            value === fieldType.type
-                              ? 'opacity-100'
-                              : 'opacity-0'
-                          )}
-                        />
-                      </div>
-                    </CommandItem>
-                  ))}
+                  {filteredFieldTypes.map((fieldType) => {
+                    const isSelected = value === fieldType.type;
+                    return (
+                      <CommandItem
+                        key={fieldType.type}
+                        value={`${fieldType.type} - ${fieldType.name}`}
+                        onSelect={() => {
+                          onChange(fieldType.type);
+                          setOpen(false);
+                        }}
+                        aria-checked={isSelected}
+                      >
+                        <div className="flex w-full flex-row items-center gap-2">
+                          <FieldIcon
+                            type={fieldType.type}
+                            className="size-4 text-foreground"
+                          />
+                          <p>{fieldType.name}</p>
+                          <Check
+                            className={cn(
+                              'ml-auto size-4',
+                              isSelected ? 'opacity-100' : 'opacity-0'
+                            )}
+                          />
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </CommandList>
             </ScrollViewport>

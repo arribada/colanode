@@ -1,6 +1,7 @@
-import { MessagesSquare, Reply, Trash2 } from 'lucide-react';
-import { useCallback } from 'react';
+import { MessagesSquare, Quote, Reply, SquareCheckBig, Trash2 } from 'lucide-react';
+import { Fragment, useCallback, useState } from 'react';
 
+import { MessageCreateTaskDialog } from '@colanode/ui/components/messages/message-create-task-dialog';
 import { MessageQuickReaction } from '@colanode/ui/components/messages/message-quick-reaction';
 import { MessageReactionCreatePopover } from '@colanode/ui/components/messages/message-reaction-create-popover';
 import { useConversation } from '@colanode/ui/contexts/conversation';
@@ -21,6 +22,7 @@ export const MessageActions = () => {
   const message = useMessage();
   const workspace = useWorkspace();
   const conversation = useConversation();
+  const [openCreateTask, setOpenCreateTask] = useState(false);
 
   const handleReactionClick = useCallback(
     (reaction: string) => {
@@ -45,29 +47,30 @@ export const MessageActions = () => {
   );
 
   return (
+    <Fragment>
     <ul className="invisible absolute -top-5 right-1 z-10 flex flex-row items-center rounded-md bg-muted p-0.5 text-muted-foreground shadow-md group-hover:visible">
       <MessageAction>
-        <MessageQuickReaction
-          emoji={defaultEmojis.like}
-          onClick={handleReactionClick}
-        />
+        <MessageQuickReaction emoji={defaultEmojis.like} onClick={handleReactionClick} />
       </MessageAction>
       <MessageAction>
-        <MessageQuickReaction
-          emoji={defaultEmojis.heart}
-          onClick={handleReactionClick}
-        />
+        <MessageQuickReaction emoji={defaultEmojis.heart} onClick={handleReactionClick} />
       </MessageAction>
       <MessageAction>
-        <MessageQuickReaction
-          emoji={defaultEmojis.check}
-          onClick={handleReactionClick}
-        />
+        <MessageQuickReaction emoji={defaultEmojis.check} onClick={handleReactionClick} />
       </MessageAction>
       <div className="mx-1 h-6 w-px bg-border" />
       {message.canReplyInThread && (
         <MessageAction>
-          <MessagesSquare className="size-4 cursor-pointer" />
+          <button
+            type="button"
+            aria-label="Reply in thread"
+            className="flex size-full cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+            onClick={() => {
+              conversation.onOpenThread(message.id);
+            }}
+          >
+            <MessagesSquare className="size-4" />
+          </button>
         </MessageAction>
       )}
       <MessageAction>
@@ -75,24 +78,67 @@ export const MessageActions = () => {
       </MessageAction>
       {conversation.canCreateMessage && (
         <MessageAction>
-          <Reply
-            className="size-4 cursor-pointer"
+          <button
+            type="button"
+            aria-label="Quote reply"
+            className="flex size-full cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+            onClick={() => {
+              conversation.onQuoteReply(message);
+            }}
+          >
+            <Quote className="size-4" />
+          </button>
+        </MessageAction>
+      )}
+      {conversation.canCreateMessage && (
+        <MessageAction>
+          <button
+            type="button"
+            aria-label="Reply"
+            className="flex size-full cursor-pointer items-center justify-center border-0 bg-transparent p-0"
             onClick={() => {
               conversation.onReply(message);
             }}
-          />
+          >
+            <Reply className="size-4" />
+          </button>
+        </MessageAction>
+      )}
+      {message.createdBy === workspace.userId && !message.taskId && (
+        <MessageAction>
+          <button
+            type="button"
+            aria-label="Create task from message"
+            className="flex size-full cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+            onClick={() => {
+              setOpenCreateTask(true);
+            }}
+          >
+            <SquareCheckBig className="size-4" />
+          </button>
         </MessageAction>
       )}
       {message.canDelete && (
         <MessageAction>
-          <Trash2
-            className="size-4 cursor-pointer"
+          <button
+            type="button"
+            aria-label="Delete message"
+            className="flex size-full cursor-pointer items-center justify-center border-0 bg-transparent p-0"
             onClick={() => {
               message.openDelete();
             }}
-          />
+          >
+            <Trash2 className="size-4" />
+          </button>
         </MessageAction>
       )}
     </ul>
+    {openCreateTask && (
+      <MessageCreateTaskDialog
+        open={openCreateTask}
+        onOpenChange={setOpenCreateTask}
+      />
+    )}
+    </Fragment>
   );
 };

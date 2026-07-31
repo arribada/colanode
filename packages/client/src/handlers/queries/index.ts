@@ -3,11 +3,17 @@ import { QueryMap } from '@colanode/client/queries';
 import { AppService } from '@colanode/client/services/app-service';
 
 import { AccountListQueryHandler } from './accounts/accounts-list';
+import { AiSettingsGetQueryHandler } from './ai/ai-settings-get';
+import { AiSettingsWorkspaceGetQueryHandler } from './ai/ai-settings-workspace-get';
+import { McpTokensListQueryHandler } from './ai/mcp-tokens-list';
 import { MetadataListQueryHandler } from './apps/metadata-list';
 import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
 import { DocumentGetQueryHandler } from './documents/document-get';
+import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
+import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
+import { DocumentUpdateContentQueryHandler } from './documents/document-update-content';
 import { DocumentUpdatesListQueryHandler } from './documents/document-update-list';
 import { EmojiCategoryListQueryHandler } from './emojis/emoji-category-list';
 import { EmojiGetQueryHandler } from './emojis/emoji-get';
@@ -24,11 +30,25 @@ import { IconCategoryListQueryHandler } from './icons/icon-category-list';
 import { IconListQueryHandler } from './icons/icon-list';
 import { IconSearchQueryHandler } from './icons/icon-search';
 import { IconSvgGetQueryHandler } from './icons/icon-svg-get';
+import { NodeInteractionGetQueryHandler } from './interactions/node-interaction-get';
 import { RadarDataGetQueryHandler } from './interactions/radar-data-get';
+import { NodeBacklinkListQueryHandler } from './nodes/node-backlink-list';
 import { NodeListQueryHandler } from './nodes/node-list';
+import { NodeMentionSearchQueryHandler } from './nodes/node-mention-search';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
+import { NodeSearchQueryHandler } from './nodes/node-search';
+import { NodeTrashListQueryHandler } from './nodes/node-trash-list';
+import { NotificationListQueryHandler } from './notifications/notification-list';
+import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';
+import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
+import { PageTemplateListQueryHandler } from './pages/page-template-list';
+import { PlaneIssueGetQueryHandler } from './plane/plane-issue-get';
+import { PlaneProjectBoardQueryHandler } from './plane/plane-project-board';
+import { PlaneProjectsListQueryHandler } from './plane/plane-projects-list';
+import { PresenceListQueryHandler } from './presence/presence-list';
 import { RecordFieldValueCountQueryHandler } from './records/record-field-value-count';
 import { RecordSearchQueryHandler } from './records/record-search';
+import { RecordTemplateListQueryHandler } from './records/record-template-list';
 import { ServerListQueryHandler } from './servers/server-list';
 import { UserListQueryHandler } from './users/user-list';
 import { UserSearchQueryHandler } from './users/user-search';
@@ -40,11 +60,19 @@ export type QueryHandlerMap = {
 
 export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
   return {
+    'ai.settings.get': new AiSettingsGetQueryHandler(app),
+    'ai.settings.workspace.get': new AiSettingsWorkspaceGetQueryHandler(app),
+    'ai.mcp.tokens.list': new McpTokensListQueryHandler(app),
     'metadata.list': new MetadataListQueryHandler(app),
     'avatar.get': new AvatarGetQueryHandler(app),
     'account.list': new AccountListQueryHandler(app),
+    'node.interaction.get': new NodeInteractionGetQueryHandler(app),
     'node.reaction.list': new NodeReactionsListQueryHandler(app),
     'node.list': new NodeListQueryHandler(app),
+    'node.search': new NodeSearchQueryHandler(app),
+    'node.mention.search': new NodeMentionSearchQueryHandler(app),
+    'node.backlink.list': new NodeBacklinkListQueryHandler(app),
+    'node.trash.list': new NodeTrashListQueryHandler(app),
     'record.field.value.count': new RecordFieldValueCountQueryHandler(app),
     'user.search': new UserSearchQueryHandler(app),
     'workspace.list': new WorkspaceListQueryHandler(app),
@@ -62,7 +90,10 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'local.file.get': new LocalFileGetQueryHandler(app),
     'file.download.request.get': new FileDownloadRequestGetQueryHandler(app),
     'document.get': new DocumentGetQueryHandler(app),
+    'document.snapshot.get': new DocumentSnapshotGetQueryHandler(app),
+    'document.snapshot.list': new DocumentSnapshotListQueryHandler(app),
     'document.state.get': new DocumentStateGetQueryHandler(app),
+    'document.update.content': new DocumentUpdateContentQueryHandler(app),
     'document.updates.list': new DocumentUpdatesListQueryHandler(app),
     'upload.list': new UploadListQueryHandler(app),
     'download.list': new DownloadListQueryHandler(app),
@@ -71,5 +102,14 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'emoji.svg.get': new EmojiSvgGetQueryHandler(app),
     'tabs.list': new TabsListQueryHandler(app),
     'server.list': new ServerListQueryHandler(app),
+    'notification.list': new NotificationListQueryHandler(app),
+    'notification-mute.get': new NotificationMuteGetQueryHandler(app),
+    'notification.unread-count': new NotificationUnreadCountQueryHandler(app),
+    'record.template.list': new RecordTemplateListQueryHandler(app),
+    'page.template.list': new PageTemplateListQueryHandler(app),
+    'plane.issue.get': new PlaneIssueGetQueryHandler(app),
+    'plane.project.board': new PlaneProjectBoardQueryHandler(app),
+    'plane.projects.list': new PlaneProjectsListQueryHandler(app),
+    'presence.list': new PresenceListQueryHandler(app),
   };
 };

@@ -25,6 +25,7 @@ export const CalendarViewDay = ({
   const database = useDatabase();
 
   const isToday = isSameDay(date, new Date());
+  const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
   return (
     <td className="animate-fade-in group/calendar-day flex w-full flex-col gap-1 h-40 p-2 border-r first:border-l border-border overflow-auto">
@@ -36,10 +37,15 @@ export const CalendarViewDay = ({
       >
         {onCreate && (
           <div className="grow">
-            <Plus
-              className="size-4 cursor-pointer opacity-0 group-hover/calendar-day:opacity-100"
+            <button
+              type="button"
               onClick={onCreate}
-            />
+              aria-label="Add record"
+              data-testid={`calendar-day-create-${localDate}`}
+              className="cursor-pointer opacity-0 group-hover/calendar-day:opacity-100"
+            >
+              <Plus className="size-4" />
+            </button>
           </div>
         )}
         <p

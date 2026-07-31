@@ -82,6 +82,7 @@ export const PageCreateDialog = ({
             name: '',
           }}
           submitText="Create"
+          testId="page-create-submit"
           onCancel={() => {
             onOpenChange(false);
           }}

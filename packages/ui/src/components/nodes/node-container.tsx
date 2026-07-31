@@ -2,6 +2,7 @@ import { Outlet } from '@tanstack/react-router';
 
 import { ChannelContainer } from '@colanode/ui/components/channels/channel-container';
 import { ChatContainer } from '@colanode/ui/components/chats/chat-container';
+import { PageCommentsButton } from '@colanode/ui/components/comments/page-comments-button';
 import { DatabaseContainer } from '@colanode/ui/components/databases/database-container';
 import { FileContainer } from '@colanode/ui/components/files/file-container';
 import { FolderContainer } from '@colanode/ui/components/folders/folder-container';
@@ -13,6 +14,7 @@ import { NodeSettings } from '@colanode/ui/components/nodes/node-settings';
 import { PageContainer } from '@colanode/ui/components/pages/page-container';
 import { RecordContainer } from '@colanode/ui/components/records/record-container';
 import { SpaceContainer } from '@colanode/ui/components/spaces/space-container';
+import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { ContainerType } from '@colanode/ui/contexts/container';
 import { useNode } from '@colanode/ui/contexts/node';
 import { useNodeRadar } from '@colanode/ui/hooks/use-node-radar';
@@ -35,7 +37,18 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
     <Container
       type={type}
       breadcrumb={<NodeBreadcrumb nodes={data.breadcrumb} />}
-      actions={<NodeSettings node={data.node} role={data.role} />}
+      actions={
+        <div className="flex flex-row items-center gap-2">
+          {data.node.type === 'page' && (
+            <PageCommentsButton pageId={data.node.id} />
+          )}
+          <NodeSettings
+            node={data.node}
+            nodes={data.breadcrumb}
+            role={data.role}
+          />
+        </div>
+      }
       onFullscreen={onFullscreen}
     >
       {data.node.type === 'space' && (
@@ -63,6 +76,9 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
         <MessageContainer message={data.node} role={data.role} />
       )}
       {data.node.type === 'file' && <FileContainer file={data.node} />}
+      {data.node.type === 'whiteboard' && (
+        <WhiteboardContainer whiteboard={data.node} role={data.role} />
+      )}
     </Container>
   );
 };

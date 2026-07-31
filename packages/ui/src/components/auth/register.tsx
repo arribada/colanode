@@ -6,6 +6,7 @@ import { LoginOutput } from '@colanode/core';
 import { RegisterForm } from '@colanode/ui/components/auth/email-register-form';
 import { EmailVerifyForm } from '@colanode/ui/components/auth/email-verify-form';
 import { GoogleLogin } from '@colanode/ui/components/auth/google-login';
+import { OidcLogin } from '@colanode/ui/components/auth/oidc-login';
 import { Button } from '@colanode/ui/components/ui/button';
 import { useAuth } from '@colanode/ui/contexts/auth';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
@@ -148,7 +149,7 @@ export const Register = () => {
         </h1>
         <p className="text-sm text-muted-foreground">
           {state.type === 'register'
-            ? 'Sign up to get started with Colanode'
+            ? 'Sign up to get started with the Arribada Wiki'
             : 'Enter the code sent to your email'}
         </p>
       </div>
@@ -164,6 +165,14 @@ export const Register = () => {
               onLogin={handleGoogleRegister}
               isPending={isGoogleRegisterPending}
             />
+            <OidcLogin
+              context="register"
+              disabled={
+                isEmailRegisterPending ||
+                isEmailVerifyPending ||
+                isGoogleRegisterPending
+              }
+            />
             <Button
               variant="link"
               className="w-full text-muted-foreground"
@@ -171,6 +180,7 @@ export const Register = () => {
                 navigate({ to: '/auth/login' });
               }}
               type="button"
+              data-testid="register-login-link-button"
             >
               Already have an account? Login
             </Button>
@@ -190,6 +200,7 @@ export const Register = () => {
                 setState({ type: 'register' });
               }}
               type="button"
+              data-testid="register-back-to-register-button"
             >
               Back to register
             </Button>

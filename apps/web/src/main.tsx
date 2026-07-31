@@ -2,21 +2,37 @@ import * as Comlink from 'comlink';
 import { createRoot } from 'react-dom/client';
 
 import { eventBus } from '@colanode/client/lib';
+import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
 import { BrowserNotSupported } from '@colanode/web/components/browser-not-supported';
-import { MobileNotSupported } from '@colanode/web/components/mobile-not-supported';
 import { ColanodeWorkerApi } from '@colanode/web/lib/types';
-import { isMobileDevice, isOpfsSupported } from '@colanode/web/lib/utils';
+import { isOpfsSupported } from '@colanode/web/lib/utils';
 import { Root } from '@colanode/web/root';
+import {
+  disableWebPush,
+  enableWebPush,
+  getWebPushState,
+  isWebPushSupported,
+} from '@colanode/web/services/push-service';
 import DedicatedWorker from '@colanode/web/workers/dedicated?worker';
 
-const initializeApp = async () => {
-  const isMobile = isMobileDevice();
-  if (isMobile) {
-    const root = createRoot(document.getElementById('root') as HTMLElement);
-    root.render(<MobileNotSupported />);
-    return;
-  }
+window.addEventListener('error', (event) => {
+  console.error('[Web] Uncaught window error', event.error ?? event.message, {
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+  });
+});
 
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[Web] Unhandled promise rejection', event.reason);
+});
+
+const initializeApp = async () => {
+  // Phones and narrow viewports are supported by the responsive mobile
+  // layout (useIsMobile, SidebarMobile, LayoutMobile, comments-sheet -- see
+  // packages/ui), so we no longer gate rendering on a user-agent check here.
+  // OPFS is the only real hard requirement: the client engine needs it for
+  // local storage/sync, and there is no fallback.
   const hasOpfsSupport = await isOpfsSupported();
   if (!hasOpfsSupport) {
     const root = createRoot(document.getElementById('root') as HTMLElement);
@@ -57,6 +73,15 @@ const initializeApp = async () => {
       // No-op on web
     },
     showFileSaveDialog: async () => undefined,
+    push: {
+      enable: (userId, vapidPublicKey) =>
+        vapidPublicKey
+          ? enableWebPush(userId, vapidPublicKey)
+          : Promise.resolve(false),
+      disable: (userId) => disableWebPush(userId),
+      getState: () => getWebPushState(),
+      isSupported: () => isWebPushSupported(),
+    },
   };
 
   window.eventBus = eventBus;
@@ -68,10 +93,21 @@ const initializeApp = async () => {
   );
 
   const root = createRoot(document.getElementById('root') as HTMLElement);
-  root.render(<Root />);
+  // Intentional double boundary: <Root> renders <App type="web"/>, which
+  // already wraps its own children in an AppErrorBoundary
+  // (context={`app-${type}`}) inside packages/ui, so this outer instance is
+  // a last-resort net around Root/App's own render/mount, not a duplicate of
+  // the inner one. Kept distinct via the "web-main" context label so logs
+  // show which layer actually caught the error.
+  root.render(
+    <AppErrorBoundary context="web-main">
+      <Root />
+    </AppErrorBoundary>
+  );
 };
 
-initializeApp().catch(() => {
+initializeApp().catch((error) => {
+  console.error('[Web] Failed to initialize app', error);
   const root = createRoot(document.getElementById('root') as HTMLElement);
   root.render(<BrowserNotSupported />);
 });

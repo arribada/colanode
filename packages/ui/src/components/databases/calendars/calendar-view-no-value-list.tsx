@@ -37,6 +37,7 @@ export const CalendarViewNoValueList = ({
             to="$nodeId"
             params={{ nodeId: record.id }}
             key={record.id}
+            data-testid={`calendar-no-value-record-${record.id}`}
             className="flex flex-row items-center border rounded-md p-1 gap-2 cursor-pointer hover:bg-muted"
           >
             <Avatar

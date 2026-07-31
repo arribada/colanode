@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@colanode/client-node",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless @colanode/client substrate for Node (services + bootEngine)",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint --ext .ts src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@colanode/client": "*",
+    "@colanode/core": "*",
+    "better-sqlite3": "^12.8.0",
+    "kysely": "^0.28.15"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
+  }
+}

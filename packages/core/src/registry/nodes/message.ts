@@ -13,7 +13,13 @@ export const messageAttributesSchema = z.object({
   name: z.string().optional(),
   parentId: z.string(),
   referenceId: z.string().nullable().optional(),
+  taskId: z.string().nullable().optional(),
   content: z.record(z.string(), blockSchema).optional().nullable(),
+  // Optional inline-comment thread id. When set, this message belongs to a
+  // Notion-style inline comment thread anchored to a `comment` mark in the
+  // parent page document (threadId === anchorId). Optional so existing
+  // messages (channels, chats, page-level comments) keep validating.
+  anchorId: z.string().nullable().optional(),
   selectedContextNodeIds: z.array(z.string()).optional().nullable(),
 });
 
@@ -25,6 +31,14 @@ export const messageModel: NodeModel = {
   canCreate: (context) => {
     if (context.tree.length === 0) {
       return false;
+    }
+
+    const parent = context.tree[context.tree.length - 1];
+    if (parent && parent.type === 'message') {
+      const grandparent = context.tree[context.tree.length - 2];
+      if (grandparent && grandparent.type === 'message') {
+        return false;
+      }
     }
 
     const role = extractNodeRole(context.tree, context.user.id);

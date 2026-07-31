@@ -53,6 +53,7 @@ export const SpaceContainer = ({ space, role }: SpaceContainerProps) => {
           readOnly={!canEdit}
           onSubmit={handleSubmit}
           submitText="Update"
+          testId="space-settings-form"
         />
       </div>
 

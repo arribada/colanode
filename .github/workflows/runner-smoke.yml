@@ -1,0 +1,9 @@
+name: Runner smoke
+on: workflow_dispatch
+jobs:
+  smoke:
+    runs-on: [self-hosted, colanode]
+    steps:
+      - run: |
+          which claude node docker && docker compose version
+          claude --version

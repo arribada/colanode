@@ -8,6 +8,13 @@ import { cn } from '@colanode/ui/lib/utils';
 export const BoardViewColumn = () => {
   const boardView = useBoardView();
 
+  const filterValue =
+    boardView.filter.type === 'field' ? boardView.filter.value : undefined;
+  const columnId =
+    Array.isArray(filterValue) && filterValue[0]
+      ? filterValue[0]
+      : `${boardView.field.id}-none`;
+
   const [{ isOver }, drop] = useDrop({
     accept: 'board-record',
     drop: (item) => {
@@ -37,7 +44,7 @@ export const BoardViewColumn = () => {
       }}
     >
       <div className="flex flex-row items-center gap-2">{boardView.header}</div>
-      <BoardViewColumnRecords />
+      <BoardViewColumnRecords columnId={columnId} />
     </div>
   );
 };

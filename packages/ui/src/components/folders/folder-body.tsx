@@ -103,18 +103,34 @@ export const FolderBody = ({ folder }: FolderBodyProps) => {
       <div className="flex h-full max-h-full flex-col gap-4 overflow-y-auto">
         <div className="flex flex-row justify-between">
           <div className="flex flex-row gap-2">
-            <Button type="button" variant="outline" onClick={handleUploadClick}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleUploadClick}
+              data-testid="folder-upload-button"
+            >
               <Upload className="mr-2 size-4" /> Upload
             </Button>
           </div>
           <div className="flex flex-row gap-2">
-            <Button type="button" variant="outline" size="icon" disabled>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled
+              aria-label="Filter files"
+            >
               <Filter className="size-4" />
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Change layout"
+                >
                   {currentLayout && <currentLayout.icon className="size-4" />}
                 </Button>
               </DropdownMenuTrigger>

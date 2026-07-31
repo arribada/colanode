@@ -18,8 +18,11 @@ export const EmojiPickerItem = ({ emoji }: EmojiPickerItemProps) => {
 
   return (
     <button
+      type="button"
       className="p-1 ring-border transition-colors duration-100 ease-in-out hover:bg-accent focus:border-border focus:outline-none focus:ring cursor-pointer"
       onClick={() => onEmojiClick(emoji)}
+      aria-label={emoji.name}
+      data-testid={`emoji-picker-item-${emoji.id}`}
     >
       <EmojiElement className="h-5 w-5" id={id} />
     </button>

@@ -57,14 +57,14 @@ export const CalendarViewNoValueCount = ({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <div
+        <button
+          type="button"
           className="flex flex-row items-center gap-1 text-sm mr-2 hover:bg-muted hover:cursor-pointer rounded-md p-1"
-          role="presentation"
         >
           <CircleDashed className="size-4" />
           <p>No {field.name}</p>
           <p>({noValueCount.toLocaleString()})</p>
-        </div>
+        </button>
       </DialogTrigger>
       <DialogContent className="w-128 min-w-128 min-h-40 overflow-hidden p-4">
         <DialogHeader>

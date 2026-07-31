@@ -10,7 +10,13 @@ import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useRecordsQuery } from '@colanode/ui/hooks/use-records-query';
 
-export const BoardViewColumnRecords = () => {
+interface BoardViewColumnRecordsProps {
+  columnId: string;
+}
+
+export const BoardViewColumnRecords = ({
+  columnId,
+}: BoardViewColumnRecordsProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
@@ -35,7 +41,7 @@ export const BoardViewColumnRecords = () => {
           </RecordProvider>
         );
       })}
-      <BoardViewRecordCreateCard filters={filters} />
+      <BoardViewRecordCreateCard filters={filters} columnId={columnId} />
     </div>
   );
 };

@@ -121,15 +121,16 @@ class ExpoSqliteConnection implements DatabaseConnection {
         numChangedRows: BigInt(result.changes),
       };
     } catch (error) {
-      console.error('error', error);
-      console.log('sql', sql);
-      console.log('parameters', parameters);
-      return {
-        rows: [],
-        insertId: BigInt(0),
-        numAffectedRows: BigInt(0),
-        numChangedRows: BigInt(0),
-      };
+      // Surface the failure instead of masking it as an empty result set.
+      // Returning `{ rows: [] }` here made migrations and mutations look like
+      // they succeeded while silently doing nothing, so login/first-run
+      // failures showed up much later as an unexplained "unknown error".
+      // Rethrow so Kysely, the Migrator, and mutation handlers see the real
+      // error; the context logs help correlate it in the native console.
+      console.error('[MobileSQLite] executeQuery failed', error);
+      console.error('[MobileSQLite] sql', sql);
+      console.error('[MobileSQLite] parameters', parameters);
+      throw error;
     } finally {
       await statement?.finalizeAsync();
     }

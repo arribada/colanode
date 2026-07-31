@@ -41,6 +41,8 @@ export const RecordName = () => {
 
   return (
     <Input
+      aria-label="Record name"
+      data-testid="record-name-input"
       value={record.name}
       readOnly={!record.canEdit}
       ref={inputRef}

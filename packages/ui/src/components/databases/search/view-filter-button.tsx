@@ -9,8 +9,11 @@ export const ViewFilterButton = () => {
   if (view.filters.length > 0) {
     return (
       <button
+        type="button"
         className="flex cursor-pointer items-center rounded-md p-1.5 hover:bg-accent"
         onClick={() => view.openSearchBar()}
+        aria-label="Filter"
+        data-testid="view-filter-button"
       >
         <Filter className="size-4" />
       </button>
@@ -19,7 +22,12 @@ export const ViewFilterButton = () => {
 
   return (
     <ViewFilterAddPopover>
-      <button className="flex cursor-pointer items-center rounded-md p-1.5 hover:bg-accent">
+      <button
+        type="button"
+        className="flex cursor-pointer items-center rounded-md p-1.5 hover:bg-accent"
+        aria-label="Filter"
+        data-testid="view-filter-button"
+      >
         <Filter className="size-4" />
       </button>
     </ViewFilterAddPopover>

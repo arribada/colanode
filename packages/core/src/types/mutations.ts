@@ -191,6 +191,121 @@ export type UpdateDocumentMutation = z.infer<
   typeof updateDocumentMutationSchema
 >;
 
+export const notificationReadMutationDataSchema = z.object({
+  notificationId: z.string(),
+  readAt: z.string(),
+});
+
+export type NotificationReadMutationData = z.infer<
+  typeof notificationReadMutationDataSchema
+>;
+
+export const notificationReadMutationSchema = mutationBaseSchema.extend({
+  type: z.literal('notification.read'),
+  data: notificationReadMutationDataSchema,
+});
+
+export type NotificationReadMutation = z.infer<
+  typeof notificationReadMutationSchema
+>;
+
+export const pushSubscriptionCreateMutationDataSchema = z.object({
+  endpoint: z.string(),
+  p256dh: z.string(),
+  auth: z.string(),
+  deviceId: z.string(),
+  createdAt: z.string(),
+});
+
+export type PushSubscriptionCreateMutationData = z.infer<
+  typeof pushSubscriptionCreateMutationDataSchema
+>;
+
+export const pushSubscriptionCreateMutationSchema = mutationBaseSchema.extend(
+  {
+    type: z.literal('pushSubscription.create'),
+    data: pushSubscriptionCreateMutationDataSchema,
+  }
+);
+
+export type PushSubscriptionCreateMutation = z.infer<
+  typeof pushSubscriptionCreateMutationSchema
+>;
+
+export const pushSubscriptionDeleteMutationDataSchema = z.object({
+  endpoint: z.string(),
+});
+
+export type PushSubscriptionDeleteMutationData = z.infer<
+  typeof pushSubscriptionDeleteMutationDataSchema
+>;
+
+export const pushSubscriptionDeleteMutationSchema = mutationBaseSchema.extend(
+  {
+    type: z.literal('pushSubscription.delete'),
+    data: pushSubscriptionDeleteMutationDataSchema,
+  }
+);
+
+export type PushSubscriptionDeleteMutation = z.infer<
+  typeof pushSubscriptionDeleteMutationSchema
+>;
+
+export const apnsSubscriptionCreateMutationDataSchema = z.object({
+  deviceToken: z.string(),
+  deviceId: z.string(),
+  createdAt: z.string(),
+});
+
+export type ApnsSubscriptionCreateMutationData = z.infer<
+  typeof apnsSubscriptionCreateMutationDataSchema
+>;
+
+export const apnsSubscriptionCreateMutationSchema = mutationBaseSchema.extend(
+  {
+    type: z.literal('apnsSubscription.create'),
+    data: apnsSubscriptionCreateMutationDataSchema,
+  }
+);
+
+export type ApnsSubscriptionCreateMutation = z.infer<
+  typeof apnsSubscriptionCreateMutationSchema
+>;
+
+export const apnsSubscriptionDeleteMutationDataSchema = z.object({
+  deviceToken: z.string(),
+});
+
+export type ApnsSubscriptionDeleteMutationData = z.infer<
+  typeof apnsSubscriptionDeleteMutationDataSchema
+>;
+
+export const apnsSubscriptionDeleteMutationSchema = mutationBaseSchema.extend(
+  {
+    type: z.literal('apnsSubscription.delete'),
+    data: apnsSubscriptionDeleteMutationDataSchema,
+  }
+);
+
+export type ApnsSubscriptionDeleteMutation = z.infer<
+  typeof apnsSubscriptionDeleteMutationSchema
+>;
+
+export const muteSetMutationDataSchema = z.object({
+  nodeId: z.string(),
+  muted: z.boolean(),
+  updatedAt: z.string(),
+});
+
+export type MuteSetMutationData = z.infer<typeof muteSetMutationDataSchema>;
+
+export const muteSetMutationSchema = mutationBaseSchema.extend({
+  type: z.literal('mute.set'),
+  data: muteSetMutationDataSchema,
+});
+
+export type MuteSetMutation = z.infer<typeof muteSetMutationSchema>;
+
 export const mutationSchema = z.discriminatedUnion('type', [
   createNodeMutationSchema,
   updateNodeMutationSchema,
@@ -200,6 +315,12 @@ export const mutationSchema = z.discriminatedUnion('type', [
   nodeInteractionSeenMutationSchema,
   nodeInteractionOpenedMutationSchema,
   updateDocumentMutationSchema,
+  notificationReadMutationSchema,
+  pushSubscriptionCreateMutationSchema,
+  pushSubscriptionDeleteMutationSchema,
+  apnsSubscriptionCreateMutationSchema,
+  apnsSubscriptionDeleteMutationSchema,
+  muteSetMutationSchema,
 ]);
 
 export type Mutation = z.infer<typeof mutationSchema>;

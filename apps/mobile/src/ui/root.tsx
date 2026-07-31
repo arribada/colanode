@@ -3,6 +3,13 @@ import '../../../../packages/ui/src/styles/globals.css';
 
 import { App } from '@colanode/ui';
 
+import { MobileFonts } from './mobile-fonts';
+
 export const Root = () => {
-  return <App type="mobile" />;
+  return (
+    <>
+      <App type="mobile" />
+      <MobileFonts />
+    </>
+  );
 };

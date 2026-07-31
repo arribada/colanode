@@ -18,7 +18,8 @@ const getUrlFromString = (str: string): string | null => {
     if (str.includes('.') && !str.includes(' ')) {
       return new URL(`https://${str}`).toString();
     }
-  } catch {
+  } catch (error) {
+    console.error('Failed to build a URL from link input', str, error);
     return null;
   }
 
@@ -49,7 +50,11 @@ export const LinkButton = ({ editor, isOpen, setIsOpen }: LinkButtonProps) => {
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen} modal={true}>
-      <PopoverTrigger>
+      <PopoverTrigger
+        aria-label="Link"
+        aria-pressed={state?.isActive ?? false}
+        data-testid="editor-toolbar-link"
+      >
         <span
           className={cn(
             'flex h-8 w-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
@@ -76,6 +81,7 @@ export const LinkButton = ({ editor, isOpen, setIsOpen }: LinkButtonProps) => {
         >
           <Input
             placeholder="Write or paste link"
+            aria-label="Link URL"
             className="border-0"
             defaultValue={state?.attributes.href || ''}
           />
@@ -84,6 +90,8 @@ export const LinkButton = ({ editor, isOpen, setIsOpen }: LinkButtonProps) => {
               type="button"
               variant="outline"
               size="icon"
+              aria-label="Remove link"
+              data-testid="editor-link-remove-button"
               onClick={(e) => {
                 e.preventDefault();
                 editor.chain().focus().unsetLink().run();
@@ -93,7 +101,13 @@ export const LinkButton = ({ editor, isOpen, setIsOpen }: LinkButtonProps) => {
               <Trash2 className="size-4" />
             </Button>
           ) : (
-            <Button type="submit" variant="outline" size="icon">
+            <Button
+              type="submit"
+              variant="outline"
+              size="icon"
+              aria-label="Apply link"
+              data-testid="editor-link-apply-button"
+            >
               <Check className="size-4" />
             </Button>
           )}

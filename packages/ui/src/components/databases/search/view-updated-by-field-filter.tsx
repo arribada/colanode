@@ -107,6 +107,7 @@ export const ViewUpdatedByFieldFilter = ({
           variant="outline"
           size="sm"
           className="border-dashed text-xs text-muted-foreground"
+          data-testid={`view-filter-chip-${filter.id}`}
         >
           {field.name}
         </Button>
@@ -119,10 +120,13 @@ export const ViewUpdatedByFieldFilter = ({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent">
+              <button
+                type="button"
+                className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent"
+              >
                 <p>{operator.label}</p>
                 <ChevronDown className="size-4 text-muted-foreground" />
-              </div>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               {updatedByFieldFilterOperators.map((operator) => (
@@ -145,14 +149,23 @@ export const ViewUpdatedByFieldFilter = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={removeFilter}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={removeFilter}
+            aria-label={`Remove ${field.name} filter`}
+            data-testid={`view-filter-remove-${filter.id}`}
+          >
             <Trash2 className="size-4" />
           </Button>
         </div>
         {!hideInput && (
           <Popover>
             <PopoverTrigger asChild>
-              <div className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2">
+              <button
+                type="button"
+                className="flex h-full w-full cursor-pointer flex-row items-center gap-1 rounded-md border border-input p-2"
+              >
                 {collaborators.slice(0, 1).map((collaborator) => (
                   <CollaboratorBadge
                     key={collaborator.id}
@@ -174,7 +187,7 @@ export const ViewUpdatedByFieldFilter = ({
                     +{collaborators.length - 1}
                   </Badge>
                 )}
-              </div>
+              </button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-1">
               {collaborators.length > 0 && (
@@ -196,8 +209,11 @@ export const ViewUpdatedByFieldFilter = ({
                           {collaborator.email}
                         </p>
                       </div>
-                      <X
-                        className="size-4 cursor-pointer"
+                      <button
+                        type="button"
+                        className="cursor-pointer"
+                        aria-label={`Remove ${collaborator.name}`}
+                        data-testid={`view-filter-collaborator-remove-${collaborator.id}`}
                         onClick={() => {
                           const newCollaborators = collaboratorIds.filter(
                             (id) => id !== collaborator.id
@@ -208,7 +224,9 @@ export const ViewUpdatedByFieldFilter = ({
                             value: newCollaborators,
                           });
                         }}
-                      />
+                      >
+                        <X className="size-4" />
+                      </button>
                     </div>
                   ))}
                   <Separator className="w-full my-2" />

@@ -40,6 +40,8 @@ export const TableCellDropdownMenu = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
+          aria-label="Cell actions"
+          data-testid="editor-table-cell-menu-trigger"
           className={cn(
             'absolute top-1/2 -right-2 transform -translate-y-1/2 bg-secondary py-1 cursor-pointer border border-border rounded z-10'
           )}
@@ -58,6 +60,9 @@ export const TableCellDropdownMenu = ({
             <DropdownMenuLabel>Alignment</DropdownMenuLabel>
             <DropdownMenuItem
               onClick={() => updateAttributes({ align: 'left' })}
+              role="menuitemradio"
+              aria-checked={textAlign === 'left'}
+              data-testid="editor-table-dropdown-cell-align-left"
               className="flex items-center justify-between"
             >
               <div className="flex items-center gap-2">
@@ -68,6 +73,9 @@ export const TableCellDropdownMenu = ({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => updateAttributes({ align: 'center' })}
+              role="menuitemradio"
+              aria-checked={textAlign === 'center'}
+              data-testid="editor-table-dropdown-cell-align-center"
               className="flex items-center justify-between"
             >
               <div className="flex items-center gap-2">
@@ -78,6 +86,9 @@ export const TableCellDropdownMenu = ({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => updateAttributes({ align: 'right' })}
+              role="menuitemradio"
+              aria-checked={textAlign === 'right'}
+              data-testid="editor-table-dropdown-cell-align-right"
               className="flex items-center justify-between"
             >
               <div className="flex items-center gap-2">
@@ -101,6 +112,9 @@ export const TableCellDropdownMenu = ({
                 onClick={() =>
                   updateAttributes({ backgroundColor: color.color })
                 }
+                role="menuitemradio"
+                aria-checked={backgroundColor === color.color}
+                data-testid={`editor-table-dropdown-cell-bg-${color.color}`}
                 className="flex items-center justify-between"
               >
                 <div className="flex items-center gap-2">
@@ -122,6 +136,7 @@ export const TableCellDropdownMenu = ({
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Column Actions</DropdownMenuLabel>
         <DropdownMenuItem
+          data-testid="editor-table-dropdown-column-insert-before"
           onClick={() => {
             editor.chain().addColumnBefore().focus().run();
           }}
@@ -130,6 +145,7 @@ export const TableCellDropdownMenu = ({
           Insert column left
         </DropdownMenuItem>
         <DropdownMenuItem
+          data-testid="editor-table-dropdown-column-insert-after"
           onClick={() => {
             editor.chain().addColumnAfter().focus().run();
           }}
@@ -138,6 +154,7 @@ export const TableCellDropdownMenu = ({
           Insert column right
         </DropdownMenuItem>
         <DropdownMenuItem
+          data-testid="editor-table-dropdown-column-delete"
           onClick={() => {
             editor.chain().focus().deleteColumn().run();
           }}
@@ -148,6 +165,7 @@ export const TableCellDropdownMenu = ({
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Row Actions</DropdownMenuLabel>
         <DropdownMenuItem
+          data-testid="editor-table-dropdown-row-insert-before"
           onClick={() => {
             editor.chain().addRowBefore().focus().run();
           }}
@@ -156,6 +174,7 @@ export const TableCellDropdownMenu = ({
           Insert row above
         </DropdownMenuItem>
         <DropdownMenuItem
+          data-testid="editor-table-dropdown-row-insert-after"
           onClick={() => {
             editor.chain().addRowAfter().focus().run();
           }}
@@ -164,6 +183,7 @@ export const TableCellDropdownMenu = ({
           Insert row below
         </DropdownMenuItem>
         <DropdownMenuItem
+          data-testid="editor-table-dropdown-row-delete"
           onClick={() => {
             editor.chain().focus().deleteRow().run();
           }}

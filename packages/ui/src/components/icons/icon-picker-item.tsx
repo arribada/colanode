@@ -11,8 +11,11 @@ export const IconPickerItem = ({ icon }: IconPickerItemProps) => {
 
   return (
     <button
+      type="button"
       className="p-1 ring-border transition-colors duration-100 ease-in-out hover:bg-accent focus:border-border focus:outline-none focus:ring cursor-pointer"
       onClick={() => onIconClick(icon)}
+      aria-label={icon.name}
+      data-testid={`icon-picker-item-${icon.id}`}
     >
       <IconElement className="h-5 w-5" id={icon.id} />
     </button>

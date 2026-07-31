@@ -7,6 +7,8 @@ interface SaveDialogOptions {
   name: string;
 }
 
+export type WebPushState = 'unsupported' | 'denied' | 'enabled' | 'disabled';
+
 export interface ColanodeWindowApi {
   init: () => Promise<AppInitOutput>;
   reset: () => Promise<void>;
@@ -27,6 +29,12 @@ export interface ColanodeWindowApi {
   showFileSaveDialog: (
     options: SaveDialogOptions
   ) => Promise<string | undefined>;
+  push: {
+    enable: (userId: string, vapidPublicKey?: string) => Promise<boolean>;
+    disable: (userId: string) => Promise<void>;
+    getState: () => Promise<WebPushState>;
+    isSupported: () => boolean;
+  };
 }
 
 declare global {

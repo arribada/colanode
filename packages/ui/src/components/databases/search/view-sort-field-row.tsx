@@ -26,17 +26,23 @@ export const ViewSortFieldRow = ({ sort, field }: ViewSortFieldRowProps) => {
   });
 
   return (
-    <div className="flex flex-row items-center gap-3 text-sm">
+    <div
+      className="flex flex-row items-center gap-3 text-sm"
+      data-testid={`view-sort-row-${sort.id}`}
+    >
       <div className="flex flex-row items-center gap-0.5 p-1">
         <FieldIcon type={field.type} className="size-4" />
         <p>{field.name}</p>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <div className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent">
+          <button
+            type="button"
+            className="flex grow flex-row items-center gap-1 rounded-md p-1 font-semibold cursor-pointer hover:bg-accent"
+          >
             <p>{sort.direction === 'asc' ? 'Ascending' : 'Descending'}</p>
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </div>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem
@@ -63,7 +69,13 @@ export const ViewSortFieldRow = ({ sort, field }: ViewSortFieldRowProps) => {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button variant="ghost" size="icon" onClick={removeSort}>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={removeSort}
+        aria-label={`Remove ${field.name} sort`}
+        data-testid={`view-sort-remove-${sort.id}`}
+      >
         <Trash2 className="size-4" />
       </Button>
     </div>

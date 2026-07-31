@@ -82,6 +82,7 @@ export const FolderCreateDialog = ({
             name: '',
           }}
           submitText="Create"
+          testId="folder-create-submit"
           onCancel={() => {
             onOpenChange(false);
           }}

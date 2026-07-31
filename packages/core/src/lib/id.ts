@@ -44,6 +44,10 @@ export enum IdType {
   Job = 'jb',
   Download = 'dl',
   Tab = 'tb',
+  Notification = 'no',
+  Whiteboard = 'wb',
+  CommentThread = 'cm',
+  McpToken = 'mt',
 }
 
 export const SpecialId = {

@@ -155,6 +155,50 @@ From `apps/web`:
 npm run test
 ```
 
+## Fork features (feat/threads-and-tasks)
+
+This fork adds two Slack-style collaboration features on top of the existing
+flat node model, with **zero schema migrations** — both reuse the existing
+`message` and `record` node types plus two optional attributes.
+
+### 1-level threads
+
+A thread reply is just a `message` node whose `parentId` points at the root
+message (instead of the channel). Replies are hidden from the main channel feed
+and rendered in a right-side **thread panel**. Each root message shows a
+`MessageThreadIndicator` (reply count + last-reply time) that opens the panel.
+
+### Message → task
+
+Any message you authored can be converted into a database `record` via the
+**Create task** action. The dialog picks a target database (collaborator+ role),
+seeds the record name from the message text, and links the two with a backlink.
+A live `MessageTaskBadge` renders the record's status option under the message
+and updates reactively as the record's status changes.
+
+### Two optional attributes
+
+- `message.taskId` — the record a message was converted into (drives the badge).
+- `record.sourceMessageId` — the message a record originated from (backlink).
+
+Both are `z.string().nullable().optional()`, so existing data and upstream
+clients are unaffected.
+
+### MVP limits (intentional)
+
+- **Mobile is preview** — threads are wired into the mobile bottom-sheet layout
+  (a `ThreadSheet` reusing the shared thread view, plus a "Reply in thread" menu
+  entry), and message→task works there too. Colanode's mobile app is itself
+  experimental, so treat mobile thread support as preview.
+- **Channels only** — no threads in DMs; DM reply behavior is unchanged.
+- **Author-only task attach** — only a message's author can convert it, and only
+  once (`taskId` gate hides the action afterwards).
+- **No thread mention badges yet** — replies parented to a message never create
+  workspace unread/mention counters (there is no Threads inbox to clear them);
+  the thread root is marked seen when the panel opens.
+- **Root deletion cascades** — deleting a thread root tombstones and removes its
+  replies server-side; the delete dialog warns about the reply count first.
+
 ## License
 
 Colanode is released under the [Apache 2.0 License](LICENSE).

@@ -16,6 +16,8 @@ import { NodeCountersService } from '@colanode/client/services/workspaces/node-c
 import { NodeInteractionService } from '@colanode/client/services/workspaces/node-interaction-service';
 import { NodeReactionService } from '@colanode/client/services/workspaces/node-reaction-service';
 import { NodeService } from '@colanode/client/services/workspaces/node-service';
+import { NotificationMuteService } from '@colanode/client/services/workspaces/notification-mute-service';
+import { NotificationService } from '@colanode/client/services/workspaces/notification-service';
 import { RadarService } from '@colanode/client/services/workspaces/radar-service';
 import { SyncService } from '@colanode/client/services/workspaces/sync-service';
 import { UserService } from '@colanode/client/services/workspaces/user-service';
@@ -39,6 +41,8 @@ export class WorkspaceService {
   public readonly synchronizer: SyncService;
   public readonly radar: RadarService;
   public readonly nodeCounters: NodeCountersService;
+  public readonly notifications: NotificationService;
+  public readonly notificationMutes: NotificationMuteService;
 
   private readonly workspaceFilesCleanJobScheduleId: string;
 
@@ -61,6 +65,14 @@ export class WorkspaceService {
     this.mutations = new MutationService(this);
     this.users = new UserService(this);
     this.collaborations = new CollaborationService(this);
+    // NotificationService/NotificationMuteService must be constructed BEFORE
+    // SyncService: SyncService's constructor binds
+    // this.workspace.notifications.syncServerNotification (and the mute
+    // equivalent) into its sync-handler map, so those services have to already
+    // exist or it throws "Cannot read property 'syncServerNotification' of
+    // undefined" and the workspace never loads.
+    this.notifications = new NotificationService(this);
+    this.notificationMutes = new NotificationMuteService(this);
     this.synchronizer = new SyncService(this);
     this.radar = new RadarService(this);
     this.nodeCounters = new NodeCountersService(this);

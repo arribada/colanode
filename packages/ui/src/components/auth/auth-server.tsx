@@ -39,6 +39,8 @@ export const AuthServer = ({ onSelect }: AuthServerProps) => {
         <button
           onClick={() => setOpenCreate(true)}
           className="group/server relative flex w-full flex-row items-center gap-2 rounded-lg border border-dashed border-border/60 bg-background p-2 text-left transition-all hover:cursor-pointer hover:border-border hover:bg-accent hover:shadow-md"
+          type="button"
+          data-testid="auth-add-server-button"
         >
           <div className="flex size-8 items-center justify-center rounded-lg border border-border/60 bg-muted/50">
             <PlusIcon className="size-4 text-muted-foreground" />

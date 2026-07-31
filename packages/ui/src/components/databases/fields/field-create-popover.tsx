@@ -9,12 +9,16 @@ import {
   compareString,
   FieldAttributes,
   FieldType,
+  FormulaResultType,
   generateFractionalIndex,
   generateId,
   IdType,
+  RollupAggregation,
 } from '@colanode/core';
 import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
 import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
+import { FormulaExpressionEditor } from '@colanode/ui/components/databases/fields/formula-expression-editor';
+import { RollupConfigEditor } from '@colanode/ui/components/databases/fields/rollup-config-editor';
 import { Button } from '@colanode/ui/components/ui/button';
 import {
   Field,
@@ -42,9 +46,11 @@ const formSchema = z.object({
     z.literal('date'),
     z.literal('email'),
     z.literal('file'),
+    z.literal('formula'),
     z.literal('multi_select'),
     z.literal('number'),
     z.literal('phone'),
+    z.literal('rollup'),
     z.literal('select'),
     z.literal('text'),
     z.literal('relation'),
@@ -53,12 +59,38 @@ const formSchema = z.object({
     z.literal('url'),
   ]),
   relationDatabaseId: z.string().optional().nullable(),
+  expression: z.string().optional(),
+  formulaResultType: z
+    .enum(['number', 'string', 'boolean', 'date'])
+    .optional()
+    .nullable(),
+  rollupRelationFieldId: z.string().optional().nullable(),
+  rollupTargetFieldId: z.string().optional().nullable(),
+  rollupAggregation: z
+    .enum([
+      'count',
+      'sum',
+      'average',
+      'min',
+      'max',
+      'earliest',
+      'latest',
+      'percent_checked',
+      'show_original',
+    ])
+    .optional()
+    .nullable(),
 });
 
 const defaultValues: FieldCreateFormValues = {
   name: '',
   type: 'text',
   relationDatabaseId: null,
+  expression: '',
+  formulaResultType: null,
+  rollupRelationFieldId: null,
+  rollupTargetFieldId: null,
+  rollupAggregation: null,
 };
 
 type FieldCreateFormValues = z.infer<typeof formSchema>;
@@ -89,6 +121,26 @@ export const FieldCreatePopover = ({
   });
 
   const type = useStore(form.store, (state) => state.values.type);
+  const expression = useStore(
+    form.store,
+    (state) => state.values.expression ?? ''
+  );
+  const formulaResultType = useStore(
+    form.store,
+    (state) => state.values.formulaResultType ?? null
+  );
+  const rollupRelationFieldId = useStore(
+    form.store,
+    (state) => state.values.rollupRelationFieldId ?? null
+  );
+  const rollupTargetFieldId = useStore(
+    form.store,
+    (state) => state.values.rollupTargetFieldId ?? null
+  );
+  const rollupAggregation = useStore(
+    form.store,
+    (state) => state.values.rollupAggregation ?? null
+  );
 
   const handleCancelClick = () => {
     setOpen(false);
@@ -116,6 +168,27 @@ export const FieldCreatePopover = ({
         }
       }
 
+      if (values.type === 'formula') {
+        if (!values.expression || values.expression.trim().length === 0) {
+          throw new Error('Formula expression is required.');
+        }
+      }
+
+      if (values.type === 'rollup') {
+        if (!values.rollupRelationFieldId) {
+          throw new Error('A relation field is required for a rollup.');
+        }
+        if (!values.rollupAggregation) {
+          throw new Error('An aggregation is required for a rollup.');
+        }
+        if (
+          values.rollupAggregation !== 'count' &&
+          !values.rollupTargetFieldId
+        ) {
+          throw new Error('A field to aggregate is required.');
+        }
+      }
+
       if (!nodes.has(database.id)) {
         return null;
       }
@@ -132,15 +205,41 @@ export const FieldCreatePopover = ({
 
         const index = generateFractionalIndex(maxIndex, null);
 
-        const newField: FieldAttributes = {
-          id: fieldId,
-          type: values.type as FieldType,
-          name: values.name,
-          index,
-        };
-
-        if (newField.type === 'relation') {
-          newField.databaseId = values.relationDatabaseId;
+        let newField: FieldAttributes;
+        if (values.type === 'formula') {
+          newField = {
+            id: fieldId,
+            type: 'formula',
+            name: values.name,
+            index,
+            expression: values.expression ?? '',
+            resultType: values.formulaResultType ?? null,
+          };
+        } else if (values.type === 'rollup') {
+          newField = {
+            id: fieldId,
+            type: 'rollup',
+            name: values.name,
+            index,
+            relationFieldId: values.rollupRelationFieldId ?? null,
+            targetFieldId: values.rollupTargetFieldId ?? null,
+            aggregation: values.rollupAggregation ?? null,
+          };
+        } else if (values.type === 'relation') {
+          newField = {
+            id: fieldId,
+            type: 'relation',
+            name: values.name,
+            index,
+            databaseId: values.relationDatabaseId,
+          };
+        } else {
+          newField = {
+            id: fieldId,
+            type: values.type,
+            name: values.name,
+            index,
+          } as FieldAttributes;
         }
 
         draft.fields[fieldId] = newField;
@@ -168,7 +267,7 @@ export const FieldCreatePopover = ({
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>{button}</PopoverTrigger>
-      <PopoverContent className="mr-5 w-lg" side="bottom">
+      <PopoverContent className="mr-5 w-lg max-h-[80vh] overflow-y-auto" side="bottom">
         <form
           className="flex flex-col gap-2"
           onSubmit={(e) => {
@@ -233,6 +332,40 @@ export const FieldCreatePopover = ({
                   )}
                 />
               )}
+              {type === 'formula' && (
+                <Field>
+                  <FormulaExpressionEditor
+                    expression={expression}
+                    onExpressionChange={(value) =>
+                      form.setFieldValue('expression', value)
+                    }
+                    resultType={formulaResultType as FormulaResultType | null}
+                    onResultTypeChange={(value) =>
+                      form.setFieldValue('formulaResultType', value)
+                    }
+                    fields={database.fields}
+                  />
+                </Field>
+              )}
+              {type === 'rollup' && (
+                <Field>
+                  <RollupConfigEditor
+                    fields={database.fields}
+                    relationFieldId={rollupRelationFieldId}
+                    onRelationFieldChange={(value) =>
+                      form.setFieldValue('rollupRelationFieldId', value)
+                    }
+                    targetFieldId={rollupTargetFieldId}
+                    onTargetFieldChange={(value) =>
+                      form.setFieldValue('rollupTargetFieldId', value)
+                    }
+                    aggregation={rollupAggregation as RollupAggregation | null}
+                    onAggregationChange={(value) =>
+                      form.setFieldValue('rollupAggregation', value)
+                    }
+                  />
+                </Field>
+              )}
             </FieldGroup>
           </div>
           <div className="mt-2 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
@@ -244,7 +377,12 @@ export const FieldCreatePopover = ({
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isPending}
+              data-testid="field-create-submit"
+            >
               {isPending && <Spinner className="mr-1" />}
               Create
             </Button>

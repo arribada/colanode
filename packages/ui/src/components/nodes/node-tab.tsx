@@ -10,6 +10,7 @@ import { MessageTab } from '@colanode/ui/components/messages/message-tab';
 import { PageTab } from '@colanode/ui/components/pages/page-tab';
 import { RecordTab } from '@colanode/ui/components/records/record-tab';
 import { SpaceTab } from '@colanode/ui/components/spaces/space-tab';
+import { WhiteboardTab } from '@colanode/ui/components/whiteboards/whiteboard-tab';
 
 interface NodeTabProps {
   userId: string;
@@ -54,6 +55,8 @@ export const NodeTab = ({ userId, nodeId }: NodeTabProps) => {
       return <FileTab userId={userId} file={node} />;
     case 'message':
       return <MessageTab message={node} />;
+    case 'whiteboard':
+      return <WhiteboardTab whiteboard={node} />;
     default:
       return null;
   }

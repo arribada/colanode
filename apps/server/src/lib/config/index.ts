@@ -4,11 +4,14 @@ import { z } from 'zod/v4';
 
 import { accountConfigSchema } from './account';
 import { aiConfigSchema } from './ai';
+import { apnsConfigSchema } from './apns';
 import { corsSchema } from './cors';
 import { emailConfigSchema } from './email';
 import { jobsConfigSchema } from './jobs';
 import { loggingConfigSchema } from './logging';
+import { planeConfigSchema } from './plane';
 import { postgresConfigSchema } from './postgres';
+import { pushConfigSchema } from './push';
 import { redisConfigSchema } from './redis';
 import { storageConfigSchema } from './storage';
 import {
@@ -16,6 +19,7 @@ import {
   resolveOptionalConfigReference,
 } from './utils';
 import { workspaceConfigSchema } from './workspace';
+import { zulipConfigSchema } from './zulip';
 
 const serverModeSchema = z.enum(['standalone', 'cluster']);
 
@@ -42,6 +46,10 @@ const configSchema = z.object({
   jobs: jobsConfigSchema,
   logging: loggingConfigSchema,
   workspace: workspaceConfigSchema,
+  push: pushConfigSchema,
+  apns: apnsConfigSchema,
+  zulip: zulipConfigSchema,
+  plane: planeConfigSchema,
 });
 
 export type Configuration = z.infer<typeof configSchema>;

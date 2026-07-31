@@ -3,7 +3,10 @@ import { WebSocket } from 'ws';
 import { generateId, IdType } from '@colanode/core';
 import { redis } from '@colanode/server/data/redis';
 import { eventBus } from '@colanode/server/lib/event-bus';
-import { SocketConnection } from '@colanode/server/services/socket-connection';
+import {
+  PresenceBroadcaster,
+  SocketConnection,
+} from '@colanode/server/services/socket-connection';
 import { ClientContext, AccountContext } from '@colanode/server/types/api';
 import { SocketContext } from '@colanode/server/types/sockets';
 
@@ -59,13 +62,39 @@ class SocketService {
       this.connections.delete(context.deviceId);
     }
 
-    const connection = new SocketConnection(context, socket, () =>
-      this.connections.delete(context.deviceId)
+    const connection = new SocketConnection(
+      context,
+      socket,
+      () => this.connections.delete(context.deviceId),
+      this.broadcastPresence
     );
     this.connections.set(context.deviceId, connection);
 
     return true;
   }
+
+  /**
+   * Relay an ephemeral presence message to every connection except the origin
+   * device. Each receiving connection re-checks authorization before delivering
+   * to its socket.
+   *
+   * NOTE: this is an in-process relay. The current self-hosted deployment runs
+   * the server in `standalone` mode (single instance), so all live collaborators
+   * share this process. A multi-instance / `cluster` deployment would need this
+   * fanned out over a Redis pub/sub channel (like the event bus) for presence to
+   * cross hosts.
+   */
+  private readonly broadcastPresence: PresenceBroadcaster = (
+    originDeviceId,
+    message
+  ) => {
+    for (const [deviceId, connection] of this.connections) {
+      if (deviceId === originDeviceId) {
+        continue;
+      }
+      connection.relayPresence(message);
+    }
+  };
 
   private async fetchSocketContext(id: string): Promise<SocketContext | null> {
     const data = await redis.get(id);

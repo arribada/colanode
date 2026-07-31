@@ -9,19 +9,29 @@ import {
   IdType,
   WorkspaceStatus,
 } from '@colanode/core';
+import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
 import { database } from '@colanode/server/data/database';
 import { redis } from '@colanode/server/data/redis';
 import { config } from '@colanode/server/lib/config';
 import { generateUrl } from '@colanode/server/lib/fastify';
+import { createLogger } from '@colanode/server/lib/logger';
 import { mapNode, updateNode } from '@colanode/server/lib/nodes';
 import { storage } from '@colanode/server/lib/storage';
 import { RedisLocker } from '@colanode/server/lib/storage/tus/redis-locker';
 
+const logger = createLogger('api:client:workspaces:file-upload-tus');
+
 const tryDeleteFile = async (path: string): Promise<void> => {
   try {
     await storage.delete(path);
-  } catch {
-    // Best effort cleanup - ignore errors if file doesn't exist or can't be deleted
+  } catch (error) {
+    // Best effort cleanup - ignore errors if file doesn't exist or can't be
+    // deleted, but still surface it: a silent failure here would otherwise
+    // leak orphaned .info files with no trace.
+    logger.error(
+      toSafeLogFields(error),
+      `Best-effort cleanup failed to delete ${path}`
+    );
   }
 };
 

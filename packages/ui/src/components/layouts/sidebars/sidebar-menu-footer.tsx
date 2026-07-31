@@ -54,7 +54,11 @@ export function SidebarMenuFooter() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <button className="flex w-full items-center justify-center relative mb-2 cursor-pointer outline-none">
+        <button
+          type="button"
+          aria-label="Accounts menu"
+          className="flex w-full items-center justify-center relative mb-2 cursor-pointer outline-none"
+        >
           <Avatar
             id={currentAccount.id}
             name={currentAccount.name}
@@ -84,6 +88,10 @@ export function SidebarMenuFooter() {
           return (
             <DropdownMenuItem
               key={accountItem.id}
+              data-testid={`sidebar-account-item-${accountItem.id}`}
+              aria-current={
+                accountItem.id === workspace.accountId ? 'true' : undefined
+              }
               className="p-0"
               onClick={() => {
                 const userId = getAccountWorkspaceUserId(accountItem.id);
@@ -123,6 +131,7 @@ export function SidebarMenuFooter() {
 
         <DropdownMenuSeparator className="my-1" />
         <DropdownMenuItem
+          data-testid="sidebar-account-add"
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
           onClick={() => {
             navigate({ to: '/auth/login' });

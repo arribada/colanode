@@ -139,7 +139,8 @@ describe('services/file-system', () => {
 
       expect(result.length).toBe(largeData.length);
       expect(result).toEqual(largeData);
-    });
+      // 20s: the 1MB round-trip through the OPFS mock takes >5s on small CI boxes
+    }, 20000);
   });
 
   describe('delete', () => {

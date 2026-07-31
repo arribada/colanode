@@ -91,6 +91,7 @@ export const SpaceCreateDialog = ({
           onSubmit={(values) => mutate(values)}
           submitText="Create"
           onCancel={() => onOpenChange(false)}
+          testId="space-create-form"
         />
       </DialogContent>
     </Dialog>

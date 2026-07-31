@@ -51,6 +51,10 @@ export const TabsHeaderItem = ({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-current={isActive ? 'true' : undefined}
+      data-testid={`tab-item-${id}`}
       className={cn(
         'relative group/tab app-no-drag-region flex items-center gap-2 px-4 py-2 cursor-pointer transition-all duration-200 min-w-[120px] max-w-[240px] flex-1',
         isActive
@@ -65,6 +69,15 @@ export const TabsHeaderItem = ({
           : 'polygon(12px 0%, calc(100% - 12px) 0%, calc(100% - 6px) 100%, 6px 100%)',
       }}
       onClick={() => tabManager.switchTab(id)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) {
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          tabManager.switchTab(id);
+        }
+      }}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0 z-10">
         <div className="truncate text-sm font-medium">
@@ -72,6 +85,8 @@ export const TabsHeaderItem = ({
         </div>
         {canDelete && (
           <button
+            type="button"
+            aria-label="Close tab"
             className={cn(
               'opacity-0 group-hover/tab:opacity-100 transition-all duration-200 shrink-0 rounded-full p-1 hover:bg-destructive/20 hover:text-destructive',
               isActive && 'opacity-70 hover:opacity-100',

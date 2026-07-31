@@ -1,33 +1,35 @@
 import { LocalNode } from '@colanode/client/types';
 import { NodeRole } from '@colanode/core';
 import { ChannelSettings } from '@colanode/ui/components/channels/channel-settings';
-import { NodeCollaboratorsPopover } from '@colanode/ui/components/collaborators/node-collaborators-popover';
+import { ChatSettings } from '@colanode/ui/components/chats/chat-settings';
 import { DatabaseSettings } from '@colanode/ui/components/databases/database-settings';
 import { FileSettings } from '@colanode/ui/components/files/file-settings';
 import { FolderSettings } from '@colanode/ui/components/folders/folder-settings';
 import { PageSettings } from '@colanode/ui/components/pages/page-settings';
 import { RecordSettings } from '@colanode/ui/components/records/record-settings';
+import { WhiteboardSettings } from '@colanode/ui/components/whiteboards/whiteboard-settings';
 
 interface NodeSettingsProps {
   node: LocalNode;
+  nodes: LocalNode[];
   role: NodeRole;
 }
 
-export const NodeSettings = ({ node, role }: NodeSettingsProps) => {
+export const NodeSettings = ({ node, nodes, role }: NodeSettingsProps) => {
   if (node.type === 'channel') {
     return <ChannelSettings channel={node} role={role} />;
   }
 
   if (node.type === 'chat') {
-    return <NodeCollaboratorsPopover node={node} nodes={[node]} role={role} />;
+    return <ChatSettings chat={node} role={role} />;
   }
 
   if (node.type === 'database') {
-    return <DatabaseSettings database={node} role={role} />;
+    return <DatabaseSettings database={node} nodes={nodes} role={role} />;
   }
 
   if (node.type === 'folder') {
-    return <FolderSettings folder={node} role={role} />;
+    return <FolderSettings folder={node} nodes={nodes} role={role} />;
   }
 
   if (node.type === 'file') {
@@ -35,11 +37,15 @@ export const NodeSettings = ({ node, role }: NodeSettingsProps) => {
   }
 
   if (node.type === 'page') {
-    return <PageSettings page={node} role={role} />;
+    return <PageSettings page={node} nodes={nodes} role={role} />;
   }
 
   if (node.type === 'record') {
     return <RecordSettings record={node} role={role} />;
+  }
+
+  if (node.type === 'whiteboard') {
+    return <WhiteboardSettings whiteboard={node} role={role} />;
   }
 
   return null;

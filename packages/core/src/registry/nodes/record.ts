@@ -1,9 +1,13 @@
 import { z } from 'zod/v4';
 
+import { extractBlocksMentions } from '@colanode/core/lib/mentions';
 import { extractNodeRole } from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
 import { richTextContentSchema } from '@colanode/core/registry/documents/rich-text';
-import { NodeModel } from '@colanode/core/registry/nodes/core';
+import {
+  NodeModel,
+  nodeCoverSchema,
+} from '@colanode/core/registry/nodes/core';
 import { fieldValueSchema } from '@colanode/core/registry/nodes/field-value';
 
 export const recordAttributesSchema = z.object({
@@ -12,7 +16,17 @@ export const recordAttributesSchema = z.object({
   databaseId: z.string(),
   name: z.string(),
   avatar: z.string().nullable().optional(),
+  cover: nodeCoverSchema.nullable().optional(),
+  sourceMessageId: z.string().nullable().optional(),
   fields: z.record(z.string(), fieldValueSchema),
+  // Template records are regular records living in the same database, kept
+  // out of the browsing collection (see notTemplateSql) and surfaced only
+  // through the dedicated record.template.list query / "New from template"
+  // menus. Saving a record as a template deep-copies its fields + document
+  // into a new record with this flag set; the source record is untouched.
+  isTemplate: z.boolean().nullable().optional(),
+  deletedAt: z.string().nullable().optional(),
+  deletedBy: z.string().nullable().optional(),
 });
 
 export type RecordAttributes = z.infer<typeof recordAttributesSchema>;
@@ -103,5 +117,8 @@ export const recordModel: NodeModel = {
   },
   extractMentions: () => {
     return [];
+  },
+  extractDocumentMentions: (id, content) => {
+    return extractBlocksMentions(id, content.blocks);
   },
 };

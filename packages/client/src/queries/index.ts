@@ -1,9 +1,15 @@
 import { sha256 } from 'js-sha256';
 
 export * from './accounts/account-list';
+export * from './ai/ai-settings-get';
+export * from './ai/ai-settings-workspace-get';
+export * from './ai/mcp-tokens-list';
 export * from './apps/metadata-list';
 export * from './documents/document-get';
+export * from './documents/document-snapshot-get';
+export * from './documents/document-snapshot-list';
 export * from './documents/document-state-get';
+export * from './documents/document-update-content';
 export * from './documents/document-updates-list';
 export * from './emojis/emoji-category-list';
 export * from './emojis/emoji-get-by-skin-id';
@@ -15,8 +21,12 @@ export * from './files/file-download-request-get';
 export * from './icons/icon-category-list';
 export * from './icons/icon-list';
 export * from './icons/icon-search';
+export * from './interactions/node-interaction-get';
 export * from './interactions/radar-data-get';
 export * from './nodes/node-reaction-list';
+export * from './notifications/notification-list';
+export * from './notifications/notification-mute-get';
+export * from './notifications/notification-unread-count';
 export * from './records/record-search';
 export * from './users/user-list';
 export * from './users/user-search';
@@ -31,6 +41,16 @@ export * from './emojis/emoji-svg-get';
 export * from './apps/tabs-list';
 export * from './servers/server-list';
 export * from './nodes/node-list';
+export * from './nodes/node-search';
+export * from './nodes/node-mention-search';
+export * from './nodes/node-backlink-list';
+export * from './nodes/node-trash-list';
+export * from './pages/page-template-list';
+export * from './records/record-template-list';
+export * from './plane/plane-issue-get';
+export * from './plane/plane-project-board';
+export * from './plane/plane-projects-list';
+export * from './presence/presence-list';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface QueryMap {}

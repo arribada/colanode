@@ -53,10 +53,14 @@ export const Container = ({
         >
           {isMobile && type === 'full' && <SidebarMobile />}
           {type === 'modal' && onFullscreen && (
-            <Fullscreen
-              className="size-4 cursor-pointer text-muted-foreground hover:text-foreground"
+            <button
+              type="button"
+              aria-label="Open in full screen"
+              className="cursor-pointer text-muted-foreground hover:text-foreground"
               onClick={onFullscreen}
-            />
+            >
+              <Fullscreen className="size-4" />
+            </button>
           )}
           <div className="flex-1 flex justify-between items-center">
             <div>{type === 'full' ? breadcrumb : null}</div>

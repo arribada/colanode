@@ -70,7 +70,11 @@ export const RecordRelationValue = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="flex h-full w-full cursor-pointer flex-wrap gap-1 p-0 overflow-hidden">
+        <button
+          type="button"
+          aria-label={field.name}
+          className="flex h-full w-full cursor-pointer flex-wrap gap-1 p-0 overflow-hidden text-left"
+        >
           {relations.slice(0, 1).map((relation) => (
             <RelationBadge key={relation.id} record={relation} />
           ))}
@@ -83,7 +87,7 @@ export const RecordRelationValue = ({
               +{relations.length - 1}
             </Badge>
           )}
-        </div>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-1">
         <div className="flex flex-col flex-wrap gap-2 p-2">
@@ -92,12 +96,16 @@ export const RecordRelationValue = ({
               {relations.map((relation) => (
                 <div
                   key={relation.id}
+                  data-testid={`record-relation-row-${relation.id}`}
                   className="flex w-full flex-row items-center gap-2"
                 >
                   <RelationBadge record={relation} />
                   {record.canEdit && !readOnly && (
-                    <X
-                      className="size-4 cursor-pointer"
+                    <button
+                      type="button"
+                      aria-label="Remove relation"
+                      data-testid={`record-relation-remove-${relation.id}`}
+                      className="cursor-pointer"
                       onClick={() => {
                         if (!record.canEdit || readOnly) return;
 
@@ -114,7 +122,9 @@ export const RecordRelationValue = ({
                           });
                         }
                       }}
-                    />
+                    >
+                      <X className="size-4" />
+                    </button>
                   )}
                 </div>
               ))}

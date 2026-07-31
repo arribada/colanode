@@ -1,0 +1,7 @@
+:80 {
+	reverse_proxy /config server:3000
+	reverse_proxy /client/* server:3000
+	@ws header Connection *Upgrade*
+	reverse_proxy @ws server:3000
+	reverse_proxy web:80
+}

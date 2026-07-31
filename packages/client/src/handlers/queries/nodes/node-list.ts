@@ -6,6 +6,8 @@ import { mapNode } from '@colanode/client/lib';
 import {
   buildNodeFiltersQuery,
   buildNodeSortsQuery,
+  notTemplateSql,
+  notTrashedSql,
 } from '@colanode/client/lib/nodes';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib/types';
 import { NodeListQueryInput } from '@colanode/client/queries/nodes/node-list';
@@ -34,7 +36,11 @@ export class NodeListQueryHandler
     const filterQuery = buildNodeFiltersQuery(input.filters);
     const sortQuery = buildNodeSortsQuery(input.sorts);
 
-    let queryString = `SELECT * FROM nodes n WHERE 1=1 ${filterQuery}`;
+    // Trashed nodes never surface through the shared nodes collection; the
+    // trash view uses the dedicated node.trash.list query instead. Template
+    // records/pages are excluded the same way; record.template.list /
+    // page.template.list query them explicitly for "New from template" menus.
+    let queryString = `SELECT * FROM nodes n WHERE ${notTrashedSql('n')} AND ${notTemplateSql('n')} ${filterQuery}`;
 
     if (sortQuery) {
       queryString += ` ORDER BY ${sortQuery}`;

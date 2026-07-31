@@ -11,6 +11,7 @@ import {
   loginOutputSchema,
   googleLoginInputSchema,
 } from '@colanode/core';
+import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
 import { database } from '@colanode/server/data/database';
 import { UpdateAccount } from '@colanode/server/data/schema';
 import {
@@ -18,8 +19,11 @@ import {
   buildLoginVerifyOutput,
 } from '@colanode/server/lib/accounts';
 import { config } from '@colanode/server/lib/config';
+import { createLogger } from '@colanode/server/lib/logger';
 import { storage } from '@colanode/server/lib/storage';
 import { AccountAttributes } from '@colanode/server/types/accounts';
+
+const logger = createLogger('api:client:auth:google-login');
 
 const GoogleUserInfoUrl = 'https://www.googleapis.com/oauth2/v1/userinfo';
 const GoogleTokenUrl = 'https://oauth2.googleapis.com/token';
@@ -72,7 +76,11 @@ const fetchGoogleToken = async (
       .json<GoogleTokenResponse>();
 
     return token;
-  } catch {
+  } catch (error) {
+    logger.error(
+      toSafeLogFields(error),
+      'Failed to exchange Google authorization code for a token'
+    );
     return null;
   }
 };
@@ -91,7 +99,11 @@ const fetchGoogleUser = async (
       .json<GoogleUserResponse>();
 
     return user;
-  } catch {
+  } catch (error) {
+    logger.error(
+      toSafeLogFields(error),
+      'Failed to fetch Google user info with access token'
+    );
     return null;
   }
 };
@@ -115,7 +127,11 @@ const uploadGooglePictureAsAvatar = async (
     await storage.upload(`avatars/${avatarId}.jpeg`, jpegBuffer, 'image/jpeg');
 
     return avatarId;
-  } catch {
+  } catch (error) {
+    logger.error(
+      toSafeLogFields(error),
+      `Failed to download/upload Google profile picture as avatar (${pictureUrl})`
+    );
     return null;
   }
 };

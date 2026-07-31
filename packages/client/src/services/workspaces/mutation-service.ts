@@ -314,6 +314,21 @@ export class MutationService {
             deletedMutationIds.add(previousMutation.id);
           }
         }
+      } else if (mutation.type === 'notification.read') {
+        for (let j = i - 1; j >= 0; j--) {
+          const previousMutation = mutations[j];
+          if (!previousMutation) {
+            continue;
+          }
+
+          if (
+            previousMutation.type === 'notification.read' &&
+            previousMutation.data.notificationId ===
+              mutation.data.notificationId
+          ) {
+            deletedMutationIds.add(previousMutation.id);
+          }
+        }
       }
 
       if (!deletedMutationIds.has(mutation.id)) {

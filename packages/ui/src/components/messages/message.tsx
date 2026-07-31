@@ -1,7 +1,9 @@
+import { count, eq, useLiveQuery } from '@tanstack/react-db';
 import { useState } from 'react';
 import { InView } from 'react-intersection-observer';
 
 import { LocalMessageNode } from '@colanode/client/types';
+import { IdType, getIdType } from '@colanode/core';
 import { MessageActions } from '@colanode/ui/components/messages/message-actions';
 import { MessageAuthorAvatar } from '@colanode/ui/components/messages/message-author-avatar';
 import { MessageAuthorName } from '@colanode/ui/components/messages/message-author-name';
@@ -9,6 +11,8 @@ import { MessageContent } from '@colanode/ui/components/messages/message-content
 import { MessageMenuMobile } from '@colanode/ui/components/messages/message-menu-mobile';
 import { MessageReactionCounts } from '@colanode/ui/components/messages/message-reaction-counts';
 import { MessageReference } from '@colanode/ui/components/messages/message-reference';
+import { MessageTaskBadge } from '@colanode/ui/components/messages/message-task-badge';
+import { MessageThreadIndicator } from '@colanode/ui/components/messages/message-thread-indicator';
 import { MessageTime } from '@colanode/ui/components/messages/message-time';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { useConversation } from '@colanode/ui/contexts/conversation';
@@ -45,6 +49,20 @@ const shouldDisplayAuthor = (
 export const Message = ({ message, previousMessage }: MessageProps) => {
   const workspace = useWorkspace();
   const conversation = useConversation();
+  const canReplyInThread = getIdType(conversation.id) === IdType.Channel;
+
+  const replyCountQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.type, 'message'))
+        .where(({ nodes }) => eq(nodes.parentId, message.id))
+        .select(({ nodes }) => ({
+          count: count(nodes.id),
+        }))
+        .findOne(),
+    [workspace.userId, message.id]
+  );
 
   const radar = useRadar();
   const isMobile = useIsMobile();
@@ -79,7 +97,7 @@ export const Message = ({ message, previousMessage }: MessageProps) => {
       value={{
         ...message,
         canDelete: conversation.canDeleteMessage(message),
-        canReplyInThread: false,
+        canReplyInThread,
         openDelete: () => {
           setOpenDeleteDialog(true);
         },
@@ -88,6 +106,7 @@ export const Message = ({ message, previousMessage }: MessageProps) => {
       <div
         id={`message-${message.id}`}
         key={`message-${message.id}`}
+        data-testid={`message-item-${message.id}`}
         className={cn(
           'group flex flex-row px-1 rounded-sm transition-colors duration-150',
           isLongPressing
@@ -122,6 +141,8 @@ export const Message = ({ message, previousMessage }: MessageProps) => {
             )}
             <MessageContent message={message} />
             <MessageReactionCounts message={message} />
+            <MessageThreadIndicator message={message} />
+            {message.taskId && <MessageTaskBadge taskId={message.taskId} />}
           </InView>
         </div>
 
@@ -136,7 +157,11 @@ export const Message = ({ message, previousMessage }: MessageProps) => {
           <NodeDeleteDialog
             id={message.id}
             title="Are you sure you want delete this message?"
-            description="This action cannot be undone. This message will no longer be accessible by you or others you've shared it with."
+            description={
+              replyCountQuery.data?.count
+                ? `This action cannot be undone. This message and its ${replyCountQuery.data.count} thread replies will no longer be accessible by you or others you've shared it with.`
+                : "This action cannot be undone. This message will no longer be accessible by you or others you've shared it with."
+            }
             open={openDeleteDialog}
             onOpenChange={setOpenDeleteDialog}
           />

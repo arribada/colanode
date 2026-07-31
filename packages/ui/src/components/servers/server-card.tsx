@@ -39,19 +39,29 @@ export const ServerCard = ({ server, onSelect }: ServerCardProps) => {
   return (
     <>
       <div
-        onClick={handleServerClick}
+        aria-busy={isSyncing}
+        data-testid={`server-card-${server.domain}`}
         className="group/server relative flex w-full flex-row items-center gap-3 rounded-lg border border-border/60 bg-background p-2 text-left transition-all hover:cursor-pointer hover:border-border hover:bg-accent hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <ServerAvatar
-          url={server.avatar}
-          name={server.name}
-          className="size-8 rounded-md"
-        />
-        <div className="grow">
-          <p className="grow font-semibold">{server.name}</p>
-          <p className="text-xs text-muted-foreground">{server.domain}</p>
-        </div>
         <button
+          type="button"
+          disabled={isSyncing}
+          onClick={handleServerClick}
+          className="flex grow flex-row items-center gap-3 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ServerAvatar
+            url={server.avatar}
+            name={server.name}
+            className="size-8 rounded-md"
+          />
+          <div className="grow">
+            <p className="grow font-semibold">{server.name}</p>
+            <p className="text-xs text-muted-foreground">{server.domain}</p>
+          </div>
+        </button>
+        <button
+          type="button"
+          aria-label="Server settings"
           className="text-muted-foreground opacity-0 group-hover/server:opacity-100 hover:bg-input size-8 flex items-center justify-center rounded-md cursor-pointer disabled:opacity-100"
           disabled={isSyncing}
           onClick={(e) => {

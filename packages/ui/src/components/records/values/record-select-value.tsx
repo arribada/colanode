@@ -46,7 +46,11 @@ export const RecordSelectValue = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="h-full w-full cursor-pointer p-0">
+        <button
+          type="button"
+          aria-label={field.name}
+          className="h-full w-full cursor-pointer p-0 text-left"
+        >
           {selectedOption ? (
             <SelectOptionBadge
               name={selectedOption.name}
@@ -55,7 +59,7 @@ export const RecordSelectValue = ({
           ) : (
             ' '
           )}
-        </div>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-1">
         <SelectFieldOptions

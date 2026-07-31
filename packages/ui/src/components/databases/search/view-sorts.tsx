@@ -34,6 +34,7 @@ export const ViewSorts = () => {
           variant="outline"
           size="sm"
           className="border-dashed text-xs text-muted-foreground"
+          data-testid="view-sorts-button"
         >
           Sorts ({view.sorts.length})
         </Button>
@@ -52,7 +53,11 @@ export const ViewSorts = () => {
           return <ViewSortFieldRow key={sort.id} sort={sort} field={field} />;
         })}
         <ViewSortAddPopover>
-          <button className="flex cursor-pointer flex-row items-center gap-1 rounded-lg p-1 text-sm text-muted-foreground hover:bg-accent">
+          <button
+            type="button"
+            className="flex cursor-pointer flex-row items-center gap-1 rounded-lg p-1 text-sm text-muted-foreground hover:bg-accent"
+            data-testid="view-sort-add-button"
+          >
             <Plus className="size-4" />
             Add sort
           </button>

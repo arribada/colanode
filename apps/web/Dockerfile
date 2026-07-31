@@ -2,6 +2,9 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
+# Toolchain for native deps (better-sqlite3) when a prebuilt binary is unavailable
+RUN apk add --no-cache python3 make g++
+
 # Copy root workspace files
 COPY package.json package-lock.json ./
 

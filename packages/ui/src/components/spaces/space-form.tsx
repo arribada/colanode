@@ -38,6 +38,7 @@ interface SpaceFormProps {
   onCancel?: () => void;
   submitText: string;
   readOnly?: boolean;
+  testId?: string;
 }
 
 export const SpaceForm = ({
@@ -46,6 +47,7 @@ export const SpaceForm = ({
   onCancel,
   submitText,
   readOnly = false,
+  testId = 'space-form',
 }: SpaceFormProps) => {
   const id = useRef(generateId(IdType.Space));
   const isMobile = useIsMobile();
@@ -80,29 +82,30 @@ export const SpaceForm = ({
             form.setFieldValue('avatar', newAvatar);
           }}
         >
-          <div
+          <button
+            type="button"
+            aria-label="Change space avatar"
+            data-testid={`${testId}-avatar-upload`}
             className={cn(
-              'pt-3',
+              'group relative cursor-pointer pt-3',
               isMobile ? 'flex justify-center pb-4' : 'size-40'
             )}
           >
-            <div className="group relative cursor-pointer">
-              <Avatar
-                id={id.current}
-                name={name.length > 0 ? name : 'New space'}
-                avatar={avatar}
-                className={isMobile ? 'size-24' : 'size-32'}
-              />
-              <div
-                className={cn(
-                  `absolute left-0 top-0 hidden h-32 w-32 items-center justify-center overflow-hidden bg-accent/70 group-hover:inline-flex`,
-                  readOnly && 'hidden group-hover:hidden'
-                )}
-              >
-                <Edit className="size-5 text-foreground" />
-              </div>
+            <Avatar
+              id={id.current}
+              name={name.length > 0 ? name : 'New space'}
+              avatar={avatar}
+              className={isMobile ? 'size-24' : 'size-32'}
+            />
+            <div
+              className={cn(
+                `absolute left-0 top-0 hidden h-32 w-32 items-center justify-center overflow-hidden bg-accent/70 group-hover:inline-flex`,
+                readOnly && 'hidden group-hover:hidden'
+              )}
+            >
+              <Edit className="size-5 text-foreground" />
             </div>
-          </div>
+          </button>
         </AvatarPopover>
 
         <div
@@ -176,7 +179,12 @@ export const SpaceForm = ({
             </Button>
           )}
 
-          <Button type="submit" disabled={readOnly} className="w-20">
+          <Button
+            type="submit"
+            disabled={readOnly}
+            className="w-20"
+            data-testid={`${testId}-submit`}
+          >
             {submitText}
           </Button>
         </div>

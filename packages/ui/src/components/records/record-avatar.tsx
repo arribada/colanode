@@ -10,7 +10,13 @@ export const RecordAvatar = () => {
 
   if (!record.canEdit) {
     return (
-      <Button type="button" variant="outline" size="icon">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        aria-label="Record avatar"
+        data-testid="record-avatar-button"
+      >
         <Avatar
           id={record.id}
           name={record.name}
@@ -35,7 +41,13 @@ export const RecordAvatar = () => {
         });
       }}
     >
-      <Button type="button" variant="outline" size="icon">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        aria-label="Record avatar"
+        data-testid="record-avatar-button"
+      >
         <Avatar
           id={record.id}
           name={record.name}

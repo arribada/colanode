@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ApiErrorCode } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
+
 import { buildTestApp } from '../helpers/app';
 import {
   createAccount,
-  createDevice,
   createUser,
   createWorkspace,
 } from '../helpers/seed';

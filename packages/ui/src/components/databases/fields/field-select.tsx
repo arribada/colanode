@@ -38,6 +38,7 @@ export const FieldSelect = ({ fields, value, onChange }: FieldSelectProps) => {
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between p-2"
+          data-testid="field-select-trigger"
         >
           <span className="flex flex-row items-center gap-1">
             <FieldIcon

@@ -122,7 +122,18 @@ export const WorkspaceForm = ({
         >
           <div
             className="group relative cursor-pointer"
+            role="button"
+            tabIndex={readOnly ? -1 : 0}
+            aria-label="Change workspace avatar"
+            aria-disabled={isPending || readOnly}
+            data-testid="workspace-form-avatar-upload"
             onClick={handleAvatarClick}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleAvatarClick();
+              }
+            }}
           >
             <form.Subscribe
               selector={(state) => ({
@@ -218,6 +229,7 @@ export const WorkspaceForm = ({
               type="button"
               disabled={isPending || isSaving}
               variant="outline"
+              data-testid="workspace-form-cancel"
               onClick={() => {
                 onCancel();
               }}
@@ -230,6 +242,7 @@ export const WorkspaceForm = ({
             type="submit"
             disabled={isPending || isSaving}
             className="w-20"
+            data-testid="workspace-form-save"
           >
             {isSaving && <Spinner className="mr-1" />}
             {saveText}
