@@ -5,6 +5,8 @@ import { useState } from 'react';
 
 import { collections } from '@colanode/ui/collections';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { ArribadaMark } from '@colanode/ui/components/ui/arribada-logo';
+import { cn } from '@colanode/ui/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +18,29 @@ import {
 import { UnreadBadge } from '@colanode/ui/components/ui/unread-badge';
 import { useRadar } from '@colanode/ui/contexts/radar';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+
+// The shared Arribada workspace shows the brand mark instead of a generated letter
+// avatar; a private workspace keeps its default avatar. A custom uploaded avatar wins.
+const WorkspaceAvatar = ({
+  id,
+  name,
+  avatar,
+  className,
+}: {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  className?: string;
+}) => {
+  if ((!avatar || avatar === '') && name.trim().toLowerCase().startsWith('arribada')) {
+    return (
+      <div className={cn('flex items-center justify-center bg-white', className)}>
+        <ArribadaMark className="h-3/5 w-3/5 text-[#0a1929]" />
+      </div>
+    );
+  }
+  return <Avatar id={id} name={name} avatar={avatar ?? undefined} className={className} />;
+};
 
 export const SidebarMenuHeader = () => {
   const workspace = useWorkspace();
@@ -62,7 +87,7 @@ export const SidebarMenuHeader = () => {
           aria-label="Workspaces menu"
           className="flex w-full items-center justify-center relative cursor-pointer outline-none mt-2"
         >
-          <Avatar
+          <WorkspaceAvatar
             id={currentWorkspace.workspaceId}
             avatar={currentWorkspace.avatar}
             name={currentWorkspace.name}
@@ -104,7 +129,7 @@ export const SidebarMenuHeader = () => {
               }}
             >
               <div className="w-full flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar
+                <WorkspaceAvatar
                   className="h-8 w-8 rounded-lg"
                   id={workspaceItem.workspaceId}
                   name={workspaceItem.name}
