@@ -43,6 +43,7 @@ import { NotificationMuteGetQueryHandler } from './notifications/notification-mu
 import { NotificationUnreadCountQueryHandler } from './notifications/notification-unread-count';
 import { PageTemplateListQueryHandler } from './pages/page-template-list';
 import { PlaneIssueGetQueryHandler } from './plane/plane-issue-get';
+import { PlaneMyIssuesQueryHandler } from './plane/plane-my-issues';
 import { PlaneProjectBoardQueryHandler } from './plane/plane-project-board';
 import { PlaneProjectsListQueryHandler } from './plane/plane-projects-list';
 import { PresenceListQueryHandler } from './presence/presence-list';
@@ -108,6 +109,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'record.template.list': new RecordTemplateListQueryHandler(app),
     'page.template.list': new PageTemplateListQueryHandler(app),
     'plane.issue.get': new PlaneIssueGetQueryHandler(app),
+    'plane.my.issues': new PlaneMyIssuesQueryHandler(app),
     'plane.project.board': new PlaneProjectBoardQueryHandler(app),
     'plane.projects.list': new PlaneProjectsListQueryHandler(app),
     'presence.list': new PresenceListQueryHandler(app),

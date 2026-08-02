@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   Satellite,
   Search,
+  Ticket,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -91,6 +92,18 @@ export const WorkspaceHomeDashboard = () => {
     type: 'notification.list',
     userId: workspace.userId,
   });
+
+  const planeIssuesQuery = useClientQuery(
+    {
+      type: 'plane.my.issues',
+      userId: workspace.userId,
+    },
+    // Plane lives behind a server proxy with no local subscription; don't
+    // retry (a disabled integration 400s) so the section just hides itself.
+    { retry: false }
+  );
+
+  const planeIssues = planeIssuesQuery.data ?? [];
 
   const allNodes = useMemo(
     () => nodeListQuery.data ?? [],
@@ -265,6 +278,58 @@ export const WorkspaceHomeDashboard = () => {
           </div>
         )}
       </section>
+
+      {/* My Plane tickets — the current user's assigned Plane issues, pulled
+          live through the server-side Plane proxy. Rendered as nothing if the
+          integration is disabled or the fetch errors, so the home never breaks. */}
+      {planeIssuesQuery.isError ? null : (
+        <section className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Ticket className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-medium">My Plane tickets</h2>
+            <a
+              href="https://plane.arribada.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+            >
+              Open Plane →
+            </a>
+          </div>
+          {planeIssuesQuery.isPending ? (
+            <p className="text-sm text-muted-foreground">
+              Loading your Plane tickets…
+            </p>
+          ) : planeIssues.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No Plane tickets assigned to you.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-0.5">
+              {planeIssues.map((issue) => (
+                <a
+                  key={`${issue.key}:${issue.url}`}
+                  href={issue.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-row items-center gap-2 rounded-md p-1.5 hover:bg-accent"
+                >
+                  <span className="w-28 shrink-0 truncate text-xs font-medium text-muted-foreground">
+                    {issue.key}
+                  </span>
+                  <span className="flex-1 truncate text-sm">{issue.name}</span>
+                  <span className="hidden max-w-[8rem] shrink-0 truncate text-xs text-muted-foreground sm:inline">
+                    {issue.projectName}
+                  </span>
+                  <span className="w-24 shrink-0 text-right text-xs capitalize text-muted-foreground">
+                    {issue.stateGroup}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="flex flex-col gap-4">
         <div className="flex items-center gap-2">

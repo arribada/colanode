@@ -48,6 +48,7 @@ export * from './nodes/node-trash-list';
 export * from './pages/page-template-list';
 export * from './records/record-template-list';
 export * from './plane/plane-issue-get';
+export * from './plane/plane-my-issues';
 export * from './plane/plane-project-board';
 export * from './plane/plane-projects-list';
 export * from './presence/presence-list';

@@ -104,3 +104,34 @@ export const planeProjectBoardOutputSchema = z.object({
 export type PlaneProjectBoardOutput = z.infer<
   typeof planeProjectBoardOutputSchema
 >;
+
+// ---------------------------------------------------------------------------
+// "My Plane tickets" (wiki home dashboard) — the current user's assigned Plane
+// issues, flattened across projects. Resolved through the same server-side
+// proxy as the board/list projections (see fetchPlaneMyIssues); the user's
+// identity is resolved server-side and matched to a Plane member by email, so
+// the client never supplies an email. See:
+//   apps/server/src/lib/plane.ts (fetchPlaneMyIssues)
+//   apps/server/src/api/client/routes/workspaces/integrations/plane/plane-my-issues.ts
+// ---------------------------------------------------------------------------
+
+// A single assigned issue as shown in the "My Plane tickets" home section.
+export const planeMyIssueSchema = z.object({
+  // Human key "IDENTIFIER-SEQ", e.g. "MARLIN-474".
+  key: z.string(),
+  name: z.string(),
+  // Canonical Plane web URL for the issue ("open in Plane").
+  url: z.string(),
+  // The parent project's display name, for context in the row.
+  projectName: z.string(),
+  // Plane priority (urgent/high/medium/low/none).
+  priority: z.string(),
+  // Plane state grouping (backlog/unstarted/started/completed/cancelled).
+  stateGroup: z.string(),
+});
+
+export type PlaneMyIssue = z.infer<typeof planeMyIssueSchema>;
+
+export const planeMyIssuesOutputSchema = z.array(planeMyIssueSchema);
+
+export type PlaneMyIssuesOutput = z.infer<typeof planeMyIssuesOutputSchema>;

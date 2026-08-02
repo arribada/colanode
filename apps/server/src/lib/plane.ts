@@ -4,6 +4,7 @@ import {
   buildPlaneIssueUrl,
   PlaneIssueOutput,
   PlaneIssueUrlParts,
+  PlaneMyIssue,
   PlaneProjectBoardOutput,
   PlaneProjectSummary,
 } from '@colanode/core';
@@ -228,6 +229,7 @@ const boardCache = new Map<string, BoardCacheEntry>();
 export const __clearPlaneProjectCachesForTests = (): void => {
   projectsCache.clear();
   boardCache.clear();
+  myIssuesCache.clear();
 };
 
 const createPlaneClient = (planeConfig: EnabledPlaneConfig) =>
@@ -368,6 +370,209 @@ export const fetchPlaneProjectBoard = async (
     logger.error(
       toSafeLogFields(error),
       `Failed to fetch Plane project board ${projectId} from Plane API`
+    );
+    return { ok: false, reason: 'fetch_failed' };
+  }
+};
+
+// ===========================================================================
+// "My Plane tickets" (wiki home dashboard) — the current user's assigned
+// issues across the workspace's projects. Same X-API-Key server-side proxy as
+// the other fetchers. Identity is resolved server-side (the caller's email,
+// looked up from the authenticated user row) and matched against the Plane
+// workspace members, so this flow never trusts the client for identity.
+// ===========================================================================
+
+// A Plane workspace member. The members endpoint's exact shape has varied
+// between Plane versions/forks, so we read every field that plausibly carries
+// the member's email and their *user* id (the id that appears in an issue's
+// `assignees`). Matching then compares an issue's assignees against the set of
+// ALL candidate ids, so we don't depend on which one this fork actually uses.
+interface RawPlaneMemberUser {
+  id?: string;
+  email?: string | null;
+}
+
+interface RawPlaneMember {
+  id: string;
+  email?: string | null;
+  member?: RawPlaneMemberUser | string | null;
+  member_id?: string | null;
+}
+
+// An issue as read for the "my issues" scan: the board issue's fields plus the
+// assignee id list, read under either field name Plane has used (`assignees` /
+// `assignee_ids`) — both arrays of *user* ids.
+interface RawPlaneMyIssue {
+  id: string;
+  name: string;
+  sequence_id: number;
+  priority: string;
+  state: string | null;
+  assignees?: string[] | null;
+  assignee_ids?: string[] | null;
+}
+
+interface MyIssuesCacheEntry {
+  at: number;
+  issues: PlaneMyIssue[];
+}
+
+// Keyed by lower-cased email. Reuses the same TTL as the other Plane caches.
+const myIssuesCache = new Map<string, MyIssuesCacheEntry>();
+
+// Bound the work: a self-hosted workspace has at most a few dozen projects,
+// and this is a home-screen convenience, not an exhaustive issue browser.
+const MY_ISSUES_MAX_PROJECTS = 40;
+const MY_ISSUES_MAX_TOTAL = 100;
+
+const readMemberEmail = (member: RawPlaneMember): string | undefined => {
+  if (typeof member.email === 'string') {
+    return member.email;
+  }
+  if (
+    member.member &&
+    typeof member.member === 'object' &&
+    typeof member.member.email === 'string'
+  ) {
+    return member.member.email;
+  }
+  return undefined;
+};
+
+const collectMemberIds = (member: RawPlaneMember): Set<string> => {
+  const ids = new Set<string>();
+  if (typeof member.id === 'string') {
+    ids.add(member.id);
+  }
+  if (typeof member.member === 'string') {
+    ids.add(member.member);
+  } else if (
+    member.member &&
+    typeof member.member === 'object' &&
+    typeof member.member.id === 'string'
+  ) {
+    ids.add(member.member.id);
+  }
+  if (typeof member.member_id === 'string') {
+    ids.add(member.member_id);
+  }
+  return ids;
+};
+
+export type FetchPlaneMyIssuesResult =
+  | { ok: true; issues: PlaneMyIssue[] }
+  | { ok: false; reason: 'fetch_failed' };
+
+/**
+ * Fetches the issues assigned to `email`'s Plane member, flattened across the
+ * workspace's projects, for the home dashboard. Resolves the member from the
+ * workspace members endpoint (case-insensitive email match); if no member
+ * matches, returns an empty-but-ok result (the wiki user simply has no Plane
+ * account — not an error). Per-process cached for `planeConfig.cacheTtlMs`,
+ * keyed by email; failures use the same ok/reason shape as the other fetchers.
+ */
+export const fetchPlaneMyIssues = async (
+  planeConfig: EnabledPlaneConfig,
+  email: string
+): Promise<FetchPlaneMyIssuesResult> => {
+  const cacheKey = email.toLowerCase();
+  const cached = myIssuesCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < planeConfig.cacheTtlMs) {
+    return { ok: true, issues: cached.issues };
+  }
+
+  const client = createPlaneClient(planeConfig);
+
+  try {
+    // The members endpoint has been seen returning either a bare array or the
+    // standard paginated envelope; normalise both.
+    const membersResponse = await client
+      .get(buildApiUrl(planeConfig, 'members'))
+      .json<RawPlaneMember[] | RawPlaneListEnvelope<RawPlaneMember>>();
+
+    const members = Array.isArray(membersResponse)
+      ? membersResponse
+      : membersResponse.results;
+
+    const target = email.toLowerCase();
+    const member = members.find(
+      (candidate) => readMemberEmail(candidate)?.toLowerCase() === target
+    );
+
+    // No Plane member for this wiki user — a normal state, cache it as empty.
+    if (!member) {
+      const empty: PlaneMyIssue[] = [];
+      myIssuesCache.set(cacheKey, { at: Date.now(), issues: empty });
+      return { ok: true, issues: empty };
+    }
+
+    const memberIds = collectMemberIds(member);
+
+    const projectsResult = await fetchPlaneProjects(planeConfig);
+    if (!projectsResult.ok) {
+      return { ok: false, reason: 'fetch_failed' };
+    }
+
+    const projects = projectsResult.projects.slice(0, MY_ISSUES_MAX_PROJECTS);
+
+    const perProject = await Promise.all(
+      projects.map(async (project) => {
+        const issuesEnvelope = await client
+          .get(buildApiUrl(planeConfig, 'projects', project.id, 'issues'), {
+            searchParams: { per_page: '100', order_by: '-updated_at' },
+          })
+          .json<RawPlaneListEnvelope<RawPlaneMyIssue>>();
+
+        const mine = issuesEnvelope.results.filter((issue) => {
+          const assignees = issue.assignees ?? issue.assignee_ids ?? [];
+          return assignees.some((assigneeId) => memberIds.has(assigneeId));
+        });
+
+        if (mine.length === 0) {
+          return [] as PlaneMyIssue[];
+        }
+
+        // Only projects the user actually has issues in pay for a states
+        // fetch, which maps each issue's state id to its group (board column).
+        const statesEnvelope = await client
+          .get(buildApiUrl(planeConfig, 'projects', project.id, 'states'), {
+            searchParams: { per_page: '100' },
+          })
+          .json<RawPlaneListEnvelope<RawPlaneBoardState>>();
+
+        const stateGroupById = new Map(
+          statesEnvelope.results.map((state): [string, string] => [
+            state.id,
+            state.group,
+          ])
+        );
+
+        return mine.map<PlaneMyIssue>((issue) => ({
+          key: `${project.identifier}-${issue.sequence_id}`,
+          name: issue.name,
+          url: buildPlaneIssueUrl(planeConfig.apiBase, {
+            workspaceSlug: planeConfig.workspaceSlug,
+            projectId: project.id,
+            issueId: issue.id,
+          }),
+          projectName: project.name,
+          priority: issue.priority,
+          stateGroup:
+            (issue.state ? stateGroupById.get(issue.state) : undefined) ??
+            'unstarted',
+        }));
+      })
+    );
+
+    const issues = perProject.flat().slice(0, MY_ISSUES_MAX_TOTAL);
+
+    myIssuesCache.set(cacheKey, { at: Date.now(), issues });
+    return { ok: true, issues };
+  } catch (error) {
+    logger.error(
+      toSafeLogFields(error),
+      'Failed to fetch the assigned Plane issues from Plane API'
     );
     return { ok: false, reason: 'fetch_failed' };
   }
