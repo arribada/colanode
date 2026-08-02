@@ -95,12 +95,21 @@ export const resolveAiCredentials = async (
   // URL) so the wiki AI works out of the box even with no user/workspace key.
   const defaultKey = process.env.AI_DEFAULT_API_KEY;
   if (defaultKey) {
-    return {
-      source: 'server',
-      provider: (process.env.AI_DEFAULT_PROVIDER as AiProviderName) ?? 'openai',
-      model: process.env.AI_DEFAULT_MODEL ?? 'llama-3.3-70b-versatile',
-      apiKey: defaultKey,
-    };
+    const envProvider = process.env.AI_DEFAULT_PROVIDER;
+    const provider: AiProviderName =
+      envProvider && SUPPORTED_AI_PROVIDERS.has(envProvider as AiProviderName)
+        ? (envProvider as AiProviderName)
+        : 'openai';
+    // Non-anthropic defaults are served through the OpenAI-compatible endpoint;
+    // require its base URL, else fall through to the clean AiNotConfigured 400.
+    if (provider === 'anthropic' || process.env.AI_OPENAI_COMPAT_BASE_URL) {
+      return {
+        source: 'server',
+        provider,
+        model: process.env.AI_DEFAULT_MODEL ?? 'llama-3.3-70b-versatile',
+        apiKey: defaultKey,
+      };
+    }
   }
 
   return null;
