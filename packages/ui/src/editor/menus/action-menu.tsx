@@ -56,10 +56,22 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
   // actions keep targeting the block the menu was opened on.
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
   const blockMenuOpenRef = useRef(false);
+  // Set when the menu was summoned via the keyboard shortcut rather than by
+  // hovering, so closing it also tears down the (otherwise mouse-driven) handle
+  // instead of leaving it stranded on the page.
+  const keyboardOpenedRef = useRef(false);
 
   const setBlockMenu = (open: boolean) => {
     blockMenuOpenRef.current = open;
     setBlockMenuOpen(open);
+    if (!open && keyboardOpenedRef.current) {
+      keyboardOpenedRef.current = false;
+      // Let Radix finish its own close sequence (focus return + exit) with the
+      // component still mounted before the hover handle is removed.
+      window.requestAnimationFrame(() => {
+        setMenuState({ show: false });
+      });
+    }
   };
 
   useEffect(() => {
@@ -182,12 +194,83 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
       });
     };
 
+    // Keyboard entry point: Mod-/ (Ctrl/Cmd + /) opens the block action menu for
+    // the top-level block containing the current selection — the same block the
+    // hover handle resolves — so the actions are reachable without a mouse.
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!editor.isEditable || blockMenuOpenRef.current) {
+        return;
+      }
+
+      if (
+        event.altKey ||
+        !(event.metaKey || event.ctrlKey) ||
+        event.key !== '/'
+      ) {
+        return;
+      }
+
+      const { selection } = view.current.state;
+
+      let targetPos: number;
+      let targetNode: ProseMirrorNode;
+      if (selection instanceof NodeSelection) {
+        targetPos = selection.from;
+        targetNode = selection.node;
+      } else {
+        const $from = selection.$from;
+        if ($from.depth === 0) {
+          return;
+        }
+        targetPos = $from.before(1);
+        targetNode = $from.node(1);
+      }
+
+      const nodeDOM = view.current.nodeDOM(targetPos);
+      const domNode =
+        nodeDOM instanceof HTMLElement
+          ? nodeDOM
+          : ((nodeDOM as Node)?.parentElement as HTMLElement | null);
+      if (!domNode) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const nodeRect = domNode.getBoundingClientRect();
+      const editorRect = view.current.dom.getBoundingClientRect();
+      const menuRect = DOMRect.fromRect({
+        x: editorRect.x - 10,
+        y: nodeRect.y,
+        width: 0,
+        height: nodeRect.height,
+      });
+
+      // Freeze the hover handler immediately, render the handle at the block,
+      // then open the dropdown on the next frame so Radix anchors to the
+      // now-positioned trigger.
+      blockMenuOpenRef.current = true;
+      keyboardOpenedRef.current = true;
+      setMenuState({
+        show: true,
+        pmNode: targetNode,
+        domNode,
+        pos: targetPos,
+        rect: menuRect,
+      });
+      window.requestAnimationFrame(() => {
+        setBlockMenuOpen(true);
+      });
+    };
+
     editor.view.dom.addEventListener('mousemove', handleMouseMove);
     editor.view.dom.addEventListener('scroll', handleScroll, true);
+    editor.view.dom.addEventListener('keydown', handleKeyDown);
 
     return () => {
       editor.view.dom.removeEventListener('mousemove', handleMouseMove);
       editor.view.dom.removeEventListener('scroll', handleScroll, true);
+      editor.view.dom.removeEventListener('keydown', handleKeyDown);
     };
   }, [editor]);
 
@@ -282,7 +365,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
               tabIndex={0}
               draggable={true}
               aria-label="Block options"
-              title="Drag to move, click for actions"
+              title="Drag to move, click or press Ctrl/Cmd + / for actions"
               data-testid="editor-action-menu-drag-handle"
               className="flex size-6 items-center justify-center rounded cursor-grab hover:bg-input hover:text-foreground"
               onDragStart={(event) => {
@@ -324,7 +407,17 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
               <GripVertical className="size-4" />
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="bottom" className="w-48">
+          <DropdownMenuContent
+            align="start"
+            side="bottom"
+            className="w-48"
+            onCloseAutoFocus={(event) => {
+              // Return focus to the editor (not the hover-only grip) on Escape,
+              // item selection, or dismiss.
+              event.preventDefault();
+              editor.commands.focus();
+            }}
+          >
             <DropdownMenuLabel>Block</DropdownMenuLabel>
             {canTurnInto && (
               <DropdownMenuSub>
