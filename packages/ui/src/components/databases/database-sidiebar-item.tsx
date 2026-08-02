@@ -60,71 +60,73 @@ export const DatabaseSidebarItem = ({ database }: DatabaseSidebarItemProps) => {
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <Link
-            from="/workspace/$userId"
-            to="$nodeId"
-            params={{ nodeId: database.id }}
-            draggable={false}
+          {/* The row is the drag source and context target (ref). The chevron
+              toggle, the Link (wrapping only the label) and the rename input are
+              now siblings inside it, so no <button>/<input> is nested in the
+              routing <a>. */}
+          <div
+            ref={ref}
+            className={cn(
+              'group/database-row relative text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
+              // The child Link carries aria-current on its active route; the row
+              // highlights off of it (replaces the old isActive render-prop).
+              'has-[[aria-current=page]]:bg-sidebar-accent has-[[aria-current=page]]:text-sidebar-accent-foreground has-[[aria-current=page]]:font-medium',
+              isDragging && 'opacity-50'
+            )}
           >
-            {({ isActive }) => (
-              <div
-                ref={ref}
-                className={cn(
-                  'group/database-row relative text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
-                  isActive &&
-                    'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
-                  isDragging && 'opacity-50'
-                )}
-              >
-                <SidebarDropIndicator edge={dropEdge} />
-                {hasViews ? (
-                  <CollapsibleTrigger asChild>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setOpen(!open);
-                      }}
-                      className="flex items-center cursor-pointer rounded-sm hover:bg-sidebar-border"
-                    >
-                      <Avatar
-                        id={database.id}
-                        avatar={database.avatar}
-                        name={database.name}
-                        className="group-hover/database-row:hidden size-4 shrink-0"
-                      />
-                      <ChevronRight className="hidden transition-transform group-hover/database-row:block group-data-[state=open]/database-item:rotate-90 size-4 shrink-0" />
-                    </button>
-                  </CollapsibleTrigger>
-                ) : (
+            <SidebarDropIndicator edge={dropEdge} />
+            {hasViews ? (
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={open ? 'Collapse views' : 'Expand views'}
+                  className="flex shrink-0 items-center cursor-pointer rounded-sm hover:bg-sidebar-border"
+                >
                   <Avatar
                     id={database.id}
                     avatar={database.avatar}
                     name={database.name}
-                    className="size-4"
+                    className="group-hover/database-row:hidden size-4 shrink-0"
                   />
-                )}
-                {isRenaming ? (
-                  <InlineRenameField
-                    initialValue={database.name ?? ''}
-                    onCommit={commitRenaming}
-                    onCancel={cancelRenaming}
-                  />
-                ) : (
-                  <span
-                    className="line-clamp-1 w-full grow text-left"
-                    onDoubleClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      startRenaming();
-                    }}
-                  >
-                    {database.name ?? 'Unnamed'}
-                  </span>
-                )}
-              </div>
+                  <ChevronRight className="hidden transition-transform group-hover/database-row:block group-data-[state=open]/database-item:rotate-90 size-4 shrink-0" />
+                </button>
+              </CollapsibleTrigger>
+            ) : (
+              <Avatar
+                id={database.id}
+                avatar={database.avatar}
+                name={database.name}
+                className="size-4 shrink-0"
+              />
             )}
-          </Link>
+            {isRenaming ? (
+              <InlineRenameField
+                initialValue={database.name ?? ''}
+                onCommit={commitRenaming}
+                onCancel={cancelRenaming}
+              />
+            ) : (
+              <Link
+                from="/workspace/$userId"
+                to="$nodeId"
+                params={{ nodeId: database.id }}
+                activeProps={{ 'aria-current': 'page' }}
+                draggable={false}
+                className="min-w-0 grow"
+              >
+                <span
+                  className="line-clamp-1 block w-full text-left"
+                  onDoubleClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startRenaming();
+                  }}
+                >
+                  {database.name || 'Unnamed'}
+                </span>
+              </Link>
+            )}
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => startRenaming()}>

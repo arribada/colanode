@@ -53,6 +53,10 @@ export const InlineRenameField = ({
   onCancel,
 }: InlineRenameFieldProps) => {
   const ref = useRef<HTMLInputElement>(null);
+  // Enter and Escape both flip isRenaming, which unmounts this input, and React
+  // fires blur on unmount. Without this guard that blur would re-run onCommit --
+  // re-saving after Enter and, worse, SAVING the value after Escape (a cancel).
+  const skipBlurRef = useRef(false);
 
   useEffect(() => {
     const input = ref.current;
@@ -78,13 +82,23 @@ export const InlineRenameField = ({
         e.stopPropagation();
         if (e.key === 'Enter') {
           e.preventDefault();
+          skipBlurRef.current = true;
           onCommit(e.currentTarget.value);
         } else if (e.key === 'Escape') {
           e.preventDefault();
+          skipBlurRef.current = true;
           onCancel();
         }
       }}
-      onBlur={(e) => onCommit(e.currentTarget.value)}
+      onBlur={(e) => {
+        // The commit/cancel above already resolved this edit; the blur React
+        // fires as the input unmounts must not run a second, unwanted commit.
+        if (skipBlurRef.current) {
+          skipBlurRef.current = false;
+          return;
+        }
+        onCommit(e.currentTarget.value);
+      }}
       className="h-5 w-full min-w-0 grow rounded-sm bg-background px-1 text-sm text-foreground outline-none ring-1 ring-sidebar-ring"
     />
   );

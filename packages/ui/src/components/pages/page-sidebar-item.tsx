@@ -218,7 +218,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                     startRenaming();
                   }}
                 >
-                  {page.name ?? 'Unnamed'}
+                  {page.name || 'Unnamed'}
                 </span>
               </Link>
             )}
@@ -282,6 +282,10 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onClick={() => handleCreateSubpage()}>
+            <Plus className="size-4" />
+            Create subpage
+          </ContextMenuItem>
           <ContextMenuItem onClick={() => startRenaming()}>
             <Pencil className="size-4" />
             Rename

@@ -1,5 +1,9 @@
 import { SelectNode } from '@colanode/client/databases';
 import { WorkspaceMutationHandlerBase } from '@colanode/client/handlers/mutations/workspace-mutation-handler-base';
+import {
+  buildDescendantAttributes,
+  idTypeForNodeType,
+} from '@colanode/client/lib/node-subtree-copy';
 import { MutationHandler } from '@colanode/client/lib/types';
 import { MutationError, MutationErrorCode } from '@colanode/client/mutations';
 import {
@@ -11,6 +15,8 @@ import {
   Block,
   EditorNodeTypes,
   IdType,
+  NodeAttributes,
+  NodeType,
   PageAttributes,
   RichTextContent,
   generateId,
@@ -26,11 +32,36 @@ const nodeReferenceBlockTypes = new Set<string>([
   'database',
 ]);
 
-// Copy a page (and its descendant pages + their documents) from one workspace
-// into another. This is a COPY, never a re-parent: cross-workspace moves would
-// keep the old root_id and quietly corrupt access, so we always insert fresh
-// nodes under the destination parent — insertNode derives the destination
-// root_id from that parent — and only trash the original when asked to.
+// The descendant node types copied alongside the page, mirroring the in-
+// workspace subtree copy in node-subtree-copy.ts: pages, databases (together
+// with their database_view + record children), whiteboards and folders. Files
+// are deliberately excluded here -- a file's blob lives in the SOURCE
+// workspace's local storage and cannot be re-uploaded into the destination from
+// this handler, so copying one would create a broken, contentless node. A file
+// (and any embed/reference pointing at it) is therefore left pointing at the
+// original, exactly like the in-workspace best-effort copy. Messaging nodes
+// (channel/chat/message) never live under a page.
+const copyableDescendantTypes: NodeType[] = [
+  'page',
+  'database',
+  'database_view',
+  'record',
+  'whiteboard',
+  'folder',
+];
+
+// Copy a page (and its descendant subtree) from one workspace into another.
+// This is a COPY, never a re-parent: cross-workspace moves would keep the old
+// root_id and quietly corrupt access, so we always insert fresh nodes under the
+// destination parent -- insertNode derives the destination root_id from that
+// parent -- and only trash the original when asked to.
+//
+// Every copyable descendant (pages, databases with their views + records,
+// whiteboards, folders) is copied, and the FULL old->new node id map is built
+// up front so that every embed block AND every relation field value remaps to
+// the copied node it points at, in either direction. A reference to a node that
+// was NOT copied (a file, or anything outside the subtree) falls back to the
+// original id rather than pointing at nothing.
 export class PageTransferMutationHandler
   extends WorkspaceMutationHandlerBase
   implements MutationHandler<PageTransferMutationInput>
@@ -54,63 +85,76 @@ export class PageTransferMutationHandler
       );
     }
 
-    // Gather the page and every descendant page in the source workspace.
-    const allPages = await source.database
-      .selectFrom('nodes')
-      .selectAll()
-      .where('type', '=', 'page')
-      .execute();
+    // Collect the page and every copyable descendant in the source workspace,
+    // walking parent_id breadth-first so a parent is always ordered before its
+    // children (the destination parent has to exist before insertNode can
+    // resolve its root_id). A visited set guards against a corrupted parent_id
+    // chain spinning this loop forever.
+    const ordered: SelectNode[] = [sourceRow];
+    const visited = new Set<string>([sourceRow.id]);
+    let frontier: string[] = [sourceRow.id];
+    while (frontier.length > 0) {
+      const childRows = await source.database
+        .selectFrom('nodes')
+        .selectAll()
+        .where('parent_id', 'in', frontier)
+        .where('type', 'in', copyableDescendantTypes)
+        .execute();
 
-    const childrenByParent = new Map<string, SelectNode[]>();
-    for (const row of allPages) {
-      const parentId = (JSON.parse(row.attributes) as PageAttributes).parentId;
-      if (!parentId) {
+      const nextFrontier: string[] = [];
+      for (const childRow of childRows) {
+        if (visited.has(childRow.id)) {
+          continue;
+        }
+        visited.add(childRow.id);
+        ordered.push(childRow);
+        nextFrontier.push(childRow.id);
+      }
+      frontier = nextFrontier;
+    }
+
+    // Build the FULL old->new node id map BEFORE inserting anything, so a
+    // reference in any node remaps to its copied target regardless of the order
+    // nodes are processed in (a reference can point either up or down the tree).
+    const nodeIdMap = new Map<string, string>();
+    nodeIdMap.set(sourceRow.id, generateId(IdType.Page));
+    for (const row of ordered) {
+      if (nodeIdMap.has(row.id)) {
         continue;
       }
-      const list = childrenByParent.get(parentId);
-      if (list) {
-        list.push(row);
+      nodeIdMap.set(row.id, generateId(idTypeForNodeType(row.type as NodeType)));
+    }
+
+    // Insert parent-before-child into the DESTINATION workspace; insertNode
+    // derives the new root_id from the already-inserted destination parent.
+    for (const row of ordered) {
+      const newId = nodeIdMap.get(row.id)!;
+      const attributes = JSON.parse(row.attributes) as NodeAttributes;
+
+      if (row.id === input.pageId) {
+        // The root is always a page: file it under the caller-chosen target
+        // parent, keeping the rest of its attributes.
+        if (attributes.type !== 'page') {
+          continue;
+        }
+        await target.nodes.insertNode(newId, {
+          ...attributes,
+          parentId: input.targetParentId,
+        });
       } else {
-        childrenByParent.set(parentId, [row]);
+        // Descendants copy their own attributes with only their references
+        // remapped -- a record's databaseId + relation field values, a
+        // relation field's databaseId -- through the shared node id map, the
+        // same way the in-workspace subtree copy does.
+        const newParentId =
+          nodeIdMap.get(row.parent_id ?? '') ?? input.targetParentId;
+        await target.nodes.insertNode(
+          newId,
+          buildDescendantAttributes(attributes, newParentId, nodeIdMap)
+        );
       }
-    }
 
-    // Breadth-first so a parent is always inserted before its children (the
-    // destination parent has to exist for insertNode to resolve its root_id).
-    const ordered: SelectNode[] = [];
-    const queue: SelectNode[] = [sourceRow];
-    const seen = new Set<string>();
-    while (queue.length > 0) {
-      const node = queue.shift()!;
-      if (seen.has(node.id)) {
-        continue;
-      }
-      seen.add(node.id);
-      ordered.push(node);
-      for (const child of childrenByParent.get(node.id) ?? []) {
-        queue.push(child);
-      }
-    }
-
-    const idMap = new Map<string, string>();
-    for (const row of ordered) {
-      idMap.set(row.id, generateId(IdType.Page));
-    }
-
-    for (const row of ordered) {
-      const attributes = JSON.parse(row.attributes) as PageAttributes;
-      const newId = idMap.get(row.id)!;
-      const newParentId =
-        row.id === input.pageId
-          ? input.targetParentId
-          : (idMap.get(attributes.parentId!) ?? input.targetParentId);
-
-      await target.nodes.insertNode(newId, {
-        ...attributes,
-        parentId: newParentId,
-      });
-
-      await this.copyDocument(source, target, row.id, newId, idMap);
+      await this.copyDocument(source, target, row.id, newId, nodeIdMap);
     }
 
     if (input.trashOriginal) {
@@ -121,7 +165,7 @@ export class PageTransferMutationHandler
       });
     }
 
-    return { id: idMap.get(input.pageId)! };
+    return { id: nodeIdMap.get(input.pageId)! };
   }
 
   private async copyDocument(
@@ -147,8 +191,9 @@ export class PageTransferMutationHandler
       return;
     }
 
-    // Old block id -> new block id. Reference blocks keep pointing at the same
-    // node unless that node was copied alongside the page.
+    // Old block id -> new block id. A reference block follows the node id map
+    // when the node it embeds was copied alongside the page; when it was not
+    // (a file, or a node outside the subtree) it keeps pointing at the original.
     const blockIdMap = new Map<string, string>();
     blockIdMap.set(sourceId, targetId);
     for (const block of blocks) {

@@ -1,5 +1,5 @@
-// ABOUTME: Node-agnostic "Copy link" menu action — copies a shareable deep link
-// ABOUTME: built from the node id (not window.location) so it works everywhere.
+// ABOUTME: Node-agnostic "Copy link" menu action - copies a shareable deep link
+// ABOUTME: built as {origin}/{workspaceId}/{nodeId} so it works everywhere.
 import { Link2 } from 'lucide-react';
 import { ComponentType, ReactNode } from 'react';
 import { toast } from 'sonner';
@@ -20,9 +20,11 @@ interface CopyLinkActionProps {
   label?: string;
 }
 
-// The link is built from the node id and workspace id rather than
-// window.location.href, so it resolves the same from the sidebar, a breadcrumb,
-// or the Electron build — none of which sit on a docs.arribada.org URL.
+// The path is always /{workspaceId}/{nodeId}, stable across users. The origin is
+// taken from the current page whenever that is a real http(s) web origin - so a
+// self-hosted deployment on any domain builds a correct link - and falls back to
+// the canonical docs.arribada.org origin in the Electron build, whose location
+// is a file:// / app:// URL rather than the deployment's web address.
 export const CopyLinkAction = ({
   nodeId,
   item: MenuItem,
@@ -32,7 +34,13 @@ export const CopyLinkAction = ({
 
   const handleCopy = async () => {
     try {
-      const link = `https://docs.arribada.org/${workspace.workspaceId}/${nodeId}`;
+      const origin =
+        typeof window !== 'undefined' &&
+        (window.location.protocol === 'http:' ||
+          window.location.protocol === 'https:')
+          ? window.location.origin
+          : 'https://docs.arribada.org';
+      const link = `${origin}/${workspace.workspaceId}/${nodeId}`;
       await navigator.clipboard.writeText(link);
       toast.success('Link copied to clipboard');
     } catch {
