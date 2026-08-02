@@ -13,11 +13,16 @@ const WhiteboardCanvas = lazy(() =>
 interface WhiteboardContainerProps {
   whiteboard: LocalWhiteboardNode;
   role: NodeRole;
+  // When true the board is rendered as an in-page embed: the wheel/touch
+  // handlers yield to page scrolling and the collaboration controls +
+  // presence broadcasting are suppressed (see WhiteboardCanvas).
+  embedded?: boolean;
 }
 
 export const WhiteboardContainer = ({
   whiteboard,
   role,
+  embedded = false,
 }: WhiteboardContainerProps) => {
   return (
     <Suspense
@@ -27,7 +32,7 @@ export const WhiteboardContainer = ({
         </div>
       }
     >
-      <WhiteboardCanvas whiteboard={whiteboard} role={role} />
+      <WhiteboardCanvas whiteboard={whiteboard} role={role} embedded={embedded} />
     </Suspense>
   );
 };

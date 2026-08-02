@@ -179,6 +179,10 @@ type Interaction =
 interface WhiteboardCanvasProps {
   whiteboard: LocalWhiteboardNode;
   role: NodeRole;
+  // Rendered as an in-page embed (fixed-height, read-only preview). Changes
+  // how wheel/touch behave (yield to page scroll) and hides the collaboration
+  // controls so the preview never broadcasts presence onto the real board.
+  embedded?: boolean;
 }
 
 // A live reaction floating up on the canvas (local + remote), keyed for its
@@ -204,10 +208,15 @@ const boardPortalTarget = (): HTMLElement =>
 export const WhiteboardCanvas = ({
   whiteboard,
   role,
+  embedded = false,
 }: WhiteboardCanvasProps) => {
   const workspace = useWorkspace();
   const canEdit = hasNodeRole(role, 'editor');
   const canComment = hasNodeRole(role, 'collaborator');
+  // Collaboration affordances (laser/reaction buttons, the presence/follow
+  // menu) and presence broadcasting only make sense for an editor working on
+  // the live board — never for a read-only viewer or an in-page embed.
+  const showCollabControls = canEdit && !embedded;
 
   const presences = usePresences(whiteboard.id);
   const { publish: publishPresence } = usePresencePublisher({
@@ -225,7 +234,7 @@ export const WhiteboardCanvas = ({
     for (const p of presences) {
       const id = p.payload.editingElementId;
       if (id) {
-        map.set(id, p.name || 'Quelqu\u2019un');
+        map.set(id, p.name || 'Someone');
       }
     }
     return map;
@@ -342,6 +351,12 @@ export const WhiteboardCanvas = ({
   // never loses the leader between pointer moves.
   const publishBoardPresence = useCallback(
     (extra?: Partial<PresencePayload>) => {
+      // A read-only viewer or an in-page embed must never broadcast presence
+      // (live cursor, laser dots, reactions, viewport) onto the shared board —
+      // only an editor working on the live board does.
+      if (!canEdit || embedded) {
+        return;
+      }
       publishPresence({
         pointer: lastScenePointerRef.current ?? undefined,
         selectedElementIds: selectionRef.current,
@@ -350,7 +365,7 @@ export const WhiteboardCanvas = ({
         ...extra,
       });
     },
-    [publishPresence]
+    [publishPresence, canEdit, embedded]
   );
 
   // Elements the local user is actively manipulating: their in-flight local
@@ -1367,6 +1382,13 @@ export const WhiteboardCanvas = ({
       return;
     }
     const onWheel = (e: WheelEvent) => {
+      // In an in-page embed the board sits inside a short box mid-page, so a
+      // plain wheel must scroll the PAGE, not zoom the board. Only intercept
+      // the pinch-zoom gesture (ctrl/meta held); let every other wheel event
+      // bubble so the page keeps scrolling past the embed.
+      if (embedded && !e.ctrlKey && !e.metaKey) {
+        return;
+      }
       e.preventDefault();
       cancelFollow();
       const rect = el.getBoundingClientRect();
@@ -1388,7 +1410,7 @@ export const WhiteboardCanvas = ({
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [cancelFollow]);
+  }, [cancelFollow, embedded]);
 
   // ----- keyboard ----------------------------------------------------------
   useEffect(() => {
@@ -1898,12 +1920,12 @@ export const WhiteboardCanvas = ({
       return;
     }
     if (isLockedForMe(id)) {
-      toast(`\uD83D\uDD12 \u00C9l\u00e9ment verrouill\u00e9 \u2014 d\u00e9verrouillez-le pour le modifier`);
+      toast(`\uD83D\uDD12 Element locked \u2014 unlock it to edit`);
       return;
     }
     const lockedBy = remoteEditing.get(id);
     if (lockedBy) {
-      toast(`\uD83D\uDD12 ${lockedBy} \u00e9dite cet \u00e9l\u00e9ment`);
+      toast(`\uD83D\uDD12 ${lockedBy} is editing this element`);
       return;
     }
     setSelection([id]);
@@ -2067,7 +2089,7 @@ export const WhiteboardCanvas = ({
     seenFollowUsers.add(p.userId);
     followUsers.push({
       userId: p.userId,
-      name: p.name || 'Anonyme',
+      name: p.name || 'Anonymous',
       color: p.color,
     });
   }
@@ -2082,7 +2104,10 @@ export const WhiteboardCanvas = ({
     >
       <svg
         ref={svgRef}
-        className="h-full w-full touch-none select-none"
+        // `touch-none` lets the board own touch gestures (pan/zoom). In an
+        // in-page embed that would trap the finger, so drop it there and let
+        // touch scroll the page past the preview.
+        className={cn('h-full w-full select-none', !embedded && 'touch-none')}
         style={{ cursor }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -2682,20 +2707,20 @@ export const WhiteboardCanvas = ({
         />
       )}
 
-      {presences.length > 0 && (
+      {showCollabControls && presences.length > 0 && (
         <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-2">
           <button
             type="button"
             onClick={() => setFollowMenuOpen((o) => !o)}
             className="rounded-full bg-background/80 p-0.5 shadow-sm backdrop-blur transition hover:bg-background"
-            title="Voir / suivre les collaborateurs"
+            title="View / follow collaborators"
           >
             <PresenceAvatars presences={presences} />
           </button>
           {followMenuOpen && (
             <div className="w-56 rounded-lg border border-border bg-background p-1 shadow-xl">
               <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Collaborateurs
+                Collaborators
               </p>
               {followUsers.map((u) => {
                 const active = followUserId === u.userId;
@@ -2723,7 +2748,7 @@ export const WhiteboardCanvas = ({
                       )}
                     >
                       <Eye className="size-3" />
-                      {active ? 'Suivi' : 'Suivre'}
+                      {active ? 'Following' : 'Follow'}
                     </button>
                   </div>
                 );
@@ -2738,7 +2763,7 @@ export const WhiteboardCanvas = ({
         <div className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur">
           <Eye className="size-3.5 text-primary" />
           <span>
-            Vous suivez <strong>{followedName}</strong>
+            You&apos;re following <strong>{followedName}</strong>
           </span>
           <button
             type="button"
@@ -2831,51 +2856,55 @@ export const WhiteboardCanvas = ({
 
       {/* bottom-right controls */}
       <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
-        <button
-          type="button"
-          onClick={() => {
-            setLaserActive((a) => !a);
-            setLocalLaser(null);
-          }}
-          className={cn(
-            'flex size-7 items-center justify-center rounded-md hover:bg-accent',
-            laserActive && 'bg-primary/10 text-primary'
-          )}
-          title="Laser pointer (broadcast live)"
-        >
-          <Radio className="size-4" />
-        </button>
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setReactionMenuOpen((o) => !o)}
-            className={cn(
-              'flex size-7 items-center justify-center rounded-md hover:bg-accent',
-              reactionMenuOpen && 'bg-primary/10 text-primary'
-            )}
-            title="Reaction"
-          >
-            <Smile className="size-4" />
-          </button>
-          {reactionMenuOpen && (
-            <div className="absolute bottom-9 right-0 flex gap-0.5 rounded-lg border border-border bg-background p-1 shadow-xl">
-              {REACTION_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => {
-                    emitReaction(emoji);
-                    setReactionMenuOpen(false);
-                  }}
-                  className="flex size-8 items-center justify-center rounded-md text-lg hover:bg-accent"
-                >
-                  {emoji}
-                </button>
-              ))}
+        {showCollabControls && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setLaserActive((a) => !a);
+                setLocalLaser(null);
+              }}
+              className={cn(
+                'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+                laserActive && 'bg-primary/10 text-primary'
+              )}
+              title="Laser pointer (broadcast live)"
+            >
+              <Radio className="size-4" />
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setReactionMenuOpen((o) => !o)}
+                className={cn(
+                  'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+                  reactionMenuOpen && 'bg-primary/10 text-primary'
+                )}
+                title="Reaction"
+              >
+                <Smile className="size-4" />
+              </button>
+              {reactionMenuOpen && (
+                <div className="absolute bottom-9 right-0 flex gap-0.5 rounded-lg border border-border bg-background p-1 shadow-xl">
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        emitReaction(emoji);
+                        setReactionMenuOpen(false);
+                      }}
+                      className="flex size-8 items-center justify-center rounded-md text-lg hover:bg-accent"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div className="mx-0.5 h-5 w-px bg-border" />
+            <div className="mx-0.5 h-5 w-px bg-border" />
+          </>
+        )}
         {canEdit && (
           <button
             type="button"
@@ -2936,18 +2965,20 @@ export const WhiteboardCanvas = ({
         >
           <Maximize className="size-4" />
         </button>
-        <button
-          type="button"
-          className="flex size-7 items-center justify-center rounded-md hover:bg-accent"
-          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-          onClick={toggleFullscreen}
-        >
-          {isFullscreen ? (
-            <Shrink className="size-4" />
-          ) : (
-            <Expand className="size-4" />
-          )}
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            className="flex size-7 items-center justify-center rounded-md hover:bg-accent"
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? (
+              <Shrink className="size-4" />
+            ) : (
+              <Expand className="size-4" />
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

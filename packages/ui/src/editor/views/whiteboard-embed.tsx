@@ -1,10 +1,11 @@
 import { eq, useLiveQuery } from '@tanstack/react-db';
 import { type NodeViewProps } from '@tiptap/core';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { NodeViewWrapper } from '@tiptap/react';
-import { ExternalLink, Presentation } from 'lucide-react';
+import { ExternalLink, Plus, Presentation } from 'lucide-react';
 
-import { LocalWhiteboardNode } from '@colanode/client/types';
+import { EditorContext, LocalWhiteboardNode } from '@colanode/client/types';
+import { IdType, generateId } from '@colanode/core';
 import { NodeProvider } from '@colanode/ui/components/nodes/node-provider';
 import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { useNode } from '@colanode/ui/contexts/node';
@@ -17,12 +18,13 @@ const HEIGHT_OPTIONS = [320, 480, 640, 800];
 // (`hasNodeRole(role, 'editor' | 'collaborator')`), so forcing the lowest role,
 // 'viewer', disables all pointer editing, persistence and commenting. A board
 // embedded in a page therefore can never be mutated from inside that page —
-// only from the board opened standalone.
+// only from the board opened standalone (or via the "Open board" modal below).
 const EMBED_ROLE = 'viewer' as const;
 
 // Renders the referenced whiteboard by id, resolved through the same
 // NodeProvider/useNode path the database node view uses to render a node it
-// references (see editor/views/database.tsx).
+// references (see editor/views/database.tsx). `embedded` makes the canvas yield
+// wheel/touch to the page and suppress the collaboration controls + presence.
 const WhiteboardEmbedContent = () => {
   const { node } = useNode<LocalWhiteboardNode>();
 
@@ -34,14 +36,19 @@ const WhiteboardEmbedContent = () => {
     );
   }
 
-  return <WhiteboardContainer whiteboard={node} role={EMBED_ROLE} />;
+  return <WhiteboardContainer whiteboard={node} role={EMBED_ROLE} embedded />;
 };
 
-// Empty-state picker: a live list of the workspace's whiteboards (mirrors
-// databases/database-select.tsx, filtered to type === 'whiteboard').
+// Empty-state picker: create a brand-new board, or embed one of the workspace's
+// existing whiteboards (a live list, mirroring databases/database-select.tsx
+// filtered to type === 'whiteboard'). Create-new needs the containing page id +
+// rootId, threaded in via `context`; when it is absent (node rendered outside an
+// editable document) only the existing-board path is offered.
 const WhiteboardEmbedPicker = ({
+  context,
   onPick,
 }: {
+  context: EditorContext | null;
   onPick: (whiteboardId: string) => void;
 }) => {
   const workspace = useWorkspace();
@@ -59,6 +66,31 @@ const WhiteboardEmbedPicker = ({
     (node) => node as LocalWhiteboardNode
   );
 
+  // Create a new whiteboard parented to the page the embed lives on, then swap
+  // the embed to reference it (same body the old "/whiteboard" command ran).
+  const createNewBoard = () => {
+    if (!context) {
+      return;
+    }
+    const whiteboardId = generateId(IdType.Whiteboard);
+    const whiteboard: LocalWhiteboardNode = {
+      id: whiteboardId,
+      type: 'whiteboard',
+      name: 'Whiteboard',
+      parentId: context.documentId,
+      rootId: context.rootId,
+      scene: {},
+      createdAt: new Date().toISOString(),
+      createdBy: context.userId,
+      updatedAt: null,
+      updatedBy: null,
+      localRevision: '0',
+      serverRevision: '0',
+    };
+    workspace.collections.nodes.insert(whiteboard);
+    onPick(whiteboardId);
+  };
+
   return (
     <div
       contentEditable={false}
@@ -68,9 +100,22 @@ const WhiteboardEmbedPicker = ({
         <Presentation className="size-4 shrink-0 text-muted-foreground" />
         Whiteboard
       </div>
+      {context && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={createNewBoard}
+          className="mb-2 flex w-full items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1.5 text-sm text-foreground outline-none hover:bg-accent"
+        >
+          <Plus className="size-4 shrink-0 text-muted-foreground" />
+          Create a new board
+        </button>
+      )}
       {whiteboards.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No whiteboards available in this workspace.
+          {context
+            ? 'Or embed an existing whiteboard — none in this workspace yet.'
+            : 'No whiteboards available in this workspace.'}
         </p>
       ) : (
         <select
@@ -85,7 +130,7 @@ const WhiteboardEmbedPicker = ({
           className="w-full rounded border border-border/60 bg-background px-2 py-1.5 text-sm text-foreground outline-none"
         >
           <option value="" disabled>
-            Choose a whiteboard&hellip;
+            Embed an existing whiteboard&hellip;
           </option>
           {[...whiteboards]
             .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
@@ -103,10 +148,17 @@ const WhiteboardEmbedPicker = ({
 export const WhiteboardEmbedNodeView = ({
   node,
   editor,
+  extension,
   updateAttributes,
 }: NodeViewProps) => {
   const navigate = useNavigate();
   const workspace = useWorkspace();
+  // The embed lives inside a page rendered at /workspace/$userId/$nodeId, so
+  // `nodeId` is that page. Used to open the board in the editable modal *over*
+  // the page (preserving page context) rather than navigating away.
+  const params = useParams({ strict: false }) as { nodeId?: string };
+  const context =
+    (extension.options as { context?: EditorContext | null }).context ?? null;
   const id = node.attrs.id as string | null;
   const height = (node.attrs.height as number | null) ?? 480;
 
@@ -124,6 +176,7 @@ export const WhiteboardEmbedNodeView = ({
     return (
       <NodeViewWrapper data-type="whiteboard-embed" className="my-2">
         <WhiteboardEmbedPicker
+          context={context}
           onPick={(whiteboardId) => updateAttributes({ id: whiteboardId })}
         />
       </NodeViewWrapper>
@@ -138,12 +191,26 @@ export const WhiteboardEmbedNodeView = ({
       >
         <button
           type="button"
-          onClick={() =>
-            navigate({
-              to: '/workspace/$userId/$nodeId',
-              params: { userId: workspace.userId, nodeId: id },
-            })
-          }
+          onClick={() => {
+            const pageNodeId = params.nodeId;
+            // Open the board in the editable modal over the current page. Fall
+            // back to a full navigation when the page route can't be resolved.
+            if (pageNodeId) {
+              navigate({
+                to: '/workspace/$userId/$nodeId/modal/$modalNodeId',
+                params: {
+                  userId: workspace.userId,
+                  nodeId: pageNodeId,
+                  modalNodeId: id,
+                },
+              });
+            } else {
+              navigate({
+                to: '/workspace/$userId/$nodeId',
+                params: { userId: workspace.userId, nodeId: id },
+              });
+            }
+          }}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
           <ExternalLink className="size-3.5" />

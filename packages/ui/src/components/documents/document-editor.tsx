@@ -375,7 +375,15 @@ export const DocumentEditor = ({
         DeleteControlExtension,
         DropcursorExtension,
         DatabaseNode,
-        WhiteboardEmbedNode,
+        WhiteboardEmbedNode.configure({
+          context: {
+            userId: workspace.userId,
+            documentId: node.id,
+            accountId: workspace.accountId,
+            workspaceId: workspace.workspaceId,
+            rootId: node.rootId,
+          },
+        }),
         AutoJoiner,
         MentionExtension.configure({
           context: {

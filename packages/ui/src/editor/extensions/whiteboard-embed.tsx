@@ -1,6 +1,7 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 
+import { EditorContext } from '@colanode/client/types';
 import { WhiteboardEmbedNodeView } from '@colanode/ui/editor/views';
 
 // A block-level, atomic node that embeds an EXISTING whiteboard into a page as
@@ -12,12 +13,25 @@ import { WhiteboardEmbedNodeView } from '@colanode/ui/editor/views';
 // so ProseMirror serializes nodes via their `toDOM` spec synchronously on first
 // render; a block node WITHOUT `renderHTML` crashes the whole page ("Node
 // error"). Do not remove them.
-export const WhiteboardEmbedNode = Node.create({
+// The document/page the embed lives on, threaded from `DocumentEditor` so the
+// empty-state picker can create a NEW whiteboard parented to this page. Null
+// when rendered outside an editable document (history / read-only preview).
+interface WhiteboardEmbedOptions {
+  context: EditorContext | null;
+}
+
+export const WhiteboardEmbedNode = Node.create<WhiteboardEmbedOptions>({
   name: 'whiteboardEmbed',
   group: 'block',
   atom: true,
   defining: true,
   draggable: true,
+
+  addOptions() {
+    return {
+      context: null,
+    };
+  },
 
   addAttributes() {
     return {

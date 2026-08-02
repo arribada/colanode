@@ -1,41 +1,21 @@
 import { Presentation } from 'lucide-react';
 
-import { EditorCommand, LocalWhiteboardNode } from '@colanode/client/types';
-import { IdType, generateId } from '@colanode/core';
-import { collections } from '@colanode/ui/collections';
+import { EditorCommand } from '@colanode/client/types';
 
 export const WhiteboardCommand: EditorCommand = {
   key: 'whiteboard',
   name: 'Whiteboard (embed)',
-  description: 'Create a whiteboard and embed it in the current document',
+  description: 'Embed a whiteboard in the current document',
   keywords: ['whiteboard', 'board', 'canvas', 'draw', 'diagram', 'sketch'],
   icon: Presentation,
   disabled: false,
+  // Insert an empty embed (id: null). The node view then renders the picker
+  // (see WhiteboardEmbedPicker), letting the user either embed an EXISTING
+  // whiteboard or create a brand-new one — both reachable from one command.
   async handler({ editor, range, context }) {
     if (context == null) {
       return;
     }
-
-    const { userId, documentId, rootId } = context;
-    const nodes = collections.workspace(userId).nodes;
-    const whiteboardId = generateId(IdType.Whiteboard);
-
-    const whiteboard: LocalWhiteboardNode = {
-      id: whiteboardId,
-      type: 'whiteboard',
-      name: 'Whiteboard',
-      parentId: documentId,
-      rootId: rootId,
-      scene: {},
-      createdAt: new Date().toISOString(),
-      createdBy: userId,
-      updatedAt: null,
-      updatedBy: null,
-      localRevision: '0',
-      serverRevision: '0',
-    };
-
-    nodes.insert(whiteboard);
 
     editor
       .chain()
@@ -44,7 +24,7 @@ export const WhiteboardCommand: EditorCommand = {
       .insertContent({
         type: 'whiteboardEmbed',
         attrs: {
-          id: whiteboard.id,
+          id: null,
           height: 480,
         },
       })
