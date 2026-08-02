@@ -8,6 +8,7 @@ export const MathBlockCommand: EditorCommand = {
   description: 'Insert a LaTeX math block',
   keywords: ['math', 'katex', 'latex', 'equation', 'formula'],
   icon: Sigma,
+  group: 'media',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).insertMathBlock().run();
@@ -20,6 +21,7 @@ export const MathInlineCommand: EditorCommand = {
   description: 'Insert inline LaTeX math',
   keywords: ['math', 'katex', 'latex', 'equation', 'inline'],
   icon: Radical,
+  group: 'media',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).insertMathInline().run();

@@ -8,6 +8,7 @@ export const Heading3Command: EditorCommand = {
   description: 'Insert a heading 3 element',
   keywords: ['heading', 'heading3', 'h3'],
   icon: Heading3,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setNode('heading3').run();

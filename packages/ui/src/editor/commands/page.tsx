@@ -10,6 +10,7 @@ export const PageCommand: EditorCommand = {
   description: 'Insert a nested page',
   keywords: ['page'],
   icon: FileText,
+  group: 'pages',
   disabled: false,
   async handler({ editor, range, context }) {
     if (context == null) {

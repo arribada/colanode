@@ -19,6 +19,7 @@ export const PlaneCommand: EditorCommand = {
     'liens',
   ],
   icon: FolderKanban,
+  group: 'embeds',
   disabled: false,
   handler: ({ editor, range }) => {
     // Insert with an empty projectId — the block itself renders a project

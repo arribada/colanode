@@ -8,6 +8,7 @@ export const TodoCommand: EditorCommand = {
   description: 'Insert a to-do item',
   keywords: ['to-do', 'todo', 'checklist', 'action', 'task'],
   icon: ListTodo,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).toggleTaskList().run();

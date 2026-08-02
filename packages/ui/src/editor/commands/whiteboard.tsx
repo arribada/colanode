@@ -8,6 +8,7 @@ export const WhiteboardCommand: EditorCommand = {
   description: 'Embed a whiteboard in the current document',
   keywords: ['whiteboard', 'board', 'canvas', 'draw', 'diagram', 'sketch'],
   icon: Presentation,
+  group: 'media',
   disabled: false,
   // Insert an empty embed (id: null). The node view then renders the picker
   // (see WhiteboardEmbedPicker), letting the user either embed an EXISTING

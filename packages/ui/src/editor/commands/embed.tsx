@@ -20,6 +20,7 @@ export const EmbedCommand: EditorCommand = {
     'figma',
   ],
   icon: MonitorPlay,
+  group: 'embeds',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setEmbed('').run();

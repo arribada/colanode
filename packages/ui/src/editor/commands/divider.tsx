@@ -8,6 +8,7 @@ export const DividerCommand: EditorCommand = {
   description: 'Insert a divider',
   keywords: ['divider', 'break', 'hr'],
   icon: SeparatorHorizontal,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setHorizontalRule().run();

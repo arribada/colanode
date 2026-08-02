@@ -8,6 +8,7 @@ export const BlockquoteCommand: EditorCommand = {
   description: 'Insert a blockquote',
   keywords: ['blockquote', 'quote'],
   icon: Quote,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor

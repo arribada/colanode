@@ -8,6 +8,7 @@ export const TableCommand: EditorCommand = {
   description: 'Insert a table',
   keywords: ['table', 'grid', 'rows', 'columns'],
   icon: Table,
+  group: 'layout',
   disabled: false,
   async handler({ editor, range }) {
     editor

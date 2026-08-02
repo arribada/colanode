@@ -18,6 +18,7 @@ export const MermaidCommand: EditorCommand = {
     'er',
   ],
   icon: Workflow,
+  group: 'media',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).insertMermaid().run();

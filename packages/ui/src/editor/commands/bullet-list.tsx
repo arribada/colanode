@@ -8,6 +8,7 @@ export const BulletListCommand: EditorCommand = {
   description: 'Insert a bullet list',
   keywords: ['bulletlist', 'bullet', 'list'],
   icon: List,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).toggleBulletList().run();

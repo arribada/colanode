@@ -8,6 +8,7 @@ export const ParagraphCommand: EditorCommand = {
   description: 'Insert a text paragraph.tsx',
   keywords: ['paragraph', 'text'],
   icon: Pilcrow,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor

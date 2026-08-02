@@ -8,6 +8,7 @@ export const CalloutCommand: EditorCommand = {
   description: 'Insert a callout block',
   keywords: ['callout', 'note', 'info', 'warning', 'tip', 'aside'],
   icon: Megaphone,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setCallout().run();

@@ -8,6 +8,7 @@ export const TableOfContentsCommand: EditorCommand = {
   description: 'Outline built from your headings',
   keywords: ['toc', 'table of contents', 'sommaire', 'outline', 'headings'],
   icon: ListTree,
+  group: 'layout',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setTableOfContents().run();

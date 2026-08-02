@@ -8,6 +8,7 @@ export const ToggleCommand: EditorCommand = {
   description: 'Insert a collapsible toggle block',
   keywords: ['toggle', 'collapse', 'collapsible', 'details', 'expand'],
   icon: ChevronRight,
+  group: 'basic',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setToggle().run();

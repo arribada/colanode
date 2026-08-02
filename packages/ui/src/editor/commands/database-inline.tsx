@@ -14,6 +14,7 @@ export const DatabaseInlineCommand: EditorCommand = {
   description: 'Insert a database inline in the current document',
   keywords: ['database', 'inline'],
   icon: DatabaseZap,
+  group: 'database',
   disabled: false,
   async handler({ editor, range, context }) {
     if (context == null) {

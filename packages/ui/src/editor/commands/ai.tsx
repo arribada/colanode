@@ -19,6 +19,7 @@ export const AiCommand: EditorCommand = {
     'agent',
   ],
   icon: Sparkles,
+  group: 'ai',
   disabled: false,
   handler: ({ editor, range, context }) => {
     // Remove the "/ai" trigger, then hand the resulting cursor position (and the

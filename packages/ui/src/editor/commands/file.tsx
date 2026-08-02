@@ -10,6 +10,7 @@ export const FileCommand: EditorCommand = {
   description: 'Insert a nested file',
   keywords: ['file', 'image', 'video', 'audio'],
   icon: FilePlus,
+  group: 'pages',
   disabled: false,
   async handler({ editor, range, context }) {
     if (context == null) {

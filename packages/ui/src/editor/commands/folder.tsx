@@ -10,6 +10,7 @@ export const FolderCommand: EditorCommand = {
   description: 'Insert a nested folder',
   keywords: ['folder'],
   icon: Folder,
+  group: 'pages',
   disabled: false,
   async handler({ editor, range, context }) {
     if (context == null) {

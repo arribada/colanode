@@ -25,7 +25,13 @@ import {
   useState,
 } from 'react';
 
-import { EditorCommand, EditorContext } from '@colanode/client/types';
+import {
+  EDITOR_COMMAND_GROUPS,
+  EditorCommand,
+  EditorCommandGroup,
+  EditorCommandGroupDefinition,
+  EditorContext,
+} from '@colanode/client/types';
 import {
   ScrollArea,
   ScrollViewport,
@@ -40,100 +46,36 @@ interface CommanderOptions {
 
 const navigationKeys = ['ArrowUp', 'ArrowDown', 'Enter'];
 
-type CommandGroupId =
-  | 'ai'
-  | 'basic'
-  | 'layout'
-  | 'media'
-  | 'embeds'
-  | 'database'
-  | 'pages'
-  | 'other';
-
-interface CommandGroupDefinition {
-  id: CommandGroupId;
-  label: string;
-}
-
-// Slash-menu sections, in display order. Commands are bucketed by their `key`
-// (see commandGroupByKey); any command whose key is not mapped falls into the
-// trailing "Other" section so nothing silently disappears from the menu.
-const commandGroups: CommandGroupDefinition[] = [
-  { id: 'ai', label: 'AI' },
-  { id: 'basic', label: 'Basic blocks' },
-  { id: 'layout', label: 'Layout' },
-  { id: 'media', label: 'Media' },
-  { id: 'embeds', label: 'Embeds' },
-  { id: 'database', label: 'Database' },
-  { id: 'pages', label: 'Pages & files' },
-  { id: 'other', label: 'Other' },
-];
-
-const fallbackGroupId: CommandGroupId = 'other';
-
-// Maps each existing slash command (by its `key`) to a section above. Derived
-// from the commands registered in document-editor.tsx.
-const commandGroupByKey: Record<string, CommandGroupId> = {
-  ai: 'ai',
-  paragraph: 'basic',
-  heading1: 'basic',
-  heading2: 'basic',
-  heading3: 'basic',
-  todo: 'basic',
-  'bullet-list': 'basic',
-  'ordered-list': 'basic',
-  toggle: 'basic',
-  blockquote: 'basic',
-  callout: 'basic',
-  'code-block': 'basic',
-  divider: 'basic',
-  columns: 'layout',
-  table: 'layout',
-  'table-of-contents': 'layout',
-  whiteboard: 'media',
-  mermaid: 'media',
-  'math-block': 'media',
-  'math-inline': 'media',
-  bookmark: 'embeds',
-  embed: 'embeds',
-  plane: 'embeds',
-  database: 'database',
-  'database-inline': 'database',
-  'database-link': 'database',
-  page: 'pages',
-  file: 'pages',
-  folder: 'pages',
-};
-
 interface RenderedCommandGroup {
-  definition: CommandGroupDefinition;
+  definition: EditorCommandGroupDefinition;
   items: EditorCommand[];
   offset: number;
 }
 
 // Buckets the (already query-filtered) commands into sections, preserving the
-// incoming order within each section and dropping empty sections. `orderedItems`
-// is the flat list in render order, used to drive keyboard navigation so the
-// highlighted item always matches what is shown; `offset` is a group's start
-// index within `orderedItems`.
+// incoming order within each section and dropping empty sections. Each command
+// declares its own section via `command.group`; sections render in the order
+// defined by EDITOR_COMMAND_GROUPS. `orderedItems` is the flat list in render
+// order, used to drive keyboard navigation so the highlighted item always
+// matches what is shown; `offset` is a group's start index within
+// `orderedItems`.
 const groupCommands = (
   commands: EditorCommand[]
 ): { groups: RenderedCommandGroup[]; orderedItems: EditorCommand[] } => {
-  const buckets = new Map<CommandGroupId, EditorCommand[]>();
+  const buckets = new Map<EditorCommandGroup, EditorCommand[]>();
   for (const command of commands) {
-    const groupId = commandGroupByKey[command.key] ?? fallbackGroupId;
-    const bucket = buckets.get(groupId);
+    const bucket = buckets.get(command.group);
     if (bucket) {
       bucket.push(command);
     } else {
-      buckets.set(groupId, [command]);
+      buckets.set(command.group, [command]);
     }
   }
 
   const groups: RenderedCommandGroup[] = [];
   const orderedItems: EditorCommand[] = [];
-  for (const definition of commandGroups) {
-    const items = buckets.get(definition.id);
+  for (const definition of EDITOR_COMMAND_GROUPS) {
+    const items = buckets.get(definition.key);
     if (items && items.length > 0) {
       groups.push({ definition, items, offset: orderedItems.length });
       orderedItems.push(...items);
@@ -279,7 +221,7 @@ const CommandList = ({
               <div ref={listContainer}>
                 {groups.map((group) => (
                   <div
-                    key={group.definition.id}
+                    key={group.definition.key}
                     role="group"
                     aria-label={group.definition.label}
                   >

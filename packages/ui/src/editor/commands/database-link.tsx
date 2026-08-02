@@ -8,6 +8,7 @@ export const DatabaseLinkCommand: EditorCommand = {
   description: 'Insert a view of an existing database',
   keywords: ['database', 'linked', 'link', 'existing'],
   icon: Link2,
+  group: 'database',
   disabled: false,
   async handler({ editor, range }) {
     editor

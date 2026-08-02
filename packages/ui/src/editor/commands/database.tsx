@@ -14,6 +14,7 @@ export const DatabaseCommand: EditorCommand = {
   description: 'Insert a full page database',
   keywords: ['database', 'full', 'page'],
   icon: Database,
+  group: 'database',
   disabled: false,
   async handler({ editor, range, context }) {
     if (context == null) {

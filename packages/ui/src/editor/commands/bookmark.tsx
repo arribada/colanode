@@ -8,6 +8,7 @@ export const BookmarkCommand: EditorCommand = {
   description: 'Embed a link as a bookmark card',
   keywords: ['bookmark', 'link', 'embed', 'url', 'signet', 'lien'],
   icon: Bookmark,
+  group: 'embeds',
   disabled: false,
   handler: ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).setBookmark('').run();
