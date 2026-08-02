@@ -5,8 +5,8 @@ import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 
 export const AiCommand: EditorCommand = {
   key: 'ai',
-  name: 'IA',
-  description: 'Demander à l’agent IA (créer, éditer, compléter…)',
+  name: 'AI',
+  description: 'Ask the AI agent (create, edit, complete…)',
   keywords: [
     'ai',
     'ia',

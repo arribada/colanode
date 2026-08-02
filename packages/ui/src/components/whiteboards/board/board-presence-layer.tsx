@@ -226,7 +226,7 @@ export const BoardPresenceLayer = ({
         const rect = elementRect(element);
         const screenX = viewport.x + rect.x * viewport.zoom;
         const screenY = viewport.y + rect.y * viewport.zoom;
-        const label = `🔒 ${presence.name || 'Anonymous'} édite`;
+        const label = `🔒 ${presence.name || 'Anonymous'} is editing`;
         const width = estimateLabelWidth(label) + 6;
         return (
           <g

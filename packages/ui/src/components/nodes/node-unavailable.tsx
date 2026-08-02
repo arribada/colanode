@@ -25,13 +25,12 @@ export const NodeUnavailable = () => {
     <div className="flex h-full flex-col items-center justify-center p-6 text-center">
       <CloudDownload className="mb-4 size-12 text-muted-foreground" />
       <h1 className="text-2xl font-semibold tracking-tight">
-        Synchronisation…
+        Syncing…
       </h1>
       <p className="mt-2 max-w-md text-sm font-medium text-muted-foreground">
-        Cette page est encore en cours de téléchargement sur votre appareil.
-        Elle s'affichera automatiquement dès que votre espace de travail aura
-        fini de se synchroniser. Si rien ne s'affiche, vérifiez votre connexion
-        et rechargez la page.
+        This page is still downloading to your device. It will appear
+        automatically as soon as your workspace finishes syncing. If nothing
+        appears, check your connection and reload the page.
       </p>
     </div>
   );

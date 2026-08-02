@@ -54,7 +54,7 @@ export const EmbedNodeView = ({
             // eslint-disable-next-line jsx-a11y/no-autofocus -- the block is inserted on demand and should accept the URL immediately
             autoFocus
             value={draft}
-            placeholder="Collez un lien Google Drive / Docs / YouTube… puis Entrée"
+            placeholder="Paste a Google Drive / Docs / YouTube link… then Enter"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {

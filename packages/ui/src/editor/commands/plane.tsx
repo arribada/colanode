@@ -5,7 +5,7 @@ import { EditorCommand } from '@colanode/client/types';
 export const PlaneCommand: EditorCommand = {
   key: 'plane',
   name: 'Projet Plane',
-  description: 'Intégrer les liens vers un projet Plane (lecture seule)',
+  description: 'Embed links to a Plane project (read-only)',
   keywords: [
     'plane',
     'projet',
@@ -15,7 +15,7 @@ export const PlaneCommand: EditorCommand = {
     'kanban',
     'issues',
     'taches',
-    'tâches',
+    'tasks',
     'liens',
   ],
   icon: FolderKanban,

@@ -48,31 +48,31 @@ interface AiButtonProps {
 }
 
 const TRANSLATE_LANGUAGES = [
-  'Anglais',
-  'Français',
-  'Espagnol',
-  'Allemand',
-  'Portugais',
-  'Italien',
+  'English',
+  'French',
+  'Spanish',
+  'German',
+  'Portuguese',
+  'Italian',
 ];
 
 // Turn the agent's action list into a short, human toast summary.
 const summarizeActions = (actions: AiAgentAction[]): string => {
   if (actions.length === 0) {
-    return 'IA : aucune action';
+    return 'AI: no action';
   }
   const details = actions
     .map((action) => action.summary.trim())
     .filter((summary) => summary.length > 0);
-  const count = `IA : ${actions.length} action${actions.length > 1 ? 's' : ''}`;
+  const count = `AI: ${actions.length} action${actions.length > 1 ? 's' : ''}`;
   return details.length > 0 ? `${count} — ${details.join(' ; ')}` : count;
 };
 
 // The server flattens the AiNotConfigured error to its (English) message; turn
-// the known phrasing into a friendly French toast pointing at the settings.
+// the known phrasing into a friendly toast pointing at the settings.
 const friendlyAiError = (message: string): string => {
   if (/no ai credentials/i.test(message)) {
-    return 'L’IA n’est pas encore configurée. Ouvre Réglages → Assistant IA pour ajouter ta clé, ou demande à un admin d’activer la clé d’équipe.';
+    return 'The AI isn’t set up yet. Open Settings → AI Assistant to add your key, or ask an admin to enable the team key.';
   }
   return message;
 };
@@ -130,7 +130,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
         .insertContentAt({ from: range.from, to: range.to }, output.text)
         .run();
     } catch {
-      toast.error('La requête IA a échoué. Réessaie.');
+      toast.error('The AI request failed. Try again.');
     } finally {
       setIsRunning(false);
     }
@@ -186,7 +186,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
         toast(summary);
       }
     } catch {
-      toast.error('La requête IA a échoué. Réessaie.');
+      toast.error('The AI request failed. Try again.');
     } finally {
       setIsRunning(false);
     }
@@ -204,7 +204,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
         }}
       >
         <DropdownMenuTrigger
-          aria-label="Demander à l’IA"
+          aria-label="Ask the AI"
           data-testid="editor-toolbar-ai"
           disabled={isRunning}
         >
@@ -219,7 +219,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
             ) : (
               <Sparkles className="size-4" />
             )}
-            <span className="text-sm font-medium">IA</span>
+            <span className="text-sm font-medium">AI</span>
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
@@ -228,40 +228,40 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
             onSelect={() => runAction('improve')}
           >
             <Wand2 className="size-4" />
-            Améliorer l’écriture
+            Improve writing
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('fix')}
           >
             <SpellCheck className="size-4" />
-            Corriger la grammaire
+            Fix grammar
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('shorter')}
           >
             <Text className="size-4" />
-            Raccourcir
+            Make shorter
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('longer')}
           >
             <ArrowRightFromLine className="size-4" />
-            Rallonger
+            Make longer
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onSelect={() => runAction('summarize')}
           >
             <Text className="size-4" />
-            Résumer
+            Summarise
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="flex items-center gap-2 cursor-pointer">
               <Languages className="size-4" />
-              Traduire
+              Translate
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {TRANSLATE_LANGUAGES.map((language) => (
@@ -285,7 +285,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
             }}
           >
             <MessageSquarePlus className="size-4" />
-            Demander à l’IA…
+            Ask the AI…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -302,18 +302,18 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
-              Demander à l’IA
+              Ask the AI
             </DialogTitle>
             <DialogDescription>
-              Dis à l’agent IA quoi faire avec la sélection. Il peut la réécrire,
-              mais aussi créer ou modifier des pages du wiki. S’il renvoie du
-              texte, il remplace la sélection.
+              Tell the AI agent what to do with the selection. It can rewrite
+              it, but also create or edit wiki pages. If it returns text, it
+              replaces the selection.
             </DialogDescription>
           </DialogHeader>
           <Textarea
             value={askPrompt}
             onChange={(e) => setAskPrompt(e.target.value)}
-            placeholder="ex : réécris ce passage, crée une page liée, ajoute une section…"
+            placeholder="e.g. rewrite this passage, create a linked page, add a section…"
             className="min-h-24"
             autoFocus
           />
@@ -324,7 +324,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
               onClick={() => setIsAskOpen(false)}
               disabled={isRunning}
             >
-              Annuler
+              Cancel
             </Button>
             <Button
               type="button"
@@ -335,7 +335,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
               }}
             >
               {isRunning && <Spinner className="mr-2 size-4" />}
-              Envoyer
+              Send
             </Button>
           </DialogFooter>
         </DialogContent>

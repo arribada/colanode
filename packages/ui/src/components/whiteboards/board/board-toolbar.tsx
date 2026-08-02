@@ -276,7 +276,7 @@ export const BoardToolbar = ({
               <Trash2 className="size-4" />
             </ToolbarButton>
             <ToolbarButton
-              title="Commenter la sélection"
+              title="Comment on the selection"
               disabled={!commentEnabled}
               onClick={onComment}
             >

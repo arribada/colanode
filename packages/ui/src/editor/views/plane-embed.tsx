@@ -105,20 +105,18 @@ const PlaneEmbedPicker = ({
     >
       <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
         <FolderKanban className="size-4 shrink-0 text-muted-foreground" />
-        Projet Plane
+        Plane project
       </div>
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">
-          Chargement des projets&hellip;
-        </p>
+        <p className="text-sm text-muted-foreground">Loading projects&hellip;</p>
       ) : isError || !data ? (
         <p className="text-sm text-muted-foreground">
-          Impossible de charger les projets Plane. V&eacute;rifiez que
-          l&apos;int&eacute;gration est activ&eacute;e.
+          Couldn&apos;t load Plane projects. Check that the integration is
+          enabled.
         </p>
       ) : data.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Aucun projet Plane disponible.
+          No Plane projects available.
         </p>
       ) : (
         <select
@@ -133,7 +131,7 @@ const PlaneEmbedPicker = ({
           className="w-full rounded border border-border/60 bg-background px-2 py-1.5 text-sm text-foreground outline-none"
         >
           <option value="" disabled>
-            Choisir un projet&hellip;
+            Choose a project&hellip;
           </option>
           {[...data]
             .sort((a, b) => a.name.localeCompare(b.name))
@@ -159,7 +157,7 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
   if (isLoading) {
     return (
       <div className="p-3 text-sm text-muted-foreground">
-        Chargement du projet Plane&hellip;
+        Loading the Plane project&hellip;
       </div>
     );
   }
@@ -167,8 +165,8 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
   if (isError || !data) {
     return (
       <div className="p-3 text-sm text-muted-foreground">
-        Impossible de charger le projet Plane. V&eacute;rifiez que
-        l&apos;int&eacute;gration est activ&eacute;e.
+        Couldn&apos;t load the Plane project. Check that the integration is
+        enabled.
       </div>
     );
   }
@@ -190,7 +188,7 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
             openInPlane(board.projectUrl);
           }}
           className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground no-underline hover:underline"
-          title="Ouvrir le projet dans Plane"
+          title="Open the project in Plane"
         >
           <span className="truncate">{board.project.name}</span>
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
@@ -201,16 +199,16 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 px-3 py-1.5">
-        <PlaneQuickLink href={board.projectUrl} label="Tâches" />
+        <PlaneQuickLink href={board.projectUrl} label="Issues" />
         <PlaneQuickLink href={`${projectBase}cycles/`} label="Cycles" />
         <PlaneQuickLink href={`${projectBase}modules/`} label="Modules" />
-        <PlaneQuickLink href={`${projectBase}views/`} label="Vues" />
+        <PlaneQuickLink href={`${projectBase}views/`} label="Views" />
         <PlaneQuickLink href={`${projectBase}pages/`} label="Pages" />
       </div>
 
       {board.issues.length === 0 ? (
         <div className="p-3 text-sm text-muted-foreground">
-          Aucune tâche dans ce projet.
+          No issues in this project.
         </div>
       ) : (
         <div
@@ -241,8 +239,8 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
           }}
           className="block border-t border-border/60 px-3 py-1 text-[11px] text-muted-foreground no-underline hover:text-foreground hover:underline"
         >
-          {board.issues.length} t&acirc;ches sur {board.totalIssues} &mdash;
-          voir toutes les t&acirc;ches dans Plane
+          {board.issues.length} of {board.totalIssues} issues &mdash; see all
+          issues in Plane
         </a>
       ) : null}
     </div>
@@ -262,7 +260,7 @@ export const PlaneEmbedNodeView = ({
       return (
         <NodeViewWrapper data-type="plane-embed">
           <div className="my-1 rounded-md border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
-            Aucun projet Plane sélectionné
+            No Plane project selected
           </div>
         </NodeViewWrapper>
       );

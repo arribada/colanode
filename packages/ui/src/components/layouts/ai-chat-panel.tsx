@@ -33,30 +33,30 @@ interface ChatSession {
 }
 
 const EXAMPLE_PROMPTS = [
-  'Résume cette page',
-  'Crée une page « Notes de terrain » sous cette page',
-  'Cherche les pages qui parlent de tortues',
+  'Summarise this page',
+  'Create a “Field notes” page under this page',
+  'Search for pages about turtles',
 ];
 
 // Mirrors the AiNotConfigured handling used elsewhere in the editor: the server
 // flattens the error to its (English) message; we point the user at settings.
 const CREDENTIALS_HINT =
-  'L’IA n’est pas encore configurée. Ouvre Réglages → Assistant IA → Clé de l’équipe pour ajouter une clé (ou demande à un admin de l’activer).';
+  'The AI isn’t set up yet. Open Settings → AI Assistant → Team key to add a key (or ask an admin to enable it).';
 
 const isCredentialsError = (message: string): boolean =>
   /no ai credentials/i.test(message);
 
-// Short French verb from the action type; the server summary carries the detail.
+// Short verb from the action type; the server summary carries the detail.
 const actionVerb = (type: string): string => {
   const t = type.toLowerCase();
-  if (t.includes('create')) return 'Créé';
+  if (t.includes('create')) return 'Created';
   if (t.includes('update') || t.includes('edit') || t.includes('append')) {
-    return 'Édité';
+    return 'Edited';
   }
   if (t.includes('delete') || t.includes('remove') || t.includes('trash')) {
-    return 'Supprimé';
+    return 'Deleted';
   }
-  if (t.includes('move')) return 'Déplacé';
+  if (t.includes('move')) return 'Moved';
   if (
     t.includes('search') ||
     t.includes('find') ||
@@ -65,7 +65,7 @@ const actionVerb = (type: string): string => {
     t.includes('get') ||
     t.includes('fetch')
   ) {
-    return 'Consulté';
+    return 'Viewed';
   }
   return 'Action';
 };
@@ -74,11 +74,10 @@ const EmptyState = ({ onPick }: { onPick: (prompt: string) => void }) => (
   <div className="flex flex-col gap-3 py-6 text-center">
     <Sparkles className="mx-auto size-6 text-primary" />
     <div>
-      <p className="text-sm font-medium">Assistant IA du wiki</p>
+      <p className="text-sm font-medium">Wiki AI assistant</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Pose une question ou demande une action. L’assistant peut chercher,
-        lire, créer et modifier des pages et des bases du wiki avec tes
-        permissions.
+        Ask a question or request an action. The assistant can search, read,
+        create and edit wiki pages and databases with your permissions.
       </p>
     </div>
     <div className="flex flex-col gap-1.5">
@@ -118,7 +117,7 @@ const ChatBubble = ({
           entry.content
         ) : (
           <span className="italic text-muted-foreground">
-            (aucune réponse textuelle)
+            (no text response)
           </span>
         )}
       </div>
@@ -144,7 +143,7 @@ const ChatBubble = ({
                 <button
                   key={index}
                   type="button"
-                  title="Ouvrir dans le wiki"
+                  title="Open in the wiki"
                   className="flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-left text-xs hover:bg-muted"
                   onClick={() => onOpenNode(nodeId)}
                 >
@@ -250,7 +249,7 @@ export const AiChatPanel = () => {
           setInlineError(CREDENTIALS_HINT);
           toast.error(CREDENTIALS_HINT);
         } else {
-          toast.error('La requête IA a échoué. Réessaie.');
+          toast.error('The AI request failed. Try again.');
         }
         return;
       }
@@ -269,7 +268,7 @@ export const AiChatPanel = () => {
     } catch {
       setSession({ entries: priorEntries });
       setInput(text);
-      toast.error('La requête IA a échoué. Réessaie.');
+      toast.error('The AI request failed. Try again.');
     } finally {
       setIsSending(false);
     }
@@ -304,13 +303,13 @@ export const AiChatPanel = () => {
         <div className="flex h-10 shrink-0 flex-row items-center justify-between border-b border-border px-3">
           <p className="flex items-center gap-1.5 text-sm font-semibold">
             <Sparkles className="size-4 text-primary" />
-            Assistant IA
+            AI assistant
           </p>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              aria-label="Nouvelle conversation"
-              title="Nouvelle conversation"
+              aria-label="New conversation"
+              title="New conversation"
               className="cursor-pointer text-muted-foreground hover:text-foreground disabled:cursor-default disabled:opacity-40"
               onClick={clearConversation}
               disabled={isSending || entries.length === 0}
@@ -319,8 +318,8 @@ export const AiChatPanel = () => {
             </button>
             <button
               type="button"
-              aria-label="Fermer l’assistant"
-              title="Fermer"
+              aria-label="Close the assistant"
+              title="Close"
               className="cursor-pointer text-muted-foreground hover:text-foreground"
               onClick={closePanel}
             >
@@ -351,7 +350,7 @@ export const AiChatPanel = () => {
               {isSending && (
                 <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
                   <Spinner className="size-4" />
-                  L’assistant réfléchit…
+                  The assistant is thinking…
                 </div>
               )}
             </div>
@@ -369,7 +368,7 @@ export const AiChatPanel = () => {
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Écris à l’assistant…  (Entrée = envoyer, Maj+Entrée = nouvelle ligne)"
+              placeholder="Write to the assistant…  (Enter = send, Shift+Enter = new line)"
               className="max-h-40 min-h-16 resize-none pr-12"
               disabled={isSending}
               onKeyDown={(e) => {
@@ -383,7 +382,7 @@ export const AiChatPanel = () => {
               type="button"
               size="icon"
               className="absolute bottom-2 right-2 size-8"
-              aria-label="Envoyer"
+              aria-label="Send"
               onClick={send}
               disabled={isSending || input.trim().length === 0}
             >
@@ -396,8 +395,8 @@ export const AiChatPanel = () => {
           </div>
           <p className="mt-1.5 text-[11px] text-muted-foreground">
             {pageId
-              ? 'Contexte : la page ouverte est transmise à l’assistant.'
-              : 'Ouvre une page pour donner du contexte à l’assistant.'}
+              ? 'Context: the open page is passed to the assistant.'
+              : 'Open a page to give the assistant context.'}
           </p>
         </div>
       </div>

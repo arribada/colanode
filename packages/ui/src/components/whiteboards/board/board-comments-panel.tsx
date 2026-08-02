@@ -37,10 +37,10 @@ export const BoardCommentsPanel = ({
   return (
     <div className="pointer-events-auto absolute right-0 top-0 z-30 flex h-full w-80 max-w-full flex-col border-l border-border bg-background shadow-xl">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-        <span className="text-sm font-medium">Commentaires</span>
+        <span className="text-sm font-medium">Comments</span>
         <button
           type="button"
-          aria-label="Fermer les commentaires"
+          aria-label="Close comments"
           onClick={onClose}
           className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
         >
@@ -48,7 +48,7 @@ export const BoardCommentsPanel = ({
         </button>
       </div>
       <p className="shrink-0 px-4 pt-3 text-sm text-muted-foreground">
-        Commentaire sur l’élément sélectionné.
+        Comments on the selected element.
       </p>
       <div className="min-h-0 flex-1">
         <ContainerContext.Provider

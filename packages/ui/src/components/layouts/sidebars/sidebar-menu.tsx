@@ -30,7 +30,7 @@ import { useLiveQuery as useColanodeLiveQuery } from '@colanode/ui/hooks/use-liv
 const ARRIBADA_APPS = [
   {
     icon: FolderKanban,
-    label: 'Plane — Projets',
+    label: 'Plane — Projects',
     url: 'https://plane.arribada.org',
   },
   {

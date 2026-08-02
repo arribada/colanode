@@ -38,10 +38,10 @@ type AiSectionSettings = {
   hasApiKey: boolean;
 };
 
-// Friendly French error for the server's flattened AiNotConfigured message.
+// Friendly error for the server's flattened AiNotConfigured message.
 const friendlyAiError = (message: string): string => {
   if (/no ai credentials/i.test(message)) {
-    return 'L’IA n’est pas configurée. Ajoute une clé ci-dessous pour l’activer.';
+    return 'The AI isn’t set up. Add a key below to enable it.';
   }
   return message;
 };
@@ -59,7 +59,7 @@ interface AiSettingsSectionProps {
 
 // One reusable form for either AI key scope. The two scopes differ only in the
 // save mutation (ai.settings.workspace.update vs ai.settings.update) and the
-// query that gets refetched afterwards (via onSaved). The "Tester la connexion"
+// query that gets refetched afterwards (via onSaved). The "Test the connection"
 // button fires a tiny ai.complete, which the server resolves against whichever
 // credentials apply to the current user (own key → team key → server).
 const AiSettingsSection = ({
@@ -94,7 +94,7 @@ const AiSettingsSection = ({
 
   const handleSave = () => {
     if (enabled && !hasSavedKey && apiKey.trim().length === 0) {
-      toast.error('Saisis une clé API Anthropic pour activer l’assistant IA.');
+      toast.error('Enter an Anthropic API key to enable the AI assistant.');
       return;
     }
 
@@ -104,7 +104,7 @@ const AiSettingsSection = ({
     const onSuccess = () => {
       setApiKey('');
       onSaved();
-      toast.success('Réglages IA enregistrés');
+      toast.success('AI settings saved');
     };
     const onError = (error: { message: string }) => {
       toast.error(friendlyAiError(error.message));
@@ -147,12 +147,12 @@ const AiSettingsSection = ({
         userId,
         action: 'custom',
         prompt:
-          'Réponds exactement avec les deux mots : connexion ok. Rien d’autre.',
+          'Reply with exactly these two words: connection ok. Nothing else.',
         selection: '',
       },
       onSuccess(output) {
         setIsTesting(false);
-        toast.success(`Claude a répondu : ${output.text.trim().slice(0, 80)}`);
+        toast.success(`Claude replied: ${output.text.trim().slice(0, 80)}`);
       },
       onError(error) {
         setIsTesting(false);
@@ -171,7 +171,7 @@ const AiSettingsSection = ({
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner className="size-4" />
-          Chargement des réglages IA…
+          Loading AI settings…
         </div>
       ) : (
         <div className="space-y-5">
@@ -190,14 +190,14 @@ const AiSettingsSection = ({
           </div>
 
           <div className="space-y-2">
-            <Label>Fournisseur</Label>
+            <Label>Provider</Label>
             <div className="flex h-9 w-full max-w-sm items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
               Anthropic — Claude
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-api-key`}>Clé API Anthropic</Label>
+            <Label htmlFor={`${idPrefix}-api-key`}>Anthropic API key</Label>
             <Input
               id={`${idPrefix}-api-key`}
               type="password"
@@ -205,7 +205,7 @@ const AiSettingsSection = ({
               className="max-w-sm"
               placeholder={
                 hasSavedKey
-                  ? 'Une clé est enregistrée — laisser vide pour la garder'
+                  ? 'A key is saved — leave blank to keep it'
                   : 'sk-ant-…'
               }
               value={apiKey}
@@ -213,13 +213,13 @@ const AiSettingsSection = ({
             />
             <p className="text-xs text-muted-foreground">
               {hasSavedKey
-                ? 'Une clé est déjà enregistrée. Saisis-en une nouvelle pour la remplacer.'
-                : 'La clé est stockée côté serveur et n’est jamais réaffichée.'}
+                ? 'A key is already saved. Enter a new one to replace it.'
+                : 'The key is stored server-side and never shown again.'}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Modèle</Label>
+            <Label>Model</Label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -252,7 +252,7 @@ const AiSettingsSection = ({
           <div className="flex items-center gap-3 pt-1">
             <Button type="button" onClick={handleSave} disabled={isPending}>
               {isPending && <Spinner className="mr-2 size-4" />}
-              Enregistrer
+              Save
             </Button>
             <Button
               type="button"
@@ -261,13 +261,12 @@ const AiSettingsSection = ({
               disabled={isTesting || isPending}
             >
               {isTesting && <Spinner className="mr-2 size-4" />}
-              Tester la connexion
+              Test the connection
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            « Tester la connexion » envoie une petite requête réelle à Claude
-            avec les réglages enregistrés. Enregistre d’abord si tu viens de
-            changer la clé.
+            “Test the connection” sends a small real request to Claude with the
+            saved settings. Save first if you’ve just changed the key.
           </p>
         </div>
       )}
@@ -308,11 +307,11 @@ export const WorkspaceAiSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Assistant IA</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">AI assistant</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Utilise Claude (Anthropic) directement dans l’éditeur pour améliorer,
-          résumer, traduire et générer du texte — et laisse l’agent IA créer ou
-          modifier des pages du wiki. Récupère une clé sur{' '}
+          Use Claude (Anthropic) directly in the editor to improve, summarise,
+          translate and generate text — and let the AI agent create or edit wiki
+          pages. Get a key at{' '}
           <span className="font-mono">console.anthropic.com</span>.
         </p>
         <Separator className="mt-3" />
@@ -322,15 +321,15 @@ export const WorkspaceAiSettings = () => {
         <AiSettingsSection
           variant="team"
           userId={workspace.userId}
-          title="Clé de l’équipe (partagée)"
+          title="Team key (shared)"
           description={
             <>
-              Réservé aux admins. Cette clé alimente l’IA de l’éditeur pour{' '}
-              <span className="font-medium">toute l’équipe</span> (une seule
-              facture) — les membres n’ont pas besoin de leur propre clé.
+              Admins only. This key powers the editor AI for{' '}
+              <span className="font-medium">the whole team</span> (one single
+              bill) — members don’t need their own key.
             </>
           }
-          enableLabel="Activer l’IA partagée pour l’espace de travail"
+          enableLabel="Enable shared AI for the workspace"
           settings={team}
           isLoading={workspaceQuery.isLoading}
           onSaved={() => workspaceQuery.refetch()}
@@ -340,9 +339,9 @@ export const WorkspaceAiSettings = () => {
       <AiSettingsSection
         variant="personal"
         userId={workspace.userId}
-        title="Ma clé personnelle (optionnel)"
-        description="Optionnel — n’ajoute une clé que si tu veux utiliser TON compte au lieu de la clé d’équipe."
-        enableLabel="Utiliser ma propre clé pour l’IA de l’éditeur"
+        title="My personal key (optional)"
+        description="Optional — only add a key if you want to use YOUR account instead of the team key."
+        enableLabel="Use my own key for the editor AI"
         settings={personal}
         isLoading={personalQuery.isLoading}
         onSaved={() => personalQuery.refetch()}
@@ -350,8 +349,8 @@ export const WorkspaceAiSettings = () => {
 
       {showNoAiHint && (
         <div className="rounded-md border border-dashed border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          L’IA n’est pas encore disponible. Ajoute une clé d’équipe ou
-          personnelle ci-dessus pour l’activer.
+          The AI isn’t available yet. Add a team or personal key above to
+          enable it.
         </div>
       )}
     </div>

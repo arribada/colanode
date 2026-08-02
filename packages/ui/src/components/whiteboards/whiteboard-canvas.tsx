@@ -2746,7 +2746,7 @@ export const WhiteboardCanvas = ({
             className="ml-1 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <X className="size-3" />
-            Arrêter
+            Stop
           </button>
         </div>
       )}
@@ -2841,7 +2841,7 @@ export const WhiteboardCanvas = ({
             'flex size-7 items-center justify-center rounded-md hover:bg-accent',
             laserActive && 'bg-primary/10 text-primary'
           )}
-          title="Pointeur laser (diffusé en direct)"
+          title="Laser pointer (broadcast live)"
         >
           <Radio className="size-4" />
         </button>
@@ -2853,7 +2853,7 @@ export const WhiteboardCanvas = ({
               'flex size-7 items-center justify-center rounded-md hover:bg-accent',
               reactionMenuOpen && 'bg-primary/10 text-primary'
             )}
-            title="Réaction"
+            title="Reaction"
           >
             <Smile className="size-4" />
           </button>

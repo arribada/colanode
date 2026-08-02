@@ -65,20 +65,20 @@ const getPrecedingContext = (editor: Editor, pos: number): string => {
 // Turn the agent's action list into a short, human toast summary.
 const summarizeActions = (actions: AiAgentAction[]): string => {
   if (actions.length === 0) {
-    return 'IA : aucune action';
+    return 'AI: no action';
   }
   const details = actions
     .map((action) => action.summary.trim())
     .filter((summary) => summary.length > 0);
-  const count = `IA : ${actions.length} action${actions.length > 1 ? 's' : ''}`;
+  const count = `AI: ${actions.length} action${actions.length > 1 ? 's' : ''}`;
   return details.length > 0 ? `${count} — ${details.join(' ; ')}` : count;
 };
 
 // The server flattens the AiNotConfigured error to its (English) message; turn
-// the known phrasing into a friendly French toast pointing at the settings.
+// the known phrasing into a friendly toast pointing at the settings.
 const friendlyAiError = (message: string): string => {
   if (/no ai credentials/i.test(message)) {
-    return 'L’IA n’est pas encore configurée. Ouvre Réglages → Assistant IA pour ajouter ta clé, ou demande à un admin d’activer la clé d’équipe.';
+    return 'The AI isn’t set up yet. Open Settings → AI Assistant to add your key, or ask an admin to enable the team key.';
   }
   return message;
 };
@@ -93,7 +93,7 @@ export const AiSlashPrompt = () => {
     return subscribeAiPrompt((req) => {
       if (!req.userId) {
         toast.error(
-          'Configure d’abord l’assistant IA dans les réglages de l’espace de travail.'
+          'Set up the AI assistant first in the workspace settings.'
         );
         return;
       }
@@ -165,7 +165,7 @@ export const AiSlashPrompt = () => {
       close();
     } catch {
       setIsPending(false);
-      toast.error('La requête IA a échoué. Réessaie.');
+      toast.error('The AI request failed. Try again.');
     }
   };
 
@@ -182,18 +182,18 @@ export const AiSlashPrompt = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            Demander à l’IA
+            Ask the AI
           </DialogTitle>
           <DialogDescription>
-            Décris ce que l’agent IA doit faire. Il peut répondre au curseur,
-            mais aussi créer, lire et modifier des pages et bases du wiki.
+            Describe what the AI agent should do. It can reply at the cursor,
+            but also create, read and edit wiki pages and databases.
           </DialogDescription>
         </DialogHeader>
         <Textarea
           ref={textareaRef}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Demande à l’IA… (ex : crée une page X, ajoute une section, corrige les liens)"
+          placeholder="Ask the AI… (e.g. create a page X, add a section, fix the links)"
           className="min-h-24"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -211,7 +211,7 @@ export const AiSlashPrompt = () => {
             onClick={close}
             disabled={isPending}
           >
-            Annuler
+            Cancel
           </Button>
           <Button
             type="button"
@@ -219,7 +219,7 @@ export const AiSlashPrompt = () => {
             disabled={isPending || prompt.trim().length === 0}
           >
             {isPending && <Spinner className="mr-2 size-4" />}
-            Envoyer
+            Send
           </Button>
         </DialogFooter>
       </DialogContent>
