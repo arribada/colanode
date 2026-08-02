@@ -685,8 +685,8 @@ export const DocumentEditor = ({
       <EditorContent editor={editor} />
       {isPage && wordCount > 0 && (
         <div className="mt-6 select-none border-t border-border/60 pt-2 text-xs text-muted-foreground">
-          {wordCount} mot{wordCount === 1 ? '' : 's'} · ~
-          {Math.max(1, Math.ceil(wordCount / 200))} min de lecture
+          {wordCount} word{wordCount === 1 ? '' : 's'} · ~
+          {Math.max(1, Math.ceil(wordCount / 200))} min read
         </div>
       )}
     </div>

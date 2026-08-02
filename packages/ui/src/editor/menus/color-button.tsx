@@ -56,8 +56,10 @@ export const ColorButton = ({
         <div>
           {editorColors.map((color) => (
             <button
+              type="button"
               key={`text-color-${color.color}`}
               aria-pressed={color.color === activeColor.color}
+              aria-label={color.name}
               onClick={() => {
                 if (color.color === 'default') {
                   editor.commands.unsetColor();

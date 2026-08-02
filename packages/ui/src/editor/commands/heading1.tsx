@@ -6,7 +6,7 @@ export const Heading1Command: EditorCommand = {
   key: 'heading1',
   name: 'Heading 1',
   description: 'Insert a heading 1 element',
-  keywords: ['heading', 'heading2', 'h1'],
+  keywords: ['heading', 'heading1', 'h1'],
   icon: Heading1,
   group: 'basic',
   disabled: false,

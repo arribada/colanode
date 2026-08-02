@@ -1,6 +1,6 @@
 import { useFloating, shift, offset, FloatingPortal } from '@floating-ui/react';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { NodeSelection } from '@tiptap/pm/state';
 import { Editor } from '@tiptap/react';
 import {
   Copy,
@@ -60,6 +60,13 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
   // hovering, so closing it also tears down the (otherwise mouse-driven) handle
   // instead of leaving it stranded on the page.
   const keyboardOpenedRef = useRef(false);
+  // True from a grip drag's start until its end, so the click the browser would
+  // otherwise synthesize on release cannot pop the actions menu after a reorder.
+  const draggingRef = useRef(false);
+  // Bumped whenever a hover re-targets the handle. Captured when a
+  // keyboard-opened menu closes so a hover landing in the one-frame gap before
+  // the deferred hide below can veto that hide.
+  const hoverSeqRef = useRef(0);
 
   const setBlockMenu = (open: boolean) => {
     blockMenuOpenRef.current = open;
@@ -67,9 +74,16 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
     if (!open && keyboardOpenedRef.current) {
       keyboardOpenedRef.current = false;
       // Let Radix finish its own close sequence (focus return + exit) with the
-      // component still mounted before the hover handle is removed.
+      // component still mounted before the hover handle is removed. If a fresh
+      // hover has re-targeted the handle in that frame, it wins: leave it.
+      const hoverSeqAtClose = hoverSeqRef.current;
       window.requestAnimationFrame(() => {
-        setMenuState({ show: false });
+        if (
+          !blockMenuOpenRef.current &&
+          hoverSeqRef.current === hoverSeqAtClose
+        ) {
+          setMenuState({ show: false });
+        }
       });
     }
   };
@@ -120,7 +134,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
       }
 
       const pos = view.current.posAtDOM(event.target as Node, 0, 0);
-      if (!pos) {
+      if (pos == null || pos < 0) {
         setMenuState({
           show: false,
         });
@@ -176,6 +190,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
         height: nodeRect.height,
       });
 
+      hoverSeqRef.current += 1;
       setMenuState({
         show: true,
         pmNode,
@@ -359,54 +374,79 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
           onOpenChange={setBlockMenu}
           modal={false}
         >
-          <DropdownMenuTrigger asChild>
-            <div
-              role="button"
-              tabIndex={0}
-              draggable={true}
-              aria-label="Block options"
-              title="Drag to move, click or press Ctrl/Cmd + / for actions"
-              data-testid="editor-action-menu-drag-handle"
-              className="flex size-6 items-center justify-center rounded cursor-grab hover:bg-input hover:text-foreground"
-              onDragStart={(event) => {
-                // A real drag has begun — never leave the menu open behind it.
-                setBlockMenu(false);
+          <div
+            role="button"
+            tabIndex={0}
+            draggable={true}
+            aria-haspopup="menu"
+            aria-expanded={blockMenuOpen}
+            aria-label="Block options"
+            title="Drag to move, click or press Ctrl/Cmd + / for actions"
+            data-testid="editor-action-menu-drag-handle"
+            className="relative flex size-6 items-center justify-center rounded cursor-grab hover:bg-input hover:text-foreground"
+            onClick={() => {
+              // The browser suppresses the click that follows a real drag, so
+              // reaching here means a clean press-release: open the actions
+              // menu. draggingRef is a belt-and-braces guard on that ordering.
+              if (draggingRef.current) {
+                return;
+              }
+              setBlockMenu(true);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setBlockMenu(true);
+              }
+            }}
+            onDragStart={(event) => {
+              // A real drag has begun: flag it so the trailing click is ignored,
+              // and never leave the menu open behind it.
+              draggingRef.current = true;
+              setBlockMenu(false);
 
-                if (menuState.pos === undefined || !menuState.domNode) {
-                  return;
-                }
+              if (menuState.pos === undefined || !menuState.domNode) {
+                return;
+              }
 
-                view.current.focus();
-                view.current.dispatch(
-                  view.current.state.tr.setSelection(
-                    NodeSelection.create(view.current.state.doc, menuState.pos)
-                  )
-                );
+              view.current.focus();
+              view.current.dispatch(
+                view.current.state.tr.setSelection(
+                  NodeSelection.create(view.current.state.doc, menuState.pos)
+                )
+              );
 
-                const slice = view.current.state.selection.content();
-                const { dom, text } = view.current.serializeForClipboard(slice);
+              const slice = view.current.state.selection.content();
+              const { dom, text } = view.current.serializeForClipboard(slice);
 
-                event.dataTransfer.clearData();
-                event.dataTransfer.effectAllowed = 'copyMove';
-                event.dataTransfer.setData('text/html', dom.innerHTML);
-                event.dataTransfer.setData('text/plain', text);
-                event.dataTransfer.setDragImage(menuState.domNode, 0, 0);
+              event.dataTransfer.clearData();
+              event.dataTransfer.effectAllowed = 'copyMove';
+              event.dataTransfer.setData('text/html', dom.innerHTML);
+              event.dataTransfer.setData('text/plain', text);
+              event.dataTransfer.setDragImage(menuState.domNode, 0, 0);
 
-                view.current.dragging = { slice, move: true };
-              }}
-              onDragEnd={() => {
-                view.current.dispatch(
-                  view.current.state.tr.setSelection(
-                    TextSelection.create(view.current.state.doc, 1)
-                  )
-                );
-
-                view.current.dom.blur();
-              }}
-            >
-              <GripVertical className="size-4" />
-            </div>
-          </DropdownMenuTrigger>
+              view.current.dragging = { slice, move: true };
+            }}
+            onDragEnd={() => {
+              // Let ProseMirror's own drop selection stand: no forced caret
+              // reset, no blur. Just clear the drag flag for the next click.
+              draggingRef.current = false;
+            }}
+          >
+            <GripVertical className="size-4" />
+            {/*
+              Zero-interaction anchor for the controlled dropdown: it positions
+              against this box, but pointer-events-none keeps every press on the
+              grip itself. A real Radix trigger opens (and preventDefaults) on
+              pointer-down, which fights and breaks the native drag.
+            */}
+            <DropdownMenuTrigger asChild>
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0"
+              />
+            </DropdownMenuTrigger>
+          </div>
           <DropdownMenuContent
             align="start"
             side="bottom"

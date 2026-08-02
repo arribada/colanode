@@ -29,14 +29,19 @@ const DesktopLinkComponent = React.forwardRef<
       href={href}
       target={target}
       onClick={(e) => {
+        // Give the composed handler (e.g. a mention opening a modal on
+        // Shift-click) first refusal; if it handled the click, do not also
+        // open a new tab.
+        onClick?.(e);
+        if (e.defaultPrevented) {
+          return;
+        }
+
         if (href && isNewTabClick(e, target)) {
           e.preventDefault();
           e.stopPropagation();
           layout.openInNewTab(href as string);
-          return;
         }
-
-        onClick?.(e);
       }}
     >
       {children}

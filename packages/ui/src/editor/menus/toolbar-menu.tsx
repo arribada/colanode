@@ -104,7 +104,7 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
       shouldShow={shouldShow}
       options={options}
       data-testid="editor-toolbar-menu"
-      className="flex flex-row items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl"
+      className="flex flex-row flex-wrap items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl max-w-[95vw]"
     >
       {props.userId && (
         <>

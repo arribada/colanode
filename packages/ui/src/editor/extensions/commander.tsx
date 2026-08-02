@@ -93,13 +93,18 @@ const filterCommands = ({
   commands: EditorCommand[];
 }) =>
   commands.filter((command) => {
+    if (command.disabled) {
+      return false;
+    }
     if (query.length > 0) {
       const search = query.toLowerCase();
       return (
         command.name.toLowerCase().includes(search) ||
         command.description.toLowerCase().includes(search) ||
         (command.keywords &&
-          command.keywords.some((keyword: string) => keyword.includes(search)))
+          command.keywords.some((keyword: string) =>
+            keyword.toLowerCase().includes(search)
+          ))
       );
     }
     return true;

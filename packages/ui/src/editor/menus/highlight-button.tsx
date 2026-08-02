@@ -62,8 +62,10 @@ export const HighlightButton = ({
         <div>
           {editorColors.map((editorColor) => (
             <button
+              type="button"
               key={`highlight-color-${editorColor.color}`}
               aria-pressed={editorColor.color === activeHighlight.color}
+              aria-label={editorColor.name}
               onClick={() => {
                 if (editorColor.color === 'default') {
                   editor.commands.unsetHighlight();
