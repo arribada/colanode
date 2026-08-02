@@ -879,6 +879,106 @@ export const editPage = async (
   return { id: input.id, mode };
 };
 
+export const renameNode = async (
+  ctx: WikiToolContext,
+  input: { id: string; name: string }
+): Promise<{ id: string; name: string; type: string }> => {
+  const name = input.name.trim();
+  if (name.length === 0) {
+    throw new WikiToolError('The new name must not be empty.');
+  }
+
+  const { node } = await requireAccessibleNode(input.id, ctx);
+
+  const updated = await updateNode({
+    nodeId: input.id,
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+    updater: (attributes) => {
+      if (!('name' in attributes)) {
+        return null;
+      }
+      attributes.name = name;
+      return attributes;
+    },
+  });
+
+  if (!updated) {
+    throw new WikiToolError(
+      `Could not rename node ${input.id} (permission denied or it has no name).`
+    );
+  }
+
+  return { id: input.id, name, type: node.type };
+};
+
+export const trashNode = async (
+  ctx: WikiToolContext,
+  input: { id: string }
+): Promise<{ id: string; trashed: boolean; type: string }> => {
+  const { node } = await requireAccessibleNode(input.id, ctx);
+
+  const SOFT_DELETABLE = new Set([
+    'page', 'folder', 'database', 'record', 'file', 'whiteboard',
+  ]);
+  if (!SOFT_DELETABLE.has(node.type)) {
+    throw new WikiToolError(`Node type '${node.type}' cannot be trashed.`);
+  }
+
+  const updated = await updateNode({
+    nodeId: input.id,
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+    updater: (attributes) => {
+      const a = attributes as {
+        deletedAt?: string | null;
+        deletedBy?: string | null;
+      };
+      a.deletedAt = new Date().toISOString();
+      a.deletedBy = ctx.userId;
+      return attributes;
+    },
+  });
+
+  if (!updated) {
+    throw new WikiToolError(
+      `Could not trash node ${input.id} (permission denied or the type is not trashable).`
+    );
+  }
+
+  return { id: input.id, trashed: true, type: node.type };
+};
+
+export const moveNode = async (
+  ctx: WikiToolContext,
+  input: { id: string; parentId: string }
+): Promise<{ id: string; parentId: string; type: string }> => {
+  const { node } = await requireAccessibleNode(input.id, ctx);
+  // Ensure the destination parent exists in this workspace and is accessible.
+  await requireAccessibleNode(input.parentId, ctx);
+
+  const updated = await updateNode({
+    nodeId: input.id,
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+    updater: (attributes) => {
+      if (!('parentId' in attributes)) {
+        return null;
+      }
+      attributes.parentId = input.parentId;
+      return attributes;
+    },
+  });
+
+  if (!updated) {
+    throw new WikiToolError(
+      `Could not move node ${input.id} (permission denied or the type cannot be re-parented).`
+    );
+  }
+
+  return { id: input.id, parentId: input.parentId, type: node.type };
+};
+
 export const listDatabases = async (
   ctx: WikiToolContext,
   _input: Record<string, never>
@@ -1119,6 +1219,21 @@ const editPageInput = z.object({
     .enum(['replace', 'append'])
     .describe("'replace' overwrites the document; 'append' adds to the end."),
 });
+const renameNodeInput = z.object({
+  id: z
+    .string()
+    .describe('The node id of the page, folder, database or whiteboard to rename.'),
+  name: z.string().describe('The new name/title.'),
+});
+const trashNodeInput = z.object({
+  id: z.string().describe('The node id of the page/folder/database/whiteboard to move to trash.'),
+});
+const moveNodeInput = z.object({
+  id: z.string().describe('The node id to move.'),
+  parentId: z
+    .string()
+    .describe('The id of the new parent node (space, folder or page) to move it under.'),
+});
 const listDatabasesInput = z.object({});
 const queryDatabaseInput = z.object({
   databaseId: z.string().describe('The id of the database to query.'),
@@ -1192,6 +1307,42 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
         input.mode === 'append'
           ? 'Appended content to the page'
           : 'Replaced the page content',
+    }),
+  }),
+  defineTool({
+    name: 'rename_node',
+    description:
+      "Rename a page, folder, database or whiteboard. Changes only the node's title/name, not its content. Returns { id, name, type }.",
+    inputSchema: renameNodeInput,
+    run: renameNode,
+    action: (input, result) => ({
+      type: 'rename_node',
+      nodeId: input.id,
+      summary: `Renamed to "${result.name}"`,
+    }),
+  }),
+  defineTool({
+    name: 'trash_node',
+    description:
+      "Move a page, folder, database or whiteboard to the trash (soft delete — recoverable). Returns { id, trashed, type }.",
+    inputSchema: trashNodeInput,
+    run: trashNode,
+    action: (input) => ({
+      type: 'trash_node',
+      nodeId: input.id,
+      summary: 'Moved to trash',
+    }),
+  }),
+  defineTool({
+    name: 'move_node',
+    description:
+      "Move a node under a new parent (re-file it in the tree). Changes only its parent, keeping the node id (so links to it are preserved). Returns { id, parentId, type }.",
+    inputSchema: moveNodeInput,
+    run: moveNode,
+    action: (input) => ({
+      type: 'move_node',
+      nodeId: input.id,
+      summary: 'Moved to a new parent',
     }),
   }),
   defineTool({
