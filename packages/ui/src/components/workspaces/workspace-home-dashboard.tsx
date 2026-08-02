@@ -1,21 +1,28 @@
 import { inArray, useLiveQuery } from '@tanstack/react-db';
+import { useNavigate } from '@tanstack/react-router';
 import {
   ArrowUpRight,
   Bell,
-  CheckCircle2,
+  FilePlus2,
   FolderKanban,
+  FolderPlus,
   Github,
   History,
   LayoutGrid,
   ListTodo,
   MessagesSquare,
   Satellite,
+  Search,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { timeAgo } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { NotificationItem } from '@colanode/ui/components/notifications/notification-item';
+import { PageCreateDialog } from '@colanode/ui/components/pages/page-create-dialog';
+import { SpaceCreateDialog } from '@colanode/ui/components/spaces/space-create-dialog';
 import { Link } from '@colanode/ui/components/ui/link';
+import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
@@ -64,32 +71,13 @@ const TOOLS = [
   },
 ];
 
-// The shared "🔴 Wiki Tasks" registry node in the Arribada workspace.
-const WIKI_TASKS_REGISTRY_ID = '01kypqr1dc2dw5wbydtfave3emdb';
-
-// Turn a notification's stored preview into a human label. Automation
-// notifications (task assignments from the wiki-task automations) carry their
-// message in preview.message; others fall back to a resolved node name.
-const getNotificationMessage = (
-  type: string,
-  preview: string,
-  fallback: string
-): string => {
-  if (type === 'automation') {
-    try {
-      const parsed = JSON.parse(preview) as { message?: string };
-      if (parsed.message) {
-        return parsed.message;
-      }
-    } catch {
-      // ignore malformed preview
-    }
-  }
-  return fallback;
-};
-
 export const WorkspaceHomeDashboard = () => {
   const workspace = useWorkspace();
+  const navigate = useNavigate();
+  const search = useSearch();
+
+  const [pageDialogOpen, setPageDialogOpen] = useState(false);
+  const [spaceDialogOpen, setSpaceDialogOpen] = useState(false);
 
   const nodeListQuery = useLiveQuery(
     (q) =>
@@ -132,6 +120,21 @@ export const WorkspaceHomeDashboard = () => {
     [allNodes]
   );
 
+  // Resolve the shared "Wiki Tasks" registry by name rather than a hardcoded
+  // id, so the link survives the registry being recreated (a new node gets a
+  // fresh id but keeps the "Wiki Tasks" name).
+  const tasksRegistry = useMemo(
+    () =>
+      allNodes.find(
+        (node) =>
+          node.type === 'database' &&
+          'name' in node &&
+          typeof node.name === 'string' &&
+          node.name.toLowerCase().includes('wiki tasks')
+      ),
+    [allNodes]
+  );
+
   const notifications = notificationsQuery.data ?? [];
   // Task assignments (from the wiki-task automations) go in "Your wiki tasks";
   // everything else (mentions, replies) goes in "Notifications". Kept disjoint
@@ -143,13 +146,12 @@ export const WorkspaceHomeDashboard = () => {
     .filter((n) => n.type !== 'automation')
     .slice(0, 6);
 
-  const tasksRegistry = nodeById.get(WIKI_TASKS_REGISTRY_ID);
+  const firstSpaceId = spaces[0]?.id;
 
-  const markRead = (notificationId: string) => {
-    window.colanode.executeMutation({
-      type: 'notification.read',
-      userId: workspace.userId,
-      notificationId,
+  const handleNavigate = (nodeId: string) => {
+    navigate({
+      to: '/workspace/$userId/$nodeId',
+      params: { userId: workspace.userId, nodeId },
     });
   };
 
@@ -163,6 +165,38 @@ export const WorkspaceHomeDashboard = () => {
           Your spaces, the latest updates and the rest of the Arribada tools —
           all in one place.
         </p>
+      </div>
+
+      {/* Quick actions — create a page/space or jump into workspace search. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-testid="home-new-page"
+          onClick={() => setPageDialogOpen(true)}
+          disabled={!firstSpaceId}
+          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-medium transition-all hover:border-border hover:bg-accent hover:shadow-sm disabled:pointer-events-none disabled:opacity-50"
+        >
+          <FilePlus2 className="size-4 text-muted-foreground" />
+          New page
+        </button>
+        <button
+          type="button"
+          data-testid="home-new-space"
+          onClick={() => setSpaceDialogOpen(true)}
+          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-medium transition-all hover:border-border hover:bg-accent hover:shadow-sm"
+        >
+          <FolderPlus className="size-4 text-muted-foreground" />
+          New space
+        </button>
+        <button
+          type="button"
+          data-testid="home-search"
+          onClick={() => search.setOpen(true)}
+          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:bg-accent hover:shadow-sm"
+        >
+          <Search className="size-4" />
+          Search
+        </button>
       </div>
 
       {/* Notifications — mentions, replies and comments aimed at you. */}
@@ -182,60 +216,15 @@ export const WorkspaceHomeDashboard = () => {
           </p>
         ) : (
           <div className="flex flex-col gap-0.5">
-            {otherNotifications.map((n) => {
-              const source = nodeById.get(n.source_node_id);
-              const display = source ? getMentionNodeDisplay(source) : null;
-              const label = getNotificationMessage(
-                n.type,
-                n.preview,
-                display?.name ?? n.type
-              );
-              const unread = !n.read_at;
-              const row = (
-                <>
-                  <Avatar
-                    size="small"
-                    id={n.source_node_id}
-                    name={display?.name ?? label}
-                    avatar={display?.avatar}
-                  />
-                  <span
-                    className={`flex-1 truncate text-sm ${
-                      unread ? 'font-medium' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {label}
-                  </span>
-                  {unread ? (
-                    <span className="size-2 shrink-0 rounded-full bg-blue-500" />
-                  ) : null}
-                  <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
-                    {timeAgo(n.created_at)}
-                  </span>
-                </>
-              );
-              return source ? (
-                <Link
-                  key={n.id}
-                  from="/workspace/$userId"
-                  to="$nodeId"
-                  params={{ nodeId: source.id }}
-                  onClick={() => markRead(n.id)}
-                  className="flex flex-row items-center gap-2 rounded-md p-1.5 hover:bg-accent"
-                >
-                  {row}
-                </Link>
-              ) : (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => markRead(n.id)}
-                  className="flex flex-row items-center gap-2 rounded-md p-1.5 text-left hover:bg-accent"
-                >
-                  {row}
-                </button>
-              );
-            })}
+            {otherNotifications.map((n) => (
+              <NotificationItem
+                key={n.id}
+                notification={n}
+                node={nodeById.get(n.source_node_id)}
+                userId={workspace.userId}
+                onNavigate={handleNavigate}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -263,51 +252,16 @@ export const WorkspaceHomeDashboard = () => {
           </p>
         ) : (
           <div className="flex flex-col gap-0.5">
-            {taskNotifications.map((n) => {
-              const source = nodeById.get(n.source_node_id);
-              const label = getNotificationMessage(n.type, n.preview, 'Task');
-              const unread = !n.read_at;
-              const row = (
-                <>
-                  {unread ? (
-                    <ListTodo className="size-4 shrink-0 text-blue-500" />
-                  ) : (
-                    <CheckCircle2 className="size-4 shrink-0 text-muted-foreground" />
-                  )}
-                  <span
-                    className={`flex-1 truncate text-sm ${
-                      unread ? 'font-medium' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {label}
-                  </span>
-                  <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
-                    {timeAgo(n.created_at)}
-                  </span>
-                </>
-              );
-              return source ? (
-                <Link
-                  key={n.id}
-                  from="/workspace/$userId"
-                  to="$nodeId"
-                  params={{ nodeId: source.id }}
-                  onClick={() => markRead(n.id)}
-                  className="flex flex-row items-center gap-2 rounded-md p-1.5 hover:bg-accent"
-                >
-                  {row}
-                </Link>
-              ) : (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => markRead(n.id)}
-                  className="flex flex-row items-center gap-2 rounded-md p-1.5 text-left hover:bg-accent"
-                >
-                  {row}
-                </button>
-              );
-            })}
+            {taskNotifications.map((n) => (
+              <NotificationItem
+                key={n.id}
+                notification={n}
+                node={nodeById.get(n.source_node_id)}
+                userId={workspace.userId}
+                variant="task"
+                onNavigate={handleNavigate}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -429,6 +383,18 @@ export const WorkspaceHomeDashboard = () => {
           })}
         </div>
       </section>
+
+      {firstSpaceId ? (
+        <PageCreateDialog
+          spaceId={firstSpaceId}
+          open={pageDialogOpen}
+          onOpenChange={setPageDialogOpen}
+        />
+      ) : null}
+      <SpaceCreateDialog
+        open={spaceDialogOpen}
+        onOpenChange={setSpaceDialogOpen}
+      />
     </div>
   );
 };
