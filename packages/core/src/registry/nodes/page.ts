@@ -19,6 +19,7 @@ export const pageAttributesSchema = z.object({
   avatar: z.string().nullable().optional(),
   cover: nodeCoverSchema.nullable().optional(),
   parentId: z.string(),
+  index: z.string().nullable().optional(),
   // Page templates live under the page's space (parentId is set to the
   // space id when a template is saved) and are kept out of the browsing
   // collection (see notTemplateSql) — surfaced only through the dedicated

@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Pencil } from 'lucide-react';
 import { useState } from 'react';
 
 import {
@@ -9,10 +9,21 @@ import { compareString } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { SidebarItem } from '@colanode/ui/components/layouts/sidebars/sidebar-item';
 import {
+  InlineRenameField,
+  useInlineRename,
+} from '@colanode/ui/components/layouts/sidebars/sidebar-inline-rename';
+import { SidebarDropIndicator } from '@colanode/ui/components/layouts/sidebars/sidebar-drop-indicator';
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@colanode/ui/components/ui/collapsible';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@colanode/ui/components/ui/context-menu';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useSidebarTree } from '@colanode/ui/contexts/sidebar-tree';
 import { useSidebarNodeDnd } from '@colanode/ui/hooks/use-sidebar-node-dnd';
@@ -25,9 +36,12 @@ interface DatabaseSidebarItemProps {
 export const DatabaseSidebarItem = ({ database }: DatabaseSidebarItemProps) => {
   const tree = useSidebarTree();
   const [open, setOpen] = useState(false);
+  const { isRenaming, startRenaming, cancelRenaming, commitRenaming } =
+    useInlineRename(database);
 
-  // Re-filable like a page, but nothing gets dropped into a database from here.
-  const { ref, isDragging } = useSidebarNodeDnd(database);
+  // Re-filable and reorderable like a page, but nothing gets dropped into a
+  // database from here.
+  const { ref, isDragging, dropEdge } = useSidebarNodeDnd(database);
 
   // filter() copies, so sorting here never disturbs the shared tree index.
   const views = tree
@@ -44,55 +58,81 @@ export const DatabaseSidebarItem = ({ database }: DatabaseSidebarItemProps) => {
       onOpenChange={setOpen}
       className="group/database-item w-full"
     >
-      <Link
-        from="/workspace/$userId"
-        to="$nodeId"
-        params={{ nodeId: database.id }}
-        draggable={false}
-      >
-        {({ isActive }) => (
-          <div
-            ref={ref}
-            className={cn(
-              'group/database-row text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
-              isActive &&
-                'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
-              isDragging && 'opacity-50'
-            )}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <Link
+            from="/workspace/$userId"
+            to="$nodeId"
+            params={{ nodeId: database.id }}
+            draggable={false}
           >
-            {hasViews ? (
-              <CollapsibleTrigger asChild>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setOpen(!open);
-                  }}
-                  className="flex items-center cursor-pointer rounded-sm hover:bg-sidebar-border"
-                >
+            {({ isActive }) => (
+              <div
+                ref={ref}
+                className={cn(
+                  'group/database-row relative text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
+                  isActive &&
+                    'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
+                  isDragging && 'opacity-50'
+                )}
+              >
+                <SidebarDropIndicator edge={dropEdge} />
+                {hasViews ? (
+                  <CollapsibleTrigger asChild>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOpen(!open);
+                      }}
+                      className="flex items-center cursor-pointer rounded-sm hover:bg-sidebar-border"
+                    >
+                      <Avatar
+                        id={database.id}
+                        avatar={database.avatar}
+                        name={database.name}
+                        className="group-hover/database-row:hidden size-4 shrink-0"
+                      />
+                      <ChevronRight className="hidden transition-transform group-hover/database-row:block group-data-[state=open]/database-item:rotate-90 size-4 shrink-0" />
+                    </button>
+                  </CollapsibleTrigger>
+                ) : (
                   <Avatar
                     id={database.id}
                     avatar={database.avatar}
                     name={database.name}
-                    className="group-hover/database-row:hidden size-4 shrink-0"
+                    className="size-4"
                   />
-                  <ChevronRight className="hidden transition-transform group-hover/database-row:block group-data-[state=open]/database-item:rotate-90 size-4 shrink-0" />
-                </button>
-              </CollapsibleTrigger>
-            ) : (
-              <Avatar
-                id={database.id}
-                avatar={database.avatar}
-                name={database.name}
-                className="size-4"
-              />
+                )}
+                {isRenaming ? (
+                  <InlineRenameField
+                    initialValue={database.name ?? ''}
+                    onCommit={commitRenaming}
+                    onCancel={cancelRenaming}
+                  />
+                ) : (
+                  <span
+                    className="line-clamp-1 w-full grow text-left"
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      startRenaming();
+                    }}
+                  >
+                    {database.name ?? 'Unnamed'}
+                  </span>
+                )}
+              </div>
             )}
-            <span className="line-clamp-1 w-full grow text-left">
-              {database.name ?? 'Unnamed'}
-            </span>
-          </div>
-        )}
-      </Link>
+          </Link>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => startRenaming()}>
+            <Pencil className="size-4" />
+            Rename
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       {hasViews && (
         <CollapsibleContent>
           <ul className="ml-3 flex min-w-0 flex-col gap-0.5 py-0.5">

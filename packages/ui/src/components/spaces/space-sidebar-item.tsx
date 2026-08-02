@@ -28,7 +28,7 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
   const [showChat] = useChatVisibility();
 
   // Dropping onto the space row files the node at the top level of that space.
-  const { ref, isDropTarget } = useSidebarNodeDnd(space, { droppable: true });
+  const { ref, isDropInside } = useSidebarNodeDnd(space, { droppable: true });
 
   // Channels (including the default "Discussions" channel every workspace is
   // seeded with) stay out of the tree while chat is hidden.
@@ -51,7 +51,7 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
         data-testid={`space-sidebar-item-${space.id}`}
         className={cn(
           'group/space-row text-sm flex h-7 items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
-          isDropTarget && 'bg-sidebar-accent ring-1 ring-sidebar-ring'
+          isDropInside && 'bg-sidebar-accent ring-1 ring-sidebar-ring'
         )}
       >
         <CollapsibleTrigger asChild>

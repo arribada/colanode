@@ -94,6 +94,7 @@ export const whiteboardAttributesSchema = z.object({
   name: z.string(),
   avatar: z.string().nullable().optional(),
   parentId: z.string(),
+  index: z.string().nullable().optional(),
   // Board scene: { [elementId]: BoardElement }. Stored as a record so the CRDT
   // layer merges edits at element granularity (near-real-time collaboration).
   scene: boardSceneSchema.optional(),

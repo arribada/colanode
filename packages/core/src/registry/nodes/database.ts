@@ -64,6 +64,7 @@ export const databaseAttributesSchema = z.object({
   name: z.string(),
   avatar: z.string().nullable().optional(),
   parentId: z.string(),
+  index: z.string().nullable().optional(),
   fields: z.record(z.string(), fieldAttributesSchema),
   nameField: databaseNameFieldAttributesSchema.nullable().optional(),
   automations: z.array(databaseAutomationSchema).nullable().optional(),

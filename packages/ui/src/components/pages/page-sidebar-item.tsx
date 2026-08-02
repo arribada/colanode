@@ -1,5 +1,11 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ChevronRight, Copy, FolderInput } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  ChevronRight,
+  Copy,
+  FolderInput,
+  Pencil,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -7,6 +13,7 @@ import { LocalPageNode } from '@colanode/client/types';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { SidebarItem } from '@colanode/ui/components/layouts/sidebars/sidebar-item';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
+import { PageTransferDialog } from '@colanode/ui/components/pages/page-transfer-dialog';
 import {
   Collapsible,
   CollapsibleContent,
@@ -19,6 +26,11 @@ import {
   ContextMenuTrigger,
 } from '@colanode/ui/components/ui/context-menu';
 import { Link } from '@colanode/ui/components/ui/link';
+import {
+  InlineRenameField,
+  useInlineRename,
+} from '@colanode/ui/components/layouts/sidebars/sidebar-inline-rename';
+import { SidebarDropIndicator } from '@colanode/ui/components/layouts/sidebars/sidebar-drop-indicator';
 import { useSidebarTree } from '@colanode/ui/contexts/sidebar-tree';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
@@ -40,9 +52,12 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const { mutate: duplicatePage, isPending: isDuplicating } = useMutation();
   const [open, setOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const { isRenaming, startRenaming, cancelRenaming, commitRenaming } =
+    useInlineRename(page);
 
   // A page is both a thing you can pick up and a place you can drop into.
-  const { ref, isDragging, isDropTarget } = useSidebarNodeDnd(page, {
+  const { ref, isDragging, isDropInside, dropEdge } = useSidebarNodeDnd(page, {
     droppable: true,
   });
 
@@ -73,13 +88,14 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
               <div
                 ref={ref}
                 className={cn(
-                  'group/page-row text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
+                  'group/page-row relative text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
                   isActive &&
                     'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
                   isDragging && 'opacity-50',
-                  isDropTarget && 'bg-sidebar-accent ring-1 ring-sidebar-ring'
+                  isDropInside && 'bg-sidebar-accent ring-1 ring-sidebar-ring'
                 )}
               >
+                <SidebarDropIndicator edge={dropEdge} />
                 {hasChildren ? (
                   <CollapsibleTrigger asChild>
                     <button
@@ -111,14 +127,33 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                     className="size-4 shrink-0"
                   />
                 )}
-                <span className="line-clamp-1 w-full grow text-left">
-                  {page.name ?? 'Unnamed'}
-                </span>
+                {isRenaming ? (
+                  <InlineRenameField
+                    initialValue={page.name ?? ''}
+                    onCommit={commitRenaming}
+                    onCancel={cancelRenaming}
+                  />
+                ) : (
+                  <span
+                    className="line-clamp-1 w-full grow text-left"
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      startRenaming();
+                    }}
+                  >
+                    {page.name ?? 'Unnamed'}
+                  </span>
+                )}
               </div>
             )}
           </Link>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onClick={() => startRenaming()}>
+            <Pencil className="size-4" />
+            Rename
+          </ContextMenuItem>
           <ContextMenuItem
             disabled={isDuplicating}
             onClick={() => {
@@ -154,6 +189,10 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
             <FolderInput className="size-4" />
             Move to
           </ContextMenuItem>
+          <ContextMenuItem onClick={() => setTransferOpen(true)}>
+            <ArrowRightLeft className="size-4" />
+            Transfer to another workspace…
+          </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       {hasChildren && (
@@ -172,6 +211,13 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
           page={page}
           open={moveOpen}
           onOpenChange={setMoveOpen}
+        />
+      )}
+      {transferOpen && (
+        <PageTransferDialog
+          page={page}
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
         />
       )}
     </Collapsible>

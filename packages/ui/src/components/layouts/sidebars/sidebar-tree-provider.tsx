@@ -2,7 +2,7 @@ import { inArray, useLiveQuery } from '@tanstack/react-db';
 import { ReactNode, useMemo } from 'react';
 
 import { LocalNode, LocalSpaceNode } from '@colanode/client/types';
-import { compareString } from '@colanode/core';
+import { compareString, generateFractionalIndex } from '@colanode/core';
 import {
   SidebarTree,
   SidebarTreeContext,
@@ -23,6 +23,13 @@ const SIDEBAR_NODE_TYPES = [
 ];
 
 const NO_CHILDREN: LocalNode[] = [];
+
+const customIndexOf = (node: LocalNode): string | null =>
+  'index' in node &&
+  typeof node.index === 'string' &&
+  node.index.length > 0
+    ? node.index
+    : null;
 
 /**
  * Holds the whole sidebar tree behind a single live query.
@@ -73,11 +80,24 @@ export const SidebarTreeProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    // The per-row queries this replaced all ended in `orderBy(id, 'asc')`;
-    // sorting each bucket once keeps the tree in exactly the order it had.
     spaces.sort((a, b) => compareString(a.id, b.id));
+
+    // Ordering model (mirrors space-child-reorder): within each parent, sort by
+    // id, hand each sibling a sequential *default* fractional key, then let a
+    // node's own `index` (written when it was dragged) override that key.
+    // Sorting by the effective key gives a stable, user-defined order without
+    // ever having to backfill an index onto the siblings that weren't moved.
+    const keyById = new Map<string, string>();
     for (const siblings of byParent.values()) {
       siblings.sort((a, b) => compareString(a.id, b.id));
+      let lastDefault: string | null = null;
+      for (const sibling of siblings) {
+        lastDefault = generateFractionalIndex(lastDefault, null);
+        keyById.set(sibling.id, customIndexOf(sibling) ?? lastDefault);
+      }
+      siblings.sort((a, b) =>
+        compareString(keyById.get(a.id) ?? a.id, keyById.get(b.id) ?? b.id)
+      );
     }
 
     return {
@@ -86,6 +106,7 @@ export const SidebarTreeProvider = ({ children }: { children: ReactNode }) => {
       childrenOf: (parentId) => byParent.get(parentId) ?? NO_CHILDREN,
       hasChildren: (parentId) => byParent.has(parentId),
       nodeById: (id) => byId.get(id),
+      childKey: (id) => keyById.get(id),
       isDescendantOf: (nodeId, ancestorId) => {
         // Walk up rather than down: depth is a handful of levels, while the
         // subtree under a space can be hundreds of pages.
