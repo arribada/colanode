@@ -22,6 +22,15 @@ export interface ResolvedAiCredentials extends ResolvedLlm {
 // `response` model is not itself an Anthropic model.
 const DEFAULT_SERVER_MODEL = 'claude-sonnet-5';
 
+// Providers the wiki AI routes accept. Non-anthropic providers are served
+// through the OpenAI-compatible endpoint (AI_OPENAI_COMPAT_BASE_URL), which is
+// pointed at Groq — so the team's Groq (gsk_) key works out of the box.
+export const SUPPORTED_AI_PROVIDERS = new Set<AiProviderName>([
+  'anthropic',
+  'openai',
+  'google',
+]);
+
 export const resolveAiCredentials = async (
   userId: string,
   workspaceId: string
@@ -80,6 +89,18 @@ export const resolveAiCredentials = async (
         apiKey: anthropic.apiKey,
       };
     }
+  }
+
+  // (d) Server-global default provider (Groq via the OpenAI-compatible base
+  // URL) so the wiki AI works out of the box even with no user/workspace key.
+  const defaultKey = process.env.AI_DEFAULT_API_KEY;
+  if (defaultKey) {
+    return {
+      source: 'server',
+      provider: (process.env.AI_DEFAULT_PROVIDER as AiProviderName) ?? 'openai',
+      model: process.env.AI_DEFAULT_MODEL ?? 'llama-3.3-70b-versatile',
+      apiKey: defaultKey,
+    };
   }
 
   return null;

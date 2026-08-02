@@ -8,7 +8,10 @@ import {
   apiErrorOutputSchema,
 } from '@colanode/core';
 import { runWikiAgent } from '@colanode/server/lib/ai/agent';
-import { resolveAiCredentials } from '@colanode/server/lib/ai/completion';
+import {
+  resolveAiCredentials,
+  SUPPORTED_AI_PROVIDERS,
+} from '@colanode/server/lib/ai/completion';
 
 // POST /client/v1/workspaces/:workspaceId/ai/agent
 //
@@ -44,10 +47,10 @@ export const aiAgentRoute: FastifyPluginCallbackZod = (instance, _, done) => {
         });
       }
 
-      if (credentials.provider !== 'anthropic') {
+      if (!SUPPORTED_AI_PROVIDERS.has(credentials.provider)) {
         return reply.code(400).send({
           code: ApiErrorCode.AiProviderUnsupported,
-          message: `The AI provider '${credentials.provider}' is not supported for the wiki agent yet.`,
+          message: `The AI provider '${credentials.provider}' is not supported yet.`,
         });
       }
 

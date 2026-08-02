@@ -10,6 +10,7 @@ import {
 import {
   resolveAiCredentials,
   runAiCompletion,
+  SUPPORTED_AI_PROVIDERS,
 } from '@colanode/server/lib/ai/completion';
 
 // POST /client/v1/workspaces/:workspaceId/ai/complete
@@ -53,10 +54,10 @@ export const aiCompleteRoute: FastifyPluginCallbackZod = (
         });
       }
 
-      if (credentials.provider !== 'anthropic') {
+      if (!SUPPORTED_AI_PROVIDERS.has(credentials.provider)) {
         return reply.code(400).send({
           code: ApiErrorCode.AiProviderUnsupported,
-          message: `The AI provider '${credentials.provider}' is not supported for editor completions yet.`,
+          message: `The AI provider '${credentials.provider}' is not supported yet.`,
         });
       }
 
