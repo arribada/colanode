@@ -20,6 +20,7 @@ import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
 import { DocumentHistoryDialog } from '@colanode/ui/components/documents/document-history';
+import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
@@ -71,6 +72,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
         <DropdownMenuContent side="bottom" className="mr-2 w-80">
           <DropdownMenuLabel>{page.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <CopyLinkAction nodeId={page.id} item={DropdownMenuItem} />
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => {

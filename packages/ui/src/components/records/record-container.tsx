@@ -1,6 +1,7 @@
 import { LocalRecordNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { Document } from '@colanode/ui/components/documents/document';
+import { DocumentBacklinks } from '@colanode/ui/components/documents/document-backlinks';
 import { NodeCoverBanner } from '@colanode/ui/components/nodes/node-cover';
 import { RecordAttributes } from '@colanode/ui/components/records/record-attributes';
 import { RecordDatabase } from '@colanode/ui/components/records/record-database';
@@ -44,6 +45,7 @@ export const RecordContainer = ({ record, role }: RecordContainerProps) => {
         </RecordProvider>
         <Separator className="my-4 w-full" />
         <Document node={record} canEdit={canEdit} />
+        <DocumentBacklinks nodeId={record.id} />
       </RecordDatabase>
     </div>
   );

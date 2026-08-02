@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { LocalRecordNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
+import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import {
   DropdownMenu,
@@ -47,6 +48,7 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
         <DropdownMenuContent side="bottom" className="mr-2 w-80">
           <DropdownMenuLabel>{record.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <CopyLinkAction nodeId={record.id} item={DropdownMenuItem} />
           <DropdownMenuItem className="flex items-center gap-2" disabled>
             <Copy className="size-4" />
             Duplicate
