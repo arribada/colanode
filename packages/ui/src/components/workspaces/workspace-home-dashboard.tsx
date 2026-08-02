@@ -1,4 +1,4 @@
-import { inArray, useLiveQuery } from '@tanstack/react-db';
+import { coalesce, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
 import {
   ArrowUpRight,
@@ -28,20 +28,17 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
-// Node types shown in the "Recently updated" feed.
-const RECENT_TYPES = new Set<string>([
-  'page',
-  'database',
-  'record',
-  'folder',
-  'whiteboard',
-]);
+// Node types shown in the "Recently updated" feed. Pulled via a dedicated
+// bounded query (ordered by recency, capped at RECENT_LIMIT) so the home
+// screen never materialises every page/record just to show a few rows.
+const RECENT_TYPES = ['page', 'database', 'record', 'folder', 'whiteboard'];
 
-// The node types the dashboard actually reads: the "Recently updated" feed
-// (RECENT_TYPES), the Spaces grid ('space'), and the notification/task name
-// lookups (whose source nodes are pages/records/etc., all in RECENT_TYPES). The
-// query filters to these so the home screen never materialises the whole wiki.
-const HOME_NODE_TYPES = [...RECENT_TYPES, 'space'];
+// How many rows the "Recently updated" feed shows.
+const RECENT_LIMIT = 8;
+
+// Structural nodes the dashboard needs in full: spaces (the Spaces grid) and
+// databases (to locate the "Wiki Tasks" registry by name). Both sets are tiny.
+const STRUCTURAL_TYPES = ['space', 'database'];
 
 // Live/healthy Arribada apps. Chat = Mattermost (chat.arribada.org): the
 // production chat is Mattermost; the droplet's Zulip is only an eval instance.
@@ -80,14 +77,6 @@ export const WorkspaceHomeDashboard = () => {
   const [pageDialogOpen, setPageDialogOpen] = useState(false);
   const [spaceDialogOpen, setSpaceDialogOpen] = useState(false);
 
-  const nodeListQuery = useLiveQuery(
-    (q) =>
-      q
-        .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => inArray(nodes.type, HOME_NODE_TYPES)),
-    [workspace.userId]
-  );
-
   const notificationsQuery = useClientQuery({
     type: 'notification.list',
     userId: workspace.userId,
@@ -105,32 +94,62 @@ export const WorkspaceHomeDashboard = () => {
 
   const planeIssues = planeIssuesQuery.data ?? [];
 
-  const allNodes = useMemo(
-    () => nodeListQuery.data ?? [],
-    [nodeListQuery.data]
+  const notifications = notificationsQuery.data ?? [];
+
+  // Resolve the notification/task source nodes by id, rather than scanning
+  // every page/record in the workspace. The joined key keeps the live query's
+  // dependency stable across renders.
+  const sourceNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of notifications) {
+      ids.add(n.source_node_id);
+    }
+    return [...ids];
+  }, [notifications]);
+
+  // Structural nodes (spaces + databases): small, and it drives the Spaces grid
+  // plus the Wiki-Tasks registry lookup.
+  const structuralQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => inArray(nodes.type, STRUCTURAL_TYPES)),
+    [workspace.userId]
   );
 
-  const nodeById = useMemo(
-    () => new Map(allNodes.map((node) => [node.id, node])),
-    [allNodes]
+  // "Recently updated" — bounded at the source: ordered by recency (updatedAt,
+  // falling back to createdAt) and capped, so the home never pulls the whole
+  // wiki to show RECENT_LIMIT rows.
+  const recentQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => inArray(nodes.type, RECENT_TYPES))
+        .orderBy(
+          ({ nodes }) => coalesce(nodes.updatedAt, nodes.createdAt),
+          'desc'
+        )
+        .limit(RECENT_LIMIT),
+    [workspace.userId]
+  );
+
+  // The notification/task rows' source nodes, fetched by id.
+  const sourceQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => inArray(nodes.id, sourceNodeIds)),
+    [sourceNodeIds.join(',')]
+  );
+
+  const structuralNodes = useMemo(
+    () => structuralQuery.data ?? [],
+    [structuralQuery.data]
   );
 
   const spaces = useMemo(
-    () => allNodes.filter((node) => node.type === 'space'),
-    [allNodes]
-  );
-
-  const recent = useMemo(
-    () =>
-      [...allNodes]
-        .filter((node) => RECENT_TYPES.has(node.type))
-        .sort((a, b) =>
-          (b.updatedAt ?? b.createdAt).localeCompare(
-            a.updatedAt ?? a.createdAt
-          )
-        )
-        .slice(0, 8),
-    [allNodes]
+    () => structuralNodes.filter((node) => node.type === 'space'),
+    [structuralNodes]
   );
 
   // Resolve the shared "Wiki Tasks" registry by name rather than a hardcoded
@@ -138,17 +157,22 @@ export const WorkspaceHomeDashboard = () => {
   // fresh id but keeps the "Wiki Tasks" name).
   const tasksRegistry = useMemo(
     () =>
-      allNodes.find(
+      structuralNodes.find(
         (node) =>
           node.type === 'database' &&
           'name' in node &&
           typeof node.name === 'string' &&
           node.name.toLowerCase().includes('wiki tasks')
       ),
-    [allNodes]
+    [structuralNodes]
   );
 
-  const notifications = notificationsQuery.data ?? [];
+  const recent = recentQuery.data ?? [];
+
+  const nodeById = useMemo(
+    () => new Map((sourceQuery.data ?? []).map((node) => [node.id, node])),
+    [sourceQuery.data]
+  );
   // Task assignments (from the wiki-task automations) go in "Your wiki tasks";
   // everything else (mentions, replies) goes in "Notifications". Kept disjoint
   // so the two sections never show the same row twice.
@@ -225,7 +249,7 @@ export const WorkspaceHomeDashboard = () => {
         </p>
         {otherNotifications.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            You're all caught up — no new notifications.
+            No recent notifications.
           </p>
         ) : (
           <div className="flex flex-col gap-0.5">
@@ -282,7 +306,7 @@ export const WorkspaceHomeDashboard = () => {
       {/* My Plane tickets — the current user's assigned Plane issues, pulled
           live through the server-side Plane proxy. Rendered as nothing if the
           integration is disabled or the fetch errors, so the home never breaks. */}
-      {planeIssuesQuery.isError ? null : (
+      {planeIssuesQuery.isPending || planeIssuesQuery.isError ? null : (
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <Ticket className="size-4 text-muted-foreground" />
@@ -296,11 +320,7 @@ export const WorkspaceHomeDashboard = () => {
               Open Plane →
             </a>
           </div>
-          {planeIssuesQuery.isPending ? (
-            <p className="text-sm text-muted-foreground">
-              Loading your Plane tickets…
-            </p>
-          ) : planeIssues.length === 0 ? (
+          {planeIssues.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No Plane tickets assigned to you.
             </p>

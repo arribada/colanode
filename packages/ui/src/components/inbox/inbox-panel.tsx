@@ -9,18 +9,6 @@ import { NotificationItem } from '@colanode/ui/components/notifications/notifica
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
 
-// Node types a notification can point at — mentions/replies land on a page or
-// record, task assignments on a record. Bounds the lookup so the inbox never
-// materialises the whole wiki just to resolve a handful of source names.
-const SOURCE_NODE_TYPES = [
-  'page',
-  'database',
-  'record',
-  'folder',
-  'whiteboard',
-  'space',
-];
-
 interface InboxPanelProps {
   userId: string;
 }
@@ -34,15 +22,25 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
     userId,
   });
 
+  const notifications = notificationsQuery.data ?? [];
+
+  // Resolve only the notifications' source nodes by id, instead of scanning
+  // every page/record/space in the workspace just to name a handful of rows.
+  const sourceNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of notifications) {
+      ids.add(n.source_node_id);
+    }
+    return [...ids];
+  }, [notifications]);
+
   const nodeListQuery = useLiveQuery(
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => inArray(nodes.type, SOURCE_NODE_TYPES)),
-    [workspace.userId]
+        .where(({ nodes }) => inArray(nodes.id, sourceNodeIds)),
+    [sourceNodeIds.join(',')]
   );
-
-  const notifications = notificationsQuery.data ?? [];
 
   const nodeById = useMemo(
     () => new Map((nodeListQuery.data ?? []).map((node) => [node.id, node])),
@@ -60,11 +58,13 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
 
   const markAllRead = () => {
     for (const n of unread) {
-      window.colanode.executeMutation({
-        type: 'notification.read',
-        userId,
-        notificationId: n.id,
-      });
+      window.colanode
+        .executeMutation({
+          type: 'notification.read',
+          userId,
+          notificationId: n.id,
+        })
+        .catch(() => {});
     }
   };
 

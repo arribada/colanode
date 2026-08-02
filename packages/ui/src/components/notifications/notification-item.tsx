@@ -30,6 +30,22 @@ export const getNotificationMessage = (
   return fallback;
 };
 
+// Human-readable fallback for when the source node has not resolved yet (source
+// pages/records load on-demand). Keeps the raw enum type (e.g. "mention") from
+// ever flashing in the row.
+const getNotificationTypeLabel = (type: string): string => {
+  switch (type) {
+    case 'mention':
+      return 'You were mentioned';
+    case 'direct_message':
+      return 'New message';
+    case 'automation':
+      return 'New task assigned';
+    default:
+      return 'New notification';
+  }
+};
+
 interface NotificationItemProps {
   notification: SelectNotification;
   node: LocalNode | undefined | null;
@@ -54,7 +70,9 @@ export const NotificationItem = ({
 }: NotificationItemProps) => {
   const display = node ? getMentionNodeDisplay(node) : null;
   const fallback =
-    variant === 'task' ? 'Task' : (display?.name ?? notification.type);
+    variant === 'task'
+      ? 'Task'
+      : (display?.name ?? getNotificationTypeLabel(notification.type));
   const label = getNotificationMessage(
     notification.type,
     notification.preview,
@@ -63,14 +81,19 @@ export const NotificationItem = ({
   const unread = !notification.read_at;
 
   const handleClick = () => {
-    window.colanode.executeMutation({
-      type: 'notification.read',
-      userId,
-      notificationId: notification.id,
-    });
+    window.colanode
+      .executeMutation({
+        type: 'notification.read',
+        userId,
+        notificationId: notification.id,
+      })
+      .catch(() => {});
 
-    if (node && onNavigate) {
-      onNavigate(node.id);
+    // Source pages/records load on-demand, so `node` is often undefined here;
+    // navigate by the stored source id and let the route lazy-resolve it,
+    // rather than silently doing nothing.
+    if (onNavigate) {
+      onNavigate(notification.source_node_id);
     }
   };
 

@@ -426,6 +426,25 @@ const myIssuesCache = new Map<string, MyIssuesCacheEntry>();
 const MY_ISSUES_MAX_PROJECTS = 40;
 const MY_ISSUES_MAX_TOTAL = 100;
 
+// Page size and a hard page cap for the workspace members scan (Plane cursor
+// pagination). A self-hosted roster is small; the cap only bounds a
+// misbehaving endpoint.
+const MEMBERS_PAGE_SIZE = 100;
+const MEMBERS_MAX_PAGES = 20;
+
+// Plane's fixed state groups in workflow order, used to sort the flattened
+// "my issues" list deterministically before the display cap.
+const STATE_GROUP_ORDER: Record<string, number> = {
+  backlog: 0,
+  unstarted: 1,
+  started: 2,
+  completed: 3,
+  cancelled: 4,
+};
+
+const stateGroupRank = (group: string): number =>
+  STATE_GROUP_ORDER[group] ?? Object.keys(STATE_GROUP_ORDER).length;
+
 const readMemberEmail = (member: RawPlaneMember): string | undefined => {
   if (typeof member.email === 'string') {
     return member.email;
@@ -485,20 +504,41 @@ export const fetchPlaneMyIssues = async (
   const client = createPlaneClient(planeConfig);
 
   try {
-    // The members endpoint has been seen returning either a bare array or the
-    // standard paginated envelope; normalise both.
-    const membersResponse = await client
-      .get(buildApiUrl(planeConfig, 'members'))
-      .json<RawPlaneMember[] | RawPlaneListEnvelope<RawPlaneMember>>();
-
-    const members = Array.isArray(membersResponse)
-      ? membersResponse
-      : membersResponse.results;
-
+    // Resolve the caller's Plane member. The members endpoint has been seen
+    // returning either a bare array or the standard paginated envelope; page
+    // through it (bounded) so a member past the first page is still matched —
+    // otherwise that user is wrongly told they have no tickets. Plane's cursor
+    // is "<pageSize>:<pageIndex>:<isPrev>"; stop once the member is found.
     const target = email.toLowerCase();
-    const member = members.find(
-      (candidate) => readMemberEmail(candidate)?.toLowerCase() === target
-    );
+    let member: RawPlaneMember | undefined;
+
+    for (let page = 0; page < MEMBERS_MAX_PAGES && !member; page++) {
+      const membersResponse = await client
+        .get(buildApiUrl(planeConfig, 'members'), {
+          searchParams: {
+            per_page: String(MEMBERS_PAGE_SIZE),
+            cursor: `${MEMBERS_PAGE_SIZE}:${page}:0`,
+          },
+        })
+        .json<RawPlaneMember[] | RawPlaneListEnvelope<RawPlaneMember>>();
+
+      const pageMembers = Array.isArray(membersResponse)
+        ? membersResponse
+        : membersResponse.results;
+
+      member = pageMembers.find(
+        (candidate) => readMemberEmail(candidate)?.toLowerCase() === target
+      );
+
+      // A bare array is the whole (unpaginated) roster; an envelope with no
+      // further pages is the end. Either way, there is nothing more to fetch.
+      if (
+        Array.isArray(membersResponse) ||
+        !membersResponse.next_page_results
+      ) {
+        break;
+      }
+    }
 
     // No Plane member for this wiki user — a normal state, cache it as empty.
     if (!member) {
@@ -516,7 +556,7 @@ export const fetchPlaneMyIssues = async (
 
     const projects = projectsResult.projects.slice(0, MY_ISSUES_MAX_PROJECTS);
 
-    const perProject = await Promise.all(
+    const perProjectResults = await Promise.allSettled(
       projects.map(async (project) => {
         const issuesEnvelope = await client
           .get(buildApiUrl(planeConfig, 'projects', project.id, 'issues'), {
@@ -565,7 +605,44 @@ export const fetchPlaneMyIssues = async (
       })
     );
 
-    const issues = perProject.flat().slice(0, MY_ISSUES_MAX_TOTAL);
+    // Degrade gracefully: keep the projects that resolved and drop (but log)
+    // the ones that failed, so one slow or broken project can't blank the whole
+    // "My Plane tickets" list. A non-per-project failure (the members or
+    // projects fetch) has already thrown out to the catch below.
+    const perProject: PlaneMyIssue[][] = [];
+    for (const settled of perProjectResults) {
+      if (settled.status === 'fulfilled') {
+        perProject.push(settled.value);
+      } else {
+        logger.warn(
+          toSafeLogFields(settled.reason),
+          'Failed to fetch assigned Plane issues for one project; skipping it'
+        );
+      }
+    }
+
+    // Deterministic cross-project ordering before the display cap: workflow
+    // state group first (backlog through cancelled), then issue key. Without it
+    // the flattened list was in project-iteration order and the cap dropped
+    // issues arbitrarily.
+    const flattened = perProject.flat();
+    flattened.sort((a, b) => {
+      const groupDelta =
+        stateGroupRank(a.stateGroup) - stateGroupRank(b.stateGroup);
+      return groupDelta !== 0 ? groupDelta : a.key.localeCompare(b.key);
+    });
+
+    const issues = flattened.slice(0, MY_ISSUES_MAX_TOTAL);
+
+    if (flattened.length > issues.length) {
+      // Truncation is only logged; surfacing a "+N more" hint to the UI would
+      // mean threading a flag through PlaneMyIssue / the query output in
+      // @colanode/core and the client handler, which are outside this change.
+      logger.warn(
+        { assigned: flattened.length, shown: issues.length },
+        'Assigned Plane issues exceeded the display cap; list truncated'
+      );
+    }
 
     myIssuesCache.set(cacheKey, { at: Date.now(), issues });
     return { ok: true, issues };
