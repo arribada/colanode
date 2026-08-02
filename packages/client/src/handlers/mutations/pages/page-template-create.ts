@@ -1,5 +1,5 @@
 import { WorkspaceMutationHandlerBase } from '@colanode/client/handlers/mutations/workspace-mutation-handler-base';
-import { duplicateNodeDocument } from '@colanode/client/lib/node-document-copy';
+import { duplicatePageSubtree } from '@colanode/client/lib/node-subtree-copy';
 import { MutationHandler } from '@colanode/client/lib/types';
 import { MutationError, MutationErrorCode } from '@colanode/client/mutations';
 import {
@@ -8,10 +8,11 @@ import {
 } from '@colanode/client/mutations/pages/page-template-create';
 import { IdType, PageAttributes, generateId } from '@colanode/core';
 
-// "New from template": deep-copies a space's page template (+ its document,
-// + one level of children pages and their documents, symmetric with
-// page.template.save) into a brand-new normal page under the given space.
-// The template itself is left untouched so it can be reused again.
+// "New from template": deep-copies a space's page template and its FULL
+// descendant page subtree (recursively) into a brand-new normal page under the
+// given space. The new root drops isTemplate/deletedAt/deletedBy so it is an
+// ordinary page (copied descendants are plain pages too). The template itself
+// is left untouched so it can be reused again.
 export class PageTemplateCreateMutationHandler
   extends WorkspaceMutationHandlerBase
   implements MutationHandler<PageTemplateCreateMutationInput>
@@ -43,56 +44,23 @@ export class PageTemplateCreateMutationHandler
       );
     }
 
-    const childPageRows = await workspace.database
-      .selectFrom('nodes')
-      .selectAll()
-      .where('parent_id', '=', input.templateId)
-      .where('type', '=', 'page')
-      .execute();
-
-    const nodeIdMap = new Map<string, string>();
     const newPageId = generateId(IdType.Page);
-    nodeIdMap.set(input.templateId, newPageId);
-    for (const childRow of childPageRows) {
-      nodeIdMap.set(childRow.id, generateId(IdType.Page));
-    }
 
-    const {
-      isTemplate: _isTemplate,
-      deletedAt: _deletedAt,
-      deletedBy: _deletedBy,
-      ...rest
-    } = sourceAttributes;
-
-    await workspace.nodes.insertNode(newPageId, {
-      ...rest,
-      parentId: input.spaceId,
-    });
-
-    await duplicateNodeDocument(
+    await duplicatePageSubtree({
       workspace,
-      input.templateId,
-      newPageId,
-      nodeIdMap
-    );
-
-    for (const childRow of childPageRows) {
-      const newChildId = nodeIdMap.get(childRow.id);
-      if (!newChildId) {
-        continue;
-      }
-
-      const childAttributes = JSON.parse(
-        childRow.attributes
-      ) as PageAttributes;
-
-      await workspace.nodes.insertNode(newChildId, {
-        ...childAttributes,
-        parentId: newPageId,
-      });
-
-      await duplicateNodeDocument(workspace, childRow.id, newChildId, nodeIdMap);
-    }
+      sourcePageId: input.templateId,
+      newRootId: newPageId,
+      rootParentId: input.spaceId,
+      transformRootAttributes: (attributes) => {
+        const {
+          isTemplate: _isTemplate,
+          deletedAt: _deletedAt,
+          deletedBy: _deletedBy,
+          ...rest
+        } = attributes;
+        return rest;
+      },
+    });
 
     return {
       id: newPageId,
