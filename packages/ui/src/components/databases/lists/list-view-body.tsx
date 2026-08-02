@@ -1,6 +1,7 @@
 import { InView } from 'react-intersection-observer';
 
 import { extractNodeRole } from '@colanode/core';
+import { EmptyDatabaseState } from '@colanode/ui/components/databases/empty-database-state';
 import { ListViewRecordCreateRow } from '@colanode/ui/components/databases/lists/list-view-record-create-row';
 import { ListViewRow } from '@colanode/ui/components/databases/lists/list-view-row';
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
@@ -21,11 +22,7 @@ export const ListViewBody = () => {
 
   return (
     <div className="flex flex-col">
-      {records.length === 0 && (
-        <div className="flex w-full flex-col items-center justify-center border-b p-10 text-sm text-muted-foreground">
-          <p>No records</p>
-        </div>
-      )}
+      {records.length === 0 && <EmptyDatabaseState className="border-b" />}
       {records.map((record) => {
         const role = extractNodeRole(record, workspace.userId) ?? database.role;
 

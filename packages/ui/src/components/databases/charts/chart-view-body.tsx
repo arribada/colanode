@@ -14,6 +14,7 @@ import {
   LineChartGraphic,
   PieChartGraphic,
 } from '@colanode/ui/components/databases/charts/chart-graphics';
+import { EmptyDatabaseState } from '@colanode/ui/components/databases/empty-database-state';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -117,11 +118,7 @@ export const ChartViewBody = () => {
   }
 
   if (buckets.length === 0) {
-    return (
-      <div className="flex h-full min-h-64 w-full items-center justify-center p-10 text-sm text-muted-foreground">
-        <p>No records</p>
-      </div>
-    );
+    return <EmptyDatabaseState className="h-full min-h-64" />;
   }
 
   const total = buckets.reduce((sum, bucket) => sum + bucket.value, 0);

@@ -13,9 +13,11 @@ export const GalleryView = () => {
     <Fragment>
       <div className="sticky top-0 left-0 z-30 flex w-full min-w-0 max-w-full flex-row justify-between border-b bg-background">
         <ViewTabs />
-        <div className="invisible sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2 group-hover/database:visible">
-          <ViewFullscreenButton />
-          <ViewSettingsPopover />
+        <div className="sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2">
+          <div className="invisible flex flex-row items-center group-hover/database:visible">
+            <ViewFullscreenButton />
+            <ViewSettingsPopover />
+          </div>
           <ViewSortButton />
           <ViewFilterButton />
         </div>

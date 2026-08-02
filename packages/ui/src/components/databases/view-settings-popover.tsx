@@ -1,5 +1,5 @@
 import { Lock, LockOpen, Trash2 } from 'lucide-react';
-import { Fragment, useState } from 'react';
+import { Fragment, ReactNode, useState } from 'react';
 
 import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
 import { ViewCsvActions } from '@colanode/ui/components/databases/view-csv-actions';
@@ -19,7 +19,23 @@ import { Separator } from '@colanode/ui/components/ui/separator';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 
-export const ViewSettingsPopover = () => {
+interface ViewSettingsPopoverProps {
+  // Layout-specific settings (e.g. the chart's type/group-by/aggregate config)
+  // rendered right after the header. Layouts without extra settings omit it.
+  children?: ReactNode;
+  // Sections that only make sense for record-listing layouts. Charts turn these
+  // off since they aggregate records rather than list them field-by-field.
+  showFieldSettings?: boolean;
+  showConditionalColor?: boolean;
+  showCsvActions?: boolean;
+}
+
+export const ViewSettingsPopover = ({
+  children,
+  showFieldSettings = true,
+  showConditionalColor = true,
+  showCsvActions = true,
+}: ViewSettingsPopoverProps) => {
   const database = useDatabase();
   const view = useDatabaseView();
 
@@ -47,16 +63,34 @@ export const ViewSettingsPopover = () => {
               readOnly={!database.canEdit || database.isLocked}
             />
           </div>
-          <Separator />
-          <ViewFieldSettings />
-          <Separator />
-          <ViewConditionalColorSettings />
+          {children && (
+            <Fragment>
+              <Separator />
+              {children}
+            </Fragment>
+          )}
+          {showFieldSettings && (
+            <Fragment>
+              <Separator />
+              <ViewFieldSettings />
+            </Fragment>
+          )}
+          {showConditionalColor && (
+            <Fragment>
+              <Separator />
+              <ViewConditionalColorSettings />
+            </Fragment>
+          )}
           <Separator />
           <ViewAutomationsSettings />
           <Separator />
           <ViewCopyLinkAction closeMenu={() => setOpen(false)} />
-          <Separator />
-          <ViewCsvActions closeMenu={() => setOpen(false)} />
+          {showCsvActions && (
+            <Fragment>
+              <Separator />
+              <ViewCsvActions closeMenu={() => setOpen(false)} />
+            </Fragment>
+          )}
           {database.canEdit && (
             <Fragment>
               <Separator />
