@@ -57,15 +57,12 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
   };
 
   const markAllRead = () => {
-    for (const n of unread) {
-      window.colanode
-        .executeMutation({
-          type: 'notification.read',
-          userId,
-          notificationId: n.id,
-        })
-        .catch(() => {});
-    }
+    window.colanode
+      .executeMutation({
+        type: 'notification.read.all',
+        userId,
+      })
+      .catch(() => {});
   };
 
   return (

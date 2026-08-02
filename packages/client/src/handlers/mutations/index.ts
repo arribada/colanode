@@ -48,6 +48,7 @@ import { NodeTrashMutationHandler } from './nodes/node-trash';
 import { NodeUpdateMutationHandler } from './nodes/node-update';
 import { MuteSetMutationHandler } from './notifications/mute-set';
 import { NotificationReadMutationHandler } from './notifications/notification-read';
+import { NotificationReadAllMutationHandler } from './notifications/notification-read-all';
 import { PageDuplicateMutationHandler } from './pages/page-duplicate';
 import { PageTransferMutationHandler } from './pages/page-transfer';
 import { PageTemplateCreateMutationHandler } from './pages/page-template-create';
@@ -135,6 +136,7 @@ export const buildMutationHandlerMap = (
     'tab.update': new TabUpdateMutationHandler(app),
     'tab.delete': new TabDeleteMutationHandler(app),
     'notification.read': new NotificationReadMutationHandler(app),
+    'notification.read.all': new NotificationReadAllMutationHandler(app),
     'mute.set': new MuteSetMutationHandler(app),
     'pushSubscription.create': new PushSubscriptionCreateMutationHandler(app),
     'pushSubscription.delete': new PushSubscriptionDeleteMutationHandler(app),
