@@ -1,5 +1,6 @@
+import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { NodeSearchResult } from '@colanode/client/queries';
 import { NodeType } from '@colanode/core';
@@ -15,7 +16,9 @@ import {
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
+import { useDebouncedValue } from '@colanode/ui/hooks/use-debounced-value';
 import { useQuery } from '@colanode/ui/hooks/use-query';
+import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
 const groupOrder: NodeType[] = [
   'page',
@@ -43,6 +46,16 @@ const groupLabels: Partial<Record<NodeType, string>> = {
   message: 'Messages',
 };
 
+// Node types surfaced in the "Recent" section shown before the user types.
+// Mirrors the home dashboard's "Recently updated" feed so both stay in sync.
+const recentNodeTypes: string[] = [
+  'page',
+  'database',
+  'record',
+  'folder',
+  'whiteboard',
+];
+
 const resultName = (result: NodeSearchResult): string => {
   if (result.name) {
     return result.name;
@@ -62,21 +75,49 @@ export const SearchDialog = () => {
   const [showChat] = useChatVisibility();
 
   const [searchQuery, setSearchQuery] = useState('');
+  // Debounce the raw input so a query only fires once typing settles, not on
+  // every keystroke. The input stays bound to the immediate value so it feels
+  // responsive; the search + empty-state switch off the debounced value.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 175);
+  const isSearching = debouncedSearchQuery.length > 0;
 
   const nodeSearchQuery = useQuery(
     {
       type: 'node.search',
-      searchQuery,
+      searchQuery: debouncedSearchQuery,
       userId: workspace.userId,
       limit: 30,
     },
     {
-      enabled: open && searchQuery.length > 0,
+      enabled: open && isSearching,
     }
   );
 
-  const allResults =
-    open && searchQuery.length > 0 ? (nodeSearchQuery.data ?? []) : [];
+  // Recently-updated nodes, shown as a "Recent" section before the user types.
+  // Same signal as the home dashboard's "Recently updated" feed: a live query
+  // over the workspace nodes collection filtered to content types, sorted by
+  // updatedAt. Gated on `open` (the dialog is always mounted) so the closed
+  // palette costs nothing — when closed the filter matches no rows.
+  const recentNodesQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) =>
+          open ? inArray(nodes.type, recentNodeTypes) : eq(nodes.id, '')
+        ),
+    [workspace.userId, open]
+  );
+
+  const recentNodes = useMemo(() => {
+    const nodes = recentNodesQuery.data ?? [];
+    return [...nodes]
+      .sort((a, b) =>
+        (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt)
+      )
+      .slice(0, 8);
+  }, [recentNodesQuery.data]);
+
+  const allResults = open && isSearching ? (nodeSearchQuery.data ?? []) : [];
 
   const results = showChat
     ? allResults
@@ -97,13 +138,13 @@ export const SearchDialog = () => {
     }
   };
 
-  const handleSelect = (result: NodeSearchResult) => {
+  const handleNavigate = (nodeId: string) => {
     handleOpenChange(false);
     navigate({
       to: '/workspace/$userId/$nodeId',
       params: {
         userId: workspace.userId,
-        nodeId: result.id,
+        nodeId,
       },
     });
   };
@@ -123,10 +164,38 @@ export const SearchDialog = () => {
       />
       <CommandList className="max-h-[400px]">
         <CommandEmpty>
-          {searchQuery.length > 0
-            ? 'No results found.'
-            : 'Type to search the workspace.'}
+          {isSearching ? 'No results found.' : 'Nothing recent yet.'}
         </CommandEmpty>
+        {!isSearching && recentNodes.length > 0 && (
+          <CommandGroup heading="Recent">
+            {recentNodes.map((node) => {
+              const { name, avatar, label } = getMentionNodeDisplay(node);
+              return (
+                <CommandItem
+                  key={node.id}
+                  value={node.id}
+                  data-testid={`search-recent-${node.id}`}
+                  onSelect={() => handleNavigate(node.id)}
+                >
+                  <div className="flex w-full min-w-0 flex-row items-center gap-2">
+                    <Avatar
+                      id={node.id}
+                      name={name}
+                      avatar={avatar}
+                      className="size-4 shrink-0"
+                    />
+                    <div className="flex min-w-0 grow flex-col">
+                      <p className="truncate text-sm">{name}</p>
+                    </div>
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                      {label}
+                    </span>
+                  </div>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
         {groups.map((group) => (
           <CommandGroup key={group.type} heading={group.label}>
             {group.results.map((result) => (
@@ -134,7 +203,7 @@ export const SearchDialog = () => {
                 key={result.id}
                 value={result.id}
                 data-testid={`search-result-${result.id}`}
-                onSelect={() => handleSelect(result)}
+                onSelect={() => handleNavigate(result.id)}
               >
                 <div className="flex w-full min-w-0 flex-row items-center gap-2">
                   <Avatar
