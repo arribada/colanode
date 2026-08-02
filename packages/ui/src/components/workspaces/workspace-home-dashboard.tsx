@@ -92,7 +92,9 @@ export const WorkspaceHomeDashboard = () => {
     { retry: false }
   );
 
-  const planeIssues = planeIssuesQuery.data ?? [];
+  const planeData = planeIssuesQuery.data;
+  const planeIssues = planeData?.issues ?? [];
+  const planeTotal = planeData?.total ?? 0;
 
   const notifications = notificationsQuery.data ?? [];
 
@@ -184,6 +186,17 @@ export const WorkspaceHomeDashboard = () => {
     .slice(0, 6);
 
   const firstSpaceId = spaces[0]?.id;
+
+  // Destination options for the home "New page" dialog's space picker; names
+  // come from the same display resolver the Spaces grid uses.
+  const spaceOptions = useMemo(
+    () =>
+      spaces.map((space) => ({
+        id: space.id,
+        name: getMentionNodeDisplay(space).name,
+      })),
+    [spaces]
+  );
 
   const handleNavigate = (nodeId: string) => {
     navigate({
@@ -348,6 +361,11 @@ export const WorkspaceHomeDashboard = () => {
               ))}
             </div>
           )}
+          {planeTotal > planeIssues.length ? (
+            <p className="text-xs text-muted-foreground">
+              Showing {planeIssues.length} of {planeTotal}
+            </p>
+          ) : null}
         </section>
       )}
 
@@ -472,6 +490,7 @@ export const WorkspaceHomeDashboard = () => {
       {firstSpaceId ? (
         <PageCreateDialog
           spaceId={firstSpaceId}
+          spaces={spaceOptions}
           open={pageDialogOpen}
           onOpenChange={setPageDialogOpen}
         />

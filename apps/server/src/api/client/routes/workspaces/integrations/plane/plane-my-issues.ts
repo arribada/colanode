@@ -61,7 +61,7 @@ export const planeMyIssuesRoute: FastifyPluginCallbackZod = (
       // Authenticated but no user row (a race past the auth guard) — treat as
       // "no Plane match" rather than an error, so the home never breaks.
       if (!user) {
-        return [];
+        return { issues: [], total: 0 };
       }
 
       const result = await fetchPlaneMyIssues(planeConfig, user.email);
@@ -73,7 +73,7 @@ export const planeMyIssuesRoute: FastifyPluginCallbackZod = (
         });
       }
 
-      return result.issues;
+      return { issues: result.issues, total: result.total };
     },
   });
 

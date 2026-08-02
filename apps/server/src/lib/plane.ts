@@ -416,6 +416,9 @@ interface RawPlaneMyIssue {
 interface MyIssuesCacheEntry {
   at: number;
   issues: PlaneMyIssue[];
+  // Full assigned count before the display cap; surfaced to the UI as `total`
+  // so the home can show a "Showing N of total" truncation hint.
+  total: number;
 }
 
 // Keyed by lower-cased email. Reuses the same TTL as the other Plane caches.
@@ -480,7 +483,7 @@ const collectMemberIds = (member: RawPlaneMember): Set<string> => {
 };
 
 export type FetchPlaneMyIssuesResult =
-  | { ok: true; issues: PlaneMyIssue[] }
+  | { ok: true; issues: PlaneMyIssue[]; total: number }
   | { ok: false; reason: 'fetch_failed' };
 
 /**
@@ -498,7 +501,7 @@ export const fetchPlaneMyIssues = async (
   const cacheKey = email.toLowerCase();
   const cached = myIssuesCache.get(cacheKey);
   if (cached && Date.now() - cached.at < planeConfig.cacheTtlMs) {
-    return { ok: true, issues: cached.issues };
+    return { ok: true, issues: cached.issues, total: cached.total };
   }
 
   const client = createPlaneClient(planeConfig);
@@ -543,8 +546,8 @@ export const fetchPlaneMyIssues = async (
     // No Plane member for this wiki user — a normal state, cache it as empty.
     if (!member) {
       const empty: PlaneMyIssue[] = [];
-      myIssuesCache.set(cacheKey, { at: Date.now(), issues: empty });
-      return { ok: true, issues: empty };
+      myIssuesCache.set(cacheKey, { at: Date.now(), issues: empty, total: 0 });
+      return { ok: true, issues: empty, total: 0 };
     }
 
     const memberIds = collectMemberIds(member);
@@ -633,19 +636,20 @@ export const fetchPlaneMyIssues = async (
     });
 
     const issues = flattened.slice(0, MY_ISSUES_MAX_TOTAL);
+    const total = flattened.length;
 
-    if (flattened.length > issues.length) {
-      // Truncation is only logged; surfacing a "+N more" hint to the UI would
-      // mean threading a flag through PlaneMyIssue / the query output in
-      // @colanode/core and the client handler, which are outside this change.
+    if (total > issues.length) {
+      // The full assigned count is surfaced to the UI as `total` (the home
+      // section shows a "Showing N of total" hint); still logged so a hit cap
+      // is visible server-side.
       logger.warn(
-        { assigned: flattened.length, shown: issues.length },
+        { assigned: total, shown: issues.length },
         'Assigned Plane issues exceeded the display cap; list truncated'
       );
     }
 
-    myIssuesCache.set(cacheKey, { at: Date.now(), issues });
-    return { ok: true, issues };
+    myIssuesCache.set(cacheKey, { at: Date.now(), issues, total });
+    return { ok: true, issues, total };
   } catch (error) {
     logger.error(
       toSafeLogFields(error),

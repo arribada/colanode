@@ -132,6 +132,13 @@ export const planeMyIssueSchema = z.object({
 
 export type PlaneMyIssue = z.infer<typeof planeMyIssueSchema>;
 
-export const planeMyIssuesOutputSchema = z.array(planeMyIssueSchema);
+// The home "My Plane tickets" section's output: the display-capped list of
+// assigned issues plus `total`, the full assigned count before the cap. When
+// `total` exceeds `issues.length` the server truncated the list (at
+// MY_ISSUES_MAX_TOTAL) and the section shows a "Showing N of total" hint.
+export const planeMyIssuesOutputSchema = z.object({
+  issues: z.array(planeMyIssueSchema),
+  total: z.number(),
+});
 
 export type PlaneMyIssuesOutput = z.infer<typeof planeMyIssuesOutputSchema>;

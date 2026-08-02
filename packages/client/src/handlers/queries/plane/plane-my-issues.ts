@@ -3,7 +3,7 @@
 import { WorkspaceQueryHandlerBase } from '@colanode/client/handlers/queries/workspace-query-handler-base';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib/types';
 import { PlaneMyIssuesQueryInput } from '@colanode/client/queries/plane/plane-my-issues';
-import { PlaneMyIssue } from '@colanode/core';
+import { PlaneMyIssuesOutput } from '@colanode/core';
 
 export class PlaneMyIssuesQueryHandler
   extends WorkspaceQueryHandlerBase
@@ -11,14 +11,14 @@ export class PlaneMyIssuesQueryHandler
 {
   public async handleQuery(
     input: PlaneMyIssuesQueryInput
-  ): Promise<PlaneMyIssue[]> {
+  ): Promise<PlaneMyIssuesOutput> {
     const workspace = this.getWorkspace(input.userId);
 
     const output = await workspace.account.client
       .get(
         `v1/workspaces/${workspace.workspaceId}/integrations/plane/my-issues`
       )
-      .json<PlaneMyIssue[]>();
+      .json<PlaneMyIssuesOutput>();
 
     return output;
   }
