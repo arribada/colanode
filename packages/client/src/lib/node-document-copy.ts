@@ -21,6 +21,7 @@ export const nodeReferenceBlockTypes = new Set<string>([
   EditorNodeTypes.File,
   EditorNodeTypes.Folder,
   'database',
+  'whiteboardEmbed',
 ]);
 
 export const mapCopiedBlockId = (

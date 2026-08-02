@@ -15,14 +15,14 @@ export const GalleryViewBody = () => {
   const database = useDatabase();
   const view = useDatabaseView();
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useRecordsQuery(view.filters, view.sorts);
 
   const records = data;
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pb-2">
-      {records.length === 0 && (
+      {!isLoading && records.length === 0 && (
         <EmptyDatabaseState className="col-span-full" />
       )}
       {records.map((record) => {

@@ -9,7 +9,7 @@ import {
 import { IdType, PageAttributes, generateId } from '@colanode/core';
 
 // "Duplicate page" (sidebar): deep-copies the page and its FULL descendant
-// page subtree (recursively), names the new root "<name> (copie)" and files it
+// page subtree (recursively), names the new root "<name> (copy)" and files it
 // under the original page's parent. Document blocks are remapped by the shared
 // duplicatePageSubtree helper. The source subtree is left untouched.
 export class PageDuplicateMutationHandler
@@ -46,7 +46,7 @@ export class PageDuplicateMutationHandler
       rootParentId: sourceAttributes.parentId,
       transformRootAttributes: (attributes) => ({
         ...attributes,
-        name: `${attributes.name} (copie)`,
+        name: `${attributes.name} (copy)`,
       }),
     });
 

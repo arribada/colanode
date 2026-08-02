@@ -87,11 +87,16 @@ export const ChartConfigSettings = () => {
 
       <div className="flex flex-col gap-1.5">
         <p className="text-sm font-medium">Group by</p>
-        <FieldSelect
-          fields={database.fields}
-          value={chart?.groupBy ?? null}
-          onChange={(fieldId) => updateChart({ groupBy: fieldId })}
-        />
+        <div
+          aria-disabled={!canEdit}
+          className={cn(!canEdit && 'pointer-events-none opacity-50')}
+        >
+          <FieldSelect
+            fields={database.fields}
+            value={chart?.groupBy ?? null}
+            onChange={(fieldId) => updateChart({ groupBy: fieldId })}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -121,11 +126,16 @@ export const ChartConfigSettings = () => {
         <div className="flex flex-col gap-1.5">
           <p className="text-sm font-medium">Value field</p>
           {numberFields.length > 0 ? (
-            <FieldSelect
-              fields={numberFields}
-              value={chart?.valueFieldId ?? null}
-              onChange={(fieldId) => updateChart({ valueFieldId: fieldId })}
-            />
+            <div
+              aria-disabled={!canEdit}
+              className={cn(!canEdit && 'pointer-events-none opacity-50')}
+            >
+              <FieldSelect
+                fields={numberFields}
+                value={chart?.valueFieldId ?? null}
+                onChange={(fieldId) => updateChart({ valueFieldId: fieldId })}
+              />
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground">
               Add a number field to use sum or average.

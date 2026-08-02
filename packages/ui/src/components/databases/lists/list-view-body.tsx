@@ -15,14 +15,16 @@ export const ListViewBody = () => {
   const database = useDatabase();
   const view = useDatabaseView();
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useRecordsQuery(view.filters, view.sorts);
 
   const records = data;
 
   return (
     <div className="flex flex-col">
-      {records.length === 0 && <EmptyDatabaseState className="border-b" />}
+      {!isLoading && records.length === 0 && (
+        <EmptyDatabaseState className="border-b" />
+      )}
       {records.map((record) => {
         const role = extractNodeRole(record, workspace.userId) ?? database.role;
 

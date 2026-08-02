@@ -49,7 +49,7 @@ export const ChartViewBody = () => {
     });
   };
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useRecordsQuery(view.filters, view.sorts, 200);
 
   // A chart summarizes the whole result set, so pull every page. The query is
@@ -117,7 +117,7 @@ export const ChartViewBody = () => {
     );
   }
 
-  if (buckets.length === 0) {
+  if (!isLoading && buckets.length === 0) {
     return <EmptyDatabaseState className="h-full min-h-64" />;
   }
 

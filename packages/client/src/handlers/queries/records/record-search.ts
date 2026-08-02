@@ -8,7 +8,7 @@ import {
   tokenizeSearchQuery,
 } from '@colanode/client/lib/fts';
 import { mapNode } from '@colanode/client/lib/mappers';
-import { notInTrashedTreeSql } from '@colanode/client/lib/nodes';
+import { notInTrashedTreeSql, notTemplateSql } from '@colanode/client/lib/nodes';
 import { RecordSearchQueryInput } from '@colanode/client/queries/records/record-search';
 import { Event } from '@colanode/client/types/events';
 import { LocalRecordNode } from '@colanode/client/types/nodes';
@@ -109,6 +109,7 @@ export class RecordSearchQueryHandler
       WHERE n.type = 'record'
         AND n.parent_id = ${input.databaseId}
         AND ${sql.raw(notInTrashedTreeSql('n'))}
+        AND ${sql.raw(notTemplateSql('n'))}
         ${
           exclude.length > 0
             ? sql`AND n.id NOT IN (${sql.join(
@@ -135,6 +136,7 @@ export class RecordSearchQueryHandler
       .where('parent_id', '=', input.databaseId)
       .where('id', 'not in', exclude)
       .where(sql<boolean>`${sql.raw(notInTrashedTreeSql('nodes'))}`)
+      .where(sql<boolean>`${sql.raw(notTemplateSql('nodes'))}`)
       .selectAll()
       .execute();
   }
