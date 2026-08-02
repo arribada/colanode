@@ -1,6 +1,7 @@
 import { eq, useLiveQuery } from '@tanstack/react-db';
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
+import { useNavigate } from '@tanstack/react-router';
 
 import { getIdType, IdType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
@@ -41,6 +42,7 @@ const MentionUserChip = ({ target }: { target: string }) => {
 
 const MentionNodeChip = ({ target }: { target: string }) => {
   const workspace = useWorkspace();
+  const navigate = useNavigate();
 
   const nodeQuery = useLiveQuery(
     (q) =>
@@ -58,6 +60,22 @@ const MentionNodeChip = ({ target }: { target: string }) => {
       from="/workspace/$userId"
       to="$nodeId"
       params={{ nodeId: target }}
+      onClick={(e) => {
+        // Shift-click opens the target as a modal over the current page;
+        // Ctrl/Cmd-click falls through to the browser (new tab); a plain click
+        // navigates in the same view (the Link default).
+        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          navigate({
+            to: '/workspace/$userId/$nodeId/modal/$modalNodeId',
+            params: (prev) => ({
+              userId: prev.userId!,
+              nodeId: prev.nodeId!,
+              modalNodeId: target,
+            }),
+          });
+        }
+      }}
       className="inline-flex flex-row items-center gap-1 cursor-pointer hover:underline"
     >
       <Avatar size="small" id={target} name={name} avatar={avatar} />

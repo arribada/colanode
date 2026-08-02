@@ -11,6 +11,7 @@ import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
 import { BookmarkNode } from '@colanode/ui/editor/extensions/bookmark';
 import { EmbedNode } from '@colanode/ui/editor/extensions/embed';
 import { PlaneEmbedNode } from '@colanode/ui/editor/extensions/plane-embed';
+import { WhiteboardEmbedNode } from '@colanode/ui/editor/extensions/whiteboard-embed';
 import { CalloutNode } from '@colanode/ui/editor/extensions/callout';
 import {
   ColumnNode,
@@ -120,6 +121,7 @@ export {
   BookmarkNode,
   EmbedNode,
   PlaneEmbedNode,
+  WhiteboardEmbedNode,
   ColumnsNode,
   ColumnNode,
   TableOfContentsNode,

@@ -56,6 +56,7 @@ import {
   DatabaseCommand,
   DatabaseInlineCommand,
   DatabaseLinkCommand,
+  WhiteboardCommand,
 } from '@colanode/ui/editor/commands';
 import {
   BlockquoteNode,
@@ -112,6 +113,7 @@ import {
   TrailingNode,
   UnderlineMark,
   DatabaseNode,
+  WhiteboardEmbedNode,
   AutoJoiner,
   HardBreakNode,
   ParserExtension,
@@ -373,6 +375,7 @@ export const DocumentEditor = ({
         DeleteControlExtension,
         DropcursorExtension,
         DatabaseNode,
+        WhiteboardEmbedNode,
         AutoJoiner,
         MentionExtension.configure({
           context: {
@@ -397,6 +400,7 @@ export const DocumentEditor = ({
             OrderedListCommand,
             TableCommand,
             DatabaseInlineCommand,
+            WhiteboardCommand,
             DatabaseCommand,
             DatabaseLinkCommand,
             DividerCommand,

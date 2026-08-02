@@ -1,6 +1,7 @@
 import { BookmarkNodeView } from '@colanode/ui/editor/views/bookmark';
 import { EmbedNodeView } from '@colanode/ui/editor/views/embed';
 import { PlaneEmbedNodeView } from '@colanode/ui/editor/views/plane-embed';
+import { WhiteboardEmbedNodeView } from '@colanode/ui/editor/views/whiteboard-embed';
 import { CalloutNodeView } from '@colanode/ui/editor/views/callout';
 import { CodeBlockNodeView } from '@colanode/ui/editor/views/code-block';
 import { DatabaseNodeView } from '@colanode/ui/editor/views/database';
@@ -22,6 +23,7 @@ export {
   BookmarkNodeView,
   EmbedNodeView,
   PlaneEmbedNodeView,
+  WhiteboardEmbedNodeView,
   TableOfContentsNodeView,
   CalloutNodeView,
   CodeBlockNodeView,

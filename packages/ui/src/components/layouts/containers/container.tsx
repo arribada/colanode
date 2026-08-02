@@ -21,6 +21,9 @@ interface ContainerProps {
   breadcrumb?: React.ReactNode;
   actions?: React.ReactNode;
   onFullscreen?: () => void;
+  // When true, the body fills the remaining height edge-to-edge with no scroll
+  // wrapper — used for canvas nodes (whiteboards) that manage their own scroll.
+  fill?: boolean;
 }
 
 export const Container = ({
@@ -29,6 +32,7 @@ export const Container = ({
   breadcrumb,
   actions,
   onFullscreen,
+  fill,
 }: ContainerProps) => {
   const app = useApp();
   const isMobile = useIsMobile();
@@ -67,15 +71,19 @@ export const Container = ({
             <div>{actions}</div>
           </div>
         </div>
-        <ScrollArea ref={scrollAreaRef} className="overflow-hidden h-full">
-          <ScrollViewport ref={scrollViewportRef} className="h-full">
-            <div className="lg:px-10 px-4 min-h-0 flex-1 h-full">
-              {children}
-            </div>
-          </ScrollViewport>
-          <ScrollBar orientation="horizontal" />
-          <ScrollBar orientation="vertical" />
-        </ScrollArea>
+        {fill ? (
+          <div className="min-h-0 flex-1">{children}</div>
+        ) : (
+          <ScrollArea ref={scrollAreaRef} className="overflow-hidden h-full">
+            <ScrollViewport ref={scrollViewportRef} className="h-full">
+              <div className="lg:px-10 px-4 min-h-0 flex-1 h-full">
+                {children}
+              </div>
+            </ScrollViewport>
+            <ScrollBar orientation="horizontal" />
+            <ScrollBar orientation="vertical" />
+          </ScrollArea>
+        )}
       </div>
     </ContainerContext.Provider>
   );

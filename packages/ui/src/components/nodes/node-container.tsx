@@ -36,6 +36,7 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
   return (
     <Container
       type={type}
+      fill={data.node.type === 'whiteboard'}
       breadcrumb={<NodeBreadcrumb nodes={data.breadcrumb} />}
       actions={
         <div className="flex flex-row items-center gap-2">
