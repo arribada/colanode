@@ -49,6 +49,7 @@ import { NodeUpdateMutationHandler } from './nodes/node-update';
 import { MuteSetMutationHandler } from './notifications/mute-set';
 import { NotificationReadMutationHandler } from './notifications/notification-read';
 import { PageDuplicateMutationHandler } from './pages/page-duplicate';
+import { PageTransferMutationHandler } from './pages/page-transfer';
 import { PageTemplateCreateMutationHandler } from './pages/page-template-create';
 import { PageTemplateSaveMutationHandler } from './pages/page-template-save';
 import { PresenceLeaveMutationHandler } from './presence/presence-leave';
@@ -95,6 +96,7 @@ export const buildMutationHandlerMap = (
     'node.trash': new NodeTrashMutationHandler(app),
     'node.restore': new NodeRestoreMutationHandler(app),
     'page.duplicate': new PageDuplicateMutationHandler(app),
+    'page.transfer': new PageTransferMutationHandler(app),
     'node.update': new NodeUpdateMutationHandler(app),
     'chat.create': new ChatCreateMutationHandler(app),
     'message.create': new MessageCreateMutationHandler(app),

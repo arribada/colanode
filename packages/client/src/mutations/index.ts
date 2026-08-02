@@ -48,6 +48,7 @@ export * from './apps/tab-delete';
 export * from './nodes/node-delete';
 export * from './nodes/node-create';
 export * from './pages/page-duplicate';
+export * from './pages/page-transfer';
 export * from './nodes/node-update';
 export * from './nodes/node-trash';
 export * from './nodes/node-restore';
