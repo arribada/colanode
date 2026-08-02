@@ -1,9 +1,9 @@
 // ABOUTME: Deep-copies a page together with its ENTIRE descendant subtree —
-// ABOUTME: child pages, databases (+ views + records), whiteboards and folders.
+// ABOUTME: pages, databases (+ views + records), whiteboards, folders and files.
 
-import { SelectNode } from '@colanode/client/databases';
+import type { SelectNode } from '@colanode/client/databases';
 import { duplicateNodeDocument } from '@colanode/client/lib/node-document-copy';
-import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
+import type { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 import {
   DatabaseAttributes,
   IdType,
@@ -37,11 +37,12 @@ export interface DuplicatePageSubtreeOptions {
 }
 
 // The node types copied as part of a page subtree: pages, databases (together
-// with their database_view + record children), whiteboards and folders. Files
-// are intentionally excluded — they point at binary blobs in object storage
-// that a local re-parent cannot duplicate — and messaging nodes (channel/chat/
-// message) never live under a page. A reference block/value pointing at an
-// excluded node keeps pointing at the original (the nodeIdMap falls back to it).
+// with their database_view + record children), whiteboards, folders and files.
+// Files are copied best-effort — only when their blob is present locally (see
+// the pre-filter below); a file with no local blob is skipped rather than
+// copied as a broken, contentless node. Messaging nodes (channel/chat/message)
+// never live under a page. A reference block/value pointing at a skipped node
+// keeps pointing at the original (the nodeIdMap falls back to it).
 const COPYABLE_TYPES: NodeType[] = [
   'page',
   'database',
@@ -49,9 +50,12 @@ const COPYABLE_TYPES: NodeType[] = [
   'record',
   'whiteboard',
   'folder',
+  'file',
 ];
 
-const idTypeForNodeType = (type: NodeType): IdType => {
+// Exported (with the remap helpers below) for unit testing the reference-
+// remapping logic; not part of the module's intended public surface.
+export const idTypeForNodeType = (type: NodeType): IdType => {
   switch (type) {
     case 'database':
       return IdType.Database;
@@ -63,6 +67,8 @@ const idTypeForNodeType = (type: NodeType): IdType => {
       return IdType.Whiteboard;
     case 'folder':
       return IdType.Folder;
+    case 'file':
+      return IdType.File;
     case 'page':
     default:
       return IdType.Page;
@@ -75,7 +81,7 @@ const idTypeForNodeType = (type: NodeType): IdType => {
 // pointing at the original (nodeIdMap fallback). Every other field definition
 // (and rollup's internal relationFieldId, which is a field id — not a node id)
 // is left untouched.
-const remapDatabaseFields = (
+export const remapDatabaseFields = (
   fields: DatabaseAttributes['fields'],
   nodeIdMap: Map<string, string>
 ): DatabaseAttributes['fields'] => {
@@ -100,7 +106,7 @@ const remapDatabaseFields = (
 // unique and type-prefixed, so a select-option id, url or free-text value can
 // never collide, and a relation pointing outside the subtree falls back to the
 // original id.
-const remapRecordFields = (
+export const remapRecordFields = (
   fields: RecordAttributes['fields'],
   nodeIdMap: Map<string, string>
 ): RecordAttributes['fields'] => {
@@ -125,9 +131,10 @@ const remapRecordFields = (
 
 // Builds the attributes for a copied DESCENDANT node: its new parent, its
 // remapped references, and (for pages/records) template-ness stripped so a
-// copied child of a template is never itself a template. The caller owns the
-// ROOT separately (see transformRootAttributes).
-const buildDescendantAttributes = (
+// copied child of a template is never itself a template. Files are handled
+// separately (they carry a blob, not attributes-only), so they never reach
+// here. The caller owns the ROOT separately (see transformRootAttributes).
+export const buildDescendantAttributes = (
   attributes: NodeAttributes,
   newParentId: string,
   nodeIdMap: Map<string, string>
@@ -161,8 +168,8 @@ const buildDescendantAttributes = (
       // parent — so these copy verbatim save for the new parent.
       return { ...attributes, parentId: newParentId };
     default:
-      // Unreachable: COPYABLE_TYPES never collects other node types. Returned
-      // as-is so the switch stays exhaustive without throwing mid-copy.
+      // Unreachable: COPYABLE_TYPES only yields the types above (files are
+      // handled before this). Returned as-is so the switch stays exhaustive.
       return attributes;
   }
 };
@@ -219,13 +226,14 @@ const collectSubtree = async (
 
 // Deep-copies a page's FULL subtree: the page itself plus every descendant of a
 // copyable type (pages, databases with their views + records, whiteboards,
-// folders). Files and messaging nodes are not copied (see COPYABLE_TYPES).
+// folders and — best-effort — files). Messaging nodes are not copied, and a
+// file whose blob is not present locally is skipped (see COPYABLE_TYPES).
 //
 // The whole old->new node id map is built UP FRONT so that a reference/mention
 // block OR a relation field value anywhere in the subtree remaps to the copied
 // node it points at (a reference can point at any node in the subtree, in any
-// direction). References that point OUTSIDE the copied subtree keep pointing at
-// the original node — every remap falls back to the original id when unmapped.
+// direction). References that point OUTSIDE the copied subtree — or at a skipped
+// file — keep pointing at the original node (every remap falls back to it).
 //
 // Nodes are inserted parent-before-child (the BFS order) so every insert finds
 // its already-created new parent (insertNode derives the new root_id from that
@@ -243,6 +251,15 @@ export const duplicatePageSubtree = async (
 
   const orderedRows = await collectSubtree(workspace, sourcePageId);
 
+  // Files can only be copied when their blob is present locally; pre-compute
+  // which are copyable so non-copyable ones are neither id-mapped nor inserted
+  // (references to them then fall back to the original file).
+  const fileIds = orderedRows
+    .filter((row) => row.type === 'file')
+    .map((row) => row.id);
+  const copyableFileIds =
+    await workspace.files.getLocallyAvailableFileIds(fileIds);
+
   // Build the full node id map BEFORE inserting anything, so a reference in any
   // node can be remapped to its copied target regardless of processing order.
   const nodeIdMap = new Map<string, string>();
@@ -251,12 +268,24 @@ export const duplicatePageSubtree = async (
     if (nodeIdMap.has(row.id)) {
       continue;
     }
+    if (row.type === 'file' && !copyableFileIds.has(row.id)) {
+      continue;
+    }
     nodeIdMap.set(row.id, generateId(idTypeForNodeType(row.type as NodeType)));
   }
 
   for (const row of orderedRows) {
     const newId = nodeIdMap.get(row.id);
     if (!newId) {
+      // A skipped file (blob not available locally).
+      continue;
+    }
+
+    if (row.type === 'file') {
+      // Files carry a binary blob, not a rich-text document: duplicate the node
+      // + copy the local blob (+ queue its own upload) through the file service.
+      const newParentId = nodeIdMap.get(row.parent_id ?? '') ?? newRootId;
+      await workspace.files.duplicateFile(row, newId, newParentId);
       continue;
     }
 

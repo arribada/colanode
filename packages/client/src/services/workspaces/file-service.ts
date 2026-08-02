@@ -208,6 +208,155 @@ export class FileService {
     );
   }
 
+  // Returns the subset of the given file ids whose blob is present locally (a
+  // completed local_files row) — i.e. the files whose content can be copied
+  // client-side. Used before duplicating a subtree so a file with no local
+  // blob is skipped rather than copied as a broken, contentless node.
+  public async getLocallyAvailableFileIds(
+    fileIds: string[]
+  ): Promise<Set<string>> {
+    if (fileIds.length === 0) {
+      return new Set();
+    }
+
+    const rows = await this.workspace.database
+      .selectFrom('local_files')
+      .select('id')
+      .where('id', 'in', fileIds)
+      .where('download_status', '=', DownloadStatus.Completed)
+      .execute();
+
+    return new Set(rows.map((row) => row.id));
+  }
+
+  // Duplicates an existing file node — its attributes AND its local blob — into
+  // a new file node under newParentId. Assumes the source blob is available
+  // locally (callers pre-filter via getLocallyAvailableFileIds); it mirrors
+  // createFile's local_files + uploads + upload-job wiring so the copy pushes
+  // its own blob to the server, independent of the original.
+  public async duplicateFile(
+    sourceNode: SelectNode,
+    newFileId: string,
+    newParentId: string
+  ): Promise<void> {
+    if (sourceNode.type !== 'file') {
+      return;
+    }
+
+    const sourceAttributes = JSON.parse(sourceNode.attributes) as FileAttributes;
+    const sourcePath = this.buildFilePath(
+      sourceNode.id,
+      sourceAttributes.extension
+    );
+    const destinationPath = this.buildFilePath(
+      newFileId,
+      sourceAttributes.extension
+    );
+
+    await this.app.fs.makeDirectory(this.filesDir);
+    await this.app.fs.copy(sourcePath, destinationPath);
+
+    const attributes: FileAttributes = {
+      type: 'file',
+      subtype: sourceAttributes.subtype,
+      parentId: newParentId,
+      name: sourceAttributes.name,
+      originalName: sourceAttributes.originalName,
+      extension: sourceAttributes.extension,
+      mimeType: sourceAttributes.mimeType,
+      size: sourceAttributes.size,
+      status: FileStatus.Pending,
+      version: generateId(IdType.Version),
+    };
+
+    if (sourceAttributes.index != null) {
+      attributes.index = sourceAttributes.index;
+    }
+
+    const createdNode = await this.workspace.nodes.createNode({
+      id: newFileId,
+      attributes: attributes,
+      parentId: newParentId,
+    });
+
+    const createdLocalFile = await this.workspace.database
+      .insertInto('local_files')
+      .returningAll()
+      .values({
+        id: newFileId,
+        version: generateId(IdType.Version),
+        created_at: new Date().toISOString(),
+        path: destinationPath,
+        opened_at: new Date().toISOString(),
+        download_status: DownloadStatus.Completed,
+        download_progress: 100,
+        download_completed_at: new Date().toISOString(),
+        download_error_code: null,
+        download_error_message: null,
+        download_retries: 0,
+      })
+      .executeTakeFirst();
+
+    if (!createdLocalFile) {
+      throw new MutationError(
+        MutationErrorCode.FileCreateFailed,
+        'Failed to create file state'
+      );
+    }
+
+    const createdUpload = await this.workspace.database
+      .insertInto('uploads')
+      .returningAll()
+      .values({
+        file_id: newFileId,
+        status: UploadStatus.Pending,
+        retries: 0,
+        created_at: createdNode.created_at,
+        progress: 0,
+      })
+      .executeTakeFirst();
+
+    if (!createdUpload) {
+      throw new MutationError(
+        MutationErrorCode.FileCreateFailed,
+        'Failed to create upload'
+      );
+    }
+
+    const url = await this.app.fs.url(createdLocalFile.path);
+
+    eventBus.publish({
+      type: 'local.file.created',
+      workspace: {
+        workspaceId: this.workspace.workspaceId,
+        userId: this.workspace.userId,
+        accountId: this.workspace.accountId,
+      },
+      localFile: mapLocalFile(createdLocalFile, url),
+    });
+
+    eventBus.publish({
+      type: 'upload.created',
+      workspace: {
+        workspaceId: this.workspace.workspaceId,
+        userId: this.workspace.userId,
+        accountId: this.workspace.accountId,
+      },
+      upload: mapUpload(createdUpload),
+    });
+
+    this.app.jobs.addJob(
+      {
+        type: 'file.upload',
+        userId: this.workspace.userId,
+        fileId: newFileId,
+      },
+      {
+        delay: ms('2 seconds'),
+      }
+    );
+  }
+
   public async deleteFile(node: SelectNode): Promise<void> {
     const file = mapNode(node);
 
