@@ -4,7 +4,7 @@ import { EditorCommand } from '@colanode/client/types';
 
 export const PlaneCommand: EditorCommand = {
   key: 'plane',
-  name: 'Projet Plane',
+  name: 'Plane project',
   description: 'Embed links to a Plane project (read-only)',
   keywords: [
     'plane',

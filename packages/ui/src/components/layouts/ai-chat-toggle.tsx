@@ -15,13 +15,13 @@ export const AiChatToggle = () => {
   return (
     <button
       type="button"
-      aria-label="Ouvrir l’assistant IA"
-      title="Assistant IA"
+      aria-label="Open the AI assistant"
+      title="AI assistant"
       onClick={openPanel}
       className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-lg transition-colors hover:bg-accent hover:text-accent-foreground"
     >
       <Sparkles className="size-4 text-primary" />
-      Assistant IA
+      AI assistant
     </button>
   );
 };

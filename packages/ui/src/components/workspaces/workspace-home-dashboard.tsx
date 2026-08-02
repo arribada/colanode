@@ -1,4 +1,4 @@
-import { useLiveQuery } from '@tanstack/react-db';
+import { inArray, useLiveQuery } from '@tanstack/react-db';
 import {
   ArrowUpRight,
   Bell,
@@ -11,6 +11,7 @@ import {
   MessagesSquare,
   Satellite,
 } from 'lucide-react';
+import { useMemo } from 'react';
 
 import { timeAgo } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
@@ -27,6 +28,12 @@ const RECENT_TYPES = new Set<string>([
   'folder',
   'whiteboard',
 ]);
+
+// The node types the dashboard actually reads: the "Recently updated" feed
+// (RECENT_TYPES), the Spaces grid ('space'), and the notification/task name
+// lookups (whose source nodes are pages/records/etc., all in RECENT_TYPES). The
+// query filters to these so the home screen never materialises the whole wiki.
+const HOME_NODE_TYPES = [...RECENT_TYPES, 'space'];
 
 // Live/healthy Arribada apps. Chat = Mattermost (chat.arribada.org): the
 // production chat is Mattermost; the droplet's Zulip is only an eval instance.
@@ -85,7 +92,10 @@ export const WorkspaceHomeDashboard = () => {
   const workspace = useWorkspace();
 
   const nodeListQuery = useLiveQuery(
-    (q) => q.from({ nodes: workspace.collections.nodes }),
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => inArray(nodes.type, HOME_NODE_TYPES)),
     [workspace.userId]
   );
 
@@ -94,17 +104,33 @@ export const WorkspaceHomeDashboard = () => {
     userId: workspace.userId,
   });
 
-  const allNodes = nodeListQuery.data ?? [];
-  const nodeById = new Map(allNodes.map((node) => [node.id, node]));
+  const allNodes = useMemo(
+    () => nodeListQuery.data ?? [],
+    [nodeListQuery.data]
+  );
 
-  const spaces = allNodes.filter((node) => node.type === 'space');
+  const nodeById = useMemo(
+    () => new Map(allNodes.map((node) => [node.id, node])),
+    [allNodes]
+  );
 
-  const recent = [...allNodes]
-    .filter((node) => RECENT_TYPES.has(node.type))
-    .sort((a, b) =>
-      (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt)
-    )
-    .slice(0, 8);
+  const spaces = useMemo(
+    () => allNodes.filter((node) => node.type === 'space'),
+    [allNodes]
+  );
+
+  const recent = useMemo(
+    () =>
+      [...allNodes]
+        .filter((node) => RECENT_TYPES.has(node.type))
+        .sort((a, b) =>
+          (b.updatedAt ?? b.createdAt).localeCompare(
+            a.updatedAt ?? a.createdAt
+          )
+        )
+        .slice(0, 8),
+    [allNodes]
+  );
 
   const notifications = notificationsQuery.data ?? [];
   // Task assignments (from the wiki-task automations) go in "Your wiki tasks";

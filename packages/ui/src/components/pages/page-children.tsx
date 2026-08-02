@@ -37,7 +37,7 @@ export const PageChildren = ({ nodeId }: PageChildrenProps) => {
   return (
     <div className="mt-8 border-t pt-2" data-testid="page-children">
       <p className="px-1.5 py-1 text-sm text-muted-foreground">
-        Sous-pages ({children.length})
+        Sub-pages ({children.length})
       </p>
       <div className="flex flex-col gap-0.5 pt-1">
         {children.map((child) => {

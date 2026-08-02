@@ -2,7 +2,11 @@ import { Check, ChevronDown } from 'lucide-react';
 import { ReactNode, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-import { anthropicChatModels, hasWorkspaceRole } from '@colanode/core';
+import {
+  AiProviderName,
+  anthropicChatModels,
+  hasWorkspaceRole,
+} from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Checkbox } from '@colanode/ui/components/ui/checkbox';
 import {
@@ -28,6 +32,32 @@ const MODEL_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_MODEL = anthropicChatModels[0];
+
+// The AI providers this deployment can talk to. The values are exactly what the
+// server's aiProviderNameSchema accepts; 'openai' covers any OpenAI-compatible
+// endpoint (e.g. Groq).
+const PROVIDER_OPTIONS: { value: AiProviderName; label: string }[] = [
+  { value: 'anthropic', label: 'Anthropic (Claude)' },
+  { value: 'openai', label: 'OpenAI-compatible / Groq' },
+];
+
+// Trigger/label for every provider the server accepts (a stored 'google' key
+// still resolves a label even though it isn't offered in the picker above).
+const PROVIDER_LABELS: Record<AiProviderName, string> = {
+  anthropic: 'Anthropic (Claude)',
+  openai: 'OpenAI-compatible / Groq',
+  google: 'Google (Gemini)',
+};
+
+// Anthropic ships a fixed model list; every other provider takes a free-text
+// model id (e.g. Groq's 'llama-3.3-70b-versatile').
+const isAnthropic = (provider: AiProviderName): boolean =>
+  provider === 'anthropic';
+
+// Narrow the server's stored provider string to a known provider, defaulting to
+// Anthropic for anything unexpected.
+const toProviderName = (value: string | null): AiProviderName =>
+  value === 'openai' || value === 'google' ? value : 'anthropic';
 
 // Shared shape of both the personal (ai.settings.get) and team
 // (ai.settings.workspace.get) query outputs, as far as this UI cares.
@@ -76,6 +106,7 @@ const AiSettingsSection = ({
   const [isTesting, setIsTesting] = useState(false);
 
   const [enabled, setEnabled] = useState(false);
+  const [provider, setProvider] = useState<AiProviderName>('anthropic');
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [apiKey, setApiKey] = useState('');
 
@@ -86,15 +117,39 @@ const AiSettingsSection = ({
       return;
     }
     setEnabled(settings.enabled);
+    setProvider(toProviderName(settings.provider));
     setModel(settings.model ?? DEFAULT_MODEL);
   }, [settings]);
 
   const hasSavedKey = settings?.hasApiKey ?? false;
   const idPrefix = `ai-${variant}`;
 
+  // Switching provider keeps the model sensible: snap to a known Claude model
+  // when returning to Anthropic, and clear a Claude model id when leaving it so
+  // the free-text field starts empty.
+  const handleProviderChange = (next: AiProviderName) => {
+    setProvider(next);
+    const isKnownAnthropicModel = (
+      anthropicChatModels as readonly string[]
+    ).includes(model);
+    if (next === 'anthropic') {
+      if (!isKnownAnthropicModel) {
+        setModel(DEFAULT_MODEL);
+      }
+    } else if (isKnownAnthropicModel) {
+      setModel('');
+    }
+  };
+
   const handleSave = () => {
     if (enabled && !hasSavedKey && apiKey.trim().length === 0) {
-      toast.error('Enter an Anthropic API key to enable the AI assistant.');
+      toast.error('Enter an API key to enable the AI assistant.');
+      return;
+    }
+
+    const trimmedModel = model.trim();
+    if (trimmedModel.length === 0) {
+      toast.error('Enter a model name (for example llama-3.3-70b-versatile).');
       return;
     }
 
@@ -116,8 +171,8 @@ const AiSettingsSection = ({
           type: 'ai.settings.workspace.update',
           userId,
           enabled,
-          provider: 'anthropic',
-          model,
+          provider,
+          model: trimmedModel,
           apiKey: apiKeyToSend,
         },
         onSuccess,
@@ -129,8 +184,8 @@ const AiSettingsSection = ({
           type: 'ai.settings.update',
           userId,
           enabled,
-          provider: 'anthropic',
-          model,
+          provider,
+          model: trimmedModel,
           apiKey: apiKeyToSend,
         },
         onSuccess,
@@ -152,7 +207,7 @@ const AiSettingsSection = ({
       },
       onSuccess(output) {
         setIsTesting(false);
-        toast.success(`Claude replied: ${output.text.trim().slice(0, 80)}`);
+        toast.success(`AI replied: ${output.text.trim().slice(0, 80)}`);
       },
       onError(error) {
         setIsTesting(false);
@@ -191,13 +246,37 @@ const AiSettingsSection = ({
 
           <div className="space-y-2">
             <Label>Provider</Label>
-            <div className="flex h-9 w-full max-w-sm items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
-              Anthropic — Claude
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full max-w-sm justify-between font-normal"
+                >
+                  {PROVIDER_LABELS[provider]}
+                  <ChevronDown className="size-4 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+              >
+                {PROVIDER_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.value}
+                    className="flex items-center justify-between gap-2 cursor-pointer"
+                    onSelect={() => handleProviderChange(option.value)}
+                  >
+                    {option.label}
+                    {provider === option.value && <Check className="size-4" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-api-key`}>Anthropic API key</Label>
+            <Label htmlFor={`${idPrefix}-api-key`}>API key</Label>
             <Input
               id={`${idPrefix}-api-key`}
               type="password"
@@ -206,7 +285,9 @@ const AiSettingsSection = ({
               placeholder={
                 hasSavedKey
                   ? 'A key is saved — leave blank to keep it'
-                  : 'sk-ant-…'
+                  : isAnthropic(provider)
+                    ? 'sk-ant-…'
+                    : 'Your API key'
               }
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
@@ -220,33 +301,51 @@ const AiSettingsSection = ({
 
           <div className="space-y-2">
             <Label>Model</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full max-w-sm justify-between font-normal"
-                >
-                  {MODEL_LABELS[model] ?? model}
-                  <ChevronDown className="size-4 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
-              >
-                {anthropicChatModels.map((m) => (
-                  <DropdownMenuItem
-                    key={m}
-                    className="flex items-center justify-between gap-2 cursor-pointer"
-                    onSelect={() => setModel(m)}
+            {isAnthropic(provider) ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full max-w-sm justify-between font-normal"
                   >
-                    {MODEL_LABELS[m] ?? m}
-                    {model === m && <Check className="size-4" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    {MODEL_LABELS[model] ?? model}
+                    <ChevronDown className="size-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+                >
+                  {anthropicChatModels.map((m) => (
+                    <DropdownMenuItem
+                      key={m}
+                      className="flex items-center justify-between gap-2 cursor-pointer"
+                      onSelect={() => setModel(m)}
+                    >
+                      {MODEL_LABELS[m] ?? m}
+                      {model === m && <Check className="size-4" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Input
+                  id={`${idPrefix}-model`}
+                  type="text"
+                  autoComplete="off"
+                  className="max-w-sm"
+                  placeholder="llama-3.3-70b-versatile"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the exact model id your provider expects (e.g.
+                  llama-3.3-70b-versatile).
+                </p>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3 pt-1">
@@ -265,7 +364,7 @@ const AiSettingsSection = ({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            “Test the connection” sends a small real request to Claude with the
+            “Test the connection” sends a small real request to the AI with the
             saved settings. Save first if you’ve just changed the key.
           </p>
         </div>
@@ -309,10 +408,10 @@ export const WorkspaceAiSettings = () => {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">AI assistant</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Use Claude (Anthropic) directly in the editor to improve, summarise,
+          Use AI in the editor to improve, summarise,
           translate and generate text — and let the AI agent create or edit wiki
-          pages. Get a key at{' '}
-          <span className="font-mono">console.anthropic.com</span>.
+          pages. Bring your own key from Anthropic (Claude) or an
+          OpenAI-compatible provider such as Groq.
         </p>
         <Separator className="mt-3" />
       </div>

@@ -193,7 +193,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
             onClick={() => {
               const exporter = getDocumentExporter(page.id);
               if (!exporter) {
-                toast.error('Ouvrez la page pour l\u2019exporter');
+                toast.error('Open the page to export it');
                 return;
               }
               downloadTextFile(
@@ -204,7 +204,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
             }}
           >
             <FileDown className="size-4" />
-            Exporter en Markdown
+            Export as Markdown
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
@@ -224,7 +224,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
             }}
           >
             <Printer className="size-4" />
-            Imprimer / PDF
+            Print / PDF
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

@@ -207,7 +207,18 @@ export const useSidebarNodeDnd = (
     const after = zone === 'before' ? node : ordered[targetPos + 1];
     const lowKey = before ? (tree.childKey(before.id) ?? null) : null;
     const highKey = after ? (tree.childKey(after.id) ?? null) : null;
-    const newIndex = generateFractionalIndex(lowKey, highKey);
+
+    // generateFractionalIndex (generateKeyBetween) throws when the bounds are
+    // equal or out of order — reachable when a sibling carries a custom index
+    // equal to another's positional default. Don't let it throw inside the
+    // react-dnd drop handler: skip the reorder and tell the user.
+    let newIndex: string;
+    try {
+      newIndex = generateFractionalIndex(lowKey, highKey);
+    } catch {
+      toast.error(`Couldn't reorder "${item.name}"`);
+      return;
+    }
 
     updateNode(dragged, { parentId, index: newIndex }, item.name);
   };
