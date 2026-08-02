@@ -45,7 +45,7 @@ export const HighlightButton = ({
       >
         <span
           className={cn(
-            'flex size-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
+            'flex size-9 sm:size-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
             activeHighlight.bgClass,
             activeHighlight.bgHoverClass
           )}

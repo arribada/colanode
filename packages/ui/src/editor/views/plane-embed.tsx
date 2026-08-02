@@ -1,8 +1,9 @@
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
-import { ExternalLink, FolderKanban } from 'lucide-react';
+import { ExternalLink, FolderKanban, RotateCw } from 'lucide-react';
 
 import { PlaneBoardIssue } from '@colanode/core';
+import { Spinner } from '@colanode/ui/components/ui/spinner';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useQuery } from '@colanode/ui/hooks/use-query';
 
@@ -27,6 +28,40 @@ const priorityColor = (priority: string): string | null => {
       return null;
   }
 };
+
+// A small, keyboard-accessible button that re-runs the board/projects query.
+// Used both for error recovery and for an explicit manual reload.
+const PlaneRetryButton = ({
+  onRetry,
+  busy,
+  label,
+  compact = false,
+}: {
+  onRetry: () => void;
+  busy: boolean;
+  label: string;
+  compact?: boolean;
+}) => (
+  <button
+    type="button"
+    onClick={onRetry}
+    disabled={busy}
+    aria-label={label}
+    title={compact ? label : undefined}
+    className={
+      compact
+        ? 'flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60'
+        : 'inline-flex items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60'
+    }
+  >
+    {busy ? (
+      <Spinner className="size-3.5" />
+    ) : (
+      <RotateCw className="size-3.5" />
+    )}
+    {compact ? null : 'Retry'}
+  </button>
+);
 
 const PlaneIssueLinkRow = ({
   issue,
@@ -93,7 +128,7 @@ const PlaneEmbedPicker = ({
   updateAttributes: NodeViewProps['updateAttributes'];
 }) => {
   const workspace = useWorkspace();
-  const { data, isLoading, isError } = useQuery(
+  const { data, isLoading, isError, isFetching, refetch } = useQuery(
     { type: 'plane.projects.list', userId: workspace.userId },
     { staleTime: 60_000, retry: false }
   );
@@ -108,12 +143,22 @@ const PlaneEmbedPicker = ({
         Plane project
       </div>
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading projects&hellip;</p>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner className="size-4" />
+          Loading projects&hellip;
+        </div>
       ) : isError || !data ? (
-        <p className="text-sm text-muted-foreground">
-          Couldn&apos;t load Plane projects. Check that the integration is
-          enabled.
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-muted-foreground">
+            Couldn&apos;t load Plane projects. Check that the integration is
+            enabled.
+          </p>
+          <PlaneRetryButton
+            onRetry={() => refetch()}
+            busy={isFetching}
+            label="Retry loading Plane projects"
+          />
+        </div>
       ) : data.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No Plane projects available.
@@ -121,6 +166,7 @@ const PlaneEmbedPicker = ({
       ) : (
         <select
           defaultValue=""
+          aria-label="Choose a Plane project"
           onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => {
             const projectId = e.target.value;
@@ -149,14 +195,15 @@ const PlaneEmbedPicker = ({
 // The read-only link hub for a chosen project.
 const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
   const workspace = useWorkspace();
-  const { data, isLoading, isError } = useQuery(
+  const { data, isLoading, isError, isFetching, refetch } = useQuery(
     { type: 'plane.project.board', userId: workspace.userId, projectId },
     { enabled: projectId.length > 0, staleTime: 30_000, retry: false }
   );
 
   if (isLoading) {
     return (
-      <div className="p-3 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+        <Spinner className="size-4" />
         Loading the Plane project&hellip;
       </div>
     );
@@ -164,9 +211,16 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
 
   if (isError || !data) {
     return (
-      <div className="p-3 text-sm text-muted-foreground">
-        Couldn&apos;t load the Plane project. Check that the integration is
-        enabled.
+      <div className="flex flex-col items-start gap-2 p-3">
+        <p className="text-sm text-muted-foreground">
+          Couldn&apos;t load the Plane project. Check that the integration is
+          enabled.
+        </p>
+        <PlaneRetryButton
+          onRetry={() => refetch()}
+          busy={isFetching}
+          label="Retry loading the Plane project"
+        />
       </div>
     );
   }
@@ -196,6 +250,12 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
           </span>
           <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
         </a>
+        <PlaneRetryButton
+          onRetry={() => refetch()}
+          busy={isFetching}
+          label="Reload the Plane project"
+          compact
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 px-3 py-1.5">

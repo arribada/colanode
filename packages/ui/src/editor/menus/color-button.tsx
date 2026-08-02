@@ -43,7 +43,7 @@ export const ColorButton = ({
         aria-label="Text color"
         data-testid="editor-toolbar-text-color"
       >
-        <span className="flex size-8 items-center justify-center rounded-md cursor-pointer hover:bg-input">
+        <span className="flex size-9 sm:size-8 items-center justify-center rounded-md cursor-pointer hover:bg-input">
           <Baseline className={cn('size-4', activeColor.textClass)} />
         </span>
       </PopoverTrigger>

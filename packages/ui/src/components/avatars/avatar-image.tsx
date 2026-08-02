@@ -41,7 +41,7 @@ export const AvatarImage = (props: AvatarProps) => {
         'object-cover rounded',
         props.className
       )}
-      alt={'Custom Avatar'}
+      alt={props.name ? props.name : 'Avatar'}
       onError={() => setFailed(true)}
     />
   );

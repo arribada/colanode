@@ -57,7 +57,7 @@ export const LinkButton = ({ editor, isOpen, setIsOpen }: LinkButtonProps) => {
       >
         <span
           className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
+            'flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
             state?.isActive && 'bg-input'
           )}
         >

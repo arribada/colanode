@@ -210,7 +210,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
         >
           <span
             className={cn(
-              'flex h-8 items-center justify-center gap-1 rounded-md px-2 cursor-pointer text-primary hover:bg-input',
+              'flex h-9 sm:h-8 items-center justify-center gap-1 rounded-md px-2 cursor-pointer text-primary hover:bg-input',
               isOpen && 'bg-input'
             )}
           >

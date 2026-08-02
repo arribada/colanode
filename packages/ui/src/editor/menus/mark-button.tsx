@@ -22,7 +22,7 @@ export const MarkButton = ({
       aria-pressed={isActive}
       data-testid={testId}
       className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
+        'flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-md cursor-pointer hover:bg-input',
         isActive && 'bg-input'
       )}
       onClick={onClick}
