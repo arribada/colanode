@@ -224,6 +224,30 @@ const collectSubtree = async (
   return ordered;
 };
 
+// Best-effort rollback for a failed copy: soft-delete (trash) the new root so
+// its partially-created subtree is hidden rather than left orphaned+visible in
+// the tree (a trashed root hides its descendants). This is not a transaction —
+// any file blobs already copied + their queued uploads are left to the normal
+// cleanup — but nothing half-created stays visible. The root may not exist yet
+// (if the very first insert failed), so failures here are swallowed.
+const trashNewRoot = async (
+  workspace: WorkspaceService,
+  newRootId: string
+): Promise<void> => {
+  try {
+    await workspace.nodes.updateNode<PageAttributes>(
+      newRootId,
+      (attributes) => {
+        attributes.deletedAt = new Date().toISOString();
+        attributes.deletedBy = workspace.userId;
+        return attributes;
+      }
+    );
+  } catch {
+    // The root was never created (or is already gone) — nothing to roll back.
+  }
+};
+
 // Deep-copies a page's FULL subtree: the page itself plus every descendant of a
 // copyable type (pages, databases with their views + records, whiteboards,
 // folders and — best-effort — files). Messaging nodes are not copied, and a
@@ -274,45 +298,52 @@ export const duplicatePageSubtree = async (
     nodeIdMap.set(row.id, generateId(idTypeForNodeType(row.type as NodeType)));
   }
 
-  for (const row of orderedRows) {
-    const newId = nodeIdMap.get(row.id);
-    if (!newId) {
-      // A skipped file (blob not available locally).
-      continue;
-    }
-
-    if (row.type === 'file') {
-      // Files carry a binary blob, not a rich-text document: duplicate the node
-      // + copy the local blob (+ queue its own upload) through the file service.
-      const newParentId = nodeIdMap.get(row.parent_id ?? '') ?? newRootId;
-      await workspace.files.duplicateFile(row, newId, newParentId);
-      continue;
-    }
-
-    const attributes = JSON.parse(row.attributes) as NodeAttributes;
-
-    if (row.id === sourcePageId) {
-      // The caller owns the root (always a page): it picks the parent and
-      // rewrites the root's attributes (rename / mark template / strip markers).
-      if (attributes.type !== 'page') {
+  // Insert everything; if any step throws mid-copy, roll back by trashing the
+  // new root so no partial subtree is left visible.
+  try {
+    for (const row of orderedRows) {
+      const newId = nodeIdMap.get(row.id);
+      if (!newId) {
+        // A skipped file (blob not available locally).
         continue;
       }
-      await workspace.nodes.insertNode(newId, {
-        ...transformRootAttributes(attributes),
-        parentId: rootParentId,
-      });
-    } else {
-      const newParentId = nodeIdMap.get(row.parent_id ?? '') ?? newRootId;
-      await workspace.nodes.insertNode(
-        newId,
-        buildDescendantAttributes(attributes, newParentId, nodeIdMap)
-      );
-    }
 
-    // Pages and records carry rich-text documents; databases/views/whiteboards/
-    // folders have none, in which case this is a no-op (no source document row).
-    // Reference blocks in the copied document are remapped through the shared map.
-    await duplicateNodeDocument(workspace, row.id, newId, nodeIdMap);
+      if (row.type === 'file') {
+        // Files carry a binary blob, not a rich-text document: duplicate the
+        // node + copy the local blob (+ queue its upload) via the file service.
+        const newParentId = nodeIdMap.get(row.parent_id ?? '') ?? newRootId;
+        await workspace.files.duplicateFile(row, newId, newParentId);
+        continue;
+      }
+
+      const attributes = JSON.parse(row.attributes) as NodeAttributes;
+
+      if (row.id === sourcePageId) {
+        // The caller owns the root (always a page): it picks the parent and
+        // rewrites the root's attributes (rename / mark template / strip).
+        if (attributes.type !== 'page') {
+          continue;
+        }
+        await workspace.nodes.insertNode(newId, {
+          ...transformRootAttributes(attributes),
+          parentId: rootParentId,
+        });
+      } else {
+        const newParentId = nodeIdMap.get(row.parent_id ?? '') ?? newRootId;
+        await workspace.nodes.insertNode(
+          newId,
+          buildDescendantAttributes(attributes, newParentId, nodeIdMap)
+        );
+      }
+
+      // Pages and records carry rich-text documents; databases/views/
+      // whiteboards/folders have none (then this is a no-op). Reference blocks
+      // in the copied document are remapped through the shared map.
+      await duplicateNodeDocument(workspace, row.id, newId, nodeIdMap);
+    }
+  } catch (error) {
+    await trashNewRoot(workspace, newRootId);
+    throw error;
   }
 
   return nodeIdMap;

@@ -35,6 +35,30 @@ export const mapCopiedBlockId = (
   return generateId(IdType.Block);
 };
 
+// Inline mentions (leaf.type === 'mention') carry the mentioned node id in
+// leaf.attrs.target; remap it to the copied node when that node was duplicated
+// alongside this document, so a mention of a copied sub-node points at the copy
+// (a mention of a node outside the subtree falls back to the original id).
+export const remapBlockMentions = (
+  block: Block,
+  nodeIdMap: Map<string, string>
+): void => {
+  if (!block.content) {
+    return;
+  }
+
+  for (const leaf of block.content) {
+    if (leaf.type !== 'mention' || !leaf.attrs) {
+      continue;
+    }
+
+    const target = leaf.attrs['target'];
+    if (typeof target === 'string') {
+      leaf.attrs['target'] = nodeIdMap.get(target) ?? target;
+    }
+  }
+};
+
 // Copies the document belonging to sourceId onto targetId. nodeIdMap maps
 // old node ids to their newly duplicated counterparts (targetId must already
 // be registered under sourceId) so that reference blocks keep pointing at the
@@ -77,6 +101,7 @@ export const duplicateNodeDocument = async (
     const copied = JSON.parse(JSON.stringify(block)) as Block;
     copied.id = newId;
     copied.parentId = blockIdMap.get(block.parentId) ?? targetId;
+    remapBlockMentions(copied, nodeIdMap);
     newBlocks[newId] = copied;
   }
 
