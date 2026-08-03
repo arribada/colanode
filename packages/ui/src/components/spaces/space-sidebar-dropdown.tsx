@@ -3,7 +3,6 @@ import {
   Database,
   Ellipsis,
   FileStack,
-  Folder,
   MessageCircle,
   Plus,
   Presentation,
@@ -16,7 +15,6 @@ import { toast } from 'sonner';
 import { LocalSpaceNode } from '@colanode/client/types';
 import { ChannelCreateDialog } from '@colanode/ui/components/channels/channel-create-dialog';
 import { DatabaseCreateDialog } from '@colanode/ui/components/databases/database-create-dialog';
-import { FolderCreateDialog } from '@colanode/ui/components/folders/folder-create-dialog';
 import { PageCreateDialog } from '@colanode/ui/components/pages/page-create-dialog';
 import {
   DropdownMenu,
@@ -47,7 +45,6 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
   const [openCreatePage, setOpenCreatePage] = useState(false);
   const [openCreateChannel, setOpenCreateChannel] = useState(false);
   const [openCreateDatabase, setOpenCreateDatabase] = useState(false);
-  const [openCreateFolder, setOpenCreateFolder] = useState(false);
   const [openCreateWhiteboard, setOpenCreateWhiteboard] = useState(false);
 
   const pageTemplatesQuery = useLiveQuery({
@@ -136,13 +133,6 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
             <span>Add database</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onSelect={() => setOpenCreateFolder(true)}
-            className="flex flex-row items-center gap-2 cursor-pointer"
-          >
-            <Folder className="size-4" />
-            <span>Add folder</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
             onSelect={() => setOpenCreateWhiteboard(true)}
             className="flex flex-row items-center gap-2 cursor-pointer"
           >
@@ -195,13 +185,6 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
           spaceId={space.id}
           open={openCreateDatabase}
           onOpenChange={setOpenCreateDatabase}
-        />
-      )}
-      {openCreateFolder && (
-        <FolderCreateDialog
-          spaceId={space.id}
-          open={openCreateFolder}
-          onOpenChange={setOpenCreateFolder}
         />
       )}
       {openCreateWhiteboard && (

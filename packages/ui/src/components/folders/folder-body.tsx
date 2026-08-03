@@ -1,16 +1,22 @@
+import { useNavigate } from '@tanstack/react-router';
 import {
   Check,
   Filter,
   GalleryVertical,
   LayoutGrid,
   List,
+  Plus,
   Upload,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalFolderNode, FolderLayoutType } from '@colanode/client/types';
-import { NodeRole } from '@colanode/core';
+import {
+  LocalFolderNode,
+  LocalPageNode,
+  FolderLayoutType,
+} from '@colanode/client/types';
+import { generateId, IdType, NodeRole } from '@colanode/core';
 import { FolderFiles } from '@colanode/ui/components/folders/folder-files';
 import { Button } from '@colanode/ui/components/ui/button';
 import {
@@ -64,6 +70,7 @@ interface FolderBodyProps {
 
 export const FolderBody = ({ folder }: FolderBodyProps) => {
   const workspace = useWorkspace();
+  const navigate = useNavigate({ from: '/workspace/$userId' });
 
   const [layout, setLayout] = useState<FolderLayoutType>('grid');
 
@@ -93,6 +100,39 @@ export const FolderBody = ({ folder }: FolderBodyProps) => {
     }
   };
 
+  // Folders are now just legacy containers of nested pages/files — the same
+  // "create a child page" affordance a page has, so a folder isn't a dead end
+  // that can only hold uploads. (There is no "new folder" anymore: you create
+  // pages, which can themselves contain children.)
+  const handleCreatePage = () => {
+    const childId = generateId(IdType.Page);
+    const child: LocalPageNode = {
+      id: childId,
+      type: 'page',
+      name: '',
+      avatar: null,
+      parentId: folder.id,
+      rootId: folder.rootId,
+      createdAt: new Date().toISOString(),
+      createdBy: workspace.userId,
+      updatedAt: null,
+      updatedBy: null,
+      localRevision: '0',
+      serverRevision: '0',
+    };
+
+    try {
+      workspace.collections.nodes.insert(child);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Could not create page'
+      );
+      return;
+    }
+
+    navigate({ to: '$nodeId', params: { nodeId: childId } });
+  };
+
   return (
     <Dropzone
       text="Drop files here to upload them in the folder"
@@ -103,6 +143,13 @@ export const FolderBody = ({ folder }: FolderBodyProps) => {
       <div className="flex h-full max-h-full flex-col gap-4 overflow-y-auto">
         <div className="flex flex-row justify-between">
           <div className="flex flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCreatePage}
+            >
+              <Plus className="mr-2 size-4" /> New page
+            </Button>
             <Button
               type="button"
               variant="outline"

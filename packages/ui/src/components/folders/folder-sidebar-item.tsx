@@ -2,7 +2,6 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   ChevronRight,
   FilePlus,
-  FolderPlus,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -109,45 +108,6 @@ export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Could not create page'
-      );
-      return;
-    }
-
-    setOpen(true);
-    navigate({
-      to: '$nodeId',
-      params: {
-        nodeId: childId,
-      },
-    });
-  };
-
-  // "+ folder": create a blank child folder under this one and open it — the
-  // same local insert folder-create-dialog uses, parented to this folder.
-  const handleCreateFolder = () => {
-    const nodes = workspace.collections.nodes;
-    const childId = generateId(IdType.Folder);
-
-    const child: LocalFolderNode = {
-      id: childId,
-      type: 'folder',
-      name: '',
-      avatar: null,
-      parentId: folder.id,
-      rootId: folder.rootId,
-      createdAt: new Date().toISOString(),
-      createdBy: workspace.userId,
-      updatedAt: null,
-      updatedBy: null,
-      localRevision: '0',
-      serverRevision: '0',
-    };
-
-    try {
-      nodes.insert(child);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not create folder'
       );
       return;
     }
@@ -272,10 +232,6 @@ export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
                       <FilePlus className="size-4" />
                       New page
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleCreateFolder()}>
-                      <FolderPlus className="size-4" />
-                      New folder
-                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => startRenaming()}>
                       <Pencil className="size-4" />
                       Rename
@@ -299,10 +255,6 @@ export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
           <ContextMenuItem onClick={() => handleCreatePage()}>
             <FilePlus className="size-4" />
             New page
-          </ContextMenuItem>
-          <ContextMenuItem onClick={() => handleCreateFolder()}>
-            <FolderPlus className="size-4" />
-            New folder
           </ContextMenuItem>
           <ContextMenuItem onClick={() => startRenaming()}>
             <Pencil className="size-4" />

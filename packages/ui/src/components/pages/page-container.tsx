@@ -41,7 +41,7 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
         // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: primary field (page title/content) focused when the page is opened
         autoFocus="start"
       />
-      <PageChildren nodeId={page.id} />
+      <PageChildren nodeId={page.id} rootId={page.rootId} canEdit={canEdit} />
       <DocumentBacklinks nodeId={page.id} />
     </div>
   );
