@@ -7,12 +7,13 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalPageNode } from '@colanode/client/types';
-import { generateId, IdType } from '@colanode/core';
+import { LocalNode, LocalPageNode } from '@colanode/client/types';
+import { extractNodeRole, generateId, hasNodeRole, IdType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { SidebarDropIndicator } from '@colanode/ui/components/layouts/sidebars/sidebar-drop-indicator';
 import {
@@ -21,6 +22,7 @@ import {
 } from '@colanode/ui/components/layouts/sidebars/sidebar-inline-rename';
 import { SidebarItem } from '@colanode/ui/components/layouts/sidebars/sidebar-item';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
+import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageTransferDialog } from '@colanode/ui/components/pages/page-transfer-dialog';
 import {
@@ -64,6 +66,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { isRenaming, startRenaming, cancelRenaming, commitRenaming } =
     useInlineRename(page);
 
@@ -76,6 +79,20 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
     .childrenOf(page.id)
     .filter((child) => PAGE_CHILD_TYPES.includes(child.type));
   const hasChildren = children.length > 0;
+
+  // Resolve this page's effective role from the full ancestor chain
+  // (root -> page), the way NodeProvider does, so the Delete gate honors
+  // node-level collaborators and not just the space grant.
+  const canDelete = useMemo(() => {
+    const chain: LocalNode[] = [];
+    let current: LocalNode | undefined = page;
+    while (current) {
+      chain.unshift(current);
+      current = current.parentId ? tree.nodeById(current.parentId) : undefined;
+    }
+    const role = extractNodeRole(chain, workspace.userId);
+    return role ? hasNodeRole(role, 'editor') : false;
+  }, [page, tree, workspace.userId]);
 
   // Shared by the right-click context menu and the hover "…" menu so both offer
   // exactly the same actions.
@@ -275,6 +292,15 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                       <ArrowRightLeft className="size-4" />
                       Transfer to another workspace…
                     </DropdownMenuItem>
+                    {canDelete && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 className="size-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -307,6 +333,15 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
             <ArrowRightLeft className="size-4" />
             Transfer to another workspace…
           </ContextMenuItem>
+          {canDelete && (
+            <ContextMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </ContextMenuItem>
+          )}
         </ContextMenuContent>
       </ContextMenu>
       {hasChildren && (
@@ -330,6 +365,13 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
           onOpenChange={setTransferOpen}
         />
       )}
+      <NodeDeleteDialog
+        id={page.id}
+        title="Are you sure you want delete this page?"
+        description="This action cannot be undone. This page will no longer be accessible by you or others you've shared it with."
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+      />
     </Collapsible>
   );
 };
