@@ -94,15 +94,6 @@ export const useRecordsQuery = (
           eq((nodes as unknown as LocalRecordNode).databaseId, database.id)
         );
 
-      // Template records live in the same database but must never surface in a
-      // browsing view; this mirrors notTemplateSql on the SQL side. Only rows
-      // explicitly flagged isTemplate === true are dropped (unset/false kept).
-      query = query.where(({ nodes }) => {
-        const isTemplate = (nodes as unknown as LocalRecordNode)
-          .isTemplate as BooleanValueExpression;
-        return or(not(eq(isTemplate, true)), isValueMissing(isTemplate));
-      });
-
       if (hasFilterDefinitions) {
         query = query.where(({ nodes }) => {
           return (
@@ -139,7 +130,11 @@ export const useRecordsQuery = (
 
   return {
     ...result,
-    data: result.data.map((node) => node as LocalRecordNode),
+    data: result.data
+      .map((node) => node as LocalRecordNode)
+      // Template records live in the same database (record.template.save) but
+      // must never surface in a browsing view; drop them here.
+      .filter((record) => record.isTemplate !== true),
   };
 };
 
