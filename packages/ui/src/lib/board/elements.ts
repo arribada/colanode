@@ -140,6 +140,17 @@ const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
     h: 180,
     style: {},
   },
+  nodeCard: {
+    w: 200,
+    h: 64,
+    style: {
+      fill: '#ffffff',
+      stroke: '#cbd5e1',
+      strokeWidth: 1,
+      color: DEFAULT_TEXT_COLOR,
+      fontSize: 14,
+    },
+  },
 };
 
 export const defaultForType = (type: BoardElementType): ElementDefault =>
@@ -164,6 +175,7 @@ export interface CreateElementInput {
   points?: number[][];
   frameId?: string;
   fileId?: string;
+  nodeId?: string;
 }
 
 export const createElement = (input: CreateElementInput): BoardElement => {
@@ -183,6 +195,7 @@ export const createElement = (input: CreateElementInput): BoardElement => {
     ...(input.points ? { points: input.points } : {}),
     ...(input.frameId ? { frameId: input.frameId } : {}),
     ...(input.fileId ? { fileId: input.fileId } : {}),
+    ...(input.nodeId ? { nodeId: input.nodeId } : {}),
   };
 };
 

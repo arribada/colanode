@@ -1,8 +1,11 @@
+import { eq, useLiveQuery as useDbLiveQuery } from '@tanstack/react-db';
+
 import { DownloadStatus } from '@colanode/client/types';
 import { BoardElement, BoardScene } from '@colanode/core';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
+import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import {
   arrowHeadPoints,
   buildConnectorPath,
@@ -183,6 +186,105 @@ const BoardImage = ({ element }: { element: BoardElement }) => {
       height={element.h}
       preserveAspectRatio="xMidYMid slice"
     />
+  );
+};
+
+// A nodeCard element references another Colanode node (a page / folder /
+// database / whiteboard) and paints it as a small card: a rounded rect plus
+// the node's title (and an emoji icon when its avatar is one). The referenced
+// node is resolved through the same nodes collection live query the sidebar /
+// sub-pages list use; while it is missing / still loading a neutral placeholder
+// card is shown. Kept as its own component so the hook lives at a stable top
+// level (mirrors BoardImage).
+const BoardNodeCard = ({ element }: { element: BoardElement }) => {
+  const workspace = useWorkspace();
+  const nodeQuery = useDbLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.id, element.nodeId ?? '')),
+    [workspace.userId, element.nodeId]
+  );
+  const node = nodeQuery.data?.[0];
+  const { style } = element;
+  const fill = style.fill ?? '#ffffff';
+  const stroke = style.stroke ?? '#cbd5e1';
+  const strokeWidth = style.strokeWidth ?? 1;
+  const card = (
+    <rect
+      x={element.x}
+      y={element.y}
+      width={element.w}
+      height={element.h}
+      rx={8}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+
+  if (!node) {
+    return (
+      <g>
+        {card}
+        <text
+          x={element.x + 12}
+          y={element.y + element.h / 2 + 5}
+          fill="#94a3b8"
+          fontSize={style.fontSize ?? 14}
+          fontFamily="Inter, system-ui, sans-serif"
+          style={{ userSelect: 'none' }}
+        >
+          Loading...
+        </text>
+      </g>
+    );
+  }
+
+  const { name, avatar, label } = getMentionNodeDisplay(node);
+  // An emoji avatar doubles as an inline icon; image / uploaded avatars can't
+  // render as an SVG glyph so they are skipped (title-only card).
+  const icon =
+    avatar && avatar.length <= 4 && !avatar.includes('/') ? avatar : null;
+  const textX = element.x + 12 + (icon ? 20 : 0);
+  const centerY = element.y + element.h / 2;
+  const title = name.length > 24 ? `${name.slice(0, 23)}...` : name;
+  return (
+    <g>
+      {card}
+      {icon && (
+        <text
+          x={element.x + 12}
+          y={centerY + 6}
+          fontSize={16}
+          fontFamily="Inter, system-ui, sans-serif"
+          style={{ userSelect: 'none' }}
+        >
+          {icon}
+        </text>
+      )}
+      <text
+        x={textX}
+        y={centerY - 2}
+        fill={style.color ?? '#1f2937'}
+        fontSize={style.fontSize ?? 14}
+        fontWeight={style.fontWeight ?? '600'}
+        fontFamily="Inter, system-ui, sans-serif"
+        style={{ userSelect: 'none' }}
+      >
+        {title}
+      </text>
+      <text
+        x={textX}
+        y={centerY + 15}
+        fill="#94a3b8"
+        fontSize={11}
+        fontFamily="Inter, system-ui, sans-serif"
+        style={{ userSelect: 'none' }}
+      >
+        {label}
+      </text>
+    </g>
   );
 };
 
@@ -369,6 +471,9 @@ export const BoardElementView = ({
       break;
     case 'image':
       shape = <BoardImage element={element} />;
+      break;
+    case 'nodeCard':
+      shape = <BoardNodeCard element={element} />;
       break;
     case 'text':
     default:

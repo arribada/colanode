@@ -20,6 +20,7 @@ export const boardElementTypeSchema = z.enum([
   'frame',
   'mindmap',
   'image',
+  'nodeCard',
 ]);
 
 export type BoardElementType = z.infer<typeof boardElementTypeSchema>;
@@ -84,6 +85,10 @@ export const boardElementSchema = z.object({
   // Colanode file-node id backing an `image` element (the uploaded picture).
   // Optional + absent on non-image elements and legacy boards.
   fileId: z.string().optional(),
+  // Colanode node id a `nodeCard` element references (the page / folder /
+  // etc. shown as a card). Optional + absent on non-card elements and on
+  // legacy boards, so it is fully backward-compatible.
+  nodeId: z.string().optional(),
   frameId: z.string().optional(),
   mindmap: boardMindmapSchema.optional(),
   // Hard lock (multi-user): when `locked` is true the element cannot be

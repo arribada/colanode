@@ -24,7 +24,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { eq, useLiveQuery } from '@tanstack/react-db';
+import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
+import { useNavigate } from '@tanstack/react-router';
 
 import { LocalNode } from '@colanode/client/types';
 import {
@@ -237,6 +238,7 @@ export const WhiteboardCanvas = ({
   sceneField = 'scene',
 }: WhiteboardCanvasProps) => {
   const workspace = useWorkspace();
+  const navigate = useNavigate();
   const canEdit = hasNodeRole(role, 'editor');
   const canComment = hasNodeRole(role, 'collaborator');
   // Collaboration affordances (laser/reaction buttons, the presence/follow
@@ -792,6 +794,80 @@ export const WhiteboardCanvas = ({
       };
     });
   };
+
+  // ----- folder board auto-seed -------------------------------------------
+  // A folder opened as a Board (sceneField === 'boardScene') is seeded with one
+  // nodeCard per navigable child so the folder's pages / subfolders show up as
+  // cards the user can then wire together with connectors. Real whiteboards and
+  // page boards are never seeded. The children live-query mirrors PageChildren.
+  const isFolderBoard = node.type === 'folder' && sceneField === 'boardScene';
+  const folderChildrenQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.parentId, node.id))
+        .where(({ nodes }) =>
+          inArray(nodes.type, ['page', 'database', 'folder', 'whiteboard'])
+        )
+        .orderBy(({ nodes }) => nodes.id, 'asc'),
+    [workspace.userId, node.id]
+  );
+
+  useEffect(() => {
+    if (!isFolderBoard || !canEdit) {
+      return;
+    }
+    const children = folderChildrenQuery.data;
+    // Only seed once children have actually loaded, so an empty first render
+    // never blocks and a partial load never orphans cards.
+    if (!children || children.length === 0) {
+      return;
+    }
+    const current = sceneRef.current;
+    // Idempotency: collect the node ids already carded so we only ever ADD the
+    // missing ones - existing cards (and any user-drawn position / connectors)
+    // are never moved or removed across reloads.
+    const carded = new Set<string>();
+    let existingCards = 0;
+    for (const el of Object.values(current)) {
+      if (el.type === 'nodeCard') {
+        existingCards += 1;
+        if (el.nodeId) {
+          carded.add(el.nodeId);
+        }
+      }
+    }
+    const missing = children.filter((child) => !carded.has(child.id));
+    if (missing.length === 0) {
+      return;
+    }
+    const COLS = 3;
+    const COL_W = 240;
+    const ROW_H = 90;
+    const ORIGIN_X = 40;
+    const ORIGIN_Y = 40;
+    const zKeys = generateNKeysBetween(topZ(current), null, missing.length);
+    const next: BoardScene = { ...current };
+    const newIds: string[] = [];
+    missing.forEach((child, i) => {
+      // Continue the grid after any cards already present so re-seeds append
+      // beside/below existing cards rather than overlapping them.
+      const slot = existingCards + i;
+      const el = createElement({
+        type: 'nodeCard',
+        x: ORIGIN_X + (slot % COLS) * COL_W,
+        y: ORIGIN_Y + Math.floor(slot / COLS) * ROW_H,
+        z: zKeys[i]!,
+        nodeId: child.id,
+      });
+      next[el.id] = el;
+      newIds.push(el.id);
+    });
+    // Persist through the same merge-and-sync path a normal element insert uses.
+    applyLocal(next);
+    persistIds(newIds, next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFolderBoard, canEdit, folderChildrenQuery.data]);
 
   // ----- element helpers ---------------------------------------------------
   const styleForType = (type: BoardTool): Partial<BoardElementStyle> => {
@@ -2105,12 +2181,25 @@ export const WhiteboardCanvas = ({
   };
 
   const onElementDoubleClick = (id: string) => {
+    const el = sceneRef.current[id];
+    if (!el) {
+      return;
+    }
+    // A nodeCard double-click opens the referenced node (works for viewers too)
+    // instead of entering text-edit - the card carries no free text of its own.
+    if (el.type === 'nodeCard') {
+      if (el.nodeId) {
+        navigate({
+          to: '/workspace/$userId/$nodeId',
+          params: { userId: workspace.userId, nodeId: el.nodeId },
+        });
+      }
+      return;
+    }
     if (!canEdit) {
       return;
     }
-    const el = sceneRef.current[id];
     if (
-      !el ||
       el.type === 'connector' ||
       el.type === 'freehand' ||
       el.type === 'image'
