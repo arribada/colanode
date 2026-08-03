@@ -1,5 +1,5 @@
 import { Resizable } from 're-resizable';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Sidebar } from '@colanode/ui/components/layouts/sidebars/sidebar';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -10,7 +10,7 @@ const RAIL_WIDTH = 65;
 
 export const SidebarDesktop = () => {
   const workspace = useWorkspace();
-  const [width, setWidth] = useMetadata<number>(
+  const [storedWidth, setStoredWidth] = useMetadata<number>(
     workspace.userId,
     'sidebar.width'
   );
@@ -21,18 +21,33 @@ export const SidebarDesktop = () => {
 
   const isCollapsed = collapsed ?? false;
 
-  const handleResize = useCallback(
+  // re-resizable's `size` is controlled, but `setStoredWidth` (metadata) is
+  // async, so binding `size` straight to the stored value makes the panel snap
+  // back to the old width on release (the controlled size hasn't updated yet).
+  // Keep a synchronous local mirror for the live drag, and persist to metadata
+  // only when the drag stops.
+  const [liveWidth, setLiveWidth] = useState<number>(
+    storedWidth ?? DEFAULT_WIDTH
+  );
+
+  useEffect(() => {
+    if (storedWidth != null) {
+      setLiveWidth(storedWidth);
+    }
+  }, [storedWidth]);
+
+  const persistWidth = useCallback(
     (newWidth: number) => {
-      setWidth(newWidth);
+      setStoredWidth(newWidth);
     },
-    [setWidth]
+    [setStoredWidth]
   );
 
   return (
     <Resizable
       as="aside"
       size={{
-        width: isCollapsed ? RAIL_WIDTH : (width ?? DEFAULT_WIDTH),
+        width: isCollapsed ? RAIL_WIDTH : liveWidth,
         height: '100%',
       }}
       className="border-r border-sidebar-border"
@@ -59,7 +74,12 @@ export const SidebarDesktop = () => {
       }}
       onResize={(_, __, ref) => {
         if (!isCollapsed) {
-          handleResize(ref.offsetWidth);
+          setLiveWidth(ref.offsetWidth);
+        }
+      }}
+      onResizeStop={(_, __, ref) => {
+        if (!isCollapsed) {
+          persistWidth(ref.offsetWidth);
         }
       }}
     >
