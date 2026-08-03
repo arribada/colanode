@@ -851,6 +851,18 @@ export const deleteNodeFromMutation = async (
         deleted_at: new Date(mutation.deletedAt),
         deleted_by: workspace.user.id,
       })
+      // A cross-space move already left a tombstone with this id (in the old
+      // root). The PK is the node id, so a plain insert would collide and 500.
+      // Re-home the tombstone to the node's current root and bump the revision
+      // so the destination root's clients still receive the delete.
+      .onConflict((oc) =>
+        oc.column('id').doUpdateSet({
+          root_id: node.root_id,
+          deleted_at: new Date(mutation.deletedAt),
+          deleted_by: workspace.user.id,
+          revision: sql`nextval('node_tombstones_revision_sequence')`,
+        })
+      )
       .executeTakeFirst();
 
     if (!createdTombstone) {
