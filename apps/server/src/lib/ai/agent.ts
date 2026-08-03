@@ -100,6 +100,57 @@ const buildContextNote = (input: {
   return parts.join('\n\n');
 };
 
+const RETRY_ATTEMPTS = 3;
+
+// Free / OpenAI-compatible models (e.g. Groq llama) intermittently fail the
+// tool-calling loop, which surfaced as a hard 500 ("the AI agent failed")
+// roughly half the time. Retry the tool run while NOTHING has executed yet (a
+// pure tool-call parse failure is safe to retry), and if it still won't produce
+// an answer, fall back to a plain no-tools completion so the user always gets a
+// response. Never retry once a tool has executed this attempt — that could
+// re-apply a create/edit and double-write the wiki.
+const generateAgentAnswer = async (
+  llm: ResolvedLlm,
+  base: { system: string; prompt?: string; messages?: ModelMessage[] },
+  tools: ToolSet,
+  actions: AiAgentAction[]
+): Promise<string> => {
+  const call = (withTools: boolean) =>
+    generateText({
+      model: resolveAiModel(llm),
+      system: base.system,
+      ...(base.messages
+        ? { messages: base.messages }
+        : { prompt: base.prompt ?? '' }),
+      ...(withTools ? { tools, stopWhen: stepCountIs(MAX_STEPS) } : {}),
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+    });
+
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+    try {
+      const { text } = await call(true);
+      if (text && text.trim().length > 0) {
+        return text;
+      }
+      if (actions.length > 0) {
+        // Tools ran but the model returned no summary; don't re-run (writes).
+        return 'Done.';
+      }
+      // Empty answer and nothing ran yet: safe to retry.
+    } catch {
+      if (actions.length > 0) {
+        // A tool already executed this attempt — stop, don't re-apply writes.
+        break;
+      }
+      // Nothing ran: safe to retry.
+    }
+  }
+
+  // Fallback: plain completion, no tools — always returns an answer.
+  const { text } = await call(false);
+  return text;
+};
+
 export const runWikiAgent = async (
   llm: ResolvedLlm,
   ctx: WikiToolContext,
@@ -113,14 +164,12 @@ export const runWikiAgent = async (
     .filter((part) => part.length > 0)
     .join('\n\n');
 
-  const { text } = await generateText({
-    model: resolveAiModel(llm),
-    system: SYSTEM_PROMPT,
-    prompt,
+  const text = await generateAgentAnswer(
+    llm,
+    { system: SYSTEM_PROMPT, prompt },
     tools,
-    stopWhen: stepCountIs(MAX_STEPS),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-  });
+    actions
+  );
 
   return { text, actions };
 };
@@ -148,14 +197,12 @@ export const runWikiChat = async (
       : { role: 'user' as const, content: message.content }
   );
 
-  const { text } = await generateText({
-    model: resolveAiModel(llm),
-    system,
-    messages,
+  const text = await generateAgentAnswer(
+    llm,
+    { system, messages },
     tools,
-    stopWhen: stepCountIs(MAX_STEPS),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-  });
+    actions
+  );
 
   return { text, actions };
 };
