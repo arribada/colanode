@@ -32,6 +32,7 @@ import { HardBreakNode } from '@colanode/ui/editor/extensions/hard-break';
 import { Heading1Node } from '@colanode/ui/editor/extensions/heading1';
 import { Heading2Node } from '@colanode/ui/editor/extensions/heading2';
 import { Heading3Node } from '@colanode/ui/editor/extensions/heading3';
+import { HeadingEnhancementsExtension } from '@colanode/ui/editor/extensions/heading-enhancements';
 import { HighlightMark } from '@colanode/ui/editor/extensions/highlight';
 import { IdExtension } from '@colanode/ui/editor/extensions/id';
 import { LinkMark } from '@colanode/ui/editor/extensions/link';
@@ -91,6 +92,7 @@ export {
   Heading1Node,
   Heading2Node,
   Heading3Node,
+  HeadingEnhancementsExtension,
   HighlightMark,
   IdExtension,
   ItalicMark,

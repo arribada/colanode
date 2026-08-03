@@ -18,6 +18,7 @@ import { FolderCommand } from '@colanode/ui/editor/commands/folder';
 import { Heading1Command } from '@colanode/ui/editor/commands/heading1';
 import { Heading2Command } from '@colanode/ui/editor/commands/heading2';
 import { Heading3Command } from '@colanode/ui/editor/commands/heading3';
+import { NumberHeadingsCommand } from '@colanode/ui/editor/commands/number-headings';
 import {
   MathBlockCommand,
   MathInlineCommand,
@@ -50,6 +51,7 @@ export {
   Heading1Command,
   Heading2Command,
   Heading3Command,
+  NumberHeadingsCommand,
   MathBlockCommand,
   MathInlineCommand,
   MermaidCommand,

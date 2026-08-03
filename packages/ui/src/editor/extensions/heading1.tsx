@@ -39,6 +39,19 @@ export const Heading1Node = Node.create<Heading1Options>({
 
   defining: true,
 
+  addAttributes() {
+    return {
+      collapsed: {
+        default: false,
+        parseHTML: (element) =>
+          element.getAttribute('data-collapsed') === 'true',
+        renderHTML: (attributes) =>
+          attributes.collapsed ? { 'data-collapsed': 'true' } : {},
+        keepOnSplit: false,
+      },
+    };
+  },
+
   parseHTML() {
     return [{ tag: 'h1' }];
   },

@@ -1,7 +1,9 @@
 export const defaultClasses = {
-  heading1: 'mb-1 mt-4 font-heading text-4xl font-bold',
-  heading2: 'mb-px mt-3 font-heading text-2xl font-semibold tracking-tight',
-  heading3: 'mb-px mt-2 font-heading text-xl font-semibold tracking-tight',
+  heading1: 'mb-1 mt-4 font-heading text-4xl font-bold group',
+  heading2:
+    'mb-px mt-3 font-heading text-2xl font-semibold tracking-tight group',
+  heading3:
+    'mb-px mt-2 font-heading text-xl font-semibold tracking-tight group',
   paragraph: 'm-0 px-0 py-1',
   bulletList: 'm-0 ps-6 list-disc [&_ul]:list-[circle] [&_ul_ul]:list-[square]',
   orderedList: 'm-0 ps-6 list-decimal',
@@ -33,6 +35,12 @@ export const defaultClasses = {
   toggleSummary: 'py-1 font-medium',
   toggleContent: 'pb-0.5',
   callout: 'my-1 flex flex-row items-start gap-2 rounded-md p-3',
+  headingNumber:
+    'mr-2 font-normal text-muted-foreground select-none tabular-nums',
+  headingChevron:
+    'inline-flex size-5 -ml-5 shrink-0 items-center justify-center rounded align-middle text-muted-foreground opacity-0 transition-opacity cursor-pointer select-none hover:bg-accent group-hover:opacity-100',
+  headingChevronCollapsed: 'opacity-100',
+  headingCollapsedHidden: 'hidden',
 };
 
 export const calloutColors = [
