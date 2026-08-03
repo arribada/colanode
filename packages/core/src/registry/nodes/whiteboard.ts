@@ -19,6 +19,7 @@ export const boardElementTypeSchema = z.enum([
   'freehand',
   'frame',
   'mindmap',
+  'image',
 ]);
 
 export type BoardElementType = z.infer<typeof boardElementTypeSchema>;
@@ -47,6 +48,13 @@ export const boardConnectorSchema = z.object({
   arrowStart: z.boolean().optional(),
   arrowEnd: z.boolean().optional(),
   label: z.string().optional(),
+  // Line shape: straight segment (default), an orthogonal rounded elbow, or a
+  // quadratic curve. Optional + backward-compatible — absent reads as
+  // 'straight'.
+  routing: z.enum(['straight', 'elbow', 'curved']).optional(),
+  // A single reshape waypoint in SCENE coordinates: the elbow corner / curve
+  // control point the user dragged. Absent = auto-routed.
+  bend: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 
 export type BoardConnector = z.infer<typeof boardConnectorSchema>;
@@ -73,6 +81,9 @@ export const boardElementSchema = z.object({
   text: z.string().optional(),
   points: z.array(z.array(z.number())).optional(),
   connector: boardConnectorSchema.optional(),
+  // Colanode file-node id backing an `image` element (the uploaded picture).
+  // Optional + absent on non-image elements and legacy boards.
+  fileId: z.string().optional(),
   frameId: z.string().optional(),
   mindmap: boardMindmapSchema.optional(),
   // Hard lock (multi-user): when `locked` is true the element cannot be

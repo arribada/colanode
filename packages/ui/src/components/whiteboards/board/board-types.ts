@@ -13,12 +13,17 @@ export type BoardTool =
   | 'frame'
   | 'mindmap';
 
+// Connector line shape, mirrored from the core `boardConnectorSchema.routing`
+// enum. Drives the toolbar's 3-way routing toggle.
+export type ConnectorRouting = 'straight' | 'elbow' | 'curved';
+
 export interface BoardStyleState {
   fill: string;
   stroke: string;
   strokeWidth: number;
   strokeStyle: NonNullable<BoardElementStyle['strokeStyle']>;
   stickyColor: string;
+  opacity: number;
 }
 
 export const DEFAULT_BOARD_STYLE: BoardStyleState = {
@@ -27,4 +32,5 @@ export const DEFAULT_BOARD_STYLE: BoardStyleState = {
   strokeWidth: 2,
   strokeStyle: 'solid',
   stickyColor: '#fff7ae',
+  opacity: 1,
 };

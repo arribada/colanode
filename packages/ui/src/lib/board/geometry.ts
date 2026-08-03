@@ -294,6 +294,147 @@ export const computeAlignmentSnap = (
 export const connectorPath = (start: Point, end: Point): string =>
   `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
 
+export type ConnectorRouting = 'straight' | 'elbow' | 'curved';
+
+const ELBOW_RADIUS = 14;
+
+/** Point `dist` scene-units away from `from` toward `to`. */
+const pointToward = (from: Point, to: Point, dist: number): Point => {
+  const d = distance(from, to) || 1;
+  const t = dist / d;
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+};
+
+/**
+ * Quadratic control point for the default (no-bend) curved route: offset
+ * perpendicular to the mid-line so the connector bows into a gentle arc.
+ */
+const defaultCurveControl = (start: Point, end: Point): Point => {
+  const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const off = Math.min(80, len * 0.18);
+  return { x: mid.x - (dy / len) * off, y: mid.y + (dx / len) * off };
+};
+
+/**
+ * Orthogonal Z-route vertices (2 inner corners) through `bend`. Picks the
+ * dominant axis: a mostly-horizontal connector routes with a vertical middle
+ * segment at x = bend.x (default: the mid-x); mostly-vertical mirrors that.
+ */
+const elbowWaypoints = (start: Point, end: Point, bend?: Point): Point[] => {
+  const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+  if (horizontal) {
+    const midX = bend ? bend.x : (start.x + end.x) / 2;
+    return [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
+  }
+  const midY = bend ? bend.y : (start.y + end.y) / 2;
+  return [start, { x: start.x, y: midY }, { x: end.x, y: midY }, end];
+};
+
+/** SVG path over a polyline with small rounded (quadratic) corners. */
+const roundedPath = (pts: Point[], radius: number): string => {
+  if (pts.length < 2) {
+    return '';
+  }
+  let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = pts[i - 1]!;
+    const curr = pts[i]!;
+    const next = pts[i + 1]!;
+    const r1 = Math.min(radius, distance(prev, curr) / 2);
+    const r2 = Math.min(radius, distance(curr, next) / 2);
+    const p1 = pointToward(curr, prev, r1);
+    const p2 = pointToward(curr, next, r2);
+    d += ` L ${p1.x} ${p1.y} Q ${curr.x} ${curr.y} ${p2.x} ${p2.y}`;
+  }
+  const last = pts[pts.length - 1]!;
+  d += ` L ${last.x} ${last.y}`;
+  return d;
+};
+
+/**
+ * Polyline vertices approximating a connector for arrowhead tangents / straight
+ * hit paths. Curved returns [start, control, end] so the neighbours give the
+ * bezier's end tangents.
+ */
+export const connectorWaypoints = (
+  routing: ConnectorRouting,
+  start: Point,
+  end: Point,
+  bend?: Point
+): Point[] => {
+  if (routing === 'curved') {
+    return [start, bend ?? defaultCurveControl(start, end), end];
+  }
+  if (routing === 'elbow') {
+    return elbowWaypoints(start, end, bend);
+  }
+  return bend ? [start, bend, end] : [start, end];
+};
+
+/** SVG path `d` for a connector honouring its routing + optional reshape bend. */
+export const buildConnectorPath = (
+  routing: ConnectorRouting,
+  start: Point,
+  end: Point,
+  bend?: Point
+): string => {
+  if (routing === 'curved') {
+    const c = bend ?? defaultCurveControl(start, end);
+    return `M ${start.x} ${start.y} Q ${c.x} ${c.y} ${end.x} ${end.y}`;
+  }
+  if (routing === 'elbow') {
+    return roundedPath(elbowWaypoints(start, end, bend), ELBOW_RADIUS);
+  }
+  if (bend) {
+    return `M ${start.x} ${start.y} L ${bend.x} ${bend.y} L ${end.x} ${end.y}`;
+  }
+  return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+};
+
+/**
+ * Where the single reshape handle sits: the bend when set, else the route's
+ * visual midpoint (on-curve for `curved`, mid of the middle segment for
+ * `elbow`, geometric mid for `straight`).
+ */
+export const connectorHandlePoint = (
+  routing: ConnectorRouting,
+  start: Point,
+  end: Point,
+  bend?: Point
+): Point => {
+  if (bend) {
+    return bend;
+  }
+  if (routing === 'curved') {
+    const c = defaultCurveControl(start, end);
+    return {
+      x: 0.25 * start.x + 0.5 * c.x + 0.25 * end.x,
+      y: 0.25 * start.y + 0.5 * c.y + 0.25 * end.y,
+    };
+  }
+  if (routing === 'elbow') {
+    const pts = elbowWaypoints(start, end);
+    const a = pts[1]!;
+    const b = pts[2]!;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+  return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+};
+
+/** Penultimate route point, so the END arrowhead points along the last segment. */
+export const connectorArrowFrom = (
+  routing: ConnectorRouting,
+  start: Point,
+  end: Point,
+  bend?: Point
+): Point => {
+  const pts = connectorWaypoints(routing, start, end, bend);
+  return pts[pts.length - 2] ?? start;
+};
+
 /**
  * Arrowhead as a triangle polygon at `tip`, pointing away from `from`.
  * Returns the three polygon points.

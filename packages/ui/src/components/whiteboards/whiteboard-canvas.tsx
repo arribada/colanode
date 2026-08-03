@@ -44,6 +44,7 @@ import { BoardToolbar } from '@colanode/ui/components/whiteboards/board/board-to
 import {
   BoardStyleState,
   BoardTool,
+  ConnectorRouting,
   DEFAULT_BOARD_STYLE,
 } from '@colanode/ui/components/whiteboards/board/board-types';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -66,7 +67,9 @@ import {
   AlignGuide,
   Anchor,
   anchorPoint,
+  buildConnectorPath,
   computeAlignmentSnap,
+  connectorHandlePoint,
   normalizeRect,
   pointInRotatedRect,
   pointsBounds,
@@ -174,6 +177,7 @@ type Interaction =
       id: string;
       before: BoardScene;
     }
+  | { mode: 'connector-bend'; id: string; before: BoardScene }
   | { mode: 'pen'; id: string; before: BoardScene };
 
 interface WhiteboardCanvasProps {
@@ -388,6 +392,7 @@ export const WhiteboardCanvas = ({
         it.mode === 'rotate' ||
         it.mode === 'create' ||
         it.mode === 'connector' ||
+        it.mode === 'connector-bend' ||
         it.mode === 'pen'
       ) {
         locked.add(it.id);
@@ -752,16 +757,17 @@ export const WhiteboardCanvas = ({
   // ----- element helpers ---------------------------------------------------
   const styleForType = (type: BoardTool): Partial<BoardElementStyle> => {
     if (type === 'sticky') {
-      return { fill: style.stickyColor, color: '#1f2937' };
+      return { fill: style.stickyColor, color: '#1f2937', opacity: style.opacity };
     }
     if (type === 'text') {
-      return { color: style.stroke };
+      return { color: style.stroke, opacity: style.opacity };
     }
     if (type === 'connector' || type === 'pen') {
       return {
         stroke: style.stroke,
         strokeWidth: style.strokeWidth,
         strokeStyle: style.strokeStyle,
+        opacity: style.opacity,
       };
     }
     return {
@@ -769,6 +775,7 @@ export const WhiteboardCanvas = ({
       stroke: style.stroke,
       strokeWidth: style.strokeWidth,
       strokeStyle: style.strokeStyle,
+      opacity: style.opacity,
     };
   };
 
@@ -800,9 +807,6 @@ export const WhiteboardCanvas = ({
   };
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (e.button === 2) {
-      return;
-    }
     (e.target as Element).setPointerCapture?.(e.pointerId);
     svgRef.current?.setPointerCapture(e.pointerId);
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -828,7 +832,10 @@ export const WhiteboardCanvas = ({
     }
 
     const panIntent =
-      spaceRef.current || e.button === 1 || toolRef.current === 'hand';
+      spaceRef.current ||
+      e.button === 1 ||
+      e.button === 2 ||
+      toolRef.current === 'hand';
     if (panIntent) {
       beginPan(e);
       return;
@@ -912,6 +919,21 @@ export const WhiteboardCanvas = ({
             before: cloneScene(sceneRef.current),
           };
         }
+        return;
+      }
+    }
+
+    // connector reshape handle: drag the elbow corner / curve control point.
+    const bendHandleEl = target.closest('[data-connector-handle]');
+    if (bendHandleEl && selectionRef.current.length === 1) {
+      const id = selectionRef.current[0]!;
+      const el = sceneRef.current[id];
+      if (el && el.type === 'connector' && !isLockedForMe(id)) {
+        interactionRef.current = {
+          mode: 'connector-bend',
+          id,
+          before: cloneScene(sceneRef.current),
+        };
         return;
       }
     }
@@ -1260,6 +1282,22 @@ export const WhiteboardCanvas = ({
           },
         };
         applyLocal(next);
+        break;
+      }
+      case 'connector-bend': {
+        const el = sceneRef.current[it.id];
+        if (!el) {
+          break;
+        }
+        const next = {
+          ...sceneRef.current,
+          [it.id]: {
+            ...el,
+            connector: { ...el.connector, bend: { x: p.x, y: p.y } },
+          },
+        };
+        applyLocal(next);
+        schedulePersist([it.id]);
         break;
       }
       case 'pen': {
@@ -1878,10 +1916,126 @@ export const WhiteboardCanvas = ({
       if (patch.strokeStyle !== undefined) {
         nextStyle.strokeStyle = patch.strokeStyle;
       }
+      if (patch.opacity !== undefined) {
+        nextStyle.opacity = patch.opacity;
+      }
       next[id] = { ...el, style: nextStyle };
     }
     commit(before, next, ids);
   };
+
+  // ----- connector routing (line shape) ------------------------------------
+  // Routing lives on `el.connector`, NOT `el.style`, so it has its own updater
+  // instead of overloading `onStyleChange`. Applies to every selected connector.
+  const onConnectorRouting = (routing: ConnectorRouting) => {
+    const ids = manipulableIds(selectionRef.current).filter(
+      (id) => sceneRef.current[id]?.type === 'connector'
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = { ...el, connector: { ...el.connector, routing } };
+    }
+    commit(before, next, ids);
+  };
+
+  // ----- image elements (drag-drop / paste) --------------------------------
+  // Read an image file's natural size, scaled down to fit a ~480px cap so a
+  // huge photo does not spawn a wall-sized element.
+  const readImageSize = (file: File): Promise<{ w: number; h: number }> =>
+    new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const cap = 480;
+        const nw = img.naturalWidth || 240;
+        const nh = img.naturalHeight || 180;
+        const scale = Math.min(1, cap / Math.max(nw, nh));
+        resolve({ w: Math.round(nw * scale), h: Math.round(nh * scale) });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve({ w: 240, h: 180 });
+      };
+      img.src = url;
+    });
+
+  // Persist each dropped/pasted image as a Colanode file node (temp file ->
+  // file.create) and drop an `image` board element centred on `at` (scene
+  // coords), cascading multiples so they do not stack exactly.
+  const addImagesAt = async (files: File[], at: Point) => {
+    if (!canEdit || embedded) {
+      return;
+    }
+    let offset = 0;
+    for (const file of files) {
+      const dims = await readImageSize(file);
+      const temp = await window.colanode.saveTempFile(file);
+      const res = await window.colanode.executeMutation({
+        type: 'file.create',
+        userId: workspace.userId,
+        tempFileId: temp.id,
+        parentId: whiteboard.id,
+      });
+      if (!res.success) {
+        toast.error(res.error.message);
+        continue;
+      }
+      const fileId = res.output.id;
+      if (!fileId) {
+        toast.error('Could not attach image');
+        continue;
+      }
+      const el = createElement({
+        type: 'image',
+        x: maybeSnap(at.x - dims.w / 2 + offset),
+        y: maybeSnap(at.y - dims.h / 2 + offset),
+        w: dims.w,
+        h: dims.h,
+        z: topZ(sceneRef.current),
+        fileId,
+      });
+      const before = cloneScene(sceneRef.current);
+      const next = { ...sceneRef.current, [el.id]: el };
+      commit(before, next, [el.id]);
+      setSelection([el.id]);
+      offset += 16;
+    }
+  };
+
+  // Paste images onto the board (Ctrl/Cmd+V) when the pointer is over it, so a
+  // global paste elsewhere in the app is never hijacked. Drops at the viewport
+  // centre (the clipboard carries no pointer position).
+  useEffect(() => {
+    if (!canEdit || embedded) {
+      return;
+    }
+    const onPaste = (e: ClipboardEvent) => {
+      const container = containerRef.current;
+      if (!container || !container.matches(':hover')) {
+        return;
+      }
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+        f.type.startsWith('image/')
+      );
+      if (files.length === 0) {
+        return;
+      }
+      e.preventDefault();
+      void addImagesAt(files, viewportCenterScene());
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, embedded]);
 
   // ----- inline text editing ----------------------------------------------
   const commitEditing = () => {
@@ -1916,7 +2070,12 @@ export const WhiteboardCanvas = ({
       return;
     }
     const el = sceneRef.current[id];
-    if (!el || el.type === 'connector' || el.type === 'freehand') {
+    if (
+      !el ||
+      el.type === 'connector' ||
+      el.type === 'freehand' ||
+      el.type === 'image'
+    ) {
       return;
     }
     if (isLockedForMe(id)) {
@@ -2071,6 +2230,31 @@ export const WhiteboardCanvas = ({
         })()
       : null;
 
+  // Connector context: the selection is one-or-more connectors (and nothing
+  // else). Drives the toolbar's routing toggle; `singleConnector` additionally
+  // gates the on-canvas reshape handle (only one bend handle at a time).
+  const selectedConnectors = selection
+    .map((id) => scene[id])
+    .filter(
+      (el): el is BoardElement => Boolean(el) && el!.type === 'connector'
+    );
+  const connectorContext =
+    canEdit &&
+    selectedConnectors.length > 0 &&
+    selectedConnectors.length === selection.length;
+  const connectorRouting: ConnectorRouting =
+    selectedConnectors[0]?.connector?.routing ?? 'straight';
+  const singleConnector =
+    canEdit &&
+    selection.length === 1 &&
+    selectedConnectors.length === 1 &&
+    !(
+      selectedConnectors[0]!.locked &&
+      selectedConnectors[0]!.lockedBy !== workspace.userId
+    )
+      ? selectedConnectors[0]!
+      : null;
+
   // Every selected element is hard-locked -> the toggle shows "unlock".
   const selectionLocked =
     selection.length > 0 && selection.every((id) => !!scene[id]?.locked);
@@ -2101,6 +2285,23 @@ export const WhiteboardCanvas = ({
     <div
       ref={containerRef}
       className="relative h-full w-full overflow-hidden bg-muted/30"
+      onDragOver={
+        canEdit && !embedded ? (e) => e.preventDefault() : undefined
+      }
+      onDrop={
+        canEdit && !embedded
+          ? (e) => {
+              const files = Array.from(e.dataTransfer?.files ?? []).filter(
+                (f) => f.type.startsWith('image/')
+              );
+              if (files.length === 0) {
+                return;
+              }
+              e.preventDefault();
+              void addImagesAt(files, clientToScene(e.clientX, e.clientY));
+            }
+          : undefined
+      }
     >
       <svg
         ref={svgRef}
@@ -2379,6 +2580,36 @@ export const WhiteboardCanvas = ({
               </g>
             );
           })}
+
+          {/* connector reshape handle: drag to move the elbow corner / curve
+              control point (works for all three routings). */}
+          {singleConnector &&
+            (() => {
+              const { start, end } = resolveConnectorEndpoints(
+                singleConnector,
+                scene
+              );
+              const c = singleConnector.connector ?? {};
+              const hp = connectorHandlePoint(
+                c.routing ?? 'straight',
+                start,
+                end,
+                c.bend
+              );
+              const sp = sceneToClient(hp);
+              return (
+                <circle
+                  data-connector-handle={singleConnector.id}
+                  cx={sp.x}
+                  cy={sp.y}
+                  r={6}
+                  fill="#fff"
+                  stroke="#3b82f6"
+                  strokeWidth={1.5}
+                  style={{ cursor: 'grab' }}
+                />
+              );
+            })()}
 
           {/* quick-connect "+" handles around the single selected shape */}
           {quickConnectSource &&
@@ -2688,6 +2919,9 @@ export const WhiteboardCanvas = ({
         fontSize={fontSizeState}
         onFontDelta={onFontDelta}
         onFontAuto={onFontAuto}
+        connectorContext={connectorContext}
+        connectorRouting={connectorRouting}
+        onConnectorRouting={onConnectorRouting}
         onComment={() => {
           const id = selection[0];
           if (id) {
@@ -3024,12 +3258,11 @@ const ElementHitArea = ({
 }) => {
   if (element.type === 'connector') {
     const { start, end } = resolveConnectorEndpoints(element, scene);
+    const c = element.connector ?? {};
     return (
-      <line
-        x1={start.x}
-        y1={start.y}
-        x2={end.x}
-        y2={end.y}
+      <path
+        d={buildConnectorPath(c.routing ?? 'straight', start, end, c.bend)}
+        fill="none"
         stroke="transparent"
         strokeWidth={16}
         strokeLinecap="round"

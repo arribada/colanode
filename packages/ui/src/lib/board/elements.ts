@@ -135,6 +135,11 @@ const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
       fontSize: 15,
     },
   },
+  image: {
+    w: 240,
+    h: 180,
+    style: {},
+  },
 };
 
 export const defaultForType = (type: BoardElementType): ElementDefault =>
@@ -158,6 +163,7 @@ export interface CreateElementInput {
   text?: string;
   points?: number[][];
   frameId?: string;
+  fileId?: string;
 }
 
 export const createElement = (input: CreateElementInput): BoardElement => {
@@ -176,6 +182,7 @@ export const createElement = (input: CreateElementInput): BoardElement => {
       : {}),
     ...(input.points ? { points: input.points } : {}),
     ...(input.frameId ? { frameId: input.frameId } : {}),
+    ...(input.fileId ? { fileId: input.fileId } : {}),
   };
 };
 

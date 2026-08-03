@@ -1,8 +1,14 @@
+import { DownloadStatus } from '@colanode/client/types';
 import { BoardElement, BoardScene } from '@colanode/core';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
 import {
   arrowHeadPoints,
-  connectorPath,
+  buildConnectorPath,
+  connectorArrowFrom,
+  connectorHandlePoint,
+  connectorWaypoints,
   pointsToSvg,
   rectCenter,
 } from '@colanode/ui/lib/board/geometry';
@@ -134,6 +140,52 @@ const Label = ({ element, align = 'center', padding = 10 }: LabelProps) => {
   );
 };
 
+// An image element renders the blob URL of its backing Colanode file node,
+// resolved through the local-file live query (same path as file thumbnails).
+// While the file is missing / still downloading a neutral placeholder rect is
+// shown. Kept as its own component so the hook lives at a stable top level.
+const BoardImage = ({ element }: { element: BoardElement }) => {
+  const workspace = useWorkspace();
+  const localFileQuery = useLiveQuery({
+    type: 'local.file.get',
+    fileId: element.fileId ?? '',
+    userId: workspace.userId,
+  });
+  const localFile = localFileQuery.data;
+  const url =
+    localFile &&
+    localFile.downloadStatus === DownloadStatus.Completed &&
+    localFile.url
+      ? localFile.url
+      : null;
+
+  if (!url) {
+    return (
+      <rect
+        x={element.x}
+        y={element.y}
+        width={element.w}
+        height={element.h}
+        rx={4}
+        fill="#e2e8f0"
+        stroke="#cbd5e1"
+        strokeWidth={1}
+      />
+    );
+  }
+
+  return (
+    <image
+      href={url}
+      x={element.x}
+      y={element.y}
+      width={element.w}
+      height={element.h}
+      preserveAspectRatio="xMidYMid slice"
+    />
+  );
+};
+
 interface BoardElementViewProps {
   element: BoardElement;
   scene: BoardScene;
@@ -156,13 +208,17 @@ export const BoardElementView = ({
   if (element.type === 'connector') {
     const { start, end } = resolveConnectorEndpoints(element, scene);
     const c = element.connector ?? {};
-    const head = arrowHeadPoints(end, start, 12);
-    const tail = arrowHeadPoints(start, end, 12);
-    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    const routing = c.routing ?? 'straight';
+    const bend = c.bend;
+    const d = buildConnectorPath(routing, start, end, bend);
+    const wpts = connectorWaypoints(routing, start, end, bend);
+    const head = arrowHeadPoints(end, connectorArrowFrom(routing, start, end, bend), 12);
+    const tail = arrowHeadPoints(start, wpts[1] ?? end, 12);
+    const mid = connectorHandlePoint(routing, start, end, bend);
     return (
       <g opacity={opacity}>
         <path
-          d={connectorPath(start, end)}
+          d={d}
           stroke={style.stroke ?? '#334155'}
           strokeWidth={style.strokeWidth ?? 2}
           strokeDasharray={dash}
@@ -244,7 +300,14 @@ export const BoardElementView = ({
       );
       break;
     case 'rect':
-    case 'frame':
+    case 'frame': {
+      // Frames default to a translucent slate wash, but honour an explicit fill
+      // when the user has picked one. Treat 'none'/'transparent' (the frame's
+      // default) as "no real fill" and fall back to the slate constant.
+      const frameFill =
+        fill === 'none' || fill === 'transparent'
+          ? 'rgba(148,163,184,0.04)'
+          : fill;
       shape = (
         <rect
           x={element.x}
@@ -252,13 +315,14 @@ export const BoardElementView = ({
           width={element.w}
           height={element.h}
           rx={element.type === 'frame' ? 4 : 8}
-          fill={element.type === 'frame' ? 'rgba(148,163,184,0.04)' : fill}
+          fill={element.type === 'frame' ? frameFill : fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
           strokeDasharray={element.type === 'frame' ? '6 4' : dash}
         />
       );
       break;
+    }
     case 'mindmap':
       shape = (
         <rect
@@ -302,6 +366,9 @@ export const BoardElementView = ({
           strokeDasharray={dash}
         />
       );
+      break;
+    case 'image':
+      shape = <BoardImage element={element} />;
       break;
     case 'text':
     default:

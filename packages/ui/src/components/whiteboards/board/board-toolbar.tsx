@@ -34,7 +34,7 @@ import {
 import { BOARD_TEMPLATES } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
 
-import { BoardStyleState, BoardTool } from './board-types';
+import { BoardStyleState, BoardTool, ConnectorRouting } from './board-types';
 
 // Menus opened from board overlays must escape the toolbar's `overflow-x-auto`
 // clip and remain visible while the board is in the Fullscreen API. Portaling
@@ -65,6 +65,32 @@ const TOOLS: ToolDef[] = [
 ];
 
 const STROKE_WIDTHS = [1, 2, 4, 8];
+
+// `<input type="color">` only accepts a `#rrggbb` value; named colors,
+// 'transparent'/'none' and rgba() strings silently reset it. Fall back to a
+// neutral swatch value so the picker still opens on the current-ish color.
+const asHexColor = (color: string | undefined, fallback: string): string =>
+  color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
+
+// A minimal free-color picker styled to sit next to the fixed swatches.
+const ColorInput = ({
+  value,
+  onChange,
+  title,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+  title: string;
+}) => (
+  <input
+    type="color"
+    aria-label={title}
+    title={title}
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className="size-6 cursor-pointer rounded-full border border-black/10 bg-transparent p-0"
+  />
+);
 
 interface ToolbarButtonProps {
   active?: boolean;
@@ -154,6 +180,12 @@ interface BoardToolbarProps {
   fontSize: number;
   onFontDelta: (delta: number) => void;
   onFontAuto: (auto: boolean) => void;
+  // Connector routing toggle (shown only when the selection is connector(s)).
+  // `connectorRouting` reflects the first selected connector; the setter writes
+  // `connector.routing` on every selected connector (not the shared style).
+  connectorContext: boolean;
+  connectorRouting: ConnectorRouting;
+  onConnectorRouting: (routing: ConnectorRouting) => void;
 }
 
 export const BoardToolbar = ({
@@ -182,6 +214,9 @@ export const BoardToolbar = ({
   fontSize,
   onFontDelta,
   onFontAuto,
+  connectorContext,
+  connectorRouting,
+  onConnectorRouting,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -360,6 +395,31 @@ export const BoardToolbar = ({
 
       {showStylePanel && !collapsed && (
         <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur">
+          {connectorContext && (
+            <>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Line</span>
+                {(['straight', 'elbow', 'curved'] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    aria-label={`${r} connector`}
+                    title={`${r} connector`}
+                    onClick={() => onConnectorRouting(r)}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
+                      connectorRouting === r && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-6 w-px bg-border" />
+            </>
+          )}
+
           {fontControlsVisible && (
             <>
               <div className="flex items-center gap-1">
@@ -429,6 +489,15 @@ export const BoardToolbar = ({
                 }
               />
             ))}
+            <ColorInput
+              title={isStickyContext ? 'Custom note color' : 'Custom fill color'}
+              value={asHexColor(activeFill, '#ffffff')}
+              onChange={(hex) =>
+                onStyleChange(
+                  isStickyContext ? { stickyColor: hex } : { fill: hex }
+                )
+              }
+            />
           </div>
 
           <div className="h-6 w-px bg-border" />
@@ -443,6 +512,11 @@ export const BoardToolbar = ({
                 onClick={() => onStyleChange({ stroke: color })}
               />
             ))}
+            <ColorInput
+              title="Custom stroke color"
+              value={asHexColor(style.stroke, '#334155')}
+              onChange={(hex) => onStyleChange({ stroke: hex })}
+            />
           </div>
 
           <div className="h-6 w-px bg-border" />
@@ -483,6 +557,28 @@ export const BoardToolbar = ({
                 {s}
               </button>
             ))}
+          </div>
+
+          <div className="h-6 w-px bg-border" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Opacity</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={style.opacity}
+              aria-label="Opacity"
+              title="Opacity"
+              onChange={(e) =>
+                onStyleChange({ opacity: Number(e.target.value) })
+              }
+              className="h-1.5 w-24 cursor-pointer accent-primary"
+            />
+            <span className="min-w-8 text-right text-xs tabular-nums text-muted-foreground">
+              {Math.round(style.opacity * 100)}%
+            </span>
           </div>
         </div>
       )}
