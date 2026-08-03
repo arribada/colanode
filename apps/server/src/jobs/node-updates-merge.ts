@@ -7,6 +7,11 @@ import { SelectNodeUpdate } from '@colanode/server/data/schema';
 import { JobHandler } from '@colanode/server/jobs';
 import { config } from '@colanode/server/lib/config';
 import { fetchCounter, setCounter } from '@colanode/server/lib/counters';
+import {
+  captureNodeSnapshot,
+  pruneNodeSnapshots,
+  DEFAULT_NODE_SNAPSHOT_RETENTION,
+} from '@colanode/server/lib/node-snapshots';
 import { createLogger } from '@colanode/server/lib/logger';
 
 const logger = createLogger('server:job:node-updates-merge');
@@ -136,19 +141,53 @@ const processNodeUpdates = async (
   });
 
   const groups = groupUpdatesByMergeWindow(orderedUpdates, mergeWindow);
+  const mergeableGroups = groups.filter((group) => group.length >= 2);
+
+  if (mergeableGroups.length === 0) {
+    return { mergedGroups: 0, deletedUpdates: 0 };
+  }
+
+  // Only whiteboard nodes carry version history for now: their board scene
+  // lives in the node attributes and would otherwise be lost when the granular
+  // CRDT updates are compacted. Capture a snapshot BEFORE merging, mirroring
+  // the document updates merge job. If the snapshot cannot be written, skip
+  // merging this node for this run - it will be retried next run.
+  const node = await database
+    .selectFrom('nodes')
+    .select(['type'])
+    .where('id', '=', nodeId)
+    .executeTakeFirst();
+
+  const isWhiteboard = node?.type === 'whiteboard';
+
+  if (isWhiteboard) {
+    try {
+      await captureNodeSnapshot(nodeId);
+    } catch (error) {
+      logger.error(
+        error,
+        `Failed to capture snapshot for node ${nodeId}, skipping merge`
+      );
+      return { mergedGroups: 0, deletedUpdates: 0 };
+    }
+  }
 
   let mergedGroups = 0;
   let deletedUpdates = 0;
 
-  for (const group of groups) {
-    if (group.length < 2) {
-      continue;
-    }
-
+  for (const group of mergeableGroups) {
     const success = await mergeUpdatesGroup(nodeId, group);
     if (success) {
       mergedGroups++;
       deletedUpdates += group.length - 1;
+    }
+  }
+
+  if (isWhiteboard) {
+    try {
+      await pruneNodeSnapshots(nodeId, DEFAULT_NODE_SNAPSHOT_RETENTION);
+    } catch (error) {
+      logger.error(error, `Failed to prune snapshots for node ${nodeId}`);
     }
   }
 

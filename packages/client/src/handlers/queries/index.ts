@@ -10,6 +10,8 @@ import { MetadataListQueryHandler } from './apps/metadata-list';
 import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
 import { DocumentGetQueryHandler } from './documents/document-get';
+import { NodeSnapshotGetQueryHandler } from './nodes/node-snapshot-get';
+import { NodeSnapshotListQueryHandler } from './nodes/node-snapshot-list';
 import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
 import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
@@ -93,6 +95,8 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'document.get': new DocumentGetQueryHandler(app),
     'document.snapshot.get': new DocumentSnapshotGetQueryHandler(app),
     'document.snapshot.list': new DocumentSnapshotListQueryHandler(app),
+    'node.snapshot.get': new NodeSnapshotGetQueryHandler(app),
+    'node.snapshot.list': new NodeSnapshotListQueryHandler(app),
     'document.state.get': new DocumentStateGetQueryHandler(app),
     'document.update.content': new DocumentUpdateContentQueryHandler(app),
     'document.updates.list': new DocumentUpdatesListQueryHandler(app),

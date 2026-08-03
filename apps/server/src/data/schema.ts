@@ -260,6 +260,19 @@ interface DocumentSnapshotTable {
 export type SelectDocumentSnapshot = Selectable<DocumentSnapshotTable>;
 export type CreateDocumentSnapshot = Insertable<DocumentSnapshotTable>;
 
+interface NodeSnapshotTable {
+  id: ColumnType<string, string, never>;
+  node_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  revision: ColumnType<string, string, never>;
+  attributes: JSONColumnType<NodeAttributes, string, never>;
+  created_at: ColumnType<Date, Date, never>;
+  created_by: ColumnType<string, string, never>;
+}
+
+export type SelectNodeSnapshot = Selectable<NodeSnapshotTable>;
+export type CreateNodeSnapshot = Insertable<NodeSnapshotTable>;
+
 interface UploadTable {
   file_id: ColumnType<string, string, never>;
   upload_id: ColumnType<string, string, string>;
@@ -498,6 +511,7 @@ export interface DatabaseSchema {
   documents: DocumentTable;
   document_updates: DocumentUpdateTable;
   document_snapshots: DocumentSnapshotTable;
+  node_snapshots: NodeSnapshotTable;
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;

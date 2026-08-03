@@ -1,10 +1,11 @@
-import { Image, LetterText, Settings, Trash2 } from 'lucide-react';
+import { History, Image, LetterText, Settings, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import { LocalWhiteboardNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
+import { WhiteboardHistoryDialog } from '@colanode/ui/components/whiteboards/whiteboard-history';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ export const WhiteboardSettings = ({
 }: WhiteboardSettingsProps) => {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -66,6 +68,15 @@ export const WhiteboardSettings = ({
           >
             <Image className="size-4" />
             Update icon
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              setShowHistoryDialog(true);
+            }}
+          >
+            <History className="size-4" />
+            Version history
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
@@ -115,6 +126,13 @@ export const WhiteboardSettings = ({
         role={role}
         open={showUpdateDialog}
         onOpenChange={setShowUpdateDialog}
+      />
+      <WhiteboardHistoryDialog
+        whiteboardId={whiteboard.id}
+        name={whiteboard.name}
+        canEdit={canEdit}
+        open={showHistoryDialog}
+        onOpenChange={setShowHistoryDialog}
       />
     </Fragment>
   );

@@ -204,6 +204,8 @@ interface FloatingReaction {
   emoji: string;
   x: number;
   y: number;
+  // Who sent it, shown briefly under the emoji.
+  name?: string;
 }
 
 const cloneScene = (scene: BoardScene): BoardScene =>
@@ -354,6 +356,19 @@ export const WhiteboardCanvas = ({
     () => presenceColor(workspace.userId),
     [workspace.userId]
   );
+
+  // Current user's display name, shown under a reaction so everyone (including
+  // the sender) sees who reacted.
+  const currentUserQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ users: workspace.collections.users })
+        .where(({ users }) => eq(users.id, workspace.userId))
+        .findOne(),
+    [workspace.userId]
+  );
+  const currentUserName =
+    (currentUserQuery.data as { name?: string } | undefined)?.name ?? 'You';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -569,7 +584,7 @@ export const WhiteboardCanvas = ({
       const last = seenReactionRef.current.get(sessionKey) ?? 0;
       if (rc.at > last && now - rc.at < REACTION_TTL) {
         seenReactionRef.current.set(sessionKey, rc.at);
-        addReaction({ emoji: rc.emoji, x: rc.x, y: rc.y });
+        addReaction({ emoji: rc.emoji, x: rc.x, y: rc.y, name: p.name });
       }
     }
   }, [presences, addReaction]);
@@ -661,8 +676,11 @@ export const WhiteboardCanvas = ({
   };
 
   const emitReaction = (emoji: string) => {
-    const pt = lastScenePointerRef.current ?? viewportCenterScene();
-    addReaction({ emoji, x: pt.x, y: pt.y });
+    // Spawn at the viewport centre (always on-screen) rather than the last
+    // canvas pointer, which is often off-screen after a pan — that made the
+    // reaction look like nothing happened.
+    const pt = viewportCenterScene();
+    addReaction({ emoji, x: pt.x, y: pt.y, name: currentUserName });
     publishBoardPresence({ reaction: { emoji, x: pt.x, y: pt.y, at: Date.now() } });
   };
 
@@ -3089,6 +3107,17 @@ export const WhiteboardCanvas = ({
                 >
                   {r.emoji}
                 </text>
+                {r.name && (
+                  <text
+                    fontSize={11}
+                    y={16}
+                    textAnchor="middle"
+                    fill="#64748b"
+                    style={{ userSelect: 'none' }}
+                  >
+                    {r.name}
+                  </text>
+                )}
                 <animateTransform
                   attributeName="transform"
                   type="translate"
@@ -3345,7 +3374,7 @@ export const WhiteboardCanvas = ({
         )}
 
       {/* bottom-right controls */}
-      <div className="absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+      <div className="absolute bottom-16 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
         {showCollabControls && (
           <>
             <button
