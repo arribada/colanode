@@ -44,6 +44,7 @@ import { addOauthColumnsToMcpAccessTokens } from './00041-add-oauth-columns-to-m
 import { createMcpOauthClientsTable } from './00042-create-mcp-oauth-clients-table';
 import { createMcpOauthCodesTable } from './00043-create-mcp-oauth-codes-table';
 import { fixNodePathUpdateTrigger } from './00044-fix-node-path-update-trigger';
+import { createNodeSnapshotsTable } from './00045-create-node-snapshots-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -94,4 +95,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00042_create_mcp_oauth_clients_table': createMcpOauthClientsTable,
   '00043_create_mcp_oauth_codes_table': createMcpOauthCodesTable,
   '00044_fix_node_path_update_trigger': fixNodePathUpdateTrigger,
+  '00045_create_node_snapshots_table': createNodeSnapshotsTable,
 };
