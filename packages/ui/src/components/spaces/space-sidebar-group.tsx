@@ -40,7 +40,7 @@ export const SpaceSidebarGroup = ({ space, group }: SpaceSidebarGroupProps) => {
       <CollapsibleContent>
         <ul className="ml-2 flex min-w-0 flex-col gap-0.5 py-0.5">
           {group.items.map((child) => (
-            <li key={child.id}>
+            <li key={child.id} className="min-w-0">
               <SidebarItem node={child} />
             </li>
           ))}

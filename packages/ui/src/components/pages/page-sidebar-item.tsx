@@ -348,7 +348,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
         <CollapsibleContent>
           <ul className="ml-3 flex min-w-0 flex-col gap-0.5 py-0.5">
             {children.map((child) => (
-              <li key={child.id}>
+              <li key={child.id} className="min-w-0">
                 <SidebarItem node={child} />
               </li>
             ))}

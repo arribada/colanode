@@ -43,7 +43,7 @@ export const Sidebar = ({
         onToggleCollapsed={onToggleCollapsed}
       />
       {!collapsed && (
-        <div className="min-h-0 min-w-0 grow overflow-auto border-l border-sidebar-border">
+        <div className="min-h-0 min-w-0 grow overflow-y-auto overflow-x-hidden border-l border-sidebar-border">
           {menu === 'spaces' && <SidebarSpaces />}
           {menu === 'chats' && <SidebarChats />}
           {menu === 'inbox' && <InboxPanel userId={workspace.userId} />}
