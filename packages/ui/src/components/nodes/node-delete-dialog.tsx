@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from '@colanode/ui/components/ui/alert-dialog';
 import { Button } from '@colanode/ui/components/ui/button';
+import { useNodeUndo } from '@colanode/ui/contexts/node-undo';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
@@ -44,6 +45,7 @@ export const NodeDeleteDialog = ({
   const workspace = useWorkspace();
   const router = useRouter();
   const { mutate, isPending } = useMutation();
+  const { push: pushUndo } = useNodeUndo();
 
   const softDelete = softDeleteIdTypes.includes(getIdType(id));
 
@@ -84,11 +86,46 @@ export const NodeDeleteDialog = ({
     if (softDelete) {
       // Soft delete: the node gets a deletedAt attribute and moves to the
       // workspace trash, from where it can be restored or deleted forever.
+      const trashed = workspace.collections.nodes.get(id);
+      const name =
+        trashed && 'name' in trashed ? (trashed.name ?? 'Unnamed') : 'Unnamed';
       mutate({
         input: {
           type: 'node.trash',
           userId: workspace.userId,
           nodeId: id,
+        },
+        onSuccess: (output) => {
+          if (!output.success) {
+            return;
+          }
+          // node.restore clears deletedAt on the node (and any trashed
+          // ancestor), the exact inverse of node.trash. Fire it straight
+          // through the runtime: this dialog unmounts on close, so we can't
+          // lean on the component-bound mutate hook here.
+          const restore = () => {
+            void window.colanode
+              .executeMutation({
+                type: 'node.restore',
+                userId: workspace.userId,
+                nodeId: id,
+              })
+              .then((result) => {
+                if (!result.success) {
+                  toast.error(`Couldn't restore "${name}"`);
+                }
+              })
+              .catch(() => {
+                toast.error(`Couldn't restore "${name}"`);
+              });
+          };
+          pushUndo(restore);
+          toast(`Deleted "${name}"`, {
+            action: {
+              label: 'Undo',
+              onClick: restore,
+            },
+          });
         },
         onError(error) {
           toast.error(error.message);

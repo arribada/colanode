@@ -11,6 +11,7 @@ import {
   LocalWhiteboardNode,
 } from '@colanode/client/types';
 import { generateFractionalIndex, NodeAttributes } from '@colanode/core';
+import { useNodeUndo } from '@colanode/ui/contexts/node-undo';
 import {
   SidebarTree,
   useSidebarTree,
@@ -72,10 +73,10 @@ const canMoveInto = (
 
 interface SidebarNodeDndOptions {
   /**
-   * Whether this row accepts a drop *inside* it (re-parenting). Spaces and pages
-   * do; folders hold files and the sidebar never lists their contents, so a page
-   * dropped in one would silently vanish from the tree. Every movable row still
-   * accepts a drop *before/after* it for reordering, regardless of this flag.
+   * Whether this row accepts a drop *inside* it (re-parenting). Spaces, pages and
+   * folders all do — each lists its child nodes in the sidebar, so a node dropped
+   * in one stays visible in the tree. Every movable row still accepts a drop
+   * *before/after* it for reordering, regardless of this flag.
    */
   droppable?: boolean;
 }
@@ -95,6 +96,7 @@ export const useSidebarNodeDnd = (
   const workspace = useWorkspace();
   const tree = useSidebarTree();
   const { mutate } = useMutation();
+  const { push: pushUndo } = useNodeUndo();
 
   const droppable = options?.droppable ?? false;
   const canEdit = workspace.role !== 'guest' && workspace.role !== 'none';
@@ -146,10 +148,15 @@ export const useSidebarNodeDnd = (
     return rel < 0.5 ? 'before' : 'after';
   };
 
+  // `undo`, when given, is the patch that puts the node back where it was.
+  // After a successful move we surface it as a toast "Undo" button and register
+  // it on the global undo stack (Ctrl/Cmd-Z). Replaying through this same helper
+  // with no `undo` reverts silently and can't loop.
   const updateNode = (
     target: MovableNode,
     patch: { parentId?: string; index?: string },
-    label: string
+    label: string,
+    undo?: { parentId?: string; index?: string }
   ) => {
     mutate({
       input: {
@@ -164,7 +171,19 @@ export const useSidebarNodeDnd = (
       onSuccess: (output) => {
         if (!output.success) {
           toast.error(`Couldn't move "${label}"`);
+          return;
         }
+        if (!undo) {
+          return;
+        }
+        const revert = () => updateNode(target, undo, label);
+        pushUndo(revert);
+        toast(`Moved "${label}"`, {
+          action: {
+            label: 'Undo',
+            onClick: revert,
+          },
+        });
       },
       onError: () => {
         toast.error(`Couldn't move "${label}"`);
@@ -177,11 +196,23 @@ export const useSidebarNodeDnd = (
     dragged: MovableNode,
     zone: DropZone
   ) => {
+    // Capture where the dragged node currently sits so the move can be undone.
+    const oldParentId = parentIdOf(dragged);
+    const oldIndex = tree.childKey(dragged.id);
+    const undoPatch: { parentId?: string; index?: string } = {};
+    if (oldParentId !== null) {
+      undoPatch.parentId = oldParentId;
+    }
+    if (oldIndex !== undefined) {
+      undoPatch.index = oldIndex;
+    }
+    const undo = undoPatch.parentId !== undefined ? undoPatch : undefined;
+
     if (zone === 'inside') {
       if (!droppable || !canMoveInto(item, node, tree)) {
         return;
       }
-      updateNode(dragged, { parentId: node.id }, item.name);
+      updateNode(dragged, { parentId: node.id }, item.name, undo);
       return;
     }
 
@@ -220,7 +251,7 @@ export const useSidebarNodeDnd = (
       return;
     }
 
-    updateNode(dragged, { parentId, index: newIndex }, item.name);
+    updateNode(dragged, { parentId, index: newIndex }, item.name, undo);
   };
 
   const [{ isOver, canDrop }, drop] = useDrop({

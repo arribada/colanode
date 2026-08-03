@@ -1,5 +1,5 @@
 import { Outlet, useRouterState } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AiChatPanel } from '@colanode/ui/components/layouts/ai-chat-panel';
 import { AiChatToggle } from '@colanode/ui/components/layouts/ai-chat-toggle';
@@ -11,6 +11,7 @@ import { ThreadSheet } from '@colanode/ui/components/layouts/thread-sheet';
 import { SearchDialog } from '@colanode/ui/components/search/search-dialog';
 import { WorkspaceSyncIndicator } from '@colanode/ui/components/workspaces/workspace-sync-indicator';
 import { AiChatPanelContext } from '@colanode/ui/contexts/ai-chat-panel';
+import { NodeUndoContext } from '@colanode/ui/contexts/node-undo';
 import { PageCommentsContext } from '@colanode/ui/contexts/page-comments';
 import { SearchContext } from '@colanode/ui/contexts/search';
 import { ThreadPanelContext } from '@colanode/ui/contexts/thread-panel';
@@ -33,6 +34,18 @@ export const WorkspaceLayout = () => {
   );
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // Most-recent-first inverses of sidebar node operations, for global Ctrl/Cmd-Z.
+  const undoStackRef = useRef<Array<() => void>>([]);
+  const pushUndo = useCallback((undo: () => void) => {
+    const stack = undoStackRef.current;
+    stack.push(undo);
+    // Bound the history so a long session can't grow it without limit.
+    if (stack.length > 25) {
+      stack.shift();
+    }
+  }, []);
+  const nodeUndoValue = useMemo(() => ({ push: pushUndo }), [pushUndo]);
+
   // close the panels whenever the active route changes (stale-panel guard)
   const location = useRouterState({ select: (s) => s.location.pathname });
   useEffect(() => {
@@ -52,6 +65,54 @@ export const WorkspaceLayout = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Ctrl/Cmd-Z reverts the most recent sidebar node operation (move, rename,
+  // delete). It steps aside for any surface that owns its own undo history:
+  // form fields, the document editor (ProseMirror) and the whiteboard canvas.
+  // The board registers its own global Ctrl-Z while it is mounted, so whenever a
+  // board is on screen (its overlay layer is in the DOM) we let it win.
+  useEffect(() => {
+    const ownsUndo = (): boolean => {
+      if (document.querySelector('.board-overlay')) {
+        return true;
+      }
+      const active =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      if (!active) {
+        return false;
+      }
+      return (
+        active.isContentEditable ||
+        active.closest(
+          'input, textarea, [contenteditable="true"], .ProseMirror'
+        ) !== null
+      );
+    };
+
+    const handleUndo = (event: KeyboardEvent) => {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.shiftKey ||
+        event.key.toLowerCase() !== 'z'
+      ) {
+        return;
+      }
+      if (ownsUndo()) {
+        return;
+      }
+      const undo = undoStackRef.current.pop();
+      if (!undo) {
+        return;
+      }
+      event.preventDefault();
+      undo();
+    };
+
+    window.addEventListener('keydown', handleUndo);
+    return () => window.removeEventListener('keydown', handleUndo);
   }, []);
 
   // thread and comments panels are mutually exclusive side surfaces
@@ -99,27 +160,29 @@ export const WorkspaceLayout = () => {
   );
 
   return (
-    <AiChatPanelContext.Provider value={aiPanelValue}>
-      <SearchContext.Provider value={searchValue}>
-        <ThreadPanelContext.Provider value={threadValue}>
-          <PageCommentsContext.Provider value={commentsValue}>
-            <div className="w-full h-full flex">
-              {!isMobile && <SidebarDesktop />}
-              <section className="min-w-0 flex-1">
-                <Outlet />
-              </section>
-              {!isMobile && <ThreadPanel />}
-              {!isMobile && <CommentsPanel />}
-              {!isMobile && <AiChatPanel />}
-              {isMobile && <ThreadSheet />}
-              {isMobile && <CommentsSheet />}
-            </div>
-            {!isMobile && <AiChatToggle />}
-            <SearchDialog />
-            <WorkspaceSyncIndicator />
-          </PageCommentsContext.Provider>
-        </ThreadPanelContext.Provider>
-      </SearchContext.Provider>
-    </AiChatPanelContext.Provider>
+    <NodeUndoContext.Provider value={nodeUndoValue}>
+      <AiChatPanelContext.Provider value={aiPanelValue}>
+        <SearchContext.Provider value={searchValue}>
+          <ThreadPanelContext.Provider value={threadValue}>
+            <PageCommentsContext.Provider value={commentsValue}>
+              <div className="w-full h-full flex">
+                {!isMobile && <SidebarDesktop />}
+                <section className="min-w-0 flex-1">
+                  <Outlet />
+                </section>
+                {!isMobile && <ThreadPanel />}
+                {!isMobile && <CommentsPanel />}
+                {!isMobile && <AiChatPanel />}
+                {isMobile && <ThreadSheet />}
+                {isMobile && <CommentsSheet />}
+              </div>
+              {!isMobile && <AiChatToggle />}
+              <SearchDialog />
+              <WorkspaceSyncIndicator />
+            </PageCommentsContext.Provider>
+          </ThreadPanelContext.Provider>
+        </SearchContext.Provider>
+      </AiChatPanelContext.Provider>
+    </NodeUndoContext.Provider>
   );
 };

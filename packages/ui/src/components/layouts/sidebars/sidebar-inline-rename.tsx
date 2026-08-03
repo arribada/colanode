@@ -1,8 +1,10 @@
 // ABOUTME: Reusable inline rename for sidebar tree nodes — a hook that commits
 // ABOUTME: the new name through the nodes collection, plus the little edit field.
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { LocalNode } from '@colanode/client/types';
+import { useNodeUndo } from '@colanode/ui/contexts/node-undo';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 // Every renamable tree node (page, folder, database, whiteboard, …) carries a
@@ -10,6 +12,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 // collection the update dialog uses — no extra mutation needed.
 export const useInlineRename = (node: LocalNode) => {
   const workspace = useWorkspace();
+  const { push: pushUndo } = useNodeUndo();
   const [isRenaming, setIsRenaming] = useState(false);
 
   const currentName = 'name' in node ? (node.name ?? '') : '';
@@ -24,10 +27,31 @@ export const useInlineRename = (node: LocalNode) => {
     if (!nodes.has(node.id)) {
       return;
     }
+    const previousName = currentName;
     nodes.update(node.id, (draft) => {
       if ('name' in draft) {
         draft.name = name;
       }
+    });
+
+    // Local-first collection write: the optimistic update applies immediately,
+    // so replaying the previous name is a safe inverse.
+    const revert = () => {
+      if (!nodes.has(node.id)) {
+        return;
+      }
+      nodes.update(node.id, (draft) => {
+        if ('name' in draft) {
+          draft.name = previousName;
+        }
+      });
+    };
+    pushUndo(revert);
+    toast(`Renamed to "${name}"`, {
+      action: {
+        label: 'Undo',
+        onClick: revert,
+      },
     });
   };
 
