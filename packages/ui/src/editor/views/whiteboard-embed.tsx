@@ -36,7 +36,7 @@ const WhiteboardEmbedContent = () => {
     );
   }
 
-  return <WhiteboardContainer whiteboard={node} role={EMBED_ROLE} embedded />;
+  return <WhiteboardContainer node={node} role={EMBED_ROLE} embedded />;
 };
 
 // Empty-state picker: create a brand-new board, or embed one of the workspace's

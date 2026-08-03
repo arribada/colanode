@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { eq, useLiveQuery } from '@tanstack/react-db';
 
-import { LocalWhiteboardNode } from '@colanode/client/types';
+import { LocalNode } from '@colanode/client/types';
 import {
   BoardElement,
   BoardElementStyle,
@@ -181,12 +181,16 @@ type Interaction =
   | { mode: 'pen'; id: string; before: BoardScene };
 
 interface WhiteboardCanvasProps {
-  whiteboard: LocalWhiteboardNode;
+  node: LocalNode;
   role: NodeRole;
   // Rendered as an in-page embed (fixed-height, read-only preview). Changes
   // how wheel/touch behave (yield to page scroll) and hides the collaboration
   // controls so the preview never broadcasts presence onto the real board.
   embedded?: boolean;
+  // Which node attribute stores the persisted board scene: whiteboards use
+  // `scene`; a page/folder opened as a board uses `boardScene`. Defaults to
+  // `scene`, so real whiteboard nodes are unaffected.
+  sceneField?: 'scene' | 'boardScene';
 }
 
 // A live reaction floating up on the canvas (local + remote), keyed for its
@@ -201,6 +205,23 @@ interface FloatingReaction {
 const cloneScene = (scene: BoardScene): BoardScene =>
   JSON.parse(JSON.stringify(scene)) as BoardScene;
 
+// Reads the persisted board scene from whichever attribute this node type keeps
+// it under: whiteboards store it on `scene`, pages/folders opened as a board on
+// the optional `boardScene`. The discriminated-union narrowing keeps the access
+// fully typed (both are `BoardScene | undefined` on the flattened node) — no
+// `any` / cast needed.
+const getSceneAttr = (
+  node: LocalNode,
+  field: 'scene' | 'boardScene'
+): BoardScene | undefined => {
+  if (field === 'scene') {
+    return node.type === 'whiteboard' ? node.scene : undefined;
+  }
+  return node.type === 'page' || node.type === 'folder'
+    ? node.boardScene
+    : undefined;
+};
+
 // Floating board menus (quick-connect picker) must escape the board's
 // `overflow-hidden` container and stay painted while the board is fullscreen.
 // The Fullscreen API only paints the fullscreen subtree, so portal into the
@@ -210,9 +231,10 @@ const boardPortalTarget = (): HTMLElement =>
   (document.fullscreenElement as HTMLElement | null) ?? document.body;
 
 export const WhiteboardCanvas = ({
-  whiteboard,
+  node,
   role,
   embedded = false,
+  sceneField = 'scene',
 }: WhiteboardCanvasProps) => {
   const workspace = useWorkspace();
   const canEdit = hasNodeRole(role, 'editor');
@@ -222,10 +244,10 @@ export const WhiteboardCanvas = ({
   // the live board — never for a read-only viewer or an in-page embed.
   const showCollabControls = canEdit && !embedded;
 
-  const presences = usePresences(whiteboard.id);
+  const presences = usePresences(node.id);
   const { publish: publishPresence } = usePresencePublisher({
-    nodeId: whiteboard.id,
-    rootId: whiteboard.rootId,
+    nodeId: node.id,
+    rootId: node.rootId,
     kind: 'board',
   });
   const lastScenePointerRef = useRef<{ x: number; y: number } | null>(null);
@@ -245,7 +267,7 @@ export const WhiteboardCanvas = ({
   }, [presences]);
 
   const [scene, setScene] = useState<BoardScene>(
-    () => (whiteboard.scene as BoardScene | undefined) ?? {}
+    () => getSceneAttr(node, sceneField) ?? {}
   );
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [tool, setTool] = useState<BoardTool>('select');
@@ -262,8 +284,8 @@ export const WhiteboardCanvas = ({
       q
         .from({ nodes: workspace.collections.nodes })
         .where(({ nodes }) => eq(nodes.type, 'message'))
-        .where(({ nodes }) => eq(nodes.parentId, whiteboard.id)),
-    [workspace.userId, whiteboard.id]
+        .where(({ nodes }) => eq(nodes.parentId, node.id)),
+    [workspace.userId, node.id]
   );
   const commentCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -406,7 +428,7 @@ export const WhiteboardCanvas = ({
   // local user drags — every element except the ones under the local gesture
   // is merged in immediately.
   useEffect(() => {
-    const incoming = (whiteboard.scene as BoardScene | undefined) ?? {};
+    const incoming = getSceneAttr(node, sceneField) ?? {};
     const current = sceneRef.current;
     const locked = lockedElementIds();
 
@@ -441,7 +463,7 @@ export const WhiteboardCanvas = ({
       setScene(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [whiteboard.scene]);
+  }, [getSceneAttr(node, sceneField)]);
 
   // Announce presence on mount so the "who's viewing" stack shows this user
   // even before they move the pointer.
@@ -643,14 +665,25 @@ export const WhiteboardCanvas = ({
         return;
       }
       const nodes = workspace.collections.nodes;
-      if (!nodes.has(whiteboard.id)) {
+      if (!nodes.has(node.id)) {
         return;
       }
-      nodes.update(whiteboard.id, (draft) => {
-        if (draft.type !== 'whiteboard') {
+      nodes.update(node.id, (draft) => {
+        if (
+          draft.type !== 'whiteboard' &&
+          draft.type !== 'page' &&
+          draft.type !== 'folder'
+        ) {
           return;
         }
-        const current = (draft.scene as BoardScene | undefined) ?? {};
+        const current =
+          (sceneField === 'scene'
+            ? draft.type === 'whiteboard'
+              ? draft.scene
+              : undefined
+            : draft.type === 'page' || draft.type === 'folder'
+              ? draft.boardScene
+              : undefined) ?? {};
         const next: BoardScene = { ...current };
         for (const id of ids) {
           const el = source[id];
@@ -660,10 +693,16 @@ export const WhiteboardCanvas = ({
             next[id] = el;
           }
         }
-        draft.scene = next;
+        if (sceneField === 'scene') {
+          if (draft.type === 'whiteboard') {
+            draft.scene = next;
+          }
+        } else if (draft.type === 'page' || draft.type === 'folder') {
+          draft.boardScene = next;
+        }
       });
     },
-    [canEdit, workspace, whiteboard.id]
+    [canEdit, workspace, node.id, sceneField]
   );
 
   const flushPersist = useCallback(() => {
@@ -1983,7 +2022,7 @@ export const WhiteboardCanvas = ({
         type: 'file.create',
         userId: workspace.userId,
         tempFileId: temp.id,
-        parentId: whiteboard.id,
+        parentId: node.id,
       });
       if (!res.success) {
         toast.error(res.error.message);
@@ -2124,7 +2163,8 @@ export const WhiteboardCanvas = ({
     };
   };
 
-  const boardFileName = () => whiteboard.name || 'board';
+  const boardFileName = () =>
+    ('name' in node ? node.name : '') || 'board';
 
   const onExport = async () => {
     const target = computeExportRegion();
@@ -2348,7 +2388,7 @@ export const WhiteboardCanvas = ({
       >
         <defs>
           <pattern
-            id={`board-grid-${whiteboard.id}`}
+            id={`board-grid-${node.id}`}
             width={gridSize}
             height={gridSize}
             patternUnits="userSpaceOnUse"
@@ -2371,7 +2411,7 @@ export const WhiteboardCanvas = ({
             height={
               (svgRef.current?.clientHeight ?? 2000) / viewport.zoom + 4000
             }
-            fill={`url(#board-grid-${whiteboard.id})`}
+            fill={`url(#board-grid-${node.id})`}
           />
 
           {/* mind-map parent -> child edges (behind the nodes) */}
@@ -2933,8 +2973,8 @@ export const WhiteboardCanvas = ({
 
       {commentElementId && scene[commentElementId] && (
         <BoardCommentsPanel
-          whiteboardId={whiteboard.id}
-          rootId={whiteboard.rootId}
+          whiteboardId={node.id}
+          rootId={node.rootId}
           role={role}
           elementId={commentElementId}
           onClose={() => setCommentElementId(null)}

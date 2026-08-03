@@ -12,6 +12,7 @@ import {
   nodeCoverSchema,
   nodeRoleEnum,
 } from '@colanode/core/registry/nodes/core';
+import { boardSceneSchema } from '@colanode/core/registry/nodes/whiteboard';
 
 export const pageAttributesSchema = z.object({
   type: z.literal('page'),
@@ -25,6 +26,10 @@ export const pageAttributesSchema = z.object({
   // collection (see notTemplateSql) — surfaced only through the dedicated
   // page.template.list query / "New from template" menu on the space.
   isTemplate: z.boolean().nullable().optional(),
+  // Optional board scene — lets a page open as an editable whiteboard view
+  // (AFFiNE-style Document<->Board). Same shape as whiteboard `scene`; absent
+  // on legacy pages, so backward-compatible.
+  boardScene: boardSceneSchema.optional(),
   collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),

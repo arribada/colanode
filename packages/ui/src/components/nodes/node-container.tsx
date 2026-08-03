@@ -1,4 +1,6 @@
 import { Outlet } from '@tanstack/react-router';
+import { FileText, LayoutDashboard } from 'lucide-react';
+import { useState } from 'react';
 
 import { ChannelContainer } from '@colanode/ui/components/channels/channel-container';
 import { ChatContainer } from '@colanode/ui/components/chats/chat-container';
@@ -14,6 +16,7 @@ import { NodeSettings } from '@colanode/ui/components/nodes/node-settings';
 import { PageContainer } from '@colanode/ui/components/pages/page-container';
 import { RecordContainer } from '@colanode/ui/components/records/record-container';
 import { SpaceContainer } from '@colanode/ui/components/spaces/space-container';
+import { Button } from '@colanode/ui/components/ui/button';
 import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { ContainerType } from '@colanode/ui/contexts/container';
 import { useNode } from '@colanode/ui/contexts/node';
@@ -33,13 +36,45 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
   const data = useNode();
   useNodeRadar(data.node);
 
+  // Pages and folders can open either as their normal document/list view or as
+  // an editable whiteboard bound to the node's `boardScene` (AFFiNE-style
+  // Document<->Board toggle). Whiteboard nodes always render the board.
+  const canToggleView =
+    data.node.type === 'page' || data.node.type === 'folder';
+  const [viewMode, setViewMode] = useState<'document' | 'board'>('document');
+  const boardActive = canToggleView && viewMode === 'board';
+
   return (
     <Container
       type={type}
-      fill={data.node.type === 'whiteboard'}
+      fill={data.node.type === 'whiteboard' || boardActive}
       breadcrumb={<NodeBreadcrumb nodes={data.breadcrumb} />}
       actions={
         <div className="flex flex-row items-center gap-2">
+          {canToggleView && (
+            <div className="flex flex-row items-center gap-0.5 rounded-md border border-border p-0.5">
+              <Button
+                type="button"
+                variant={viewMode === 'document' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 gap-1.5 px-2"
+                onClick={() => setViewMode('document')}
+              >
+                <FileText className="size-4" />
+                Document
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'board' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 gap-1.5 px-2"
+                onClick={() => setViewMode('board')}
+              >
+                <LayoutDashboard className="size-4" />
+                Board
+              </Button>
+            </div>
+          )}
           {data.node.type === 'page' && (
             <PageCommentsButton pageId={data.node.id} />
           )}
@@ -58,9 +93,16 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
       {data.node.type === 'channel' && (
         <ChannelContainer channel={data.node} role={data.role} />
       )}
-      {data.node.type === 'page' && (
-        <PageContainer page={data.node} role={data.role} />
-      )}
+      {data.node.type === 'page' &&
+        (boardActive ? (
+          <WhiteboardContainer
+            node={data.node}
+            role={data.role}
+            sceneField="boardScene"
+          />
+        ) : (
+          <PageContainer page={data.node} role={data.role} />
+        ))}
       {data.node.type === 'database' && (
         <DatabaseContainer database={data.node} role={data.role} />
       )}
@@ -70,15 +112,22 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
       {data.node.type === 'chat' && (
         <ChatContainer node={data.node} role={data.role} />
       )}
-      {data.node.type === 'folder' && (
-        <FolderContainer folder={data.node} role={data.role} />
-      )}
+      {data.node.type === 'folder' &&
+        (boardActive ? (
+          <WhiteboardContainer
+            node={data.node}
+            role={data.role}
+            sceneField="boardScene"
+          />
+        ) : (
+          <FolderContainer folder={data.node} role={data.role} />
+        ))}
       {data.node.type === 'message' && (
         <MessageContainer message={data.node} role={data.role} />
       )}
       {data.node.type === 'file' && <FileContainer file={data.node} />}
       {data.node.type === 'whiteboard' && (
-        <WhiteboardContainer whiteboard={data.node} role={data.role} />
+        <WhiteboardContainer node={data.node} role={data.role} />
       )}
     </Container>
   );

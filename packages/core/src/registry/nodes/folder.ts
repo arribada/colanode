@@ -6,6 +6,7 @@ import {
 } from '@colanode/core/lib/nodes';
 import { hasNodeRole } from '@colanode/core/lib/permissions';
 import { NodeModel, nodeRoleEnum } from '@colanode/core/registry/nodes/core';
+import { boardSceneSchema } from '@colanode/core/registry/nodes/whiteboard';
 
 export const folderAttributesSchema = z.object({
   type: z.literal('folder'),
@@ -13,6 +14,10 @@ export const folderAttributesSchema = z.object({
   avatar: z.string().nullable().optional(),
   parentId: z.string(),
   index: z.string().nullable().optional(),
+  // Optional board scene — lets a folder open as an editable whiteboard view
+  // (AFFiNE-style Document<->Board). Same shape as whiteboard `scene`; absent
+  // on legacy folders, so backward-compatible.
+  boardScene: boardSceneSchema.optional(),
   collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
