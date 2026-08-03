@@ -1,4 +1,4 @@
-import { coalesce, inArray, useLiveQuery } from '@tanstack/react-db';
+import { coalesce, eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
 import {
   ArrowUpRight,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { LocalDatabaseNode, LocalRecordNode } from '@colanode/client/types';
 import { timeAgo } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { NotificationItem } from '@colanode/ui/components/notifications/notification-item';
@@ -169,6 +170,87 @@ export const WorkspaceHomeDashboard = () => {
     [structuralNodes]
   );
 
+  // The current user's account, to match against the Wiki Tasks "leader"
+  // option — which stores full names like "Geoffrey Fournier" while the account
+  // name is usually a first name like "Geoffrey".
+  const currentUserQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ users: workspace.collections.users })
+        .where(({ users }) => eq(users.id, workspace.userId))
+        .findOne(),
+    [workspace.userId]
+  );
+  const currentUser = currentUserQuery.data as
+    | { name?: string | null; email?: string | null }
+    | undefined;
+
+  // Every record in the Wiki Tasks registry. We derive "your wiki tasks" from
+  // the database directly (leader field -> current user) instead of the
+  // automation notifications, which are only ever created locally for whoever
+  // edits a task — so a cron-driven leader reassignment notifies no one.
+  const wikiTasksQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.type, 'record'))
+        .where(({ nodes }) =>
+          eq(
+            (nodes as unknown as LocalRecordNode).databaseId,
+            tasksRegistry?.id ?? '__none__'
+          )
+        ),
+    [tasksRegistry?.id ?? '']
+  );
+
+  const myWikiTasks = useMemo<LocalRecordNode[]>(() => {
+    if (!tasksRegistry || tasksRegistry.type !== 'database' || !currentUser) {
+      return [];
+    }
+    const db = tasksRegistry as LocalDatabaseNode;
+    const leaderField = Object.values(db.fields ?? {}).find(
+      (f) =>
+        f.type === 'select' &&
+        (f.name.toLowerCase().includes('lead') ||
+          f.name.toLowerCase().includes('owner') ||
+          f.name.toLowerCase().includes('responsa'))
+    );
+    if (!leaderField || leaderField.type !== 'select') {
+      return [];
+    }
+    const options = leaderField.options ?? {};
+
+    const name = (currentUser.name ?? '').trim().toLowerCase();
+    const emailLocal = (currentUser.email ?? '').split('@')[0]?.toLowerCase() ?? '';
+    if (!name && !emailLocal) {
+      return [];
+    }
+    const matchesLeader = (leaderName: string) => {
+      const words = leaderName.toLowerCase().split(/\s+/).filter(Boolean);
+      return (
+        (name.length > 0 && words.includes(name)) ||
+        (emailLocal.length > 0 && words.includes(emailLocal))
+      );
+    };
+
+    const records = (wikiTasksQuery.data ?? []) as LocalRecordNode[];
+    return records
+      .filter((record) => record.isTemplate !== true)
+      .filter((record) => {
+        const value = record.fields?.[leaderField.id];
+        const optionId =
+          value && typeof value === 'object' && 'value' in value
+            ? (value.value as string | undefined)
+            : undefined;
+        if (!optionId) {
+          return false;
+        }
+        const option = options[optionId];
+        return option ? matchesLeader(option.name) : false;
+      })
+      .slice(0, 8);
+  }, [tasksRegistry, currentUser, wikiTasksQuery.data]);
+
   const recent = recentQuery.data ?? [];
 
   const nodeById = useMemo(
@@ -178,9 +260,6 @@ export const WorkspaceHomeDashboard = () => {
   // Task assignments (from the wiki-task automations) go in "Your wiki tasks";
   // everything else (mentions, replies) goes in "Notifications". Kept disjoint
   // so the two sections never show the same row twice.
-  const taskNotifications = notifications
-    .filter((n) => n.type === 'automation')
-    .slice(0, 6);
   const otherNotifications = notifications
     .filter((n) => n.type !== 'automation')
     .slice(0, 6);
@@ -295,23 +374,33 @@ export const WorkspaceHomeDashboard = () => {
             </Link>
           ) : null}
         </div>
-        {taskNotifications.length === 0 ? (
+        {myWikiTasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No tasks assigned to you right now. When a task in the Wiki Tasks
-            registry is assigned to you, it shows up here.
+            registry has you as its leader, it shows up here.
           </p>
         ) : (
           <div className="flex flex-col gap-0.5">
-            {taskNotifications.map((n) => (
-              <NotificationItem
-                key={n.id}
-                notification={n}
-                node={nodeById.get(n.source_node_id)}
-                userId={workspace.userId}
-                variant="task"
-                onNavigate={handleNavigate}
-              />
-            ))}
+            {myWikiTasks.map((record) => {
+              const { name, avatar } = getMentionNodeDisplay(record);
+              return (
+                <Link
+                  key={record.id}
+                  from="/workspace/$userId"
+                  to="$nodeId"
+                  params={{ nodeId: record.id }}
+                  className="flex flex-row items-center gap-2 rounded-md p-1.5 hover:bg-accent"
+                >
+                  <Avatar
+                    size="small"
+                    id={record.id}
+                    name={name}
+                    avatar={avatar}
+                  />
+                  <span className="flex-1 truncate text-sm">{name}</span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>
