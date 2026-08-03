@@ -209,6 +209,22 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
       });
     };
 
+    // The handle's X is derived from the editor's left edge, but it is only
+    // recomputed on mousemove/keydown. When the side panel is resized the
+    // editor reflows and shifts horizontally, leaving the handle stranded
+    // over the sidebar with a stale X until the next mousemove. Hide it on
+    // any layout resize (same hide the scroll handler uses); it reappears at
+    // the correct position on the next hover.
+    const handleResize = () => {
+      if (blockMenuOpenRef.current) {
+        return;
+      }
+      setMenuState({
+        show: false,
+      });
+    };
+    const resizeObserver = new ResizeObserver(handleResize);
+
     // Keyboard entry point: Mod-/ (Ctrl/Cmd + /) opens the block action menu for
     // the top-level block containing the current selection — the same block the
     // hover handle resolves — so the actions are reachable without a mouse.
@@ -281,11 +297,15 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
     editor.view.dom.addEventListener('mousemove', handleMouseMove);
     editor.view.dom.addEventListener('scroll', handleScroll, true);
     editor.view.dom.addEventListener('keydown', handleKeyDown);
+    resizeObserver.observe(editor.view.dom);
+    window.addEventListener('resize', handleResize);
 
     return () => {
       editor.view.dom.removeEventListener('mousemove', handleMouseMove);
       editor.view.dom.removeEventListener('scroll', handleScroll, true);
       editor.view.dom.removeEventListener('keydown', handleKeyDown);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
     };
   }, [editor]);
 
