@@ -104,7 +104,9 @@ interface NodeTable {
   id: ColumnType<string, string, never>;
   type: ColumnType<NodeType, never, never>;
   parent_id: ColumnType<string | null, never, never>;
-  root_id: ColumnType<string, string, never>;
+  // Updatable: a cross-space move re-homes the whole subtree, so the relocate
+  // carries a new root_id onto every node in it.
+  root_id: ColumnType<string, string, string>;
   workspace_id: ColumnType<string, string, never>;
   revision: ColumnType<string, string, string>;
   attributes: JSONColumnType<NodeAttributes, string | null, string | null>;
@@ -121,7 +123,9 @@ export type UpdateNode = Updateable<NodeTable>;
 interface NodeUpdateTable {
   id: ColumnType<string, string, never>;
   node_id: ColumnType<string, string, never>;
-  root_id: ColumnType<string, string, never>;
+  // Updatable: a cross-space relocate re-homes each update row to the new root
+  // (which bumps revision via trg_update_node_update_revision, re-streaming it).
+  root_id: ColumnType<string, string, string>;
   workspace_id: ColumnType<string, string, never>;
   revision: ColumnType<string, never, never>;
   data: ColumnType<Uint8Array, Uint8Array, Uint8Array>;
@@ -171,11 +175,14 @@ export type UpdateNodeReaction = Updateable<NodeReactionTable>;
 
 interface NodeTombstoneTable {
   id: ColumnType<string, string, never>;
-  root_id: ColumnType<string, string, never>;
+  // Updatable: relocation drops a tombstone in the OLD root, and a later real
+  // delete (now in the new root) re-tombstones the same id via onConflict —
+  // re-homing root_id, re-stamping who/when, and bumping revision to re-stream.
+  root_id: ColumnType<string, string, string>;
   workspace_id: ColumnType<string, string, never>;
-  revision: ColumnType<string, never, never>;
+  revision: ColumnType<string, never, string>;
   deleted_at: ColumnType<Date, Date, Date>;
-  deleted_by: ColumnType<string, string, never>;
+  deleted_by: ColumnType<string, string, string>;
 }
 
 export type SelectNodeTombstone = Selectable<NodeTombstoneTable>;

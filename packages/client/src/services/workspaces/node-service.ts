@@ -1199,6 +1199,12 @@ export class NodeService {
           .updateTable('nodes')
           .returningAll()
           .set({
+            // root_id follows the server: a cross-space move re-homes the whole
+            // subtree there, and each node arrives here as an ordinary update
+            // carrying its new rootId. Applying it keyed by node id relocates the
+            // single local row in place — no delete/re-create, so a client that
+            // can see both spaces never blinks the node out of existence.
+            root_id: update.rootId,
             attributes: JSON.stringify(attributes),
             updated_at: update.createdAt,
             updated_by: update.createdBy,
@@ -1322,11 +1328,24 @@ export class NodeService {
     const { deletedNode, deletedCollaborations } = await this.workspace.database
       .transaction()
       .execute(async (trx) => {
+        // Root-guard the delete. A cross-space move emits a tombstone in the OLD
+        // root so a user who can see only that space drops the node. A user who
+        // can see BOTH spaces has already relocated their local copy to the new
+        // root (via the re-homed node update), so this tombstone must NOT touch
+        // it — the root_id no longer matches and the delete is a no-op. If the
+        // tombstone happens to arrive first, this deletes the stale copy and the
+        // re-homed update recreates it under the new root; the outcome is the
+        // same either way, so the two synchronizers can race safely.
         const deletedNode = await trx
           .deleteFrom('nodes')
           .returningAll()
           .where('id', '=', tombstone.id)
+          .where('root_id', '=', tombstone.rootId)
           .executeTakeFirst();
+
+        if (!deletedNode) {
+          return { deletedNode: undefined, deletedCollaborations: [] };
+        }
 
         const deletedCollaborations = await trx
           .deleteFrom('collaborations')

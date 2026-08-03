@@ -8,8 +8,10 @@ import {
   CreateNodeMutationData,
   DeleteNodeMutationData,
   extractNodeCollaborators,
+  extractNodeRole,
   generateId,
   getNodeModel,
+  hasNodeRole,
   IdType,
   Node,
   NodeAttributes,
@@ -571,10 +573,31 @@ const tryUpdateNodeFromMutation = async (
   const isMove =
     nextParentId !== undefined && nextParentId !== readParentId(node.attributes);
 
+  // A move whose new parent lives in a different space (root) is a *relocation*:
+  // the node keeps its id but its whole subtree changes root_id. root_id is a
+  // plain column that node creation stamps once and nothing else ever recomputes,
+  // so without this the subtree would keep pointing at the old space and sync
+  // (which is scoped per root) would leave every client in a torn state. Gate it
+  // on the mover holding edit rights in the destination space, mirroring the
+  // same-space update check above.
+  const oldRootId = node.root_id;
+  if (isMove && nextParentId) {
+    const destParent = await fetchNode(nextParentId);
+    if (destParent && destParent.root_id !== oldRootId) {
+      const destTree = await fetchNodeTree(nextParentId);
+      const destRole = extractNodeRole(
+        destTree.map(mapNode),
+        workspace.user.id
+      );
+      if (!destRole || !hasNodeRole(destRole, 'editor')) {
+        return { type: 'success', output: MutationStatus.FORBIDDEN };
+      }
+    }
+  }
+
   try {
-    const { createdCollaborations, updatedCollaborations } = await database
-      .transaction()
-      .execute(async (trx) => {
+    const { createdCollaborations, updatedCollaborations, relocatedToRoot } =
+      await database.transaction().execute(async (trx) => {
         if (isMove) {
           // Serialise the moves inside one space. READ COMMITTED alone would let
           // both transactions read a node_paths that predates the other, and
@@ -631,6 +654,85 @@ const tryUpdateNodeFromMutation = async (
           throw new Error('Failed to update node');
         }
 
+        // Cross-space relocation. The attributes update above already changed
+        // the node's generated parent_id, which fired trg_update_node_path and
+        // rebuilt node_paths for the whole subtree — so the closure table is
+        // correct regardless of root. What is left is root_id, which no trigger
+        // touches. Re-read the destination parent's root under the same lock and
+        // if it differs, carry root_id down the subtree.
+        let relocatedToRoot: string | null = null;
+        if (isMove && nextParentId) {
+          const newParent = await trx
+            .selectFrom('nodes')
+            .select('root_id')
+            .where('id', '=', nextParentId)
+            .executeTakeFirst();
+
+          if (newParent && newParent.root_id !== oldRootId) {
+            const newRootId = newParent.root_id;
+
+            // Subtree = the moved node + every descendant. node_paths carries the
+            // self row at level 0, so ancestor_id = X yields the whole subtree.
+            const subtree = await trx
+              .selectFrom('node_paths')
+              .select('descendant_id')
+              .where('ancestor_id', '=', mutation.nodeId)
+              .execute();
+            const subtreeIds = subtree.map((row) => row.descendant_id);
+
+            // Move the nodes into the new space. This UPDATE does not touch
+            // parent_id, so trg_update_node_path is a no-op here (no second path
+            // rebuild).
+            await trx
+              .updateTable('nodes')
+              .set({ root_id: newRootId })
+              .where('id', 'in', subtreeIds)
+              .execute();
+
+            // Re-home every update row too. The BEFORE-UPDATE revision trigger on
+            // node_updates bumps each row's revision, so the destination root's
+            // node-updates synchronizer re-sends the subtree and every client
+            // with access to the new space relocates (or creates) it.
+            await trx
+              .updateTable('node_updates')
+              .set({ root_id: newRootId })
+              .where('node_id', 'in', subtreeIds)
+              .execute();
+
+            // A user who can see the OLD space but NOT the new one never receives
+            // the re-homed updates (their synchronizer is scoped to the old root),
+            // so they would keep a stale copy forever. Drop a tombstone in the old
+            // root for each subtree node so their node-tombstones synchronizer
+            // removes it. The client tombstone apply is root-guarded, so a user
+            // who has BOTH spaces ignores this (their local copy already carries
+            // the new root) — see syncServerNodeDelete. onConflict keeps this
+            // idempotent and lets a later real delete re-tombstone the same id.
+            const now = new Date();
+            for (const id of subtreeIds) {
+              await trx
+                .insertInto('node_tombstones')
+                .values({
+                  id,
+                  root_id: oldRootId,
+                  workspace_id: workspace.id,
+                  deleted_at: now,
+                  deleted_by: workspace.user.id,
+                })
+                .onConflict((oc) =>
+                  oc.column('id').doUpdateSet({
+                    root_id: oldRootId,
+                    deleted_at: now,
+                    deleted_by: workspace.user.id,
+                    revision: sql`nextval('node_tombstones_revision_sequence')`,
+                  })
+                )
+                .execute();
+            }
+
+            relocatedToRoot = newRootId;
+          }
+        }
+
         const { createdCollaborations, updatedCollaborations } =
           await applyCollaboratorUpdates(
             trx,
@@ -644,15 +746,30 @@ const tryUpdateNodeFromMutation = async (
           updatedNode,
           createdCollaborations,
           updatedCollaborations,
+          relocatedToRoot,
         };
       });
 
+    // On a plain in-space update the node stayed in its root, so wake that root.
+    // On a cross-space relocation wake the DESTINATION root (its node-updates
+    // synchronizer carries the re-homed subtree) and emit a delete in the OLD
+    // root (its node-tombstones synchronizer drops the subtree for anyone who
+    // can only see the old space).
     eventBus.publish({
       type: 'node.updated',
       nodeId: mutation.nodeId,
-      rootId: node.root_id,
+      rootId: relocatedToRoot ?? node.root_id,
       workspaceId: workspace.id,
     });
+
+    if (relocatedToRoot) {
+      eventBus.publish({
+        type: 'node.deleted',
+        nodeId: mutation.nodeId,
+        rootId: oldRootId,
+        workspaceId: workspace.id,
+      });
+    }
 
     for (const createdCollaboration of createdCollaborations) {
       eventBus.publish({

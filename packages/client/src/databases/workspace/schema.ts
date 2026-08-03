@@ -32,7 +32,9 @@ interface NodeTable {
   id: ColumnType<string, string, never>;
   type: ColumnType<NodeType, never, never>;
   parent_id: ColumnType<string | null, never, never>;
-  root_id: ColumnType<string, string, never>;
+  // Updatable: a cross-space move re-homes the node, so an incoming server
+  // update can carry a new root_id that we apply to the local row in place.
+  root_id: ColumnType<string, string, string>;
   attributes: ColumnType<string, string, string>;
   local_revision: ColumnType<string, string, string>;
   server_revision: ColumnType<string, string, string>;

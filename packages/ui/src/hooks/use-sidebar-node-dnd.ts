@@ -48,9 +48,10 @@ const isMovable = (node: LocalNode): node is MovableNode =>
 const parentIdOf = (node: LocalNode): string | null =>
   'parentId' in node ? (node.parentId ?? null) : null;
 
-// A move into a target: allowed only when the target is a different node, in the
-// same space (the server never recomputes root_id), that isn't already the
-// item's parent and isn't sitting inside the item's own subtree.
+// A move into a target: allowed when the target is a different node that isn't
+// already the item's parent and isn't sitting inside the item's own subtree. The
+// target may live in a different space — the server re-homes the whole subtree's
+// root_id in the same transaction, so a cross-space drop is just a re-parent.
 const canMoveInto = (
   item: SidebarNodeDragItem,
   target: LocalNode,
@@ -61,10 +62,6 @@ const canMoveInto = (
   }
 
   if (item.parentId === target.id) {
-    return false;
-  }
-
-  if (item.rootId !== target.rootId) {
     return false;
   }
 
