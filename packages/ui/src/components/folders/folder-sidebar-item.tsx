@@ -224,7 +224,7 @@ export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
                 className="min-w-0 grow"
               >
                 <span
-                  className="line-clamp-1 block w-full text-left"
+                  className="truncate block w-full text-left"
                   onDoubleClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();

@@ -49,12 +49,12 @@ export const SidebarDesktop = () => {
         topRight: false,
       }}
       handleClasses={{
-        right: 'opacity-0 hover:opacity-100 bg-blue-300 z-30',
+        right: 'opacity-0 hover:opacity-100 bg-blue-400 z-50',
       }}
       handleStyles={{
         right: {
-          width: '3px',
-          right: '-3px',
+          width: '10px',
+          right: '-5px',
         },
       }}
       onResize={(_, __, ref) => {
