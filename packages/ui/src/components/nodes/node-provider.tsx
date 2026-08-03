@@ -83,7 +83,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
             );
 
             if (!value) {
-              return <NodeUnavailable />;
+              return <NodeContainerSkeleton />;
             }
 
             return (
@@ -99,7 +99,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
 
   const value = buildContextValue(node, null, workspace.userId);
   if (!value) {
-    return <NodeUnavailable />;
+    return <NodeContainerSkeleton />;
   }
   return <NodeContext.Provider value={value}>{children}</NodeContext.Provider>;
 };
