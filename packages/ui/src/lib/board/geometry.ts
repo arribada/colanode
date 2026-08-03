@@ -354,85 +354,103 @@ const roundedPath = (pts: Point[], radius: number): string => {
   return d;
 };
 
-/**
- * Polyline vertices approximating a connector for arrowhead tangents / straight
- * hit paths. Curved returns [start, control, end] so the neighbours give the
- * bezier's end tangents.
- */
+/** The connector's reshape waypoints: `bends` when present, else the legacy
+ * single `bend` as a one-element list, else empty. */
+export const connectorBendPoints = (bends?: Point[], bend?: Point): Point[] => {
+  if (bends && bends.length > 0) return bends;
+  return bend ? [bend] : [];
+};
+
+/** Smooth (Catmull-Rom -> cubic bezier) path through all points. */
+const smoothPath = (pts: Point[]): string => {
+  if (pts.length < 2) return '';
+  if (pts.length === 2) return `M ${pts[0]!.x} ${pts[0]!.y} L ${pts[1]!.x} ${pts[1]!.y}`;
+  let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]!;
+    const p1 = pts[i]!;
+    const p2 = pts[i + 1]!;
+    const p3 = pts[i + 2] ?? p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+};
+
 export const connectorWaypoints = (
-  routing: ConnectorRouting,
-  start: Point,
-  end: Point,
-  bend?: Point
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
 ): Point[] => {
-  if (routing === 'curved') {
-    return [start, bend ?? defaultCurveControl(start, end), end];
-  }
-  if (routing === 'elbow') {
-    return elbowWaypoints(start, end, bend);
-  }
-  return bend ? [start, bend, end] : [start, end];
+  const list = bends ?? [];
+  if (list.length > 0) return [start, ...list, end];
+  if (routing === 'curved') return [start, defaultCurveControl(start, end), end];
+  if (routing === 'elbow') return elbowWaypoints(start, end);
+  return [start, end];
 };
 
-/** SVG path `d` for a connector honouring its routing + optional reshape bend. */
 export const buildConnectorPath = (
-  routing: ConnectorRouting,
-  start: Point,
-  end: Point,
-  bend?: Point
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
 ): string => {
-  if (routing === 'curved') {
-    const c = bend ?? defaultCurveControl(start, end);
-    return `M ${start.x} ${start.y} Q ${c.x} ${c.y} ${end.x} ${end.y}`;
-  }
-  if (routing === 'elbow') {
-    return roundedPath(elbowWaypoints(start, end, bend), ELBOW_RADIUS);
-  }
-  if (bend) {
-    return `M ${start.x} ${start.y} L ${bend.x} ${bend.y} L ${end.x} ${end.y}`;
-  }
-  return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
-};
-
-/**
- * Where the single reshape handle sits: the bend when set, else the route's
- * visual midpoint (on-curve for `curved`, mid of the middle segment for
- * `elbow`, geometric mid for `straight`).
- */
-export const connectorHandlePoint = (
-  routing: ConnectorRouting,
-  start: Point,
-  end: Point,
-  bend?: Point
-): Point => {
-  if (bend) {
-    return bend;
+  const list = bends ?? [];
+  if (list.length > 0) {
+    const pts = [start, ...list, end];
+    if (routing === 'curved') return smoothPath(pts);
+    if (routing === 'elbow') return roundedPath(pts, ELBOW_RADIUS);
+    return 'M ' + pts.map((p) => `${p.x} ${p.y}`).join(' L ');
   }
   if (routing === 'curved') {
     const c = defaultCurveControl(start, end);
-    return {
-      x: 0.25 * start.x + 0.5 * c.x + 0.25 * end.x,
-      y: 0.25 * start.y + 0.5 * c.y + 0.25 * end.y,
-    };
+    return `M ${start.x} ${start.y} Q ${c.x} ${c.y} ${end.x} ${end.y}`;
+  }
+  if (routing === 'elbow') return roundedPath(elbowWaypoints(start, end), ELBOW_RADIUS);
+  return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+};
+
+/** Route midpoint for the label (and the add-first-bend handle when empty). */
+export const connectorHandlePoint = (
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
+): Point => {
+  const list = bends ?? [];
+  if (list.length > 0) return list[Math.floor((list.length - 1) / 2)]!;
+  if (routing === 'curved') {
+    const c = defaultCurveControl(start, end);
+    return { x: 0.25 * start.x + 0.5 * c.x + 0.25 * end.x, y: 0.25 * start.y + 0.5 * c.y + 0.25 * end.y };
   }
   if (routing === 'elbow') {
     const pts = elbowWaypoints(start, end);
-    const a = pts[1]!;
-    const b = pts[2]!;
-    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    return { x: (pts[1]!.x + pts[2]!.x) / 2, y: (pts[1]!.y + pts[2]!.y) / 2 };
   }
   return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
 };
 
 /** Penultimate route point, so the END arrowhead points along the last segment. */
 export const connectorArrowFrom = (
-  routing: ConnectorRouting,
-  start: Point,
-  end: Point,
-  bend?: Point
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
 ): Point => {
-  const pts = connectorWaypoints(routing, start, end, bend);
+  const pts = connectorWaypoints(routing, start, end, bends);
   return pts[pts.length - 2] ?? start;
+};
+
+const distanceToSegment = (p: Point, a: Point, b: Point): number => {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return distance(p, a);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return distance(p, { x: a.x + t * dx, y: a.y + t * dy });
+};
+
+/** Index of the polyline segment (0-based) nearest to p; insert a new bend at
+ * this index into the bends array to place it on that segment. */
+export const nearestSegmentIndex = (pts: Point[], p: Point): number => {
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = distanceToSegment(p, pts[i]!, pts[i + 1]!);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
 };
 
 /**

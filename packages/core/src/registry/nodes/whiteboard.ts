@@ -56,6 +56,9 @@ export const boardConnectorSchema = z.object({
   // A single reshape waypoint in SCENE coordinates: the elbow corner / curve
   // control point the user dragged. Absent = auto-routed.
   bend: z.object({ x: z.number(), y: z.number() }).optional(),
+  // Multiple reshape waypoints in SCENE coordinates. When present these
+  // supersede the legacy single `bend`. Absent = auto-routed / legacy.
+  bends: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
 });
 
 export type BoardConnector = z.infer<typeof boardConnectorSchema>;

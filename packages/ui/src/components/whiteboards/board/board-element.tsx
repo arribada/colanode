@@ -10,6 +10,7 @@ import {
   arrowHeadPoints,
   buildConnectorPath,
   connectorArrowFrom,
+  connectorBendPoints,
   connectorHandlePoint,
   connectorWaypoints,
   pointsToSvg,
@@ -311,12 +312,12 @@ export const BoardElementView = ({
     const { start, end } = resolveConnectorEndpoints(element, scene);
     const c = element.connector ?? {};
     const routing = c.routing ?? 'straight';
-    const bend = c.bend;
-    const d = buildConnectorPath(routing, start, end, bend);
-    const wpts = connectorWaypoints(routing, start, end, bend);
-    const head = arrowHeadPoints(end, connectorArrowFrom(routing, start, end, bend), 12);
+    const bends = connectorBendPoints(c.bends, c.bend);
+    const d = buildConnectorPath(routing, start, end, bends);
+    const wpts = connectorWaypoints(routing, start, end, bends);
+    const head = arrowHeadPoints(end, connectorArrowFrom(routing, start, end, bends), 12);
     const tail = arrowHeadPoints(start, wpts[1] ?? end, 12);
-    const mid = connectorHandlePoint(routing, start, end, bend);
+    const mid = connectorHandlePoint(routing, start, end, bends);
     return (
       <g opacity={opacity}>
         <path

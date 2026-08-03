@@ -70,7 +70,10 @@ import {
   anchorPoint,
   buildConnectorPath,
   computeAlignmentSnap,
+  connectorBendPoints,
   connectorHandlePoint,
+  connectorWaypoints,
+  nearestSegmentIndex,
   normalizeRect,
   pointInRotatedRect,
   pointsBounds,
@@ -178,7 +181,7 @@ type Interaction =
       id: string;
       before: BoardScene;
     }
-  | { mode: 'connector-bend'; id: string; before: BoardScene }
+  | { mode: 'connector-bend'; id: string; index: number; before: BoardScene }
   | { mode: 'pen'; id: string; before: BoardScene };
 
 interface WhiteboardCanvasProps {
@@ -360,6 +363,9 @@ export const WhiteboardCanvas = ({
   const toolRef = useRef(tool);
   const selectionRef = useRef(selection);
   const interactionRef = useRef<Interaction | null>(null);
+  // Set on a Ctrl/Cmd+right-click we handled ourselves (add/remove bend) so
+  // the element's onContextMenu does not also open a comment popup.
+  const suppressContextMenuRef = useRef(false);
   const pointersRef = useRef<Map<number, Point>>(new Map());
   const pinchRef = useRef<{ dist: number; viewport: Viewport } | null>(null);
   const spaceRef = useRef(false);
@@ -946,6 +952,83 @@ export const WhiteboardCanvas = ({
       return;
     }
 
+    // Ctrl/Cmd + right-click on a connector: add a reshape bend on the line,
+    // or remove a bend when the click lands on an existing handle. Handled
+    // here (before the pan/right-click path) and never opens a menu.
+    if (canEdit && e.button === 2 && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      suppressContextMenuRef.current = true;
+      const rcTarget = e.target as Element;
+      const rcPoint = clientToScene(e.clientX, e.clientY);
+      const rcHandle = rcTarget.closest('[data-connector-handle]');
+      if (rcHandle) {
+        const cid = rcHandle.getAttribute('data-connector-handle')!;
+        const idxAttr = rcHandle.getAttribute('data-bend-index');
+        const el = sceneRef.current[cid];
+        if (
+          el &&
+          el.type === 'connector' &&
+          !isLockedForMe(cid) &&
+          idxAttr !== null &&
+          idxAttr !== 'new'
+        ) {
+          const index = Number(idxAttr);
+          const bends = connectorBendPoints(
+            el.connector?.bends,
+            el.connector?.bend
+          ).slice();
+          if (index >= 0 && index < bends.length) {
+            bends.splice(index, 1);
+            const before = cloneScene(sceneRef.current);
+            const next = {
+              ...sceneRef.current,
+              [cid]: {
+                ...el,
+                connector: { ...el.connector, bends, bend: undefined },
+              },
+            };
+            commit(before, next, [cid]);
+          }
+        }
+        return;
+      }
+      const rcEl = rcTarget.closest('[data-el-id]');
+      if (rcEl) {
+        const cid = rcEl.getAttribute('data-el-id')!;
+        const el = sceneRef.current[cid];
+        if (el && el.type === 'connector' && !isLockedForMe(cid)) {
+          const { start, end } = resolveConnectorEndpoints(
+            el,
+            sceneRef.current
+          );
+          const routing = el.connector?.routing ?? 'straight';
+          const bends = connectorBendPoints(
+            el.connector?.bends,
+            el.connector?.bend
+          );
+          const pts = connectorWaypoints(routing, start, end, bends);
+          const k = nearestSegmentIndex(pts, rcPoint);
+          const nextBends = bends.slice();
+          nextBends.splice(k, 0, rcPoint);
+          const before = cloneScene(sceneRef.current);
+          const next = {
+            ...sceneRef.current,
+            [cid]: {
+              ...el,
+              connector: {
+                ...el.connector,
+                bends: nextBends,
+                bend: undefined,
+              },
+            },
+          };
+          commit(before, next, [cid]);
+        }
+        return;
+      }
+      return;
+    }
+
     const panIntent =
       spaceRef.current ||
       e.button === 1 ||
@@ -1044,9 +1127,14 @@ export const WhiteboardCanvas = ({
       const id = selectionRef.current[0]!;
       const el = sceneRef.current[id];
       if (el && el.type === 'connector' && !isLockedForMe(id)) {
+        const idxAttr = bendHandleEl.getAttribute('data-bend-index');
+        // 'new' (or absent) => this drag creates the first bend at index 0.
+        const index =
+          idxAttr === null || idxAttr === 'new' ? 0 : Number(idxAttr);
         interactionRef.current = {
           mode: 'connector-bend',
           id,
+          index,
           before: cloneScene(sceneRef.current),
         };
         return;
@@ -1404,11 +1492,21 @@ export const WhiteboardCanvas = ({
         if (!el) {
           break;
         }
+        const current = connectorBendPoints(
+          el.connector?.bends,
+          el.connector?.bend
+        );
+        const nextBends = current.slice();
+        if (it.index >= nextBends.length) {
+          nextBends.push({ x: p.x, y: p.y });
+        } else {
+          nextBends[it.index] = { x: p.x, y: p.y };
+        }
         const next = {
           ...sceneRef.current,
           [it.id]: {
             ...el,
-            connector: { ...el.connector, bend: { x: p.x, y: p.y } },
+            connector: { ...el.connector, bends: nextBends, bend: undefined },
           },
         };
         applyLocal(next);
@@ -2532,6 +2630,10 @@ export const WhiteboardCanvas = ({
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (suppressContextMenuRef.current) {
+                  suppressContextMenuRef.current = false;
+                  return;
+                }
                 if (canComment) {
                   setCommentElementId(el.id);
                 }
@@ -2719,24 +2821,49 @@ export const WhiteboardCanvas = ({
                 scene
               );
               const c = singleConnector.connector ?? {};
-              const hp = connectorHandlePoint(
-                c.routing ?? 'straight',
-                start,
-                end,
-                c.bend
-              );
-              const sp = sceneToClient(hp);
+              const routing = c.routing ?? 'straight';
+              const bends = connectorBendPoints(c.bends, c.bend);
+              // No bends yet: one midpoint handle the user can drag to create
+              // the first bend (preserves the legacy single-handle UX).
+              if (bends.length === 0) {
+                const sp = sceneToClient(
+                  connectorHandlePoint(routing, start, end, [])
+                );
+                return (
+                  <circle
+                    data-connector-handle={singleConnector.id}
+                    data-bend-index="new"
+                    cx={sp.x}
+                    cy={sp.y}
+                    r={6}
+                    fill="#fff"
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                    style={{ cursor: 'grab' }}
+                  />
+                );
+              }
+              // One draggable handle per bend. Ctrl/Cmd+right-click removes it.
               return (
-                <circle
-                  data-connector-handle={singleConnector.id}
-                  cx={sp.x}
-                  cy={sp.y}
-                  r={6}
-                  fill="#fff"
-                  stroke="#3b82f6"
-                  strokeWidth={1.5}
-                  style={{ cursor: 'grab' }}
-                />
+                <>
+                  {bends.map((bpt, i) => {
+                    const sp = sceneToClient(bpt);
+                    return (
+                      <circle
+                        key={i}
+                        data-connector-handle={singleConnector.id}
+                        data-bend-index={i}
+                        cx={sp.x}
+                        cy={sp.y}
+                        r={6}
+                        fill="#fff"
+                        stroke="#3b82f6"
+                        strokeWidth={1.5}
+                        style={{ cursor: 'grab' }}
+                      />
+                    );
+                  })}
+                </>
               );
             })()}
 
@@ -3390,7 +3517,12 @@ const ElementHitArea = ({
     const c = element.connector ?? {};
     return (
       <path
-        d={buildConnectorPath(c.routing ?? 'straight', start, end, c.bend)}
+        d={buildConnectorPath(
+          c.routing ?? 'straight',
+          start,
+          end,
+          connectorBendPoints(c.bends, c.bend)
+        )}
         fill="none"
         stroke="transparent"
         strokeWidth={16}
