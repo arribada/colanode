@@ -1,7 +1,7 @@
 import { eq, useLiveQuery as useDbLiveQuery } from '@tanstack/react-db';
 
 import { DownloadStatus } from '@colanode/client/types';
-import { BoardElement, BoardScene } from '@colanode/core';
+import { BoardElement, BoardScene, DocumentContent } from '@colanode/core';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
@@ -197,6 +197,34 @@ const BoardImage = ({ element }: { element: BoardElement }) => {
 // sub-pages list use; while it is missing / still loading a neutral placeholder
 // card is shown. Kept as its own component so the hook lives at a stable top
 // level (mirrors BoardImage).
+// Flattens a page's document to a short plain-text preview for its board card
+// (blocks in fractional-index order, first ~180 chars). Nodes with no document
+// return '' and the card falls back to showing the node type label.
+const extractCardPreview = (
+  content: DocumentContent | null | undefined
+): string => {
+  if (!content || !content.blocks) {
+    return '';
+  }
+  const blocks = Object.values(content.blocks);
+  blocks.sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
+  const parts: string[] = [];
+  for (const block of blocks) {
+    const text = (block.content ?? [])
+      .map((leaf) => leaf.text ?? '')
+      .join('')
+      .trim();
+    if (text) {
+      parts.push(text);
+    }
+    if (parts.join(' ').length >= 180) {
+      break;
+    }
+  }
+  const joined = parts.join(' ');
+  return joined.length > 180 ? joined.slice(0, 179) + '\u2026' : joined;
+};
+
 const BoardNodeCard = ({ element }: { element: BoardElement }) => {
   const workspace = useWorkspace();
   const nodeQuery = useDbLiveQuery(
@@ -207,6 +235,14 @@ const BoardNodeCard = ({ element }: { element: BoardElement }) => {
     [workspace.userId, element.nodeId]
   );
   const node = nodeQuery.data?.[0];
+
+  // The referenced page's content, shown as a preview under the title.
+  const documentQuery = useLiveQuery({
+    type: 'document.get',
+    userId: workspace.userId,
+    documentId: element.nodeId ?? '',
+  });
+  const preview = extractCardPreview(documentQuery.data?.content);
   const { style } = element;
   const fill = style.fill ?? '#ffffff';
   const stroke = style.stroke ?? '#cbd5e1';
@@ -244,47 +280,76 @@ const BoardNodeCard = ({ element }: { element: BoardElement }) => {
 
   const { name, avatar, label } = getMentionNodeDisplay(node);
   // An emoji avatar doubles as an inline icon; image / uploaded avatars can't
-  // render as an SVG glyph so they are skipped (title-only card).
+  // render inline so they are skipped.
   const icon =
     avatar && avatar.length <= 4 && !avatar.includes('/') ? avatar : null;
-  const textX = element.x + 12 + (icon ? 20 : 0);
-  const centerY = element.y + element.h / 2;
-  const title = name.length > 24 ? `${name.slice(0, 23)}...` : name;
   return (
     <g>
       {card}
-      {icon && (
-        <text
-          x={element.x + 12}
-          y={centerY + 6}
-          fontSize={16}
-          fontFamily="Inter, system-ui, sans-serif"
-          style={{ userSelect: 'none' }}
+      {/* HTML card body so the title truncates and the preview wraps; pointer
+          events off so the card's own click/double-click still fire. */}
+      <foreignObject
+        x={element.x}
+        y={element.y}
+        width={element.w}
+        height={element.h}
+        style={{ pointerEvents: 'none' }}
+      >
+        <div
+          style={{
+            boxSizing: 'border-box',
+            width: '100%',
+            height: '100%',
+            padding: '8px 12px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            userSelect: 'none',
+          }}
         >
-          {icon}
-        </text>
-      )}
-      <text
-        x={textX}
-        y={centerY - 2}
-        fill={style.color ?? '#1f2937'}
-        fontSize={style.fontSize ?? 14}
-        fontWeight={style.fontWeight ?? '600'}
-        fontFamily="Inter, system-ui, sans-serif"
-        style={{ userSelect: 'none' }}
-      >
-        {title}
-      </text>
-      <text
-        x={textX}
-        y={centerY + 15}
-        fill="#94a3b8"
-        fontSize={11}
-        fontFamily="Inter, system-ui, sans-serif"
-        style={{ userSelect: 'none' }}
-      >
-        {label}
-      </text>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              minWidth: 0,
+              fontSize: 14,
+              fontWeight: 600,
+              color: style.color ?? '#1f2937',
+            }}
+          >
+            {icon && <span style={{ flexShrink: 0 }}>{icon}</span>}
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {name}
+            </span>
+          </div>
+          {preview ? (
+            <div
+              style={{
+                fontSize: 11,
+                lineHeight: 1.35,
+                color: '#64748b',
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 4,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {preview}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+          )}
+        </div>
+      </foreignObject>
     </g>
   );
 };

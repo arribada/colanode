@@ -870,7 +870,7 @@ export const WhiteboardCanvas = ({
     }
     const COLS = 3;
     const COL_W = 240;
-    const ROW_H = 90;
+    const ROW_H = 150;
     const ORIGIN_X = 40;
     const ORIGIN_Y = 40;
     const zKeys = generateNKeysBetween(topZ(current), null, missing.length);
