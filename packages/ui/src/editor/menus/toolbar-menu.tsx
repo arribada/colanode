@@ -10,6 +10,7 @@ import { CommentButton } from '@colanode/ui/editor/menus/comment-button';
 import { HighlightButton } from '@colanode/ui/editor/menus/highlight-button';
 import { LinkButton } from '@colanode/ui/editor/menus/link-button';
 import { MarkButton } from '@colanode/ui/editor/menus/mark-button';
+import { WikiTaskButton } from '@colanode/ui/editor/menus/wiki-task-button';
 
 interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
   editor: Editor;
@@ -113,6 +114,12 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
             userId={props.userId}
             pageId={props.pageId}
           />
+          <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+        </>
+      )}
+      {props.pageId && (
+        <>
+          <WikiTaskButton editor={props.editor} pageId={props.pageId} />
           <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
         </>
       )}
