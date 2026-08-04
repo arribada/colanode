@@ -96,7 +96,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
 
   const { refs, floatingStyles } = useFloating({
     placement: 'left',
-    middleware: [offset(4), shift()],
+    middleware: [offset(-4), shift()],
   });
 
   useEffect(() => {
