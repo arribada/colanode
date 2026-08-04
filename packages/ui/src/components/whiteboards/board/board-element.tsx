@@ -1,7 +1,8 @@
 import { eq, useLiveQuery as useDbLiveQuery } from '@tanstack/react-db';
 
 import { DownloadStatus } from '@colanode/client/types';
-import { BoardElement, BoardScene, DocumentContent } from '@colanode/core';
+import { BoardElement, BoardScene } from '@colanode/core';
+import { Document } from '@colanode/ui/components/documents/document';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
@@ -190,33 +191,23 @@ const BoardImage = ({ element }: { element: BoardElement }) => {
   );
 };
 
-// A nodeCard element references another Colanode node (a page / folder /
-// database / whiteboard) and paints it as a small card: a rounded rect plus
-// the node's title (and an emoji icon when its avatar is one). The referenced
+// A nodeCard element references another Colanode node. For a PAGE it mounts the
+// live, always-editable <Document> editor (the same one the page route uses) so
+// the page is edited in place, AFFiNE-edgeless style, with the card's top strip
+// acting as a drag handle. Other node types (folder / database / whiteboard /
+// file) stay lightweight - their icon, title and a muted type label, no editor,
+// which also bounds how many live TipTap editors a board mounts. The referenced
 // node is resolved through the same nodes collection live query the sidebar /
 // sub-pages list use; while it is missing / still loading a neutral placeholder
-// card is shown. Kept as its own component so the hook lives at a stable top
+// card is shown. Kept as its own component so the hooks live at a stable top
 // level (mirrors BoardImage).
-// Flattens a page's document to its full plain text (blocks in fractional-index
-// order, joined by newlines). The card clips it to its size, so resizing a card
-// reveals more. Nodes with no document return '' (card shows the type label).
-const extractCardPreview = (
-  content: DocumentContent | null | undefined
-): string => {
-  if (!content || !content.blocks) {
-    return '';
-  }
-  const blocks = Object.values(content.blocks);
-  blocks.sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
-  return blocks
-    .map((block) =>
-      (block.content ?? []).map((leaf) => leaf.text ?? '').join('')
-    )
-    .filter((text) => text.trim().length > 0)
-    .join('\n');
-};
-
-const BoardNodeCard = ({ element }: { element: BoardElement }) => {
+const BoardNodeCard = ({
+  element,
+  canEdit,
+}: {
+  element: BoardElement;
+  canEdit: boolean;
+}) => {
   const workspace = useWorkspace();
   const nodeQuery = useDbLiveQuery(
     (q) =>
@@ -227,13 +218,6 @@ const BoardNodeCard = ({ element }: { element: BoardElement }) => {
   );
   const node = nodeQuery.data?.[0];
 
-  // The referenced page's content, shown as a preview under the title.
-  const documentQuery = useLiveQuery({
-    type: 'document.get',
-    userId: workspace.userId,
-    documentId: element.nodeId ?? '',
-  });
-  const preview = extractCardPreview(documentQuery.data?.content);
   const { style } = element;
   const fill = style.fill ?? '#ffffff';
   const stroke = style.stroke ?? '#cbd5e1';
@@ -274,41 +258,45 @@ const BoardNodeCard = ({ element }: { element: BoardElement }) => {
   // render inline so they are skipped.
   const icon =
     avatar && avatar.length <= 4 && !avatar.includes('/') ? avatar : null;
+  const isPage = node.type === 'page';
+
   return (
     <g>
       {card}
-      {/* HTML card body so the title truncates and the preview wraps; pointer
-          events off so the card's own click/double-click still fire. */}
       <foreignObject
         x={element.x}
         y={element.y}
         width={element.w}
         height={element.h}
-        style={{ pointerEvents: 'none' }}
       >
         <div
           style={{
             boxSizing: 'border-box',
             width: '100%',
             height: '100%',
-            padding: '8px 12px',
-            overflow: 'hidden',
+            padding: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px',
             fontFamily: 'Inter, system-ui, sans-serif',
-            userSelect: 'none',
           }}
         >
+          {/* Drag handle. A pointerdown here is deliberately NOT stopped, so it
+              bubbles to the parent <g data-el-id> and the board's delegated
+              handler selects / drags the card. */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              flexShrink: 0,
               minWidth: 0,
-              fontSize: 14,
+              padding: '6px 10px',
+              borderBottom: '1px solid #e2e8f0',
+              fontSize: 13,
               fontWeight: 600,
               color: style.color ?? '#1f2937',
+              cursor: 'grab',
+              userSelect: 'none',
             }}
           >
             {icon && <span style={{ flexShrink: 0 }}>{icon}</span>}
@@ -322,23 +310,41 @@ const BoardNodeCard = ({ element }: { element: BoardElement }) => {
               {name}
             </span>
           </div>
-          {preview ? (
+          {isPage ? (
+            // The live page editor. Pointer / wheel / double-click events are
+            // stopped here so typing, selecting and scrolling inside the page
+            // never reach the board (no drag, no zoom) and a double-click never
+            // opens the node fullscreen. The board drives drag/select with
+            // POINTER events while the editor selects text with MOUSE events, so
+            // stopping pointer/wheel/dblclick leaves editing fully intact.
             <div
               style={{
                 flex: 1,
                 minHeight: 0,
-                fontSize: 11,
-                lineHeight: 1.4,
-                color: '#334155',
-                overflow: 'hidden',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
+                overflow: 'auto',
+                pointerEvents: 'auto',
+                fontSize: 13,
               }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerMove={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
             >
-              {preview}
+              <Document node={node} canEdit={canEdit} />
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                padding: '6px 10px',
+                fontSize: 11,
+                color: '#94a3b8',
+                userSelect: 'none',
+              }}
+            >
+              {label}
+            </div>
           )}
         </div>
       </foreignObject>
@@ -350,12 +356,14 @@ interface BoardElementViewProps {
   element: BoardElement;
   scene: BoardScene;
   editing?: boolean;
+  canEdit: boolean;
 }
 
 export const BoardElementView = ({
   element,
   scene,
   editing = false,
+  canEdit,
 }: BoardElementViewProps) => {
   const { style } = element;
   const stroke = style.stroke ?? 'none';
@@ -531,7 +539,7 @@ export const BoardElementView = ({
       shape = <BoardImage element={element} />;
       break;
     case 'nodeCard':
-      shape = <BoardNodeCard element={element} />;
+      shape = <BoardNodeCard element={element} canEdit={canEdit} />;
       break;
     case 'text':
     default:

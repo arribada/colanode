@@ -2775,6 +2775,7 @@ export const WhiteboardCanvas = ({
                 element={el}
                 scene={scene}
                 editing={editing?.id === el.id}
+                canEdit={canEdit}
               />
               <ElementHitArea element={el} scene={scene} />
             </g>
@@ -3655,6 +3656,14 @@ const ElementHitArea = ({
   element: BoardElement;
   scene: BoardScene;
 }) => {
+  // A nodeCard already provides its own hit surface: an opaque background
+  // rect plus a full-cover foreignObject (drag header + live page editor),
+  // both of which bubble to the parent <g data-el-id>. A transparent hit
+  // rect painted on top would sit above that foreignObject and swallow the
+  // editor's pointer events, so nodeCards opt out of the shared hit area.
+  if (element.type === 'nodeCard') {
+    return null;
+  }
   if (element.type === 'connector') {
     const { start, end } = resolveConnectorEndpoints(element, scene);
     const c = element.connector ?? {};
