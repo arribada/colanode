@@ -19,6 +19,7 @@ import { Heading1Command } from '@colanode/ui/editor/commands/heading1';
 import { Heading2Command } from '@colanode/ui/editor/commands/heading2';
 import { Heading3Command } from '@colanode/ui/editor/commands/heading3';
 import { NumberHeadingsCommand } from '@colanode/ui/editor/commands/number-headings';
+import { CreateAdrCommand } from '@colanode/ui/editor/commands/adr';
 import {
   MathBlockCommand,
   MathInlineCommand,
@@ -52,6 +53,7 @@ export {
   Heading2Command,
   Heading3Command,
   NumberHeadingsCommand,
+  CreateAdrCommand,
   MathBlockCommand,
   MathInlineCommand,
   MermaidCommand,

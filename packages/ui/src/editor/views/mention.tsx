@@ -10,6 +10,8 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { MentionSafeBoundary } from '@colanode/ui/editor/mention-safe-boundary';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
+import { AdrStatusDot } from '@colanode/ui/editor/adr-status-dot';
+import { ADR_DATABASE_ID } from '@colanode/ui/lib/adr';
 
 const MentionUserChip = ({ target }: { target: string }) => {
   const workspace = useWorkspace();
@@ -53,7 +55,12 @@ const MentionNodeChip = ({ target }: { target: string }) => {
     [workspace.userId, target]
   );
 
-  const { name, avatar } = getMentionNodeDisplay(nodeQuery.data);
+  const node = nodeQuery.data;
+  const { name, avatar } = getMentionNodeDisplay(node);
+  const adrRecord =
+    node != null && node.type === 'record' && node.databaseId === ADR_DATABASE_ID
+      ? node
+      : null;
 
   return (
     <Link
@@ -79,6 +86,7 @@ const MentionNodeChip = ({ target }: { target: string }) => {
       className="inline-flex flex-row items-center gap-1 cursor-pointer hover:underline"
     >
       <Avatar size="small" id={target} name={name} avatar={avatar} />
+      {adrRecord && <AdrStatusDot record={adrRecord} />}
       <span role="presentation">{name}</span>
     </Link>
   );
