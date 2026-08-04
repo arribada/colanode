@@ -380,7 +380,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
       <div
         ref={refs.setFloating}
         style={{ ...floatingStyles, zIndex: 50 }}
-        className="flex items-center -space-x-0.5 text-muted-foreground p-1 mr-2"
+        className="flex items-center -space-x-0.5 text-muted-foreground p-0.5"
       >
         <button
           type="button"
