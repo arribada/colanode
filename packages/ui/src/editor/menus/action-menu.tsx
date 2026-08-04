@@ -380,11 +380,11 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
       <div
         ref={refs.setFloating}
         style={{ ...floatingStyles, zIndex: 50 }}
-        className="flex items-center text-muted-foreground p-1 mr-2"
+        className="flex items-center -space-x-0.5 text-muted-foreground p-1 mr-2"
       >
         <button
           type="button"
-          className="flex size-6 items-center justify-center rounded cursor-pointer hover:bg-input hover:text-foreground"
+          className="flex size-5 items-center justify-center rounded cursor-pointer hover:bg-input hover:text-foreground"
           aria-label="Insert block below"
           title="Insert block below"
           data-testid="editor-action-menu-insert-button"
@@ -406,7 +406,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
             aria-label="Block options"
             title="Drag to move, click or press Ctrl/Cmd + / for actions"
             data-testid="editor-action-menu-drag-handle"
-            className="relative flex size-6 items-center justify-center rounded cursor-grab hover:bg-input hover:text-foreground"
+            className="relative flex size-5 items-center justify-center rounded cursor-grab hover:bg-input hover:text-foreground"
             onClick={() => {
               // The browser suppresses the click that follows a real drag, so
               // reaching here means a clean press-release: open the actions
