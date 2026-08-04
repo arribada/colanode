@@ -9,6 +9,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
 import {
@@ -86,6 +87,37 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
   // ProseMirror selection alive, but we snapshot it so a late-arriving result
   // still replaces the right text.
   const rangeRef = useRef<{ from: number; to: number } | null>(null);
+  // Instead of replacing the selection outright, the AI result is shown here
+  // (anchored under the selection) so the user accepts or rejects it.
+  const [preview, setPreview] = useState<{
+    range: { from: number; to: number };
+    text: string;
+    top: number;
+    left: number;
+  } | null>(null);
+
+  const showPreview = (
+    range: { from: number; to: number },
+    text: string
+  ) => {
+    const coords = editor.view.coordsAtPos(range.to);
+    setPreview({ range, text, top: coords.bottom + 6, left: coords.left });
+  };
+
+  const acceptPreview = () => {
+    if (!preview) {
+      return;
+    }
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(
+        { from: preview.range.from, to: preview.range.to },
+        preview.text
+      )
+      .run();
+    setPreview(null);
+  };
 
   const snapshotSelection = () => {
     const { from, to } = editor.state.selection;
@@ -124,11 +156,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
       }
 
       const output = result.output as AiCompleteMutationOutput;
-      editor
-        .chain()
-        .focus()
-        .insertContentAt({ from: range.from, to: range.to }, output.text)
-        .run();
+      showPreview(range, output.text);
     } catch {
       toast.error('The AI request failed. Try again.');
     } finally {
@@ -172,11 +200,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
       const output = result.output as AiAgentMutationOutput;
 
       if (output.text.trim().length > 0) {
-        editor
-          .chain()
-          .focus()
-          .insertContentAt({ from: range.from, to: range.to }, output.text)
-          .run();
+        showPreview(range, output.text);
       }
 
       const summary = summarizeActions(output.actions);
@@ -195,6 +219,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
   return (
     <>
       <DropdownMenu
+        modal={false}
         open={isOpen}
         onOpenChange={(open) => {
           if (open) {
@@ -340,6 +365,42 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {preview &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              top: preview.top,
+              left: preview.left,
+              zIndex: 60,
+              maxWidth: 'min(440px, 92vw)',
+            }}
+            className="rounded-md border border-border bg-popover text-popover-foreground p-3 shadow-xl"
+          >
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Sparkles className="size-3.5 text-primary" />
+              Suggestion IA — remplacer la sélection ?
+            </div>
+            <div className="mb-2 max-h-48 overflow-auto whitespace-pre-wrap text-sm">
+              {preview.text}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPreview(null)}
+              >
+                Annuler
+              </Button>
+              <Button type="button" size="sm" onClick={acceptPreview}>
+                Remplacer
+              </Button>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };
