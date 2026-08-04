@@ -96,7 +96,7 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
 
   const { refs, floatingStyles } = useFloating({
     placement: 'left',
-    middleware: [offset(6), shift()],
+    middleware: [offset(4), shift()],
   });
 
   useEffect(() => {
@@ -182,9 +182,12 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
       }
 
       const nodeRect = domNode.getBoundingClientRect();
-      const editorRect = editor.view.dom.getBoundingClientRect();
       const menuRect = DOMRect.fromRect({
-        x: editorRect.x - 10,
+        // Anchor to the block's own left edge, i.e. its text, not the editor box
+        // edge which sits against the sidebar. The handle then lives in the
+        // block's left margin inside the content area, never over the sidebar,
+        // and it follows the text horizontally when the side panel is resized.
+        x: nodeRect.x,
         y: nodeRect.y,
         width: 0,
         height: nodeRect.height,
