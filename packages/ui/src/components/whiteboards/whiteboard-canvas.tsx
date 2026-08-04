@@ -820,11 +820,14 @@ export const WhiteboardCanvas = ({
   };
 
   // ----- folder board auto-seed -------------------------------------------
-  // A folder opened as a Board (sceneField === 'boardScene') is seeded with one
-  // nodeCard per navigable child so the folder's pages / subfolders show up as
-  // cards the user can then wire together with connectors. Real whiteboards and
-  // page boards are never seeded. The children live-query mirrors PageChildren.
-  const isFolderBoard = node.type === 'folder' && sceneField === 'boardScene';
+  // A page OR folder opened as a Board (sceneField === 'boardScene') is seeded
+  // with one nodeCard per navigable child, so its sub-pages / subfolders show up
+  // as cards the user can wire together with connectors. Real whiteboards
+  // (sceneField === 'scene') are never seeded. The children live-query mirrors
+  // PageChildren. (Page and folder are the same container since the merge.)
+  const isContainerBoard =
+    (node.type === 'page' || node.type === 'folder') &&
+    sceneField === 'boardScene';
   const folderChildrenQuery = useLiveQuery(
     (q) =>
       q
@@ -838,7 +841,7 @@ export const WhiteboardCanvas = ({
   );
 
   useEffect(() => {
-    if (!isFolderBoard || !canEdit) {
+    if (!isContainerBoard || !canEdit) {
       return;
     }
     const children = folderChildrenQuery.data;
@@ -891,7 +894,7 @@ export const WhiteboardCanvas = ({
     applyLocal(next);
     persistIds(newIds, next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFolderBoard, canEdit, folderChildrenQuery.data]);
+  }, [isContainerBoard, canEdit, folderChildrenQuery.data]);
 
   // ----- element helpers ---------------------------------------------------
   const styleForType = (type: BoardTool): Partial<BoardElementStyle> => {
