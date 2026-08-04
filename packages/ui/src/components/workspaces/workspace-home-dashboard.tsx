@@ -9,6 +9,7 @@ import {
   Github,
   History,
   LayoutGrid,
+  Compass,
   ListTodo,
   MessagesSquare,
   Satellite,
@@ -28,6 +29,7 @@ import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
+import { ADR_DATABASE_ID } from '@colanode/ui/lib/adr';
 
 // Node types shown in the "Recently updated" feed. Pulled via a dedicated
 // bounded query (ordered by recency, capped at RECENT_LIMIT) so the home
@@ -251,6 +253,59 @@ export const WorkspaceHomeDashboard = () => {
       .slice(0, 8);
   }, [tasksRegistry, currentUser, wikiTasksQuery.data]);
 
+  // ADR registry records, to surface UNRESOLVED architecture decisions on the
+  // home for traceability (mirror of "Your wiki tasks").
+  const adrDbQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.id, ADR_DATABASE_ID))
+        .findOne(),
+    [workspace.userId]
+  );
+  const adrRecordsQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.type, 'record'))
+        .where(({ nodes }) =>
+          eq((nodes as unknown as LocalRecordNode).databaseId, ADR_DATABASE_ID)
+        ),
+    [workspace.userId]
+  );
+  const unresolvedAdrs = useMemo<LocalRecordNode[]>(() => {
+    const db = adrDbQuery.data as LocalDatabaseNode | undefined;
+    const records = (adrRecordsQuery.data ?? []) as LocalRecordNode[];
+    const statusField =
+      db && db.type === 'database'
+        ? Object.values(db.fields ?? {}).find(
+            (f) =>
+              f.type === 'select' && f.name.toLowerCase().includes('status')
+          )
+        : undefined;
+    const options =
+      statusField && statusField.type === 'select'
+        ? (statusField.options ?? {})
+        : {};
+    return records
+      .filter((record) => record.isTemplate !== true)
+      .filter((record) => {
+        if (!statusField) {
+          return true;
+        }
+        const value = record.fields?.[statusField.id];
+        const optionId =
+          value && typeof value === 'object' && 'value' in value
+            ? (value.value as string | undefined)
+            : undefined;
+        const optionName = optionId
+          ? (options[optionId]?.name ?? '').toLowerCase()
+          : '';
+        return !/resolv|closed|done/.test(optionName);
+      })
+      .slice(0, 8);
+  }, [adrDbQuery.data, adrRecordsQuery.data]);
+
   const recent = recentQuery.data ?? [];
 
   const nodeById = useMemo(
@@ -382,6 +437,53 @@ export const WorkspaceHomeDashboard = () => {
         ) : (
           <div className="flex flex-col gap-0.5">
             {myWikiTasks.map((record) => {
+              const { name, avatar } = getMentionNodeDisplay(record);
+              return (
+                <Link
+                  key={record.id}
+                  from="/workspace/$userId"
+                  to="$nodeId"
+                  params={{ nodeId: record.id }}
+                  className="flex flex-row items-center gap-2 rounded-md p-1.5 hover:bg-accent"
+                >
+                  <Avatar
+                    size="small"
+                    id={record.id}
+                    name={name}
+                    avatar={avatar}
+                  />
+                  <span className="flex-1 truncate text-sm">{name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Unresolved ADRs — architecture decisions still open / in reflection. */}
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Compass className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium">ADRs to resolve</h2>
+          {adrDbQuery.data ? (
+            <Link
+              from="/workspace/$userId"
+              to="$nodeId"
+              params={{ nodeId: ADR_DATABASE_ID }}
+              className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+            >
+              Open the ADR registry →
+            </Link>
+          ) : null}
+        </div>
+        {unresolvedAdrs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No unresolved ADRs. Decisions still open or in reflection show up
+            here.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {unresolvedAdrs.map((record) => {
               const { name, avatar } = getMentionNodeDisplay(record);
               return (
                 <Link
