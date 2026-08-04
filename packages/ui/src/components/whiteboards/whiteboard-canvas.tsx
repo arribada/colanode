@@ -1820,6 +1820,14 @@ export const WhiteboardCanvas = ({
         redo();
         return;
       }
+      // Ctrl/Cmd+A selects every board element (not the page text). Works for
+      // viewers too; the INPUT/TEXTAREA/contentEditable guard above already lets
+      // a real text field keep the native select-all.
+      if (meta && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelection(Object.keys(sceneRef.current));
+        return;
+      }
       if (!canEdit) {
         return;
       }
