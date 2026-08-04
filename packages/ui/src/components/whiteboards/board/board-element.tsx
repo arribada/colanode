@@ -197,9 +197,9 @@ const BoardImage = ({ element }: { element: BoardElement }) => {
 // sub-pages list use; while it is missing / still loading a neutral placeholder
 // card is shown. Kept as its own component so the hook lives at a stable top
 // level (mirrors BoardImage).
-// Flattens a page's document to a short plain-text preview for its board card
-// (blocks in fractional-index order, first ~180 chars). Nodes with no document
-// return '' and the card falls back to showing the node type label.
+// Flattens a page's document to its full plain text (blocks in fractional-index
+// order, joined by newlines). The card clips it to its size, so resizing a card
+// reveals more. Nodes with no document return '' (card shows the type label).
 const extractCardPreview = (
   content: DocumentContent | null | undefined
 ): string => {
@@ -208,21 +208,12 @@ const extractCardPreview = (
   }
   const blocks = Object.values(content.blocks);
   blocks.sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
-  const parts: string[] = [];
-  for (const block of blocks) {
-    const text = (block.content ?? [])
-      .map((leaf) => leaf.text ?? '')
-      .join('')
-      .trim();
-    if (text) {
-      parts.push(text);
-    }
-    if (parts.join(' ').length >= 180) {
-      break;
-    }
-  }
-  const joined = parts.join(' ');
-  return joined.length > 180 ? joined.slice(0, 179) + '\u2026' : joined;
+  return blocks
+    .map((block) =>
+      (block.content ?? []).map((leaf) => leaf.text ?? '').join('')
+    )
+    .filter((text) => text.trim().length > 0)
+    .join('\n');
 };
 
 const BoardNodeCard = ({ element }: { element: BoardElement }) => {
@@ -334,13 +325,14 @@ const BoardNodeCard = ({ element }: { element: BoardElement }) => {
           {preview ? (
             <div
               style={{
+                flex: 1,
+                minHeight: 0,
                 fontSize: 11,
-                lineHeight: 1.35,
-                color: '#64748b',
+                lineHeight: 1.4,
+                color: '#334155',
                 overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 4,
-                WebkitBoxOrient: 'vertical',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
               }}
             >
               {preview}

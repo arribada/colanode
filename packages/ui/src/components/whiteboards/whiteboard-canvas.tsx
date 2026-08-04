@@ -33,6 +33,7 @@ import {
   BoardElementStyle,
   BoardElementType,
   BoardScene,
+  extractBlocksMentions,
   hasNodeRole,
   NodeRole,
   PresencePayload,
@@ -893,6 +894,108 @@ export const WhiteboardCanvas = ({
     // Persist through the same merge-and-sync path a normal element insert uses.
     applyLocal(next);
     persistIds(newIds, next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isContainerBoard, canEdit, folderChildrenQuery.data]);
+
+  // ----- board mention connectors (auto) -----------------------------------
+  // Once the child cards exist, wire cards whose pages mention each other so the
+  // board shows the links between pages. node_references is not a react-db
+  // collection, so each child's document is read imperatively and its mentions
+  // extracted; only a mention pointing at another card ON THIS BOARD becomes a
+  // connector. Idempotent: never duplicates an existing from->to pair.
+  useEffect(() => {
+    if (!isContainerBoard || !canEdit) {
+      return;
+    }
+    const children = folderChildrenQuery.data;
+    if (!children || children.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const scene = sceneRef.current;
+      const cardByNode = new Map<string, string>();
+      for (const el of Object.values(scene)) {
+        if (el.type === 'nodeCard' && el.nodeId) {
+          cardByNode.set(el.nodeId, el.id);
+        }
+      }
+      if (cardByNode.size === 0) {
+        return;
+      }
+      const childIds = new Set(children.map((child) => child.id));
+      const existingPairs = new Set<string>();
+      for (const el of Object.values(scene)) {
+        if (
+          el.type === 'connector' &&
+          el.connector?.fromId &&
+          el.connector?.toId
+        ) {
+          existingPairs.add(el.connector.fromId + '->' + el.connector.toId);
+        }
+      }
+      const edges: Array<{ from: string; to: string }> = [];
+      for (const child of children) {
+        const fromCard = cardByNode.get(child.id);
+        if (!fromCard) {
+          continue;
+        }
+        const doc = await window.colanode.executeQuery({
+          type: 'document.get',
+          userId: workspace.userId,
+          documentId: child.id,
+        });
+        if (cancelled) {
+          return;
+        }
+        const content = doc?.content;
+        if (!content || content.type !== 'rich_text') {
+          continue;
+        }
+        const mentions = extractBlocksMentions(child.id, content.blocks);
+        const seen = new Set<string>();
+        for (const mention of mentions) {
+          const target = mention.target;
+          if (
+            !target ||
+            target === child.id ||
+            seen.has(target) ||
+            !childIds.has(target)
+          ) {
+            continue;
+          }
+          seen.add(target);
+          const toCard = cardByNode.get(target);
+          if (toCard && !existingPairs.has(fromCard + '->' + toCard)) {
+            edges.push({ from: fromCard, to: toCard });
+            existingPairs.add(fromCard + '->' + toCard);
+          }
+        }
+      }
+      if (cancelled || edges.length === 0) {
+        return;
+      }
+      const base = sceneRef.current;
+      const next: BoardScene = { ...base };
+      const newIds: string[] = [];
+      const zKeys = generateNKeysBetween(topZ(base), null, edges.length);
+      edges.forEach((edge, i) => {
+        const conn = createElement({
+          type: 'connector',
+          x: 0,
+          y: 0,
+          z: zKeys[i]!,
+        });
+        conn.connector = { fromId: edge.from, toId: edge.to, arrowEnd: true };
+        next[conn.id] = conn;
+        newIds.push(conn.id);
+      });
+      applyLocal(next);
+      persistIds(newIds, next);
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isContainerBoard, canEdit, folderChildrenQuery.data]);
 
