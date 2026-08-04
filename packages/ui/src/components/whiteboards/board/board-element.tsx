@@ -270,6 +270,7 @@ const BoardNodeCard = ({
         height={element.h}
       >
         <div
+          className="bg-background text-foreground"
           style={{
             boxSizing: 'border-box',
             width: '100%',
@@ -277,6 +278,8 @@ const BoardNodeCard = ({
             padding: 0,
             display: 'flex',
             flexDirection: 'column',
+            borderRadius: 8,
+            overflow: 'hidden',
             fontFamily: 'Inter, system-ui, sans-serif',
           }}
         >
@@ -291,10 +294,9 @@ const BoardNodeCard = ({
               flexShrink: 0,
               minWidth: 0,
               padding: '6px 10px',
-              borderBottom: '1px solid #e2e8f0',
+              borderBottom: '1px solid rgba(148, 163, 184, 0.25)',
               fontSize: 13,
               fontWeight: 600,
-              color: style.color ?? '#1f2937',
               cursor: 'grab',
               userSelect: 'none',
             }}

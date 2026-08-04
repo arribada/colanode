@@ -846,9 +846,16 @@ export const WhiteboardCanvas = ({
       return;
     }
     const children = folderChildrenQuery.data;
-    // Only seed once children have actually loaded, so an empty first render
-    // never blocks and a partial load never orphans cards.
-    if (!children || children.length === 0) {
+    // Only seed once children have actually loaded (null = still loading).
+    if (!children) {
+      return;
+    }
+    // A page also gets a card for ITSELF, so a leaf page with no children
+    // still shows and edits its own content on its board instead of an empty
+    // canvas. Its self-card is seeded first (top-left).
+    const seedTargets: LocalNode[] =
+      node.type === 'page' ? [node, ...children] : children;
+    if (seedTargets.length === 0) {
       return;
     }
     const current = sceneRef.current;
@@ -865,13 +872,13 @@ export const WhiteboardCanvas = ({
         }
       }
     }
-    const missing = children.filter((child) => !carded.has(child.id));
+    const missing = seedTargets.filter((child) => !carded.has(child.id));
     if (missing.length === 0) {
       return;
     }
     const COLS = 3;
-    const COL_W = 240;
-    const ROW_H = 150;
+    const COL_W = 330;
+    const ROW_H = 290;
     const ORIGIN_X = 40;
     const ORIGIN_Y = 40;
     const zKeys = generateNKeysBetween(topZ(current), null, missing.length);

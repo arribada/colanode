@@ -141,8 +141,8 @@ const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
     style: {},
   },
   nodeCard: {
-    w: 220,
-    h: 120,
+    w: 300,
+    h: 260,
     style: {
       fill: '#ffffff',
       stroke: '#cbd5e1',
