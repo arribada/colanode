@@ -1,7 +1,22 @@
 import { InputRule } from '@tiptap/core';
 import { HorizontalRule } from '@tiptap/extension-horizontal-rule';
+import { ReactNodeViewRenderer } from '@tiptap/react';
+
+import { DividerNodeView } from '@colanode/ui/editor/views/divider';
 
 export const DividerNode = HorizontalRule.extend({
+  addAttributes() {
+    return {
+      // Visual style of the rule. Persisted in block attrs, so it survives
+      // reload. Defaults to the original thin line for existing dividers.
+      variant: {
+        default: 'line',
+        parseHTML: (el) => el.getAttribute('data-variant') ?? 'line',
+        renderHTML: (attrs) => ({ 'data-variant': attrs.variant ?? 'line' }),
+      },
+    };
+  },
+
   addInputRules() {
     return [
       new InputRule({
@@ -21,9 +36,8 @@ export const DividerNode = HorizontalRule.extend({
       }),
     ];
   },
-}).configure({
-  HTMLAttributes: {
-    class:
-      'h-0.5 my-2 cursor-pointer rounded-sm border-none bg-muted bg-clip-content',
+
+  addNodeView() {
+    return ReactNodeViewRenderer(DividerNodeView);
   },
 });

@@ -7,6 +7,7 @@ import { EmbedCommand } from '@colanode/ui/editor/commands/embed';
 import { PlaneCommand } from '@colanode/ui/editor/commands/plane';
 import { CalloutCommand } from '@colanode/ui/editor/commands/callout';
 import { ColumnsCommand } from '@colanode/ui/editor/commands/columns';
+import { ChartCommand } from '@colanode/ui/editor/commands/chart';
 import { CodeBlockCommand } from '@colanode/ui/editor/commands/code-block';
 import { DatabaseCommand } from '@colanode/ui/editor/commands/database';
 import { DatabaseInlineCommand } from '@colanode/ui/editor/commands/database-inline';
@@ -44,6 +45,7 @@ export {
   EmbedCommand,
   PlaneCommand,
   ColumnsCommand,
+  ChartCommand,
   TableOfContentsCommand,
   CodeBlockCommand,
   DividerCommand,

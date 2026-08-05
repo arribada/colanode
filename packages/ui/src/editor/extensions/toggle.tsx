@@ -1,8 +1,10 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
+import { ReactNodeViewRenderer } from '@tiptap/react';
 
 import { defaultClasses } from '@colanode/ui/editor/classes';
+import { ToggleSummaryNodeView } from '@colanode/ui/editor/views/toggle-summary';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -168,6 +170,25 @@ export const ToggleSummaryNode = Node.create({
   defining: true,
   selectable: false,
   isolating: true,
+
+  addAttributes() {
+    return {
+      // 0 = normal text, 1/2/3 = heading sizes for the toggle's header line.
+      level: {
+        default: 0,
+        parseHTML: (el) => {
+          const l = parseInt(el.getAttribute('data-level') ?? '0', 10);
+          return [1, 2, 3].includes(l) ? l : 0;
+        },
+        renderHTML: (attrs) =>
+          attrs.level ? { 'data-level': String(attrs.level) } : {},
+      },
+    };
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ToggleSummaryNodeView);
+  },
 
   parseHTML() {
     return [{ tag: 'div[data-type="toggle-summary"]' }, { tag: 'summary' }];

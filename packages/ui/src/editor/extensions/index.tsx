@@ -19,6 +19,7 @@ import {
 } from '@colanode/ui/editor/extensions/columns';
 import { ColumnsDragExtension } from '@colanode/ui/editor/extensions/columns-drag';
 import { ColumnsResizeExtension } from '@colanode/ui/editor/extensions/columns-resize';
+import { ChartNode } from '@colanode/ui/editor/extensions/chart';
 import { CodeMark } from '@colanode/ui/editor/extensions/code';
 import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
 import { ColorMark } from '@colanode/ui/editor/extensions/color';
@@ -130,6 +131,7 @@ export {
   ColumnNode,
   ColumnsDragExtension,
   ColumnsResizeExtension,
+  ChartNode,
   TableOfContentsNode,
   TrailingNode,
   UnderlineMark,
