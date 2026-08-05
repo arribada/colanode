@@ -66,9 +66,8 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
         >
           <TableViewNameCell record={record} />
         </div>
-        {view.fields.map((field) => {
-          const inFillRange =
-            fill?.isInFillRange(field.field.id, index) ?? false;
+        {view.fields.map((field, col) => {
+          const inFillRange = fill?.isInFillRange(index, col) ?? false;
           return (
             <div
               key={`row-${record.id}-${field.field.id}`}
@@ -77,17 +76,17 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
                 inFillRange && 'bg-blue-100/70 dark:bg-blue-900/40'
               )}
               style={{ width: `${field.width}px` }}
-              onPointerEnter={() => fill?.enter(field.field.id, index)}
+              onPointerEnter={() => fill?.enter(index, col)}
             >
               <RecordFieldValue field={field.field} />
               {canFill && (
                 <span
                   role="presentation"
-                  title="Drag down to fill"
+                  title="Drag to fill — across rows and columns"
                   onPointerDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    fill?.start(field.field.id, index);
+                    fill?.start(index, col);
                   }}
                   className="absolute bottom-0 right-0 size-1.5 cursor-crosshair rounded-sm bg-blue-500 opacity-0 group-hover/cell:opacity-100"
                 />

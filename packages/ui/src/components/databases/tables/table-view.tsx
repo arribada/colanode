@@ -11,6 +11,8 @@ import { TableViewRecordCreateRow } from '@colanode/ui/components/databases/tabl
 import { ViewFullscreenButton } from '@colanode/ui/components/databases/view-fullscreen-button';
 import { ViewSettingsPopover } from '@colanode/ui/components/databases/view-settings-popover';
 import { ViewTabs } from '@colanode/ui/components/databases/view-tabs';
+import { useDatabase } from '@colanode/ui/contexts/database';
+import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import {
   TableFillContext,
   TableFillState,
@@ -20,6 +22,10 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 export const TableView = () => {
   const workspace = useWorkspace();
+  // Database context is available but not needed here directly; the view holds
+  // the ordered columns used by the fill.
+  useDatabase();
+  const view = useDatabaseView();
 
   // --- multi-row selection --------------------------------------------------
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -94,51 +100,79 @@ export const TableView = () => {
     ]
   );
 
-  // --- drag-fill ------------------------------------------------------------
-  // Records are kept in a ref (never triggers a re-render) so the fill always
-  // reads the freshest values, even after an edit that leaves the ids unchanged.
+  // --- drag-fill (2D) -------------------------------------------------------
+  // Records + ordered columns are kept in refs (never trigger a re-render) so
+  // the fill always reads the freshest values and column layout.
   const recordsRef = useRef<LocalRecordNode[]>([]);
   const setRecords = useCallback((records: LocalRecordNode[]) => {
     recordsRef.current = records;
   }, []);
+  const columnsRef = useRef(view.fields);
+  columnsRef.current = view.fields;
 
   const [fill, setFill] = useState<TableFillState | null>(null);
 
-  const start = useCallback((fieldId: string, index: number) => {
-    setFill({ fieldId, sourceIndex: index, currentIndex: index });
+  const start = useCallback((row: number, col: number) => {
+    setFill({
+      sourceRow: row,
+      sourceCol: col,
+      currentRow: row,
+      currentCol: col,
+    });
   }, []);
 
-  const enter = useCallback((fieldId: string, index: number) => {
+  const enter = useCallback((row: number, col: number) => {
     setFill((prev) =>
-      prev && prev.fieldId === fieldId
-        ? { ...prev, currentIndex: Math.max(index, prev.sourceIndex) }
-        : prev
+      prev ? { ...prev, currentRow: row, currentCol: col } : prev
     );
   }, []);
 
   const isInFillRange = useCallback(
-    (fieldId: string, index: number) =>
-      fill != null &&
-      fill.fieldId === fieldId &&
-      index > fill.sourceIndex &&
-      index <= fill.currentIndex,
+    (row: number, col: number) => {
+      if (!fill) {
+        return false;
+      }
+      const r0 = Math.min(fill.sourceRow, fill.currentRow);
+      const r1 = Math.max(fill.sourceRow, fill.currentRow);
+      const c0 = Math.min(fill.sourceCol, fill.currentCol);
+      const c1 = Math.max(fill.sourceCol, fill.currentCol);
+      return row >= r0 && row <= r1 && col >= c0 && col <= c1;
+    },
     [fill]
   );
 
-  // End the fill (on pointer release anywhere): copy the source cell value into
-  // every target row in the range for that field.
+  // On pointer release: copy the source cell value into every cell of the
+  // rectangle whose column shares the source column's field type (so a value
+  // never lands in an incompatible column).
   const endFill = useCallback(() => {
     setFill((f) => {
-      if (f && f.currentIndex > f.sourceIndex) {
-        const records = recordsRef.current;
-        const source = records[f.sourceIndex];
-        const value = source?.fields?.[f.fieldId];
-        for (
-          let i = f.sourceIndex + 1;
-          i <= f.currentIndex && i < records.length;
-          i++
-        ) {
-          const target = records[i];
+      if (
+        !f ||
+        (f.currentRow === f.sourceRow && f.currentCol === f.sourceCol)
+      ) {
+        return null;
+      }
+      const records = recordsRef.current;
+      const cols = columnsRef.current;
+      const sourceField = cols[f.sourceCol]?.field;
+      if (!sourceField) {
+        return null;
+      }
+      const value = records[f.sourceRow]?.fields?.[sourceField.id];
+      const r0 = Math.min(f.sourceRow, f.currentRow);
+      const r1 = Math.max(f.sourceRow, f.currentRow);
+      const c0 = Math.min(f.sourceCol, f.currentCol);
+      const c1 = Math.max(f.sourceCol, f.currentCol);
+      for (let r = r0; r <= r1 && r < records.length; r++) {
+        for (let c = c0; c <= c1 && c < cols.length; c++) {
+          if (r === f.sourceRow && c === f.sourceCol) {
+            continue;
+          }
+          const targetField = cols[c]?.field;
+          if (!targetField || targetField.type !== sourceField.type) {
+            continue;
+          }
+          const target = records[r];
           if (!target) {
             continue;
           }
@@ -147,9 +181,9 @@ export const TableView = () => {
               return;
             }
             if (value === undefined) {
-              delete draft.fields[f.fieldId];
+              delete draft.fields[targetField.id];
             } else {
-              draft.fields[f.fieldId] = JSON.parse(JSON.stringify(value));
+              draft.fields[targetField.id] = JSON.parse(JSON.stringify(value));
             }
           });
         }
