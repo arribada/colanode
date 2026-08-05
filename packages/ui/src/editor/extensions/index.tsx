@@ -17,6 +17,7 @@ import {
   ColumnNode,
   ColumnsNode,
 } from '@colanode/ui/editor/extensions/columns';
+import { ColumnsDragExtension } from '@colanode/ui/editor/extensions/columns-drag';
 import { CodeMark } from '@colanode/ui/editor/extensions/code';
 import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
 import { ColorMark } from '@colanode/ui/editor/extensions/color';
@@ -126,6 +127,7 @@ export {
   WhiteboardEmbedNode,
   ColumnsNode,
   ColumnNode,
+  ColumnsDragExtension,
   TableOfContentsNode,
   TrailingNode,
   UnderlineMark,
