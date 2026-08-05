@@ -359,6 +359,22 @@ export const createNodeFromMutation = async (
     return MutationStatus.OK;
   }
 
+  // The node was deleted if a tombstone exists for its id. A stale client that
+  // still holds the node locally will keep re-pushing its queued node.create;
+  // without this guard the server happily re-creates it, so a deleted page (and
+  // its subtree) keeps coming back. Cross-space moves arrive as node.update
+  // (relocation), never as creates, so this never blocks a relocation — and a
+  // brand-new node never has a tombstone. Ack it (OK) so the client drops the
+  // mutation and reconciles through the node-tombstones synchronizer.
+  const tombstone = await database
+    .selectFrom('node_tombstones')
+    .select('id')
+    .where('id', '=', mutation.nodeId)
+    .executeTakeFirst();
+  if (tombstone) {
+    return MutationStatus.OK;
+  }
+
   const ydoc = new YDoc(mutation.data);
   const attributes = ydoc.getObject<NodeAttributes>();
   const model = getNodeModel(attributes.type);

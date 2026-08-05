@@ -18,6 +18,9 @@ export const spaceAttributesSchema = z.object({
   avatar: z.string().nullable().optional(),
   collaborators: z.record(z.string(), nodeRoleEnum),
   visibility: z.enum(['public', 'private']).default('private'),
+  // Fractional order key for this space among the other spaces in the sidebar
+  // (written on drag-reorder). Absent spaces fall back to id order.
+  index: z.string().nullable().optional(),
   children: z.record(z.string(), spaceChildAttributesSchema).optional(),
 });
 

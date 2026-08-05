@@ -7,6 +7,7 @@ import {
   History,
   Image,
   LetterText,
+  MoveHorizontal,
   Printer,
   Settings,
   Trash2,
@@ -100,6 +101,31 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           >
             <Image className="size-4" />
             Update icon
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            disabled={!canEdit}
+            onClick={() => {
+              if (!canEdit) {
+                return;
+              }
+
+              const nodes = workspace.collections.nodes;
+              if (!nodes.has(page.id)) {
+                return;
+              }
+
+              nodes.update(page.id, (draft) => {
+                if (draft.type !== 'page') {
+                  return;
+                }
+
+                draft.fullWidth = !(draft.fullWidth ?? false);
+              });
+            }}
+          >
+            <MoveHorizontal className="size-4" />
+            {(page.fullWidth ?? false) ? 'Fixed width' : 'Full width'}
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

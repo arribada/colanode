@@ -1731,3 +1731,38 @@ export const buildRecordAiContext = (
 
   return lines.join('\n');
 };
+
+
+// Field types computed from the record itself (not stored in `record.fields`),
+// so they always have a value to show on a card.
+const COMPUTED_FIELD_TYPES = new Set<FieldType>([
+  'created_at',
+  'created_by',
+  'updated_at',
+  'updated_by',
+  'formula',
+  'rollup',
+]);
+
+// Whether a field has no value for this record — used to hide empty fields on
+// board / gallery / list cards (Notion never renders a blank field box).
+export const isRecordFieldEmpty = (
+  field: FieldAttributes,
+  record: { fields: Record<string, FieldValue> }
+): boolean => {
+  if (COMPUTED_FIELD_TYPES.has(field.type)) {
+    return false;
+  }
+  const value = record.fields[field.id];
+  if (value == null) {
+    return true;
+  }
+  const inner = (value as { value?: unknown }).value;
+  if (inner == null || inner === '') {
+    return true;
+  }
+  if (Array.isArray(inner) && inner.length === 0) {
+    return true;
+  }
+  return false;
+};

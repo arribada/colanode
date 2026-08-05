@@ -26,6 +26,7 @@ export interface SidebarNodeDragItem {
   name: string;
   rootId: string;
   parentId: string | null;
+  type: string;
 }
 
 // 'inside' re-files the dragged node under this row; 'before'/'after' reorder it
@@ -103,21 +104,25 @@ export const useSidebarNodeDnd = (
   // sorts by. Space children order through the space's own `children` map
   // instead (sortSpaceChildren), so a node parented directly to a space isn't
   // reorderable here — it only accepts a drop *inside* it, as before.
-  const parentIsSpace =
-    tree.nodeById(parentIdOf(node) ?? '')?.type === 'space';
-  const reorderable = isMovableType(node.type) && !parentIsSpace;
+  // A page/folder/etc. is reorderable among its siblings by writing its own
+  // fractional `index` — including at the top level of a space (space children
+  // are sorted by that same index, so reorder + the drop-edge indicator work
+  // there too, not only for nested pages).
+  const reorderable = isMovableType(node.type);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const [dropZone, setDropZone] = useState<DropZone | null>(null);
 
   const [{ isDragging }, drag] = useDrag({
     type: SIDEBAR_NODE_DND_TYPE,
-    canDrag: () => canEdit && isMovableType(node.type),
+    canDrag: () =>
+      canEdit && (isMovableType(node.type) || node.type === 'space'),
     item: (): SidebarNodeDragItem => ({
       id: node.id,
       name,
       rootId: node.rootId,
       parentId: parentIdOf(node),
+      type: node.type,
     }),
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
@@ -128,6 +133,18 @@ export const useSidebarNodeDnd = (
   // droppable row re-parents; the top/bottom bands (or the whole row, when it is
   // not droppable) reorder.
   const zoneFor = (monitor: DropTargetMonitor): DropZone => {
+    const draggedItem = monitor.getItem() as SidebarNodeDragItem | null;
+    // Reordering a space: only ever before/after another space, never 'inside'.
+    if (draggedItem?.type === 'space') {
+      const spaceRect = rowRef.current?.getBoundingClientRect();
+      const spaceOffset = monitor.getClientOffset();
+      if (!spaceRect || !spaceOffset || spaceRect.height === 0) {
+        return 'after';
+      }
+      return (spaceOffset.y - spaceRect.top) / spaceRect.height < 0.5
+        ? 'before'
+        : 'after';
+    }
     // Non-reorderable rows (a space, or a node parented to a space) only ever
     // accept a drop *inside* them, so the whole row is one 'inside' target.
     if (!reorderable) {
@@ -150,7 +167,7 @@ export const useSidebarNodeDnd = (
   // it on the global undo stack (Ctrl/Cmd-Z). Replaying through this same helper
   // with no `undo` reverts silently and can't loop.
   const updateNode = (
-    target: MovableNode,
+    target: LocalNode,
     patch: { parentId?: string; index?: string },
     label: string,
     undo?: { parentId?: string; index?: string }
@@ -190,9 +207,46 @@ export const useSidebarNodeDnd = (
 
   const performDrop = (
     item: SidebarNodeDragItem,
-    dragged: MovableNode,
+    dragged: LocalNode,
     zone: DropZone
   ) => {
+    // Reordering a space among the other spaces: write a fractional `index` on
+    // the dragged space (it is never re-parented).
+    if (dragged.type === 'space') {
+      if (node.type !== 'space' || zone === 'inside') {
+        return;
+      }
+      const oldSpaceIndex = tree.childKey(dragged.id);
+      const orderedSpaces = tree.spaces.filter((s) => s.id !== dragged.id);
+      const spacePos = orderedSpaces.findIndex((s) => s.id === node.id);
+      if (spacePos === -1) {
+        return;
+      }
+      const beforeSpace =
+        zone === 'before' ? orderedSpaces[spacePos - 1] : node;
+      const afterSpace = zone === 'before' ? node : orderedSpaces[spacePos + 1];
+      const lowSpaceKey = beforeSpace
+        ? (tree.childKey(beforeSpace.id) ?? null)
+        : null;
+      const highSpaceKey = afterSpace
+        ? (tree.childKey(afterSpace.id) ?? null)
+        : null;
+      let nextIndex: string;
+      try {
+        nextIndex = generateFractionalIndex(lowSpaceKey, highSpaceKey);
+      } catch {
+        toast.error(`Couldn't reorder "${item.name}"`);
+        return;
+      }
+      updateNode(
+        dragged,
+        { index: nextIndex },
+        item.name,
+        oldSpaceIndex !== undefined ? { index: oldSpaceIndex } : undefined
+      );
+      return;
+    }
+
     // Capture where the dragged node currently sits so the move can be undone.
     const oldParentId = parentIdOf(dragged);
     const oldIndex = tree.childKey(dragged.id);
@@ -253,14 +307,21 @@ export const useSidebarNodeDnd = (
 
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: SIDEBAR_NODE_DND_TYPE,
-    canDrop: (item: SidebarNodeDragItem) =>
-      canEdit &&
-      item.id !== node.id &&
-      item.rootId === node.rootId &&
-      !tree.isDescendantOf(node.id, item.id) &&
-      // A reorderable row accepts a reorder (before/after); a droppable row
-      // (page, space) also accepts a drop inside it.
-      (reorderable || (droppable && canMoveInto(item, node, tree))),
+    canDrop: (item: SidebarNodeDragItem) => {
+      if (!canEdit || item.id === node.id) {
+        return false;
+      }
+      // A space can only be reordered relative to another space.
+      if (item.type === 'space') {
+        return node.type === 'space';
+      }
+      return (
+        !tree.isDescendantOf(node.id, item.id) &&
+        // A reorderable row accepts a reorder (before/after); a droppable row
+        // (page, space) also accepts a drop inside it.
+        (reorderable || (droppable && canMoveInto(item, node, tree)))
+      );
+    },
     hover: (item: SidebarNodeDragItem, monitor) => {
       if (!monitor.isOver({ shallow: true }) || !monitor.canDrop()) {
         return;
@@ -275,7 +336,7 @@ export const useSidebarNodeDnd = (
       }
 
       const dragged = tree.nodeById(item.id);
-      if (!dragged || !isMovable(dragged)) {
+      if (!dragged || (dragged.type !== 'space' && !isMovable(dragged))) {
         return;
       }
 

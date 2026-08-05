@@ -1,6 +1,7 @@
 import { eq, useLiveQuery } from '@tanstack/react-db';
 
 import { LocalDatabaseViewNode } from '@colanode/client/types';
+import { DatabaseViewFilterAttributes } from '@colanode/core';
 import { View } from '@colanode/ui/components/databases/view';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewsContext } from '@colanode/ui/contexts/database-views';
@@ -9,9 +10,13 @@ import { useMetadata } from '@colanode/ui/hooks/use-metadata';
 
 interface DatabaseViewsProps {
   inline?: boolean;
+  extraFilters?: DatabaseViewFilterAttributes[];
 }
 
-export const DatabaseViews = ({ inline = false }: DatabaseViewsProps) => {
+export const DatabaseViews = ({
+  inline = false,
+  extraFilters,
+}: DatabaseViewsProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
 
@@ -45,6 +50,7 @@ export const DatabaseViews = ({ inline = false }: DatabaseViewsProps) => {
         activeViewId: activeView?.id ?? '',
         onActiveViewChange: setActiveViewId,
         inline,
+        extraFilters,
       }}
     >
       {activeView && <View view={activeView} />}

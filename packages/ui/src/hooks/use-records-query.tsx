@@ -28,6 +28,7 @@ import {
   isStringArray,
 } from '@colanode/core';
 import { useDatabase } from '@colanode/ui/contexts/database';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 const RECORDS_PER_PAGE = 100;
@@ -73,6 +74,15 @@ export const useRecordsQuery = (
 ) => {
   const workspace = useWorkspace();
   const database = useDatabase();
+  const { extraFilters } = useDatabaseViews();
+
+  const mergedFilters = useMemo(
+    () =>
+      extraFilters && extraFilters.length > 0
+        ? [...filters, ...extraFilters]
+        : filters,
+    [filters, extraFilters]
+  );
 
   const pageSize = count ?? RECORDS_PER_PAGE;
   const fieldsById = useMemo(
@@ -81,8 +91,8 @@ export const useRecordsQuery = (
   );
 
   const hasFilterDefinitions = useMemo(
-    () => hasUsableFilters(filters, fieldsById),
-    [filters, fieldsById]
+    () => hasUsableFilters(mergedFilters, fieldsById),
+    [mergedFilters, fieldsById]
   );
 
   const result = useLiveInfiniteQuery(
@@ -98,7 +108,7 @@ export const useRecordsQuery = (
         query = query.where(({ nodes }) => {
           return (
             buildFiltersExpression(
-              filters,
+              mergedFilters,
               fieldsById,
               workspace.userId,
               nodes as unknown as RecordRef
@@ -125,7 +135,7 @@ export const useRecordsQuery = (
       getNextPageParam: (lastPage, allPages) =>
         lastPage.length === pageSize ? allPages.length : undefined,
     },
-    [database.id, database.fields, pageSize, filters, sorts]
+    [database.id, database.fields, pageSize, mergedFilters, sorts]
   );
 
   return {

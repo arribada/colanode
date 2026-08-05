@@ -8,12 +8,15 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@colanode/ui/components/ui/dialog';
+import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface NodeModalProps {
   nodeId: string;
 }
 export const NodeModal = ({ nodeId }: NodeModalProps) => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   return (
     <Dialog
@@ -29,8 +32,16 @@ export const NodeModal = ({ nodeId }: NodeModalProps) => {
       modal={true}
     >
       <DialogContent
-        className="w-[90vw] h-[90vh] max-w-[90vw] max-h-[90vh] min-w-[90vw] min-h-[90vh] p-2 overflow-hidden"
-        showCloseButton={false}
+        className={cn(
+          'overflow-hidden p-2',
+          // On a phone the 90vw peek is cramped and there is no comfortable
+          // outside-tap zone, so go edge-to-edge with a real close button.
+          // 100dvh tracks the dynamic viewport (browser chrome in/out).
+          isMobile
+            ? 'h-[100dvh] max-h-none min-h-0 w-screen max-w-none min-w-0 rounded-none border-0'
+            : 'h-[90vh] max-h-[90vh] min-h-[90vh] w-[90vw] min-w-[90vw] max-w-[90vw]'
+        )}
+        showCloseButton={isMobile}
       >
         <VisuallyHidden>
           <DialogTitle>Modal</DialogTitle>

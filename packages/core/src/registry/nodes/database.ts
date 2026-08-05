@@ -69,6 +69,10 @@ export const databaseAttributesSchema = z.object({
   nameField: databaseNameFieldAttributesSchema.nullable().optional(),
   automations: z.array(databaseAutomationSchema).nullable().optional(),
   locked: z.boolean().nullable().optional(),
+  // Optional id of a template record used as the DEFAULT for "New record":
+  // when set, the plain add-record action clones this template instead of
+  // inserting a blank record. Absent on older databases (backward-compatible).
+  defaultTemplateId: z.string().nullable().optional(),
   collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),

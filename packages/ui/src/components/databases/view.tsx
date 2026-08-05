@@ -20,6 +20,7 @@ import { ViewSkeleton } from '@colanode/ui/components/databases/view-skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewContext } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMutation } from '@colanode/ui/hooks/use-mutation';
 import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
 import {
   generateFieldValuesFromFilters,
@@ -72,6 +73,7 @@ export const View = ({ view }: ViewProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const navigate = useNavigate();
+  const { mutate: createFromTemplate } = useMutation();
   const scope = useViewScope(view.id);
   const effectiveFilters =
     scope.mode === 'personal'
@@ -262,31 +264,59 @@ export const View = ({ view }: ViewProps) => {
             workspace.userId
           );
 
-          const recordId = generateId(IdType.Record);
-          const record: LocalRecordNode = {
-            id: recordId,
-            type: 'record',
-            parentId: database.id,
-            rootId: database.rootId,
-            databaseId: database.id,
-            name: '',
-            fields,
-            createdAt: new Date().toISOString(),
-            createdBy: workspace.userId,
-            updatedAt: null,
-            updatedBy: null,
-            localRevision: '0',
-            serverRevision: '0',
+          const openRecord = (recordId: string) => {
+            navigate({
+              from: '/workspace/$userId/$nodeId',
+              to: 'modal/$modalNodeId',
+              params: { modalNodeId: recordId },
+            });
           };
 
-          const nodes = workspace.collections.nodes;
-          nodes.insert(record);
+          const insertBlank = () => {
+            const recordId = generateId(IdType.Record);
+            const record: LocalRecordNode = {
+              id: recordId,
+              type: 'record',
+              parentId: database.id,
+              rootId: database.rootId,
+              databaseId: database.id,
+              name: '',
+              fields,
+              createdAt: new Date().toISOString(),
+              createdBy: workspace.userId,
+              updatedAt: null,
+              updatedBy: null,
+              localRevision: '0',
+              serverRevision: '0',
+            };
 
-          navigate({
-            from: '/workspace/$userId/$nodeId',
-            to: 'modal/$modalNodeId',
-            params: { modalNodeId: record.id },
-          });
+            workspace.collections.nodes.insert(record);
+            openRecord(record.id);
+          };
+
+          // When the database defines a default template, "New record" clones
+          // that template (its field values + document) instead of inserting a
+          // blank record. Falls back to a blank record if the template was
+          // deleted or the clone fails, so record creation never dead-ends.
+          if (database.defaultTemplateId) {
+            createFromTemplate({
+              input: {
+                type: 'record.template.create',
+                userId: workspace.userId,
+                templateId: database.defaultTemplateId,
+                fieldOverrides: fields,
+              },
+              onSuccess(output) {
+                openRecord(output.id);
+              },
+              onError() {
+                insertBlank();
+              },
+            });
+            return;
+          }
+
+          insertBlank();
         },
       }}
     >

@@ -5,6 +5,8 @@ import { RecordFieldValue } from '@colanode/ui/components/records/record-field-v
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useTableFill } from '@colanode/ui/contexts/table-fill';
+import { useTableSelection } from '@colanode/ui/contexts/table-selection';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { getRecordConditionalColorClass } from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
@@ -18,6 +20,10 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
+  const selection = useTableSelection();
+  const selected = selection?.isSelected(record.id) ?? false;
+  const fill = useTableFill();
+  const canFill = database.canEdit && !database.isLocked;
   const role = extractNodeRole(record, workspace.userId) ?? database.role;
   const colorClass = getRecordConditionalColorClass(
     record,
@@ -31,15 +37,28 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
       <div
         data-testid={`table-row-${record.id}`}
         className={cn(
-          'animate-fade-in flex flex-row items-center gap-0.5 border-b',
+          'group/row animate-fade-in flex flex-row items-center gap-0.5 border-b transition-colors hover:bg-muted/30',
+          selected && 'bg-accent/40',
           colorClass
         )}
       >
         <span
-          className="flex cursor-pointer items-center justify-center text-sm text-muted-foreground"
+          className="flex items-center justify-center text-sm text-muted-foreground"
           style={{ width: '30px', minWidth: '30px' }}
         >
-          {index + 1}
+          <span className={cn('group-hover/row:hidden', selected && 'hidden')}>
+            {index + 1}
+          </span>
+          <input
+            type="checkbox"
+            aria-label="Select row"
+            checked={selected}
+            onChange={() => selection?.toggle(record.id)}
+            className={cn(
+              'size-3.5 cursor-pointer accent-blue-600',
+              !selected && 'hidden group-hover/row:block'
+            )}
+          />
         </span>
         <div
           className="h-8 border-r overflow-hidden"
@@ -48,13 +67,31 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
           <TableViewNameCell record={record} />
         </div>
         {view.fields.map((field) => {
+          const inFillRange =
+            fill?.isInFillRange(field.field.id, index) ?? false;
           return (
             <div
               key={`row-${record.id}-${field.field.id}`}
-              className="h-8 border-r p-1 overflow-hidden"
+              className={cn(
+                'group/cell relative h-8 border-r p-1 overflow-hidden',
+                inFillRange && 'bg-blue-100/70 dark:bg-blue-900/40'
+              )}
               style={{ width: `${field.width}px` }}
+              onPointerEnter={() => fill?.enter(field.field.id, index)}
             >
               <RecordFieldValue field={field.field} />
+              {canFill && (
+                <span
+                  role="presentation"
+                  title="Drag down to fill"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fill?.start(field.field.id, index);
+                  }}
+                  className="absolute bottom-0 right-0 size-1.5 cursor-crosshair rounded-sm bg-blue-500 opacity-0 group-hover/cell:opacity-100"
+                />
+              )}
             </div>
           );
         })}

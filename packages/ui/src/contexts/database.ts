@@ -18,6 +18,7 @@ interface DatabaseContext {
   canCreateRecord: boolean;
   role: NodeRole;
   rootId: string;
+  defaultTemplateId: string | null;
   toggleLock: () => void;
 }
 

@@ -47,6 +47,7 @@ export const Database = ({ database, role, children }: DatabaseProps) => {
         isLocked,
         canCreateRecord,
         rootId: database.rootId,
+        defaultTemplateId: database.defaultTemplateId ?? null,
         toggleLock,
       }}
     >

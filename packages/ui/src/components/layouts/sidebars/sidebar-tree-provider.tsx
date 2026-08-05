@@ -100,6 +100,20 @@ export const SidebarTreeProvider = ({ children }: { children: ReactNode }) => {
       );
     }
 
+    // Spaces have no parent row, so key them as their own sibling group: id
+    // order is the default, a space's own `index` (written on drag-reorder)
+    // overrides it — the same model as the children above.
+    {
+      let lastDefault: string | null = null;
+      for (const space of spaces) {
+        lastDefault = generateFractionalIndex(lastDefault, null);
+        keyById.set(space.id, customIndexOf(space) ?? lastDefault);
+      }
+      spaces.sort((a, b) =>
+        compareString(keyById.get(a.id) ?? a.id, keyById.get(b.id) ?? b.id)
+      );
+    }
+
     return {
       spaces,
       isLoading,

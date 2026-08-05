@@ -4,7 +4,10 @@ import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useRecord } from '@colanode/ui/contexts/record';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
-import { getRecordConditionalColorClass } from '@colanode/ui/lib/databases';
+import {
+  getRecordConditionalColorClass,
+  isRecordFieldEmpty,
+} from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const ListViewRow = () => {
@@ -21,6 +24,9 @@ export const ListViewRow = () => {
 
   const name = record.name;
   const hasName = name !== null && name !== '';
+  const visibleFields = view.fields.filter(
+    (viewField) => !isRecordFieldEmpty(viewField.field, record)
+  );
 
   return (
     <Link
@@ -30,7 +36,7 @@ export const ListViewRow = () => {
       key={record.id}
       data-testid={`list-row-${record.id}`}
       className={cn(
-        'animate-fade-in flex h-9 cursor-pointer flex-row items-center gap-3 border-b px-1 hover:bg-accent',
+        'animate-fade-in flex h-9 cursor-pointer flex-row items-center gap-3 rounded-md border-b px-2 transition-colors hover:bg-accent/60',
         colorClass
       )}
     >
@@ -42,9 +48,9 @@ export const ListViewRow = () => {
       >
         {hasName ? name : 'Unnamed'}
       </span>
-      {view.fields.length > 0 && (
+      {visibleFields.length > 0 && (
         <div className="flex min-w-0 flex-1 flex-row items-center justify-end gap-3">
-          {view.fields.map((viewField) => (
+          {visibleFields.map((viewField) => (
             <div
               key={viewField.field.id}
               className="max-w-50 shrink-0 overflow-hidden text-sm text-muted-foreground"

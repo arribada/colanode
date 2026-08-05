@@ -1,5 +1,6 @@
 import {
   Copy,
+  FileStack,
   Image,
   LetterText,
   Settings,
@@ -14,6 +15,7 @@ import { LocalDatabaseNode, LocalNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
+import { DatabaseTemplatesDialog } from '@colanode/ui/components/databases/database-templates-dialog';
 import { DatabaseUpdateDialog } from '@colanode/ui/components/databases/database-update-dialog';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import {
@@ -41,6 +43,7 @@ export const DatabaseSettings = ({
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
+  const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'admin');
@@ -124,6 +127,13 @@ export const DatabaseSettings = ({
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowTemplatesDialog(true)}
+          >
+            <FileStack className="size-4" />
+            Templates
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
             onClick={() => setShowCollaboratorsDialog(true)}
           >
             <Users className="size-4" />
@@ -184,6 +194,12 @@ export const DatabaseSettings = ({
         role={role}
         open={showCollaboratorsDialog}
         onOpenChange={setShowCollaboratorsDialog}
+      />
+      <DatabaseTemplatesDialog
+        database={database}
+        role={role}
+        open={showTemplatesDialog}
+        onOpenChange={setShowTemplatesDialog}
       />
     </Fragment>
   );

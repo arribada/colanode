@@ -9,6 +9,7 @@ import {
   GALLERY_CARD_MAX_FIELDS,
   getGalleryCoverColorClass,
   getRecordConditionalColorClass,
+  isRecordFieldEmpty,
 } from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -26,7 +27,9 @@ export const GalleryViewCard = () => {
 
   const name = record.name;
   const hasName = name !== null && name !== '';
-  const cardFields = view.fields.slice(0, GALLERY_CARD_MAX_FIELDS);
+  const cardFields = view.fields
+    .filter((viewField) => !isRecordFieldEmpty(viewField.field, record))
+    .slice(0, GALLERY_CARD_MAX_FIELDS);
 
   return (
     <Link
@@ -36,7 +39,7 @@ export const GalleryViewCard = () => {
       key={record.id}
       data-testid={`gallery-card-${record.id}`}
       className={cn(
-        'animate-fade-in flex cursor-pointer flex-col overflow-hidden rounded-md border hover:bg-accent',
+        'animate-fade-in flex cursor-pointer flex-col overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm transition-all hover:border-border hover:shadow-md',
         colorClass
       )}
     >
@@ -53,7 +56,7 @@ export const GalleryViewCard = () => {
           className="size-8"
         />
       </div>
-      <div className="flex flex-col gap-1 p-2">
+      <div className="flex flex-col gap-1 p-2.5">
         <p
           className={cn(
             'truncate text-sm font-medium',
@@ -63,7 +66,7 @@ export const GalleryViewCard = () => {
           {hasName ? name : 'Unnamed'}
         </p>
         {cardFields.length > 0 && (
-          <div className="mt-1 flex flex-col gap-1">
+          <div className="mt-1 flex flex-col gap-1.5">
             {cardFields.map((viewField) => (
               <div key={viewField.field.id} className="overflow-hidden">
                 <RecordFieldValue field={viewField.field} readOnly={true} />

@@ -36,14 +36,19 @@ export const BoardViewColumn = () => {
   return (
     <div
       ref={dropRef as React.Ref<HTMLDivElement>}
-      className={cn('min-h-[400px] border-r p-1', isOver ? dragOverClass : '')}
+      className={cn(
+        'flex min-h-[400px] flex-col rounded-xl p-2 transition-colors',
+        isOver ? dragOverClass : 'bg-muted/40'
+      )}
       style={{
-        minWidth: '250px',
-        maxWidth: '250px',
-        width: '250px',
+        minWidth: '272px',
+        maxWidth: '272px',
+        width: '272px',
       }}
     >
-      <div className="flex flex-row items-center gap-2">{boardView.header}</div>
+      <div className="flex flex-row items-center gap-2 px-1 py-0.5">
+        {boardView.header}
+      </div>
       <BoardViewColumnRecords columnId={columnId} />
     </div>
   );

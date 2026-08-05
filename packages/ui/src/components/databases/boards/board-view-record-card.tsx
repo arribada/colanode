@@ -9,7 +9,10 @@ import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useRecord } from '@colanode/ui/contexts/record';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
-import { getRecordConditionalColorClass } from '@colanode/ui/lib/databases';
+import {
+  getRecordConditionalColorClass,
+  isRecordFieldEmpty,
+} from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const BoardViewRecordCard = () => {
@@ -40,6 +43,11 @@ export const BoardViewRecordCard = () => {
   const name = record.name;
   const hasName = name !== null && name !== '';
 
+  const visibleFields = view.fields.filter(
+    (viewField) =>
+      viewField.display && !isRecordFieldEmpty(viewField.field, record)
+  );
+
   return (
     <div
       ref={dragRef as React.Ref<HTMLDivElement>}
@@ -47,7 +55,7 @@ export const BoardViewRecordCard = () => {
       key={record.id}
       data-testid={`board-card-${record.id}`}
       className={cn(
-        'animate-fade-in flex cursor-pointer flex-col gap-1 rounded-md border p-2 text-left hover:bg-accent',
+        'animate-fade-in flex cursor-pointer flex-col gap-1 rounded-lg border border-border/60 bg-card p-2.5 text-left shadow-sm transition-all hover:border-border hover:shadow-md',
         colorClass
       )}
     >
@@ -56,22 +64,21 @@ export const BoardViewRecordCard = () => {
         to="modal/$modalNodeId"
         params={{ modalNodeId: record.id }}
       >
-        <p className={hasName ? '' : 'text-muted-foreground'}>
+        <p
+          className={cn(
+            'text-sm font-medium leading-snug',
+            !hasName && 'text-muted-foreground'
+          )}
+        >
           {hasName ? name : 'Unnamed'}
         </p>
-        {view.fields.length > 0 && (
-          <div className="flex flex-col gap-1 mt-2">
-            {view.fields.map((viewField) => {
-              if (!viewField.display) {
-                return null;
-              }
-
-              return (
-                <div key={viewField.field.id}>
-                  <RecordFieldValue field={viewField.field} readOnly={true} />
-                </div>
-              );
-            })}
+        {visibleFields.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {visibleFields.map((viewField) => (
+              <div key={viewField.field.id}>
+                <RecordFieldValue field={viewField.field} readOnly={true} />
+              </div>
+            ))}
           </div>
         )}
       </Link>

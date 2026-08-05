@@ -30,6 +30,9 @@ export const pageAttributesSchema = z.object({
   // (AFFiNE-style Document<->Board). Same shape as whiteboard `scene`; absent
   // on legacy pages, so backward-compatible.
   boardScene: boardSceneSchema.optional(),
+  // Page layout width. false / absent = a constrained, centered readable
+  // column (~max-w-3xl); true = full container width for wide tables/embeds.
+  fullWidth: z.boolean().nullable().optional(),
   collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),

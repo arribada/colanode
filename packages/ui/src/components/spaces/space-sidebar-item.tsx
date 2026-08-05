@@ -13,10 +13,7 @@ import {
 import { useSidebarTree } from '@colanode/ui/contexts/sidebar-tree';
 import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import { useSidebarNodeDnd } from '@colanode/ui/hooks/use-sidebar-node-dnd';
-import {
-  groupSpaceChildrenByType,
-  sortSpaceChildren,
-} from '@colanode/ui/lib/spaces';
+import { groupSpaceChildrenByType } from '@colanode/ui/lib/spaces';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface SpaceSidebarItemProps {
@@ -28,7 +25,9 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
   const [showChat] = useChatVisibility();
 
   // Dropping onto the space row files the node at the top level of that space.
-  const { ref, isDropInside } = useSidebarNodeDnd(space, { droppable: true });
+  const { ref, isDropInside, dropEdge } = useSidebarNodeDnd(space, {
+    droppable: true,
+  });
 
   // Channels (including the default "Discussions" channel every workspace is
   // seeded with) stay out of the tree while chat is hidden.
@@ -37,7 +36,9 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
     ? spaceChildren
     : spaceChildren.filter((node) => node.type !== 'channel');
 
-  const children = sortSpaceChildren(space, visibleChildren);
+  // Ordered by the sidebar tree (each node's fractional index), so a top-level
+  // page dragged into a new position keeps it — same as nested pages.
+  const children = visibleChildren;
   const groups = groupSpaceChildrenByType(children);
 
   return (
@@ -51,7 +52,9 @@ export const SpaceSidebarItem = ({ space }: SpaceSidebarItemProps) => {
         data-testid={`space-sidebar-item-${space.id}`}
         className={cn(
           'group/space-row text-sm flex h-7 items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
-          isDropInside && 'bg-sidebar-accent ring-1 ring-sidebar-ring'
+          isDropInside && 'bg-sidebar-accent ring-1 ring-sidebar-ring',
+          dropEdge === 'before' && 'border-t-2 border-sidebar-ring',
+          dropEdge === 'after' && 'border-b-2 border-sidebar-ring'
         )}
       >
         <CollapsibleTrigger asChild>

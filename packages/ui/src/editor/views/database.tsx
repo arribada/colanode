@@ -1,7 +1,9 @@
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
+import { Filter } from 'lucide-react';
 
 import { LocalDatabaseNode } from '@colanode/client/types';
+import { DatabaseViewFilterAttributes } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { Database } from '@colanode/ui/components/databases/database';
 import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
@@ -13,29 +15,56 @@ import { useNode } from '@colanode/ui/contexts/node';
 const DatabaseNodeViewContent = ({
   id,
   inline,
+  extraFilters,
+  filterFieldId,
+  filterValue,
 }: {
   id: string;
   inline?: boolean;
+  extraFilters?: DatabaseViewFilterAttributes[];
+  filterFieldId?: string | null;
+  filterValue?: string | null;
 }) => {
   const { node: database, role } = useNode<LocalDatabaseNode>();
 
   if (inline) {
+    // Resolve a human label for the per-embed filter so it is visible on the
+    // view (the filter is applied at query level, not stored on the view node).
+    const filterField = filterFieldId
+      ? database.fields?.[filterFieldId]
+      : undefined;
+    const filterOptionName =
+      filterField && filterField.type === 'select' && filterValue
+        ? filterField.options?.[filterValue]?.name
+        : undefined;
+
     return (
       <NodeViewWrapper
         data-id={id}
-        className="my-4 w-full"
+        className="my-4 w-full min-w-0"
         contentEditable={false}
+        // Isolate drags that start INSIDE the embedded database (e.g. field
+        // headers) from the page editor. The block drag-handle starts its drag
+        // on the handle element itself, so moving the whole embed still works.
+        // NOTE: no onDragOver here — swallowing it blocked ProseMirror from
+        // computing a drop position, which is why the embed could not be moved.
         onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
-          e.stopPropagation();
-          e.preventDefault();
-        }}
-        onDragOver={(e: React.DragEvent<HTMLDivElement>) => {
-          e.preventDefault();
           e.stopPropagation();
         }}
       >
+        {filterOptionName ? (
+          <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Filter className="size-3 shrink-0" />
+            <span>
+              Filtered: {filterField?.name ?? 'Field'} is{' '}
+              <span className="font-medium text-foreground">
+                {filterOptionName}
+              </span>
+            </span>
+          </div>
+        ) : null}
         <Database database={database} role={role}>
-          <DatabaseViews inline />
+          <DatabaseViews inline extraFilters={extraFilters} />
         </Database>
       </NodeViewWrapper>
     );
@@ -66,7 +95,7 @@ const DatabaseNodeViewPicker = ({
   onPick: (databaseId: string) => void;
 }) => {
   return (
-    <NodeViewWrapper className="my-4 w-full" contentEditable={false}>
+    <NodeViewWrapper className="my-4 w-full min-w-0" contentEditable={false}>
       <div className="flex w-full flex-row items-center gap-2 rounded-md border border-dashed border-border p-2">
         <span className="whitespace-nowrap text-sm text-muted-foreground">
           Linked database
@@ -91,6 +120,20 @@ export const DatabaseNodeView = ({
   updateAttributes,
 }: NodeViewProps) => {
   const id = node.attrs.id;
+  const filterFieldId = node.attrs.filterFieldId as string | null;
+  const filterValue = node.attrs.filterValue as string | null;
+  const extraFilters: DatabaseViewFilterAttributes[] =
+    filterFieldId && filterValue
+      ? [
+          {
+            id: 'embed-filter',
+            type: 'field',
+            fieldId: filterFieldId,
+            operator: 'is_in',
+            value: [filterValue],
+          },
+        ]
+      : [];
 
   if (!id) {
     return (
@@ -105,7 +148,13 @@ export const DatabaseNodeView = ({
 
   return (
     <NodeProvider nodeId={id}>
-      <DatabaseNodeViewContent id={id} inline={node.attrs.inline} />
+      <DatabaseNodeViewContent
+        id={id}
+        inline={node.attrs.inline}
+        extraFilters={extraFilters}
+        filterFieldId={filterFieldId}
+        filterValue={filterValue}
+      />
     </NodeProvider>
   );
 };

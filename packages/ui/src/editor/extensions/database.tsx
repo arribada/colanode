@@ -17,6 +17,14 @@ export const DatabaseNode = Node.create({
       inline: {
         default: false,
       },
+      // Per-embed filter (Notion-style linked view): restrict the inline
+      // database to records whose `filterFieldId` select value is `filterValue`.
+      filterFieldId: {
+        default: null,
+      },
+      filterValue: {
+        default: null,
+      },
     };
   },
   renderHTML({ HTMLAttributes }) {
