@@ -40,7 +40,7 @@ import {
   getDocumentExporter,
   safeFileName,
 } from '@colanode/ui/lib/document-export';
-import { printHtmlDocument } from '@colanode/ui/lib/print';
+import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 
 interface PageSettingsProps {
   page: LocalPageNode;
@@ -59,6 +59,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
@@ -236,20 +237,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => {
-              const exporter = getDocumentExporter(page.id);
-              const title = page.name || 'Document';
-              const heading = title
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-              printHtmlDocument({
-                title,
-                bodyHtml:
-                  `<h1>${heading}</h1>` +
-                  (exporter ? exporter.getRenderedHtml() : ''),
-              });
-            }}
+            onClick={() => setShowPrintDialog(true)}
           >
             <Printer className="size-4" />
             Print / PDF
@@ -321,6 +309,11 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
         canEdit={canEdit}
         open={showHistoryDialog}
         onOpenChange={setShowHistoryDialog}
+      />
+      <PrintExportDialog
+        page={page}
+        open={showPrintDialog}
+        onOpenChange={setShowPrintDialog}
       />
     </Fragment>
   );
