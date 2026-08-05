@@ -12,6 +12,9 @@ import {
   Highlighter,
   AlignJustify,
   Check,
+  Combine,
+  Split,
+  Heading,
 } from 'lucide-react';
 
 import {
@@ -190,6 +193,35 @@ export const TableCellDropdownMenu = ({
         >
           <Trash className="size-4" />
           Delete row
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Cell Actions</DropdownMenuLabel>
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-cell-merge"
+          onClick={() => {
+            editor.chain().focus().mergeCells().run();
+          }}
+        >
+          <Combine className="size-4" />
+          Merge cells
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-cell-split"
+          onClick={() => {
+            editor.chain().focus().splitCell().run();
+          }}
+        >
+          <Split className="size-4" />
+          Split cell
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-header-row"
+          onClick={() => {
+            editor.chain().focus().toggleHeaderRow().run();
+          }}
+        >
+          <Heading className="size-4" />
+          Toggle header row
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

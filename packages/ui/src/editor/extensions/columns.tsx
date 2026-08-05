@@ -17,16 +17,36 @@ export const ColumnNode = Node.create({
   isolating: true,
   defining: true,
 
+  addAttributes() {
+    return {
+      // Relative width as a flex-grow weight (default 1 = equal columns). The
+      // resize handles (columns-resize.tsx) trade this value between two
+      // adjacent columns, keeping their sum constant. Persisted in block attrs.
+      width: {
+        default: 1,
+        parseHTML: (el) => {
+          const w = parseFloat(el.getAttribute('data-width') ?? '');
+          return Number.isFinite(w) && w > 0 ? w : 1;
+        },
+        // Style is emitted by the node renderHTML below so it stays a single
+        // source of truth; nothing extra to render at the attribute level.
+        renderHTML: () => ({}),
+      },
+    };
+  },
+
   parseHTML() {
     return [{ tag: 'div[data-type="column"]' }];
   },
 
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ node, HTMLAttributes }) {
+    const width = node.attrs.width ?? 1;
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'column',
-        style: 'flex: 1 1 180px; min-width: 180px;',
+        'data-width': String(width),
+        style: `flex: ${width} 1 0px; min-width: 60px; overflow: hidden;`,
       }),
       0,
     ];
@@ -50,7 +70,7 @@ export const ColumnsNode = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-type': 'columns',
         style:
-          'display: flex; flex-wrap: wrap; gap: 1rem; align-items: stretch; margin: 0.5rem 0;',
+          'display: flex; flex-wrap: nowrap; align-items: stretch; margin: 0.5rem 0;',
       }),
       0,
     ];
@@ -63,6 +83,7 @@ export const ColumnsNode = Node.create({
         ({ chain }) => {
           const columns = Array.from({ length: Math.max(2, count) }, () => ({
             type: 'column',
+            attrs: { width: 1 },
             content: [{ type: 'paragraph' }],
           }));
           return chain()
