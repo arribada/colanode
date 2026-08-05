@@ -79,6 +79,7 @@ export const BoardViewColumnsSelect = ({
                 };
               },
               dragOverClass: draggingClass,
+              columnClass: draggingClass,
               header: (
                 <BoardViewColumnSelectHeader
                   field={field}
@@ -130,6 +131,7 @@ export const BoardViewColumnsSelect = ({
             />
           ),
           dragOverClass: noValueDraggingClass,
+          columnClass: noValueDraggingClass,
           canDrag: () => true,
           onDragEnd: async (record, value) => {
             const nodes = workspace.collections.nodes;

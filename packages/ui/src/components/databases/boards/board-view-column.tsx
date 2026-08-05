@@ -31,14 +31,15 @@ export const BoardViewColumn = () => {
 
   const divRef = useRef<HTMLDivElement>(null);
   const dropRef = drop(divRef);
-  const dragOverClass = boardView.dragOverClass ?? 'bg-muted';
+  const columnClass = boardView.columnClass ?? 'bg-muted/40';
 
   return (
     <div
       ref={dropRef as React.Ref<HTMLDivElement>}
       className={cn(
         'flex min-h-[400px] flex-col rounded-xl p-2 transition-colors',
-        isOver ? dragOverClass : 'bg-muted/40'
+        columnClass,
+        isOver && 'ring-2 ring-inset ring-primary/40'
       )}
       style={{
         minWidth: '272px',

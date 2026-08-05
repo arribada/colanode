@@ -19,6 +19,9 @@ interface BoardViewContext {
   canDrop: (record: RecordItem) => boolean;
   drop: (record: RecordItem) => FieldValue | null;
   dragOverClass?: string;
+  // Tailwind background class tinting the whole column to match the group
+  // tag colour (e.g. the select option colour). Falls back to a neutral bg.
+  columnClass?: string;
   header: React.ReactNode;
   canDrag: (record: RecordItem) => boolean;
   onDragEnd: (item: RecordItem, value: FieldValue | null) => void;

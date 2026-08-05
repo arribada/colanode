@@ -80,6 +80,7 @@ export const BoardViewColumnsMultiSelect = ({
                 };
               },
               dragOverClass: draggingClass,
+              columnClass: draggingClass,
               header: (
                 <BoardViewColumnMultiSelectHeader
                   field={field}
@@ -151,6 +152,7 @@ export const BoardViewColumnsMultiSelect = ({
             />
           ),
           dragOverClass: noValueDraggingClass,
+          columnClass: noValueDraggingClass,
           canDrag: () => true,
           onDragEnd: async (record, value) => {
             const nodes = workspace.collections.nodes;
