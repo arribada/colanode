@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { FieldValue } from '@colanode/core';
 import { LocalRecordNode } from '@colanode/client/types';
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
@@ -11,6 +12,10 @@ import { TableViewRecordCreateRow } from '@colanode/ui/components/databases/tabl
 import { ViewFullscreenButton } from '@colanode/ui/components/databases/view-fullscreen-button';
 import { ViewSettingsPopover } from '@colanode/ui/components/databases/view-settings-popover';
 import { ViewTabs } from '@colanode/ui/components/databases/view-tabs';
+import {
+  CellPos,
+  TableCellRangeContext,
+} from '@colanode/ui/contexts/table-cell-range';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import {
@@ -20,10 +25,19 @@ import {
 import { TableSelectionContext } from '@colanode/ui/contexts/table-selection';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
+const cellToText = (v: FieldValue | undefined): string => {
+  if (v === undefined) {
+    return '';
+  }
+  const val = (v as { value?: unknown }).value;
+  if (val === null || val === undefined) {
+    return '';
+  }
+  return typeof val === 'object' ? JSON.stringify(val) : String(val);
+};
+
 export const TableView = () => {
   const workspace = useWorkspace();
-  // Database context is available but not needed here directly; the view holds
-  // the ordered columns used by the fill.
   useDatabase();
   const view = useDatabaseView();
 
@@ -100,9 +114,7 @@ export const TableView = () => {
     ]
   );
 
-  // --- drag-fill (2D) -------------------------------------------------------
-  // Records + ordered columns are kept in refs (never trigger a re-render) so
-  // the fill always reads the freshest values and column layout.
+  // Shared refs — records + ordered columns, kept fresh without re-rendering.
   const recordsRef = useRef<LocalRecordNode[]>([]);
   const setRecords = useCallback((records: LocalRecordNode[]) => {
     recordsRef.current = records;
@@ -110,9 +122,10 @@ export const TableView = () => {
   const columnsRef = useRef(view.fields);
   columnsRef.current = view.fields;
 
+  // --- drag-fill (2D) -------------------------------------------------------
   const [fill, setFill] = useState<TableFillState | null>(null);
 
-  const start = useCallback((row: number, col: number) => {
+  const startFill = useCallback((row: number, col: number) => {
     setFill({
       sourceRow: row,
       sourceCol: col,
@@ -121,7 +134,7 @@ export const TableView = () => {
     });
   }, []);
 
-  const enter = useCallback((row: number, col: number) => {
+  const enterFill = useCallback((row: number, col: number) => {
     setFill((prev) =>
       prev ? { ...prev, currentRow: row, currentCol: col } : prev
     );
@@ -141,9 +154,6 @@ export const TableView = () => {
     [fill]
   );
 
-  // On pointer release: copy the source cell value into every cell of the
-  // rectangle whose column shares the source column's field type (so a value
-  // never lands in an incompatible column).
   const endFill = useCallback(() => {
     setFill((f) => {
       if (
@@ -201,37 +211,200 @@ export const TableView = () => {
   }, [fill, endFill]);
 
   const fillValue = useMemo(
-    () => ({ fill, setRecords, start, enter, isInFillRange }),
-    [fill, setRecords, start, enter, isInFillRange]
+    () => ({
+      fill,
+      setRecords,
+      start: startFill,
+      enter: enterFill,
+      isInFillRange,
+    }),
+    [fill, setRecords, startFill, enterFill, isInFillRange]
+  );
+
+  // --- cell-range selection (Ctrl + drag) -----------------------------------
+  const [anchor, setAnchor] = useState<CellPos | null>(null);
+  const [focus, setFocus] = useState<CellPos | null>(null);
+  const selectingRef = useRef(false);
+  const clipboardRef = useRef<{
+    values: (FieldValue | undefined)[][];
+    types: string[];
+  } | null>(null);
+
+  const beginAt = useCallback((row: number, col: number) => {
+    selectingRef.current = true;
+    setAnchor({ row, col });
+    setFocus({ row, col });
+  }, []);
+
+  const extendTo = useCallback((row: number, col: number) => {
+    if (selectingRef.current) {
+      setFocus({ row, col });
+    }
+  }, []);
+
+  const clearRange = useCallback(() => {
+    setAnchor(null);
+    setFocus(null);
+  }, []);
+
+  const isCellSelected = useCallback(
+    (row: number, col: number) => {
+      if (!anchor || !focus) {
+        return false;
+      }
+      const r0 = Math.min(anchor.row, focus.row);
+      const r1 = Math.max(anchor.row, focus.row);
+      const c0 = Math.min(anchor.col, focus.col);
+      const c1 = Math.max(anchor.col, focus.col);
+      return row >= r0 && row <= r1 && col >= c0 && col <= c1;
+    },
+    [anchor, focus]
+  );
+
+  useEffect(() => {
+    const up = () => {
+      selectingRef.current = false;
+    };
+    window.addEventListener('pointerup', up);
+    return () => window.removeEventListener('pointerup', up);
+  }, []);
+
+  const copyRange = useCallback(() => {
+    if (!anchor || !focus) {
+      return;
+    }
+    const records = recordsRef.current;
+    const cols = columnsRef.current;
+    const r0 = Math.min(anchor.row, focus.row);
+    const r1 = Math.max(anchor.row, focus.row);
+    const c0 = Math.min(anchor.col, focus.col);
+    const c1 = Math.max(anchor.col, focus.col);
+    const types: string[] = [];
+    for (let c = c0; c <= c1; c++) {
+      types.push(cols[c]?.field.type ?? '');
+    }
+    const values: (FieldValue | undefined)[][] = [];
+    const tsvRows: string[] = [];
+    for (let r = r0; r <= r1; r++) {
+      const row: (FieldValue | undefined)[] = [];
+      const text: string[] = [];
+      for (let c = c0; c <= c1; c++) {
+        const field = cols[c]?.field;
+        const v = field ? records[r]?.fields?.[field.id] : undefined;
+        row.push(v);
+        text.push(cellToText(v));
+      }
+      values.push(row);
+      tsvRows.push(text.join('\t'));
+    }
+    clipboardRef.current = { values, types };
+    try {
+      void navigator.clipboard?.writeText(tsvRows.join('\n'));
+    } catch {
+      // clipboard may be unavailable; internal buffer still works
+    }
+  }, [anchor, focus]);
+
+  const pasteRange = useCallback(() => {
+    const buf = clipboardRef.current;
+    if (!buf || !anchor) {
+      return;
+    }
+    const records = recordsRef.current;
+    const cols = columnsRef.current;
+    const startRow = Math.min(anchor.row, focus?.row ?? anchor.row);
+    const startCol = Math.min(anchor.col, focus?.col ?? anchor.col);
+    for (let i = 0; i < buf.values.length; i++) {
+      for (let j = 0; j < buf.types.length; j++) {
+        const tr = startRow + i;
+        const tc = startCol + j;
+        const target = records[tr];
+        const targetField = cols[tc]?.field;
+        if (!target || !targetField || targetField.type !== buf.types[j]) {
+          continue;
+        }
+        const v = buf.values[i]?.[j];
+        workspace.collections.nodes.update(target.id, (draft) => {
+          if (draft.type !== 'record') {
+            return;
+          }
+          if (v === undefined) {
+            delete draft.fields[targetField.id];
+          } else {
+            draft.fields[targetField.id] = JSON.parse(JSON.stringify(v));
+          }
+        });
+      }
+    }
+  }, [anchor, focus, workspace]);
+
+  useEffect(() => {
+    if (!anchor || !focus) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const editing =
+        !!active &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable);
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'c' && !editing) {
+        copyRange();
+      } else if (mod && e.key.toLowerCase() === 'v' && !editing) {
+        e.preventDefault();
+        pasteRange();
+      } else if (e.key === 'Escape') {
+        clearRange();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [anchor, focus, copyRange, pasteRange, clearRange]);
+
+  const rangeValue = useMemo(
+    () => ({
+      anchor,
+      focus,
+      isActive: !!(anchor && focus),
+      beginAt,
+      extendTo,
+      isSelected: isCellSelected,
+      clear: clearRange,
+    }),
+    [anchor, focus, beginAt, extendTo, isCellSelected, clearRange]
   );
 
   return (
     <TableSelectionContext.Provider value={selectionValue}>
       <TableFillContext.Provider value={fillValue}>
-        <Fragment>
-          <div className="sticky top-0 left-0 z-30 flex w-full min-w-0 max-w-full flex-row justify-between border-b bg-background">
-            <ViewTabs />
-            <div className="sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2">
-              <div className="invisible flex flex-row items-center group-hover/database:visible">
-                <ViewFullscreenButton />
-                <ViewSettingsPopover />
+        <TableCellRangeContext.Provider value={rangeValue}>
+          <Fragment>
+            <div className="sticky top-0 left-0 z-30 flex w-full min-w-0 max-w-full flex-row justify-between border-b bg-background">
+              <ViewTabs />
+              <div className="sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2">
+                <div className="invisible flex flex-row items-center group-hover/database:visible">
+                  <ViewFullscreenButton />
+                  <ViewSettingsPopover />
+                </div>
+                <ViewSortButton />
+                <ViewFilterButton />
               </div>
-              <ViewSortButton />
-              <ViewFilterButton />
             </div>
-          </div>
-          <ViewSearchBar />
-          <div
-            className={`mt-2 w-full min-w-full max-w-full overflow-auto pr-5 ${
-              fill ? 'select-none' : ''
-            }`}
-          >
-            <TableViewHeader />
-            <TableViewBody />
-            <TableViewRecordCreateRow />
-          </div>
-          <TableSelectionBar />
-        </Fragment>
+            <ViewSearchBar />
+            <div
+              className={`mt-2 w-full min-w-full max-w-full overflow-auto pr-5 ${
+                fill || anchor ? 'select-none' : ''
+              }`}
+            >
+              <TableViewHeader />
+              <TableViewBody />
+              <TableViewRecordCreateRow />
+            </div>
+            <TableSelectionBar />
+          </Fragment>
+        </TableCellRangeContext.Provider>
       </TableFillContext.Provider>
     </TableSelectionContext.Provider>
   );

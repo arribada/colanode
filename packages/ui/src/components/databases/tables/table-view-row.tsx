@@ -3,6 +3,7 @@ import { extractNodeRole } from '@colanode/core';
 import { TableViewNameCell } from '@colanode/ui/components/databases/tables/table-view-name-cell';
 import { RecordFieldValue } from '@colanode/ui/components/records/record-field-value';
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
+import { useTableCellRange } from '@colanode/ui/contexts/table-cell-range';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useTableFill } from '@colanode/ui/contexts/table-fill';
@@ -23,6 +24,7 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
   const selection = useTableSelection();
   const selected = selection?.isSelected(record.id) ?? false;
   const fill = useTableFill();
+  const range = useTableCellRange();
   const canFill = database.canEdit && !database.isLocked;
   const role = extractNodeRole(record, workspace.userId) ?? database.role;
   const colorClass = getRecordConditionalColorClass(
@@ -68,15 +70,30 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
         </div>
         {view.fields.map((field, col) => {
           const inFillRange = fill?.isInFillRange(index, col) ?? false;
+          const inRange = range?.isSelected(index, col) ?? false;
           return (
             <div
               key={`row-${record.id}-${field.field.id}`}
               className={cn(
                 'group/cell relative h-8 border-r p-1 overflow-hidden',
-                inFillRange && 'bg-blue-100/70 dark:bg-blue-900/40'
+                inFillRange && 'bg-blue-100/70 dark:bg-blue-900/40',
+                inRange &&
+                  'bg-blue-200/70 ring-1 ring-inset ring-blue-400 dark:bg-blue-800/50 dark:ring-blue-500'
               )}
               style={{ width: `${field.width}px` }}
-              onPointerEnter={() => fill?.enter(index, col)}
+              // Ctrl (or Cmd) + press starts a cell-range selection. Capture
+              // phase so it fires before the cell's own editor opens.
+              onPointerDownCapture={(e) => {
+                if (e.ctrlKey || e.metaKey) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  range?.beginAt(index, col);
+                }
+              }}
+              onPointerEnter={() => {
+                fill?.enter(index, col);
+                range?.extendTo(index, col);
+              }}
             >
               <RecordFieldValue field={field.field} />
               {canFill && (
