@@ -117,6 +117,40 @@ export const renderShare = async (
   });
 };
 
+// Return the shared node's document content (blocks) + metadata as JSON, for
+// the SPA public editor to render with the real editor.
+export const getShareData = async (
+  share: SelectNodeShare
+): Promise<{
+  name: string;
+  permission: string;
+  includeSubpages: boolean;
+  workspaceName: string | null;
+  content: DocumentContent;
+} | null> => {
+  const node = await database
+    .selectFrom('nodes')
+    .selectAll()
+    .where('id', '=', share.node_id)
+    .executeTakeFirst();
+  if (!node) {
+    return null;
+  }
+  const content = await getDocumentContent(share.node_id);
+  const workspace = await database
+    .selectFrom('workspaces')
+    .select(['name'])
+    .where('id', '=', share.workspace_id)
+    .executeTakeFirst();
+  return {
+    name: nodeName(node.attributes as NodeAttributes),
+    permission: share.permission,
+    includeSubpages: share.include_subpages,
+    workspaceName: workspace?.name ?? null,
+    content: content ?? { type: 'rich_text', blocks: {} },
+  };
+};
+
 // Store an external contributor's proposed edit as a pending suggestion.
 export const createSuggestion = async (
   share: SelectNodeShare,

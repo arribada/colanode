@@ -6,6 +6,7 @@ import { oauthRoutes } from '@colanode/server/api/client/routes/oauth';
 import { configGetRoute } from '@colanode/server/api/config';
 import { homeRoute } from '@colanode/server/api/home';
 import { publicShareRoute } from '@colanode/server/api/share';
+import { shareApiRoute } from '@colanode/server/api/share-api';
 import { config } from '@colanode/server/lib/config';
 
 export const apiRoutes: FastifyPluginCallback = (instance, _, done) => {
@@ -19,6 +20,7 @@ export const apiRoutes: FastifyPluginCallback = (instance, _, done) => {
   // so /.well-known/oauth-* and /oauth/* are reachable where clients probe.
   instance.register(oauthRoutes);
   instance.register(publicShareRoute);
+  instance.register(shareApiRoute);
 
   done();
 };
