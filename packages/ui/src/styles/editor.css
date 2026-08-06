@@ -108,3 +108,18 @@ div[data-type='toggle'][data-open='true'] > button[data-toggle-button] svg {
 .dark .comment-mark:hover {
   background-color: rgba(251, 191, 36, 0.28);
 }
+
+/* Page reading options set from the page menu (Font / Small text). Scoped to
+   the page document editor via a wrapper class so they override prose-lg
+   (`.editor-font-* .ProseMirror` / `.editor-small-text .ProseMirror` are more
+   specific than the single `.prose-lg` class Tailwind Typography emits). */
+.editor-font-serif .ProseMirror {
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+}
+.editor-font-mono .ProseMirror {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+.editor-small-text .ProseMirror {
+  font-size: 0.9375rem;
+}

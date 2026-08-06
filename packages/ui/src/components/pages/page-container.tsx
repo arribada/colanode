@@ -16,6 +16,18 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
   const workspace = useWorkspace();
   const canEdit = hasNodeRole(role, 'editor');
 
+  // Page lock (open | suggest | locked). "Privileged" = the page creator or a
+  // node admin; privileged users always edit. Non-privileged users get a
+  // read-only editor in 'suggest'/'locked' mode — but in 'suggest' mode they
+  // may still PROPOSE edits via the suggestion flow. Null/absent => 'open',
+  // so every existing page keeps its current unrestricted behaviour. The
+  // server re-checks this in page.canUpdateDocument; this is only the UX.
+  const lockMode = page.lockMode ?? 'open';
+  const isPrivileged =
+    page.createdBy === workspace.userId || hasNodeRole(role, 'admin');
+  const canEditDocument = canEdit && (isPrivileged || lockMode === 'open');
+  const canSuggest = canEdit && !canEditDocument && lockMode === 'suggest';
+
   // Page width (Notion-style). Default (fullWidth falsy) = a centered, readable
   // column so text stays legible and wide embeds/tables scroll inside their own
   // box instead of stretching the whole page horizontally. fullWidth = the full
@@ -46,7 +58,9 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
       <div className={cn('mx-auto w-full min-w-0', !fullWidth && 'max-w-3xl')}>
         <Document
           node={page}
-          canEdit={canEdit}
+          canEdit={canEditDocument}
+          canSuggest={canSuggest}
+          lockMode={lockMode}
           // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: primary field (page title/content) focused when the page is opened
           autoFocus="start"
         />

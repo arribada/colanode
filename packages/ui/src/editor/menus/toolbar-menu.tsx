@@ -103,6 +103,11 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
     return null;
   }
 
+  // In a read-only editor (e.g. a page in 'suggest' lock mode viewed by a
+  // non-privileged user) only the Comment / Suggest actions make sense; the
+  // formatting/AI controls that mutate the document are hidden.
+  const editable = state?.isEditable ?? false;
+
   return (
     <BubbleMenu
       editor={props.editor}
@@ -111,7 +116,7 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
       data-testid="editor-toolbar-menu"
       className="flex flex-row flex-wrap items-center gap-1 rounded border border-border bg-muted p-0.5 shadow-xl max-w-[95vw]"
     >
-      {props.userId && (
+      {editable && props.userId && (
         <>
           <AiButton
             editor={props.editor}
@@ -121,12 +126,14 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
           <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
         </>
       )}
-      {props.pageId && (
+      {editable && props.pageId && (
         <>
           <WikiTaskButton editor={props.editor} pageId={props.pageId} />
           <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
         </>
       )}
+      {editable && (
+        <>
       <LinkButton
         editor={props.editor}
         isOpen={isLinkButtonOpen}
@@ -189,6 +196,8 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
           setIsLinkButtonOpen(false);
         }}
       />
+        </>
+      )}
       {props.onAddComment && (
         <CommentButton
           editor={props.editor}

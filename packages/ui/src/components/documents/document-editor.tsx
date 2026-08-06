@@ -1,5 +1,10 @@
 import '@colanode/ui/styles/editor.css';
 
+import { Lock } from 'lucide-react';
+
+import { cn } from '@colanode/ui/lib/utils';
+import { DocumentToc } from '@colanode/ui/components/documents/document-toc';
+
 import {
   EditorContent,
   FocusPosition,
@@ -142,7 +147,15 @@ interface DocumentEditorProps {
   node: LocalNode;
   state: DocumentState | null | undefined;
   updates: DocumentUpdate[];
+  // Whether this user may edit the document DIRECTLY. The page container has
+  // already folded the page lock into this (privileged users keep true even
+  // on a locked page; non-privileged users get false in suggest/locked mode).
   canEdit: boolean;
+  // Page in 'suggest' lock mode + a non-privileged editor: the editor is
+  // read-only (canEdit=false) but the Suggest affordance must stay available.
+  canSuggest?: boolean;
+  // The page's lock mode, only for rendering the banner. Absent/null = open.
+  lockMode?: 'open' | 'suggest' | 'locked' | null;
   autoFocus?: FocusPosition;
 }
 
@@ -246,6 +259,8 @@ export const DocumentEditor = ({
   state,
   updates,
   canEdit,
+  canSuggest,
+  lockMode,
   autoFocus,
 }: DocumentEditorProps) => {
   const workspace = useWorkspace();
@@ -254,6 +269,24 @@ export const DocumentEditor = ({
   // Inline comments only make sense on page documents (comments are `message`
   // nodes parented to the page). Record documents opt out.
   const isPage = node.type === 'page';
+  // Page-only reading options (font / small text / TOC) and lock state. All
+  // null/absent => the historical default, so existing pages are unaffected.
+  const pageNode = node.type === 'page' ? node : null;
+  const font = pageNode?.font ?? 'default';
+  const smallText = pageNode?.smallText ?? false;
+  const showToc = pageNode?.showToc ?? false;
+  const canSuggestEdits = (canSuggest ?? false) && isPage;
+  const effectiveLockMode = (isPage ? lockMode : null) ?? 'open';
+  const lockBannerText =
+    !isPage || effectiveLockMode === 'open'
+      ? null
+      : canEdit
+        ? effectiveLockMode === 'suggest'
+          ? 'Locked — others can only suggest edits.'
+          : 'Locked — only the owner and workspace admins can edit.'
+        : canSuggestEdits
+          ? 'This page is locked. You can suggest edits, but not edit directly.'
+          : 'This page is read-only.';
 
   const presences = usePresences(node.id);
   const { publish: publishPresence } = usePresencePublisher({
@@ -684,7 +717,7 @@ export const DocumentEditor = ({
           <PresenceAvatars presences={presences} />
         </div>
       )}
-      {editor && viewReady && canEdit && (
+      {editor && viewReady && (canEdit || canSuggestEdits) && (
         <Fragment>
           <ToolbarMenu
             editor={editor}
@@ -699,21 +732,44 @@ export const DocumentEditor = ({
               isPage ? (blockId) => openSuggest(node.id, blockId) : undefined
             }
           />
-          <ActionMenu
-            editor={editor}
-            onAddComment={
-              isPage
-                ? (threadId) => openComments(node.id, threadId)
-                : undefined
-            }
-            onSuggestEdit={
-              isPage ? (blockId) => openSuggest(node.id, blockId) : undefined
-            }
-          />
-          <AiSlashPrompt />
+          {canEdit && (
+            <Fragment>
+              <ActionMenu
+                editor={editor}
+                onAddComment={
+                  isPage
+                    ? (threadId) => openComments(node.id, threadId)
+                    : undefined
+                }
+                onSuggestEdit={
+                  isPage
+                    ? (blockId) => openSuggest(node.id, blockId)
+                    : undefined
+                }
+              />
+              <AiSlashPrompt />
+            </Fragment>
+          )}
         </Fragment>
       )}
-      <EditorContent editor={editor} />
+      {lockBannerText && (
+        <div className="mb-3 flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <Lock className="size-3.5 shrink-0" />
+          <span>{lockBannerText}</span>
+        </div>
+      )}
+      {isPage && showToc && editor && viewReady && (
+        <DocumentToc editor={editor} />
+      )}
+      <div
+        className={cn(
+          font === 'serif' && 'editor-font-serif',
+          font === 'mono' && 'editor-font-mono',
+          smallText && 'editor-small-text'
+        )}
+      >
+        <EditorContent editor={editor} />
+      </div>
       {isPage && wordCount > 0 && (
         <div className="mt-6 select-none border-t border-border/60 pt-2 text-xs text-muted-foreground">
           {wordCount} word{wordCount === 1 ? '' : 's'} · ~

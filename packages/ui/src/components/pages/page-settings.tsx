@@ -1,5 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
+  Baseline,
+  ClipboardCopy,
   Copy,
   FileDown,
   FileStack,
@@ -7,11 +9,15 @@ import {
   History,
   Image,
   LetterText,
+  ListTree,
+  Lock,
   MoveHorizontal,
+  Play,
   Printer,
   Settings,
   Share2,
   Trash2,
+  Type,
   Users,
 } from 'lucide-react';
 import { Fragment, useState } from 'react';
@@ -27,12 +33,19 @@ import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dial
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
+import { PagePresentOverlay } from '@colanode/ui/components/pages/page-present-overlay';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -63,10 +76,43 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showPresentOverlay, setShowPresentOverlay] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'editor');
   const canSaveAsTemplate = canEdit && !page.isTemplate;
+
+  // Lock: only the page creator or a node admin ("privileged") may change it
+  // (re-checked server-side in page.canUpdateAttributes). Reading options
+  // (font / small text / TOC) are plain page attributes gated at editor level,
+  // exactly like the existing width toggle. All null/absent => the defaults,
+  // so pages created before this change are unaffected.
+  const isPrivileged =
+    page.createdBy === workspace.userId || hasNodeRole(role, 'admin');
+  const lockMode = page.lockMode ?? 'open';
+  const font = page.font ?? 'default';
+  const smallText = page.smallText ?? false;
+  const showToc = page.showToc ?? false;
+
+  const setPageAttrs = (
+    changes: Partial<
+      Pick<
+        LocalPageNode,
+        'lockMode' | 'lockedBy' | 'font' | 'smallText' | 'showToc'
+      >
+    >
+  ) => {
+    const nodes = workspace.collections.nodes;
+    if (!nodes.has(page.id)) {
+      return;
+    }
+    nodes.update(page.id, (draft) => {
+      if (draft.type !== 'page') {
+        return;
+      }
+      Object.assign(draft, changes);
+    });
+  };
 
   return (
     <Fragment>
@@ -138,6 +184,96 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
             <MoveHorizontal className="size-4" />
             {(page.fullWidth ?? false) ? 'Fixed width' : 'Full width'}
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!isPrivileged} className="gap-2">
+              <Lock className="size-4" />
+              <span>Lock page</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {lockMode === 'open'
+                  ? 'Off'
+                  : lockMode === 'suggest'
+                    ? 'Suggestions'
+                    : 'Locked'}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={lockMode}
+                onValueChange={(value) => {
+                  if (!isPrivileged) {
+                    return;
+                  }
+                  const mode = value as 'open' | 'suggest' | 'locked';
+                  setPageAttrs({
+                    lockMode: mode,
+                    lockedBy: mode === 'open' ? null : workspace.userId,
+                  });
+                }}
+              >
+                <DropdownMenuRadioItem value="open">
+                  Unlocked — anyone can edit
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="suggest">
+                  Suggestions only — others propose edits
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="locked">
+                  Locked — only owner &amp; admins
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!canEdit} className="gap-2">
+              <Type className="size-4" />
+              <span>Font</span>
+              <span className="ml-auto text-xs capitalize text-muted-foreground">
+                {font}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={font}
+                onValueChange={(value) => {
+                  if (!canEdit) {
+                    return;
+                  }
+                  setPageAttrs({ font: value as 'default' | 'serif' | 'mono' });
+                }}
+              >
+                <DropdownMenuRadioItem value="default">
+                  Default
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="serif">
+                  Serif
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="mono">Mono</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuCheckboxItem
+            checked={smallText}
+            disabled={!canEdit}
+            onCheckedChange={(checked) => {
+              if (!canEdit) {
+                return;
+              }
+              setPageAttrs({ smallText: checked === true });
+            }}
+          >
+            Small text
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={showToc}
+            disabled={!canEdit}
+            onCheckedChange={(checked) => {
+              if (!canEdit) {
+                return;
+              }
+              setPageAttrs({ showToc: checked === true });
+            }}
+          >
+            Table of contents
+          </DropdownMenuCheckboxItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             disabled={!canEdit}
@@ -254,6 +390,32 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
+            onClick={async () => {
+              const exporter = getDocumentExporter(page.id);
+              if (!exporter) {
+                toast.error('Open the page to copy its contents');
+                return;
+              }
+              try {
+                await navigator.clipboard.writeText(exporter.getMarkdown());
+                toast.success('Page contents copied');
+              } catch {
+                toast.error('Could not copy to clipboard');
+              }
+            }}
+          >
+            <ClipboardCopy className="size-4" />
+            Copy contents
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowPresentOverlay(true)}
+          >
+            <Play className="size-4" />
+            Present
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
               if (!canDelete) {
                 return;
@@ -330,6 +492,13 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
         open={showPrintDialog}
         onOpenChange={setShowPrintDialog}
       />
+      {showPresentOverlay && (
+        <PagePresentOverlay
+          pageId={page.id}
+          name={page.name}
+          onClose={() => setShowPresentOverlay(false)}
+        />
+      )}
     </Fragment>
   );
 };

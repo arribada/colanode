@@ -20,10 +20,18 @@ const DocumentEditor = lazy(() =>
 interface DocumentProps {
   node: LocalNode;
   canEdit: boolean;
+  canSuggest?: boolean;
+  lockMode?: 'open' | 'suggest' | 'locked' | null;
   autoFocus?: FocusPosition;
 }
 
-export const Document = ({ node, canEdit, autoFocus }: DocumentProps) => {
+export const Document = ({
+  node,
+  canEdit,
+  canSuggest,
+  lockMode,
+  autoFocus,
+}: DocumentProps) => {
   const workspace = useWorkspace();
 
   const documentStateQuery = useLiveQuery({
@@ -53,6 +61,8 @@ export const Document = ({ node, canEdit, autoFocus }: DocumentProps) => {
         state={state}
         updates={updates}
         canEdit={canEdit}
+        canSuggest={canSuggest}
+        lockMode={lockMode}
         // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: primary field (document title/content) focused when the containing page/record is opened
         autoFocus={autoFocus}
       />
