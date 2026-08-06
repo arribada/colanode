@@ -10,6 +10,7 @@ import { CommentButton } from '@colanode/ui/editor/menus/comment-button';
 import { HighlightButton } from '@colanode/ui/editor/menus/highlight-button';
 import { LinkButton } from '@colanode/ui/editor/menus/link-button';
 import { MarkButton } from '@colanode/ui/editor/menus/mark-button';
+import { SuggestButton } from '@colanode/ui/editor/menus/suggest-button';
 import { WikiTaskButton } from '@colanode/ui/editor/menus/wiki-task-button';
 
 interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
@@ -17,6 +18,9 @@ interface ToolbarMenuProps extends Omit<BubbleMenuProps, 'children'> {
   // Provided only for page documents: creates/opens an inline comment thread
   // for the current selection. Omitted (e.g. record documents) hides the button.
   onAddComment?: (threadId: string) => void;
+  // Provided only for page documents: opens the "Suggest edit" composer for the
+  // top-level block containing the selection. Omitted hides the button.
+  onSuggestEdit?: (blockId: string) => void;
   // The requesting user's id. When present the "Ask AI" button is shown; it
   // runs editor AI actions with the user's own configured AI credentials.
   userId?: string;
@@ -189,6 +193,12 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
         <CommentButton
           editor={props.editor}
           onAddComment={props.onAddComment}
+        />
+      )}
+      {props.onSuggestEdit && (
+        <SuggestButton
+          editor={props.editor}
+          onSuggestEdit={props.onSuggestEdit}
         />
       )}
     </BubbleMenu>

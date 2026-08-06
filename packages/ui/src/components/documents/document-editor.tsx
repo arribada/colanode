@@ -26,6 +26,7 @@ import { encodeState, YDoc } from '@colanode/crdt';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
+import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   AiCommand,
@@ -249,6 +250,7 @@ export const DocumentEditor = ({
 }: DocumentEditorProps) => {
   const workspace = useWorkspace();
   const { openComments } = usePageComments();
+  const { openSuggest } = usePageSuggestions();
   // Inline comments only make sense on page documents (comments are `message`
   // nodes parented to the page). Record documents opt out.
   const isPage = node.type === 'page';
@@ -692,6 +694,9 @@ export const DocumentEditor = ({
               isPage
                 ? (threadId) => openComments(node.id, threadId)
                 : undefined
+            }
+            onSuggestEdit={
+              isPage ? (blockId) => openSuggest(node.id, blockId) : undefined
             }
           />
           <ActionMenu editor={editor} />

@@ -6,6 +6,7 @@ import { AiChatToggle } from '@colanode/ui/components/layouts/ai-chat-toggle';
 import { CommentsPanel } from '@colanode/ui/components/layouts/comments-panel';
 import { CommentsSheet } from '@colanode/ui/components/layouts/comments-sheet';
 import { SidebarDesktop } from '@colanode/ui/components/layouts/sidebars/sidebar-desktop';
+import { SuggestionsPanel } from '@colanode/ui/components/layouts/suggestions-panel';
 import { ThreadPanel } from '@colanode/ui/components/layouts/thread-panel';
 import { ThreadSheet } from '@colanode/ui/components/layouts/thread-sheet';
 import { SearchDialog } from '@colanode/ui/components/search/search-dialog';
@@ -13,6 +14,7 @@ import { WorkspaceSyncIndicator } from '@colanode/ui/components/workspaces/works
 import { AiChatPanelContext } from '@colanode/ui/contexts/ai-chat-panel';
 import { NodeUndoContext } from '@colanode/ui/contexts/node-undo';
 import { PageCommentsContext } from '@colanode/ui/contexts/page-comments';
+import { PageSuggestionsContext } from '@colanode/ui/contexts/page-suggestions';
 import { SearchContext } from '@colanode/ui/contexts/search';
 import { ThreadPanelContext } from '@colanode/ui/contexts/thread-panel';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -32,6 +34,10 @@ export const WorkspaceLayout = () => {
   const [commentsAnchorId, setCommentsAnchorId] = useState<string | null>(
     null
   );
+  const [suggestionsPageId, setSuggestionsPageId] = useState<string | null>(
+    null
+  );
+  const [composeBlockId, setComposeBlockId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Most-recent-first inverses of sidebar node operations, for global Ctrl/Cmd-Z.
@@ -52,6 +58,8 @@ export const WorkspaceLayout = () => {
     setThreadRootId(null);
     setCommentsPageId(null);
     setCommentsAnchorId(null);
+    setSuggestionsPageId(null);
+    setComposeBlockId(null);
   }, [location]);
 
   // Cmd-K (macOS) / Ctrl-K toggles the workspace-wide search dialog
@@ -115,10 +123,12 @@ export const WorkspaceLayout = () => {
     return () => window.removeEventListener('keydown', handleUndo);
   }, []);
 
-  // thread and comments panels are mutually exclusive side surfaces
+  // thread, comments and suggestions panels are mutually exclusive side surfaces
   const openThread = useCallback((id: string) => {
     setCommentsPageId(null);
     setCommentsAnchorId(null);
+    setSuggestionsPageId(null);
+    setComposeBlockId(null);
     setThreadRootId(id);
   }, []);
   const closeThread = useCallback(() => setThreadRootId(null), []);
@@ -130,6 +140,8 @@ export const WorkspaceLayout = () => {
   const openComments = useCallback(
     (pageId: string, anchorId?: string | null) => {
       setThreadRootId(null);
+      setSuggestionsPageId(null);
+      setComposeBlockId(null);
       setCommentsPageId(pageId);
       setCommentsAnchorId(anchorId ?? null);
     },
@@ -142,6 +154,42 @@ export const WorkspaceLayout = () => {
   const commentsValue = useMemo(
     () => ({ commentsPageId, commentsAnchorId, openComments, closeComments }),
     [commentsPageId, commentsAnchorId, openComments, closeComments]
+  );
+
+  // Open the suggestions panel in review mode (list) or compose mode (a block).
+  const openSuggestions = useCallback((pageId: string) => {
+    setThreadRootId(null);
+    setCommentsPageId(null);
+    setCommentsAnchorId(null);
+    setComposeBlockId(null);
+    setSuggestionsPageId(pageId);
+  }, []);
+  const openSuggest = useCallback((pageId: string, blockId: string) => {
+    setThreadRootId(null);
+    setCommentsPageId(null);
+    setCommentsAnchorId(null);
+    setSuggestionsPageId(pageId);
+    setComposeBlockId(blockId);
+  }, []);
+  const closeSuggestions = useCallback(() => {
+    setSuggestionsPageId(null);
+    setComposeBlockId(null);
+  }, []);
+  const suggestionsValue = useMemo(
+    () => ({
+      suggestionsPageId,
+      composeBlockId,
+      openSuggestions,
+      openSuggest,
+      closeSuggestions,
+    }),
+    [
+      suggestionsPageId,
+      composeBlockId,
+      openSuggestions,
+      openSuggest,
+      closeSuggestions,
+    ]
   );
 
   const searchValue = useMemo(
@@ -165,20 +213,23 @@ export const WorkspaceLayout = () => {
         <SearchContext.Provider value={searchValue}>
           <ThreadPanelContext.Provider value={threadValue}>
             <PageCommentsContext.Provider value={commentsValue}>
-              <div className="w-full h-full flex">
-                {!isMobile && <SidebarDesktop />}
-                <section className="min-w-0 flex-1">
-                  <Outlet />
-                </section>
-                {!isMobile && <ThreadPanel />}
-                {!isMobile && <CommentsPanel />}
-                {!isMobile && <AiChatPanel />}
-                {isMobile && <ThreadSheet />}
-                {isMobile && <CommentsSheet />}
-              </div>
-              {!isMobile && <AiChatToggle />}
-              <SearchDialog />
-              <WorkspaceSyncIndicator />
+              <PageSuggestionsContext.Provider value={suggestionsValue}>
+                <div className="w-full h-full flex">
+                  {!isMobile && <SidebarDesktop />}
+                  <section className="min-w-0 flex-1">
+                    <Outlet />
+                  </section>
+                  {!isMobile && <ThreadPanel />}
+                  {!isMobile && <CommentsPanel />}
+                  <SuggestionsPanel />
+                  {!isMobile && <AiChatPanel />}
+                  {isMobile && <ThreadSheet />}
+                  {isMobile && <CommentsSheet />}
+                </div>
+                {!isMobile && <AiChatToggle />}
+                <SearchDialog />
+                <WorkspaceSyncIndicator />
+              </PageSuggestionsContext.Provider>
             </PageCommentsContext.Provider>
           </ThreadPanelContext.Provider>
         </SearchContext.Provider>

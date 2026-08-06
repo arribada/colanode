@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ChannelContainer } from '@colanode/ui/components/channels/channel-container';
 import { ChatContainer } from '@colanode/ui/components/chats/chat-container';
 import { PageCommentsButton } from '@colanode/ui/components/comments/page-comments-button';
+import { PageSuggestionsButton } from '@colanode/ui/components/suggestions/page-suggestions-button';
 import { DatabaseContainer } from '@colanode/ui/components/databases/database-container';
 import { FileContainer } from '@colanode/ui/components/files/file-container';
 import { FolderContainer } from '@colanode/ui/components/folders/folder-container';
@@ -77,6 +78,9 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
           )}
           {data.node.type === 'page' && (
             <PageCommentsButton pageId={data.node.id} />
+          )}
+          {data.node.type === 'page' && (
+            <PageSuggestionsButton pageId={data.node.id} />
           )}
           <NodeSettings
             node={data.node}
