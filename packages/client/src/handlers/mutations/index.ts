@@ -29,6 +29,10 @@ import { AvatarUploadMutationHandler } from './avatars/avatar-upload';
 import { ChatCreateMutationHandler } from './chats/chat-create';
 import { DocumentRestoreMutationHandler } from './documents/document-restore';
 import { DocumentUpdateMutationHandler } from './documents/document-update';
+import { DocumentSuggestionCreateMutationHandler } from './documents/document-suggestion-create';
+import { DocumentSuggestionListMutationHandler } from './documents/document-suggestion-list';
+import { DocumentSuggestionWorkspaceListMutationHandler } from './documents/document-suggestion-workspace-list';
+import { DocumentSuggestionResolveMutationHandler } from './documents/document-suggestion-resolve';
 import { FileCreateMutationHandler } from './files/file-create';
 import { FileDownloadMutationHandler } from './files/file-download';
 import { TempFileCreateMutationHandler } from './files/temp-file-create';
@@ -136,6 +140,15 @@ export const buildMutationHandlerMap = (
     'account.update': new AccountUpdateMutationHandler(app),
     'document.restore': new DocumentRestoreMutationHandler(app),
     'document.update': new DocumentUpdateMutationHandler(app),
+    'document.suggestion.create': new DocumentSuggestionCreateMutationHandler(
+      app
+    ),
+    'document.suggestion.list': new DocumentSuggestionListMutationHandler(app),
+    'document.suggestion.workspace.list':
+      new DocumentSuggestionWorkspaceListMutationHandler(app),
+    'document.suggestion.resolve': new DocumentSuggestionResolveMutationHandler(
+      app
+    ),
     'metadata.update': new MetadataUpdateMutationHandler(app),
     'metadata.delete': new MetadataDeleteMutationHandler(app),
     'email.password.reset.init': new EmailPasswordResetInitMutationHandler(app),
