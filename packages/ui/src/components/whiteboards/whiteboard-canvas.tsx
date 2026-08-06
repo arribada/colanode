@@ -680,6 +680,9 @@ export const WhiteboardCanvas = ({
       changed.push(id);
     }
     if (changed.length > 0) {
+      if (!allLocked) {
+        setSelection([]);
+      }
       commit(before, next, changed);
     }
   };
@@ -1259,6 +1262,24 @@ export const WhiteboardCanvas = ({
     const handleEl = target.closest('[data-handle]');
     const elEl = target.closest('[data-el-id]');
     const collapseEl = target.closest('[data-collapse]');
+    const lockToggleEl = target.closest('[data-lock-toggle]');
+
+    // A locked element is not selectable; clicking its lock badge is the only
+    // way to unlock it (any editor may).
+    if (lockToggleEl) {
+      if (canEdit) {
+        const id = lockToggleEl.getAttribute('data-lock-toggle')!;
+        const el = sceneRef.current[id];
+        if (el?.locked) {
+          const before = cloneScene(sceneRef.current);
+          const { locked: _locked, lockedBy: _lockedBy, ...rest } = el;
+          void _locked;
+          void _lockedBy;
+          commit(before, { ...sceneRef.current, [id]: rest }, [id]);
+        }
+      }
+      return;
+    }
 
     // mindmap collapse toggle badge takes priority over selection
     if (collapseEl) {
@@ -1441,6 +1462,9 @@ export const WhiteboardCanvas = ({
           id = stack[(idx + 1) % stack.length] ?? id;
         }
       }
+      if (sceneRef.current[id]?.locked) {
+        return;
+      }
       const additive = e.shiftKey;
       const clicked = sceneRef.current[id];
       const inActiveGroup =
@@ -1474,7 +1498,7 @@ export const WhiteboardCanvas = ({
       // moving a frame drags its contents along with it; elements hard-locked
       // by another user are excluded so they stay put.
       for (const sid of withFrameChildren(nextSel)) {
-        if (isLockedForMe(sid)) {
+        if (isLockedForMe(sid) || sceneRef.current[sid]?.locked) {
           continue;
         }
         const el = sceneRef.current[sid];
@@ -1793,7 +1817,7 @@ export const WhiteboardCanvas = ({
         h: it.current.y - it.start.y,
       });
       const hits = sortedElements(sceneRef.current)
-        .filter((el) => rectsIntersect(box, elementRect(el)))
+        .filter((el) => rectsIntersect(box, elementRect(el)) && !el.locked)
         .map((el) => el.id);
       setSelection(
         it.additive ? [...new Set([...selectionRef.current, ...hits])] : hits
@@ -2809,7 +2833,7 @@ export const WhiteboardCanvas = ({
           // to shape creation — the pointer-down already handled those.
           if (
             target.closest(
-              '[data-quick],[data-handle],[data-mindadd],[data-collapse]'
+              '[data-quick],[data-handle],[data-mindadd],[data-collapse],[data-lock-toggle]'
             )
           ) {
             return;
@@ -2913,6 +2937,43 @@ export const WhiteboardCanvas = ({
               <ElementHitArea element={el} scene={scene} />
             </g>
           ))}
+
+          {/* lock badges — click to unlock; excluded from image export */}
+          {ordered
+            .filter((el) => el.locked)
+            .map((el) => {
+              const bx = el.x + el.w - 10;
+              const by = el.y + 10;
+              return (
+                <g
+                  key={`lock-${el.id}`}
+                  className="board-no-export"
+                  data-lock-toggle={el.id}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <title>Locked — click to unlock</title>
+                  <circle
+                    cx={bx}
+                    cy={by}
+                    r={9}
+                    fill="#ffffff"
+                    stroke="#f59e0b"
+                    strokeWidth={1.4}
+                  />
+                  <g
+                    transform={`translate(${bx - 5} ${by - 5}) scale(0.42)`}
+                    fill="none"
+                    stroke="#b45309"
+                    strokeWidth={2.6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </g>
+                </g>
+              );
+            })}
 
           {/* collapse toggles on mind-map nodes that have children */}
           {canEdit &&
