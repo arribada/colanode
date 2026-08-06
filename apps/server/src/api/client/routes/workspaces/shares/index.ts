@@ -16,6 +16,7 @@ export const shareRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
     schema: {
       body: z.object({
         nodeId: z.string(),
+        permission: z.enum(['read', 'suggest']).default('read'),
         includeSubpages: z.boolean().default(false),
         password: z.string().nullable().optional(),
         expiresInDays: z.number().int().positive().nullable().optional(),
@@ -23,7 +24,8 @@ export const shareRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
     },
     handler: async (request, reply) => {
       const workspaceId = request.workspace.id;
-      const { nodeId, includeSubpages, password, expiresInDays } = request.body;
+      const { nodeId, permission, includeSubpages, password, expiresInDays } =
+        request.body;
 
       const node = await database
         .selectFrom('nodes')
@@ -54,7 +56,7 @@ export const shareRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
           token,
           node_id: nodeId,
           workspace_id: workspaceId,
-          permission: 'read',
+          permission,
           include_subpages: includeSubpages,
           password_hash: passwordHash,
           expires_at: expiresAt,

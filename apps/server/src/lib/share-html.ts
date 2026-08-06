@@ -172,10 +172,43 @@ const BASE_CSS = `
   .lock .err { color: #dc2626; font-size: 13px; }
 `;
 
+// Phase 2 suggest UI: an identity gate, an editable content area, and a submit
+// bar. Injected only when the share allows suggestions.
+const suggestUi = (token: string): string =>
+  `<div id="idGate" style="position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px">` +
+  `<div style="background:#fff;border-radius:12px;padding:24px;max-width:360px;width:100%">` +
+  `<h3 style="margin:0 0 6px">Suggest an edit</h3>` +
+  `<p style="color:#6b7280;font-size:13px;margin:0 0 14px">Tell us who you are, then edit the page. Your changes are sent to the owner for approval &mdash; they are not published directly.</p>` +
+  `<input id="fn" placeholder="First name" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:8px" />` +
+  `<input id="ln" placeholder="Last name" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:8px" />` +
+  `<input id="em" type="email" placeholder="Email" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:8px" />` +
+  `<div id="idErr" style="color:#dc2626;font-size:13px;display:none;margin-bottom:8px">Please fill in all fields with a valid email.</div>` +
+  `<button id="idBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:15px;cursor:pointer">Start editing</button>` +
+  `<button id="idSkip" style="width:100%;padding:8px;border:none;background:transparent;color:#6b7280;cursor:pointer;margin-top:6px">Just read</button>` +
+  `</div></div>` +
+  `<div id="suggestBar" style="position:fixed;bottom:0;left:0;right:0;background:#111827;color:#fff;padding:12px 16px;display:none;align-items:center;justify-content:space-between;z-index:100;gap:12px">` +
+  `<span style="font-size:13px">Editing as a suggestion &mdash; not published until the owner approves.</span>` +
+  `<button id="submitSug" style="padding:8px 14px;border:none;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer">Submit suggestion</button>` +
+  `</div>` +
+  `<script>(function(){var token=${JSON.stringify(token)};var id={};var c=document.getElementById('shareContent');` +
+  `document.getElementById('idSkip').onclick=function(){document.getElementById('idGate').style.display='none'};` +
+  `document.getElementById('idBtn').onclick=function(){var fn=document.getElementById('fn').value.trim(),ln=document.getElementById('ln').value.trim(),em=document.getElementById('em').value.trim();` +
+  `if(!fn||!ln||!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(em)){document.getElementById('idErr').style.display='block';return}` +
+  `id={firstName:fn,lastName:ln,email:em};document.getElementById('idGate').style.display='none';` +
+  `c.setAttribute('contenteditable','true');c.style.outline='2px dashed #93c5fd';c.style.outlineOffset='8px';` +
+  `document.getElementById('suggestBar').style.display='flex';c.focus()};` +
+  `document.getElementById('submitSug').onclick=function(){var b=this;b.disabled=true;b.textContent='Sending…';` +
+  `fetch('/share/'+token+'/suggest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({firstName:id.firstName,lastName:id.lastName,email:id.email,html:c.innerHTML,text:c.innerText})})` +
+  `.then(function(r){return r.json()}).then(function(res){if(res&&res.success){c.removeAttribute('contenteditable');c.style.outline='none';` +
+  `document.getElementById('suggestBar').innerHTML='<span style=\\'font-size:13px\\'>&#10003; Suggestion sent to the owner for approval. Thank you!</span>'}` +
+  `else{b.disabled=false;b.textContent='Submit suggestion';alert('Could not send. Please try again.')}})` +
+  `.catch(function(){b.disabled=false;b.textContent='Submit suggestion';alert('Could not send. Please try again.')})}})();</script>`;
+
 export const renderSharePage = (params: {
   title: string;
   bodyHtml: string;
   workspaceName?: string;
+  suggest?: { token: string };
 }): string =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8" />` +
   `<meta name="viewport" content="width=device-width, initial-scale=1" />` +
@@ -186,8 +219,14 @@ export const renderSharePage = (params: {
   (params.workspaceName
     ? `<div class="meta">Shared from ${esc(params.workspaceName)}</div>`
     : '') +
-  `<div class="content">${params.bodyHtml}</div>` +
-  `</div><div class="foot">Read-only shared page.</div></div></body></html>`;
+  `<div class="content" id="shareContent">${params.bodyHtml}</div>` +
+  `</div><div class="foot">` +
+  (params.suggest
+    ? 'You can suggest edits — they go to the owner for approval.'
+    : 'Read-only shared page.') +
+  `</div></div>` +
+  (params.suggest ? suggestUi(params.suggest.token) : '') +
+  `</body></html>`;
 
 export const renderPasswordPage = (params: {
   token: string;

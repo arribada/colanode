@@ -35,6 +35,7 @@ export class NodeShareCreateMutationHandler
           {
             json: {
               nodeId: input.nodeId,
+              permission: input.permission,
               includeSubpages: input.includeSubpages,
               password: input.password,
               expiresInDays: input.expiresInDays,

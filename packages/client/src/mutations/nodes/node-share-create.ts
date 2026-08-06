@@ -2,6 +2,7 @@ export type NodeShareCreateMutationInput = {
   type: 'node.share.create';
   userId: string;
   nodeId: string;
+  permission: 'read' | 'suggest';
   includeSubpages: boolean;
   password: string | null;
   expiresInDays: number | null;

@@ -1,5 +1,7 @@
 // ABOUTME: Public share helpers — look up a share by token, check it is live,
 // ABOUTME: reconstruct a node's document, and render the shared page(s) to HTML.
+import { randomBytes } from 'crypto';
+
 import { DocumentContent, NodeAttributes } from '@colanode/core';
 import { YDoc } from '@colanode/crdt';
 
@@ -109,5 +111,36 @@ export const renderShare = async (
     title,
     bodyHtml: body,
     workspaceName: workspace?.name,
+    suggest:
+      share.permission === 'suggest' ? { token: share.token } : undefined,
   });
+};
+
+// Store an external contributor's proposed edit as a pending suggestion.
+export const createSuggestion = async (
+  share: SelectNodeShare,
+  input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    html: string;
+    text: string;
+  }
+): Promise<void> => {
+  await database
+    .insertInto('share_suggestions')
+    .values({
+      id: randomBytes(15).toString('hex'),
+      share_id: share.id,
+      node_id: share.node_id,
+      workspace_id: share.workspace_id,
+      first_name: input.firstName,
+      last_name: input.lastName,
+      email: input.email,
+      proposed_html: input.html,
+      proposed_text: input.text,
+      status: 'pending',
+      created_at: new Date(),
+    })
+    .execute();
 };

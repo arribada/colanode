@@ -297,6 +297,23 @@ interface NodeShareTable {
 export type SelectNodeShare = Selectable<NodeShareTable>;
 export type CreateNodeShare = Insertable<NodeShareTable>;
 
+interface ShareSuggestionTable {
+  id: ColumnType<string, string, never>;
+  share_id: ColumnType<string, string, never>;
+  node_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  first_name: ColumnType<string, string, string>;
+  last_name: ColumnType<string, string, string>;
+  email: ColumnType<string, string, string>;
+  proposed_html: ColumnType<string, string, string>;
+  proposed_text: ColumnType<string | null, string | null, string | null>;
+  status: ColumnType<string, string, string>;
+  created_at: ColumnType<Date, Date, never>;
+}
+
+export type SelectShareSuggestion = Selectable<ShareSuggestionTable>;
+export type CreateShareSuggestion = Insertable<ShareSuggestionTable>;
+
 interface UploadTable {
   file_id: ColumnType<string, string, never>;
   upload_id: ColumnType<string, string, string>;
@@ -537,6 +554,7 @@ export interface DatabaseSchema {
   document_snapshots: DocumentSnapshotTable;
   node_snapshots: NodeSnapshotTable;
   node_shares: NodeShareTable;
+  share_suggestions: ShareSuggestionTable;
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;

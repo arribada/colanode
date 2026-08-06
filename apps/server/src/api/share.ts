@@ -5,10 +5,13 @@ import { FastifyPluginCallback, FastifyReply } from 'fastify';
 import { verifyPassword } from '@colanode/server/lib/accounts';
 import { renderPasswordPage } from '@colanode/server/lib/share-html';
 import {
+  createSuggestion,
   getShareByToken,
   isShareLive,
   renderShare,
 } from '@colanode/server/lib/shares';
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const notFound = (reply: FastifyReply) =>
   reply
@@ -59,6 +62,48 @@ export const publicShareRoute: FastifyPluginCallback = (instance, _, done) => {
       return notFound(reply);
     }
     return reply.type('text/html').send(html);
+  });
+
+  // Phase 2: submit a proposed edit (with the contributor's identity) as a
+  // pending suggestion. Only for shares that allow suggestions.
+  instance.post('/share/:token/suggest', async (request, reply) => {
+    const token = (request.params as { token: string }).token;
+    const body = (request.body ?? {}) as {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      html?: string;
+      text?: string;
+    };
+
+    const share = await getShareByToken(token);
+    if (!share || !isShareLive(share) || share.permission !== 'suggest') {
+      return reply.code(404).send({ success: false });
+    }
+
+    const firstName = (body.firstName ?? '').trim();
+    const lastName = (body.lastName ?? '').trim();
+    const email = (body.email ?? '').trim();
+    const html = body.html ?? '';
+    if (
+      !firstName ||
+      !lastName ||
+      !EMAIL_RE.test(email) ||
+      html.length === 0 ||
+      html.length > 500000
+    ) {
+      return reply.code(400).send({ success: false });
+    }
+
+    await createSuggestion(share, {
+      firstName: firstName.slice(0, 120),
+      lastName: lastName.slice(0, 120),
+      email: email.slice(0, 255),
+      html,
+      text: (body.text ?? '').slice(0, 100000),
+    });
+
+    return { success: true };
   });
 
   done();

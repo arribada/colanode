@@ -54,6 +54,7 @@ export const PageShareDialog = ({
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  const [permission, setPermission] = useState<'read' | 'suggest'>('read');
   const [includeSubpages, setIncludeSubpages] = useState(false);
   const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -90,6 +91,7 @@ export const PageShareDialog = ({
         type: 'node.share.create',
         userId: workspace.userId,
         nodeId: page.id,
+        permission,
         includeSubpages,
         password: usePassword && password.length > 0 ? password : null,
         expiresInDays: expiryDays,
@@ -145,6 +147,44 @@ export const PageShareDialog = ({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Access
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPermission('read')}
+                className={cn(
+                  'flex-1 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent',
+                  permission === 'read'
+                    ? 'border-primary bg-accent'
+                    : 'border-border'
+                )}
+              >
+                Read-only
+              </button>
+              <button
+                type="button"
+                onClick={() => setPermission('suggest')}
+                className={cn(
+                  'flex-1 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent',
+                  permission === 'suggest'
+                    ? 'border-primary bg-accent'
+                    : 'border-border'
+                )}
+              >
+                Allow suggestions
+              </button>
+            </div>
+            {permission === 'suggest' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Visitors give their name + email and can propose edits — sent to
+                you for approval, not published directly.
+              </p>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => setIncludeSubpages((v) => !v)}
