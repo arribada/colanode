@@ -4,7 +4,7 @@ import { Copy, Link2, Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalPageNode } from '@colanode/client/types';
+import { LocalPageNode, LocalRecordNode } from '@colanode/client/types';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Checkbox } from '@colanode/ui/components/ui/checkbox';
 import {
@@ -38,7 +38,7 @@ interface SuggestionItem {
 }
 
 interface PageShareDialogProps {
-  page: LocalPageNode;
+  page: LocalPageNode | LocalRecordNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

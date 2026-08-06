@@ -1,4 +1,4 @@
-import { Copy, FileStack, Settings, Trash2 } from 'lucide-react';
+import { Copy, FileStack, Settings, Share2, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -7,6 +7,7 @@ import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
+import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const { mutate: saveAsTemplate, isPending: isSavingAsTemplate } =
     useMutation();
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const canDelete =
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
   const canSaveAsTemplate =
@@ -49,6 +51,13 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
           <DropdownMenuLabel>{record.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <CopyLinkAction nodeId={record.id} item={DropdownMenuItem} />
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowShareDialog(true)}
+          >
+            <Share2 className="size-4" />
+            Share to web
+          </DropdownMenuItem>
           <DropdownMenuItem className="flex items-center gap-2" disabled>
             <Copy className="size-4" />
             Duplicate
@@ -117,6 +126,11 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <PageShareDialog
+        page={record}
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+      />
       <NodeDeleteDialog
         id={record.id}
         title="Are you sure you want delete this record?"
