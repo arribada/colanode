@@ -6,6 +6,7 @@ import {
   Diamond,
   Expand,
   Eye,
+  Group,
   ImageDown,
   Lock,
   LockOpen,
@@ -19,6 +20,7 @@ import {
   Square,
   StickyNote,
   Trash2,
+  Ungroup,
   X,
 } from 'lucide-react';
 import {
@@ -291,6 +293,9 @@ export const WhiteboardCanvas = ({
     x: number;
     y: number;
   } | null>(null);
+  // The group the user has "entered" (double-clicked into) to edit its members
+  // individually; null means groups select as a whole.
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
   // Element whose comment-thread panel is open (Miro-style board comments).
   const [commentElementId, setCommentElementId] = useState<string | null>(
     null
@@ -389,6 +394,7 @@ export const WhiteboardCanvas = ({
   const viewportRef = useRef(viewport);
   const toolRef = useRef(tool);
   const selectionRef = useRef(selection);
+  const activeGroupRef = useRef<string | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
   // Set on a Ctrl/Cmd+right-click we handled ourselves (add/remove bend) so
   // the element's onContextMenu does not also open a comment popup.
@@ -404,6 +410,7 @@ export const WhiteboardCanvas = ({
   viewportRef.current = viewport;
   toolRef.current = tool;
   selectionRef.current = selection;
+  activeGroupRef.current = activeGroup;
   editingRef.current = editing;
 
   // Broadcast presence with the CURRENT pointer / selection / edit / viewport,
@@ -702,6 +709,45 @@ export const WhiteboardCanvas = ({
       }
     });
     commit(before, next, ids);
+  };
+
+  // Stamp a fresh groupId on the selection (>= 2 elements) so they move and
+  // select together; ungroup clears it.
+  const groupSelection = () => {
+    const ids = manipulableIds(selectionRef.current);
+    if (ids.length < 2) {
+      return;
+    }
+    const gid = createElementId();
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (el) {
+        next[id] = { ...el, groupId: gid };
+      }
+    }
+    commit(before, next, ids);
+  };
+
+  const ungroupSelection = () => {
+    const ids = selectionRef.current;
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    const changed: string[] = [];
+    for (const id of ids) {
+      const el = next[id];
+      if (el?.groupId) {
+        const { groupId: _groupId, ...rest } = el;
+        void _groupId;
+        next[id] = rest;
+        changed.push(id);
+      }
+    }
+    if (changed.length > 0) {
+      setActiveGroup(null);
+      commit(before, next, changed);
+    }
   };
 
   // ----- ephemeral collaboration (reactions + laser) -----------------------
@@ -1379,17 +1425,49 @@ export const WhiteboardCanvas = ({
 
     // select tool
     if (elEl) {
-      const id = elEl.getAttribute('data-el-id')!;
+      let id = elEl.getAttribute('data-el-id')!;
+      // Alt+click digs beneath the top-most element to the one under it.
+      if (e.altKey) {
+        const stack = sortedElements(sceneRef.current)
+          .filter((el) =>
+            pointInRotatedRect(p, elementRect(el), el.rotation ?? 0)
+          )
+          .map((el) => el.id)
+          .reverse();
+        if (stack.length > 1) {
+          const curr =
+            selectionRef.current.length === 1 ? selectionRef.current[0]! : id;
+          const idx = stack.indexOf(curr);
+          id = stack[(idx + 1) % stack.length] ?? id;
+        }
+      }
       const additive = e.shiftKey;
+      const clicked = sceneRef.current[id];
+      const inActiveGroup =
+        !!clicked?.groupId && clicked.groupId === activeGroupRef.current;
+      // A grouped element selects its whole group, unless you have entered that
+      // group (double-click) or hold Alt to pick the single element.
+      const targetIds =
+        !e.altKey && clicked?.groupId && !inActiveGroup
+          ? Object.values(sceneRef.current)
+              .filter((el) => el.groupId === clicked.groupId)
+              .map((el) => el.id)
+          : [id];
+      if (!clicked?.groupId || clicked.groupId !== activeGroupRef.current) {
+        setActiveGroup(null);
+      }
       let nextSel: string[];
       if (additive) {
-        nextSel = selectionRef.current.includes(id)
-          ? selectionRef.current.filter((s) => s !== id)
-          : [...selectionRef.current, id];
+        const already = targetIds.every((g) =>
+          selectionRef.current.includes(g)
+        );
+        nextSel = already
+          ? selectionRef.current.filter((s) => !targetIds.includes(s))
+          : [...new Set([...selectionRef.current, ...targetIds])];
       } else {
-        nextSel = selectionRef.current.includes(id)
+        nextSel = targetIds.every((g) => selectionRef.current.includes(g))
           ? selectionRef.current
-          : [id];
+          : targetIds;
       }
       setSelection(nextSel);
       const origin: Record<string, Point> = {};
@@ -1420,6 +1498,7 @@ export const WhiteboardCanvas = ({
 
     // empty canvas -> marquee
     setSelection(e.shiftKey ? selectionRef.current : []);
+    setActiveGroup(null);
     interactionRef.current = {
       mode: 'marquee',
       start: p,
@@ -2460,6 +2539,11 @@ export const WhiteboardCanvas = ({
     if (!el) {
       return;
     }
+    // Double-clicking a grouped element enters its group so single clicks then
+    // target individual members and this element can be edited directly.
+    if (el.groupId && activeGroupRef.current !== el.groupId) {
+      setActiveGroup(el.groupId);
+    }
     // A nodeCard double-click opens the referenced node (works for viewers too)
     // instead of entering text-edit - the card carries no free text of its own.
     if (el.type === 'nodeCard') {
@@ -3383,6 +3467,30 @@ export const WhiteboardCanvas = ({
                 >
                   <ArrowDownToLine className="size-4" /> Send to back
                 </button>
+                {selection.length >= 2 && (
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                    onClick={() => {
+                      groupSelection();
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Group className="size-4" /> Group
+                  </button>
+                )}
+                {selection.some((sid) => scene[sid]?.groupId) && (
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                    onClick={() => {
+                      ungroupSelection();
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Ungroup className="size-4" /> Ungroup
+                  </button>
+                )}
                 <div className="my-1 h-px bg-border" />
                 <button
                   type="button"

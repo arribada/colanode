@@ -93,6 +93,8 @@ export const boardElementSchema = z.object({
   // legacy boards, so it is fully backward-compatible.
   nodeId: z.string().optional(),
   frameId: z.string().optional(),
+  // Elements sharing a groupId select and move as one unit (Miro-style).
+  groupId: z.string().optional(),
   mindmap: boardMindmapSchema.optional(),
   // Hard lock (multi-user): when `locked` is true the element cannot be
   // moved / resized / rotated / text-edited by anyone except `lockedBy`
