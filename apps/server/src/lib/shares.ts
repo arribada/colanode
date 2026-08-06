@@ -129,6 +129,7 @@ export const getShareData = async (
   includeSubpages: boolean;
   workspaceName: string | null;
   content: DocumentContent;
+  subPages: Array<{ id: string; name: string; content: DocumentContent }>;
 } | null> => {
   const node = await database
     .selectFrom('nodes')
@@ -144,12 +145,38 @@ export const getShareData = async (
     .select(['name'])
     .where('id', '=', share.workspace_id)
     .executeTakeFirst();
+
+  // Mirror renderShare: when the share includes sub-pages, return each direct
+  // child page's document content so the SPA can render them below the main doc
+  // (same page-vs-page+subpages toggle the owner chose at share time).
+  const subPages: Array<{ id: string; name: string; content: DocumentContent }> =
+    [];
+  if (share.include_subpages) {
+    const children = await database
+      .selectFrom('nodes')
+      .selectAll()
+      .where('parent_id', '=', share.node_id)
+      .execute();
+    const pages = children.filter(
+      (c) => (c.attributes as NodeAttributes).type === 'page'
+    );
+    for (const child of pages) {
+      const childContent = await getDocumentContent(child.id);
+      subPages.push({
+        id: child.id,
+        name: nodeName(child.attributes as NodeAttributes),
+        content: childContent ?? { type: 'rich_text', blocks: {} },
+      });
+    }
+  }
+
   return {
     name: nodeName(node.attributes as NodeAttributes),
     permission: share.permission,
     includeSubpages: share.include_subpages,
     workspaceName: workspace?.name ?? null,
     content: content ?? { type: 'rich_text', blocks: {} },
+    subPages,
   };
 };
 

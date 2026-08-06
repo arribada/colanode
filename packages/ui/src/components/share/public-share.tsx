@@ -26,6 +26,7 @@ export interface PublicShareData {
   includeSubpages: boolean;
   workspaceName: string | null;
   content: RichTextContent;
+  subPages: Array<{ id: string; name: string; content: RichTextContent }>;
 }
 
 interface Identity {
@@ -392,6 +393,20 @@ const ReadyView = ({
             editable={editing}
             onEditorReady={onEditorReady}
           />
+          {!editing &&
+            (data.subPages ?? []).map((sub) => (
+              <section key={sub.id} className="mt-10">
+                <hr className="mb-6 border-border" />
+                <h2 className="mb-4 text-2xl font-semibold text-foreground">
+                  {sub.name}
+                </h2>
+                <PublicShareEditor
+                  token={token}
+                  content={sub.content}
+                  editable={false}
+                />
+              </section>
+            ))}
         </Suspense>
       </main>
       {mode === 'reading' && <ShareFooter data={data} />}
