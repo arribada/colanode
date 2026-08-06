@@ -3,19 +3,32 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { NodeSelection } from '@tiptap/pm/state';
 import { Editor } from '@tiptap/react';
 import {
+  Baseline,
+  ChevronRight,
+  Code,
   Copy,
   GripVertical,
   Heading1,
   Heading2,
   Heading3,
+  Highlighter,
+  List,
+  ListOrdered,
+  ListTodo,
+  Megaphone,
+  MessageSquarePlus,
+  Palette,
+  PencilLine,
   Pilcrow,
   Plus,
+  Quote,
   Trash2,
   Type,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
-import { isDescendantNode } from '@colanode/client/lib';
+import { findBlockFromPos, isDescendantNode } from '@colanode/client/lib';
+import { generateId, IdType } from '@colanode/core';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,9 +40,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { editorColors } from '@colanode/ui/lib/editor';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface ActionMenuProps {
   editor: Editor | null;
+  // Provided only for page documents (mirrors the toolbar). When present, the
+  // block menu offers "Comment" / "Suggest edit" wired to the same panels.
+  onAddComment?: (threadId: string) => void;
+  onSuggestEdit?: (blockId: string) => void;
 }
 
 const LEFT_MARGIN = 45;
@@ -42,7 +61,11 @@ type MenuState = {
   rect?: DOMRect;
 };
 
-export const ActionMenu = ({ editor }: ActionMenuProps) => {
+export const ActionMenu = ({
+  editor,
+  onAddComment,
+  onSuggestEdit,
+}: ActionMenuProps) => {
   // Do NOT read editor.view during render: @tiptap/react v3 creates the view
   // asynchronously, so editor.view can throw "editor view is not available"
   // in the window before it is attached. Populate the ref in an effect instead.
@@ -375,6 +398,100 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
   // blocks (lists, embeds, tables…) are left without the sub-menu.
   const canTurnInto = menuState.pmNode?.isTextblock ?? false;
 
+  // Convert the hovered block to a type whose slash command is more than a bare
+  // setNode (lists, toggle, code, quote, callout): reuse the exact chain those
+  // commands run, seeded from a selection inside the block instead of a range.
+  const turnIntoWith = (
+    apply: (chain: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>
+  ) => {
+    if (menuState.pos === undefined) {
+      return;
+    }
+
+    apply(editor.chain().setTextSelection(menuState.pos + 1)).focus().run();
+  };
+
+  // The full text range of the hovered block — used to color/highlight or
+  // comment on all of its text at once.
+  const blockTextRange = () => {
+    if (menuState.pos === undefined || !menuState.pmNode) {
+      return null;
+    }
+
+    return {
+      from: menuState.pos + 1,
+      to: menuState.pos + menuState.pmNode.nodeSize - 1,
+    };
+  };
+
+  const setBlockColor = (color: string) => {
+    const range = blockTextRange();
+    if (!range) {
+      return;
+    }
+
+    const chain = editor.chain().setTextSelection(range);
+    if (color === 'default') {
+      chain.unsetColor();
+    } else {
+      chain.setColor(color);
+    }
+    chain.focus().run();
+  };
+
+  const setBlockHighlight = (color: string) => {
+    const range = blockTextRange();
+    if (!range) {
+      return;
+    }
+
+    const chain = editor.chain().setTextSelection(range);
+    if (color === 'default') {
+      chain.unsetHighlight();
+    } else {
+      chain.setHighlight(color);
+    }
+    chain.focus().run();
+  };
+
+  // Comment on the whole block: select its text, reuse an existing thread if the
+  // block already carries a comment mark, else open a fresh one, then hand the
+  // thread id to the page's comments panel (same entry point as the toolbar).
+  const commentBlock = () => {
+    const range = blockTextRange();
+    if (!range || !onAddComment) {
+      return;
+    }
+
+    editor.chain().setTextSelection(range).run();
+    const existing = editor.getAttributes('comment')?.threadId as
+      | string
+      | undefined;
+    const threadId = existing ?? generateId(IdType.CommentThread);
+    if (!existing) {
+      editor.chain().focus().setComment(threadId).run();
+    }
+    onAddComment(threadId);
+  };
+
+  // Suggest an edit to the block: derive its top-level block id the same way the
+  // toolbar's SuggestButton does and open the suggestion composer for it.
+  const suggestBlock = () => {
+    if (menuState.pos === undefined || !onSuggestEdit) {
+      return;
+    }
+
+    editor.chain().setTextSelection(menuState.pos + 1).run();
+    const { $from } = editor.state.selection;
+    const topLevel = $from.depth >= 1 ? $from.node(1) : null;
+    const blockId =
+      (topLevel?.attrs?.id as string | undefined) ??
+      findBlockFromPos($from)?.nodeId;
+    if (blockId) {
+      onSuggestEdit(blockId);
+    }
+  };
+
   return (
     <FloatingPortal>
       <div
@@ -517,6 +634,112 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
                     <Heading3 className="size-4" />
                     Heading 3
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-bullet-list"
+                    onClick={() => turnIntoWith((c) => c.toggleBulletList())}
+                  >
+                    <List className="size-4" />
+                    Bulleted list
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-ordered-list"
+                    onClick={() => turnIntoWith((c) => c.toggleOrderedList())}
+                  >
+                    <ListOrdered className="size-4" />
+                    Numbered list
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-todo"
+                    onClick={() => turnIntoWith((c) => c.toggleTaskList())}
+                  >
+                    <ListTodo className="size-4" />
+                    To-do list
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-toggle"
+                    onClick={() => turnIntoWith((c) => c.setToggle())}
+                  >
+                    <ChevronRight className="size-4" />
+                    Toggle
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-code"
+                    onClick={() => turnIntoWith((c) => c.toggleCodeBlock())}
+                  >
+                    <Code className="size-4" />
+                    Code
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-quote"
+                    onClick={() =>
+                      turnIntoWith((c) =>
+                        c
+                          .toggleNode('paragraph', 'paragraph')
+                          .toggleBlockquote()
+                      )
+                    }
+                  >
+                    <Quote className="size-4" />
+                    Quote
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-callout"
+                    onClick={() => turnIntoWith((c) => c.setCallout())}
+                  >
+                    <Megaphone className="size-4" />
+                    Callout
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            {canTurnInto && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="flex items-center gap-2">
+                  <Palette className="size-4 text-muted-foreground" />
+                  Color
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-80 w-44 overflow-y-auto">
+                  <DropdownMenuLabel className="flex items-center gap-2">
+                    <Baseline className="size-4 text-muted-foreground" />
+                    Text
+                  </DropdownMenuLabel>
+                  {editorColors.map((color) => (
+                    <DropdownMenuItem
+                      key={`block-text-${color.color}`}
+                      onClick={() => setBlockColor(color.color)}
+                    >
+                      <span
+                        className={cn(
+                          'flex size-4 items-center justify-center rounded border text-xs font-medium',
+                          color.textClass
+                        )}
+                      >
+                        A
+                      </span>
+                      {color.name}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="flex items-center gap-2">
+                    <Highlighter className="size-4 text-muted-foreground" />
+                    Background
+                  </DropdownMenuLabel>
+                  {editorColors.map((color) => (
+                    <DropdownMenuItem
+                      key={`block-bg-${color.color}`}
+                      onClick={() => setBlockHighlight(color.color)}
+                    >
+                      <span
+                        className={cn(
+                          'flex size-4 items-center justify-center rounded border',
+                          color.bgClass
+                        )}
+                      >
+                        A
+                      </span>
+                      {color.name}
+                    </DropdownMenuItem>
+                  ))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
@@ -527,6 +750,24 @@ export const ActionMenu = ({ editor }: ActionMenuProps) => {
               <Copy className="size-4" />
               Duplicate
             </DropdownMenuItem>
+            {onAddComment && (
+              <DropdownMenuItem
+                data-testid="editor-action-menu-comment"
+                onClick={commentBlock}
+              >
+                <MessageSquarePlus className="size-4" />
+                Comment
+              </DropdownMenuItem>
+            )}
+            {onSuggestEdit && (
+              <DropdownMenuItem
+                data-testid="editor-action-menu-suggest"
+                onClick={suggestBlock}
+              >
+                <PencilLine className="size-4" />
+                Suggest edit
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               data-testid="editor-action-menu-delete"

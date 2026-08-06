@@ -699,7 +699,17 @@ export const DocumentEditor = ({
               isPage ? (blockId) => openSuggest(node.id, blockId) : undefined
             }
           />
-          <ActionMenu editor={editor} />
+          <ActionMenu
+            editor={editor}
+            onAddComment={
+              isPage
+                ? (threadId) => openComments(node.id, threadId)
+                : undefined
+            }
+            onSuggestEdit={
+              isPage ? (blockId) => openSuggest(node.id, blockId) : undefined
+            }
+          />
           <AiSlashPrompt />
         </Fragment>
       )}
