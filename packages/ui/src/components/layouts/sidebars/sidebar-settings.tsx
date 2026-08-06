@@ -5,14 +5,18 @@ import {
   LogOut,
   Palette,
   Settings,
+  Share2,
   Trash2,
   Upload,
   Users,
 } from 'lucide-react';
 
+import { useState } from 'react';
+
 import { UploadStatus } from '@colanode/client/types';
 import { SidebarHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-header';
 import { SidebarSettingsItem } from '@colanode/ui/components/layouts/sidebars/sidebar-settings-item';
+import { SharedPagesDialog } from '@colanode/ui/components/pages/shared-pages-dialog';
 import { Link } from '@colanode/ui/components/ui/link';
 import { Separator } from '@colanode/ui/components/ui/separator';
 import { useApp } from '@colanode/ui/contexts/app';
@@ -21,6 +25,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 export const SidebarSettings = () => {
   const app = useApp();
   const workspace = useWorkspace();
+  const [sharedOpen, setSharedOpen] = useState(false);
 
   const pendingUploadsQuery = useLiveQuery(
     (q) =>
@@ -119,6 +124,14 @@ export const SidebarSettings = () => {
             />
           )}
         </Link>
+        <button
+          type="button"
+          onClick={() => setSharedOpen(true)}
+          className="w-full text-left"
+        >
+          <SidebarSettingsItem title="Shared pages" icon={Share2} />
+        </button>
+        <SharedPagesDialog open={sharedOpen} onOpenChange={setSharedOpen} />
       </div>
       <div className="flex w-full min-w-0 flex-col gap-1">
         <SidebarHeader title="Account settings" />

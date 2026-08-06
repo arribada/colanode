@@ -70,7 +70,7 @@ export const PageShareDialog = ({
   const [includeSubpages, setIncludeSubpages] = useState(false);
   const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
-  const [expiryDays, setExpiryDays] = useState<number | null>(null);
+  const [expiryDays, setExpiryDays] = useState<number | null>(7);
 
   const refresh = useCallback(async () => {
     setLoading(true);

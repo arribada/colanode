@@ -74,6 +74,7 @@ import { NodeShareListMutationHandler } from './nodes/node-share-list';
 import { NodeShareRevokeMutationHandler } from './nodes/node-share-revoke';
 import { NodeShareSuggestionsListMutationHandler } from './nodes/node-share-suggestions-list';
 import { NodeShareSuggestionResolveMutationHandler } from './nodes/node-share-suggestion-resolve';
+import { NodeShareWorkspaceListMutationHandler } from './nodes/node-share-workspace-list';
 
 export type MutationHandlerMap = {
   [K in keyof MutationMap]: MutationHandler<MutationMap[K]['input']>;
@@ -126,6 +127,7 @@ export const buildMutationHandlerMap = (
     'node.share.revoke': new NodeShareRevokeMutationHandler(app),
     'node.share.suggestions.list': new NodeShareSuggestionsListMutationHandler(app),
     'node.share.suggestion.resolve': new NodeShareSuggestionResolveMutationHandler(app),
+    'node.share.workspace.list': new NodeShareWorkspaceListMutationHandler(app),
     'avatar.upload': new AvatarUploadMutationHandler(app),
     'account.logout': new AccountLogoutMutationHandler(app),
     'file.create': new FileCreateMutationHandler(app),

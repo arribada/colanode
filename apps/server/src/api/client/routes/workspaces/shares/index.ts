@@ -119,6 +119,64 @@ export const shareRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
     },
   });
 
+  // List every active share in the workspace, with page names + pending
+  // suggestion counts, for the workspace-wide Shared pages view.
+  instance.route({
+    method: 'GET',
+    url: '/all',
+    handler: async (request) => {
+      const shares = await database
+        .selectFrom('node_shares')
+        .selectAll()
+        .where('workspace_id', '=', request.workspace.id)
+        .where('revoked_at', 'is', null)
+        .orderBy('created_at', 'desc')
+        .execute();
+
+      const nodeIds = shares.map((s) => s.node_id);
+      const nodes =
+        nodeIds.length > 0
+          ? await database
+              .selectFrom('nodes')
+              .select(['id', 'attributes'])
+              .where('id', 'in', nodeIds)
+              .execute()
+          : [];
+      const nameById = new Map(
+        nodes.map((n) => [
+          n.id,
+          ((n.attributes as { name?: string }).name ?? 'Untitled') as string,
+        ])
+      );
+
+      const counts =
+        nodeIds.length > 0
+          ? await database
+              .selectFrom('share_suggestions')
+              .select((eb) => ['node_id', eb.fn.count('id').as('c')])
+              .where('workspace_id', '=', request.workspace.id)
+              .where('status', '=', 'pending')
+              .where('node_id', 'in', nodeIds)
+              .groupBy('node_id')
+              .execute()
+          : [];
+      const countById = new Map(counts.map((c) => [c.node_id, Number(c.c)]));
+
+      return shares.map((s) => ({
+        id: s.id,
+        token: s.token,
+        nodeId: s.node_id,
+        pageName: nameById.get(s.node_id) ?? 'Untitled',
+        permission: s.permission,
+        hasPassword: !!s.password_hash,
+        includeSubpages: s.include_subpages,
+        expiresAt: s.expires_at ? new Date(s.expires_at).toISOString() : null,
+        createdAt: new Date(s.created_at).toISOString(),
+        pendingSuggestions: countById.get(s.node_id) ?? 0,
+      }));
+    },
+  });
+
   // List pending suggestions for a node.
   instance.route({
     method: 'GET',
