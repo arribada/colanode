@@ -69,6 +69,9 @@ import { UsersCreateMutationHandler } from './users/users-create';
 import { WorkspaceCreateMutationHandler } from './workspaces/workspace-create';
 import { WorkspaceDeleteMutationHandler } from './workspaces/workspace-delete';
 import { WorkspaceUpdateMutationHandler } from './workspaces/workspace-update';
+import { NodeShareCreateMutationHandler } from './nodes/node-share-create';
+import { NodeShareListMutationHandler } from './nodes/node-share-list';
+import { NodeShareRevokeMutationHandler } from './nodes/node-share-revoke';
 
 export type MutationHandlerMap = {
   [K in keyof MutationMap]: MutationHandler<MutationMap[K]['input']>;
@@ -116,6 +119,9 @@ export const buildMutationHandlerMap = (
     'users.create': new UsersCreateMutationHandler(app),
     'workspace.create': new WorkspaceCreateMutationHandler(app),
     'workspace.update': new WorkspaceUpdateMutationHandler(app),
+    'node.share.create': new NodeShareCreateMutationHandler(app),
+    'node.share.list': new NodeShareListMutationHandler(app),
+    'node.share.revoke': new NodeShareRevokeMutationHandler(app),
     'avatar.upload': new AvatarUploadMutationHandler(app),
     'account.logout': new AccountLogoutMutationHandler(app),
     'file.create': new FileCreateMutationHandler(app),

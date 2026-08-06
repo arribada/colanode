@@ -10,6 +10,7 @@ import {
   MoveHorizontal,
   Printer,
   Settings,
+  Share2,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ import { DocumentHistoryDialog } from '@colanode/ui/components/documents/documen
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
+import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
 import {
   DropdownMenu,
@@ -59,6 +61,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
@@ -75,6 +78,13 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           <DropdownMenuLabel>{page.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <CopyLinkAction nodeId={page.id} item={DropdownMenuItem} />
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowShareDialog(true)}
+          >
+            <Share2 className="size-4" />
+            Share to web
+          </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
@@ -278,6 +288,11 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <PageShareDialog
+        page={page}
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+      />
       <NodeDeleteDialog
         id={page.id}
         title="Are you sure you want delete this page?"
