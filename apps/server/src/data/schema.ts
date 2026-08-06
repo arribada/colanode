@@ -280,6 +280,23 @@ interface NodeSnapshotTable {
 export type SelectNodeSnapshot = Selectable<NodeSnapshotTable>;
 export type CreateNodeSnapshot = Insertable<NodeSnapshotTable>;
 
+interface NodeShareTable {
+  id: ColumnType<string, string, never>;
+  token: ColumnType<string, string, never>;
+  node_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  permission: ColumnType<string, string, string>;
+  include_subpages: ColumnType<boolean, boolean, boolean>;
+  password_hash: ColumnType<string | null, string | null, string | null>;
+  expires_at: ColumnType<Date | null, Date | null, Date | null>;
+  revoked_at: ColumnType<Date | null, Date | null, Date | null>;
+  created_at: ColumnType<Date, Date, never>;
+  created_by: ColumnType<string, string, never>;
+}
+
+export type SelectNodeShare = Selectable<NodeShareTable>;
+export type CreateNodeShare = Insertable<NodeShareTable>;
+
 interface UploadTable {
   file_id: ColumnType<string, string, never>;
   upload_id: ColumnType<string, string, string>;
@@ -519,6 +536,7 @@ export interface DatabaseSchema {
   document_updates: DocumentUpdateTable;
   document_snapshots: DocumentSnapshotTable;
   node_snapshots: NodeSnapshotTable;
+  node_shares: NodeShareTable;
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;

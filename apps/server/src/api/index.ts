@@ -5,6 +5,7 @@ import { mcpRoutes } from '@colanode/server/api/client/routes/mcp';
 import { oauthRoutes } from '@colanode/server/api/client/routes/oauth';
 import { configGetRoute } from '@colanode/server/api/config';
 import { homeRoute } from '@colanode/server/api/home';
+import { publicShareRoute } from '@colanode/server/api/share';
 import { config } from '@colanode/server/lib/config';
 
 export const apiRoutes: FastifyPluginCallback = (instance, _, done) => {
@@ -17,6 +18,7 @@ export const apiRoutes: FastifyPluginCallback = (instance, _, done) => {
   // OAuth 2.1 discovery + endpoints must live at the domain root (no prefix)
   // so /.well-known/oauth-* and /oauth/* are reachable where clients probe.
   instance.register(oauthRoutes);
+  instance.register(publicShareRoute);
 
   done();
 };

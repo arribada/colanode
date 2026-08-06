@@ -45,6 +45,7 @@ import { createMcpOauthClientsTable } from './00042-create-mcp-oauth-clients-tab
 import { createMcpOauthCodesTable } from './00043-create-mcp-oauth-codes-table';
 import { fixNodePathUpdateTrigger } from './00044-fix-node-path-update-trigger';
 import { createNodeSnapshotsTable } from './00045-create-node-snapshots-table';
+import { createNodeSharesTable } from './00046-create-node-shares-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -96,4 +97,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00043_create_mcp_oauth_codes_table': createMcpOauthCodesTable,
   '00044_fix_node_path_update_trigger': fixNodePathUpdateTrigger,
   '00045_create_node_snapshots_table': createNodeSnapshotsTable,
+  '00046_create_node_shares_table': createNodeSharesTable,
 };
