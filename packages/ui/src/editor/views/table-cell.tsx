@@ -40,7 +40,7 @@ export const TableCellNodeView = (props: NodeViewProps) => {
           className={cn(
             defaultClasses.tableCell,
             'relative',
-            isActive && 'outline outline-primary',
+            isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
             backgroundColor?.bgClass,
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',

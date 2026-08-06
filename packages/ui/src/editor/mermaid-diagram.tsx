@@ -97,7 +97,10 @@ export const MermaidDiagram = ({ source, className }: MermaidDiagramProps) => {
 
   return (
     <div
-      className={cn('flex w-full justify-center overflow-x-auto', className)}
+      className={cn(
+        'flex w-full justify-center overflow-x-auto rounded-md bg-white p-3',
+        className
+      )}
       // Trusted: mermaid produces this SVG from the user's own source with
       // securityLevel 'strict' (no scripts / click handlers executed).
       dangerouslySetInnerHTML={{ __html: svg }}

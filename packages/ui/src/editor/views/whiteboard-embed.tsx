@@ -77,7 +77,12 @@ const WhiteboardEmbedPicker = ({
       id: whiteboardId,
       type: 'whiteboard',
       name: 'Whiteboard',
-      parentId: context.documentId,
+      // Parent the board to the space (rootId), exactly like the standalone
+      // WhiteboardCreateDialog — a whiteboard under a page node is an
+      // unexpected parent relationship the role/sync resolution chokes on,
+      // which left the fresh board stuck on "still downloading". The embed
+      // only references the board by id, so its parent can be the space.
+      parentId: context.rootId,
       rootId: context.rootId,
       scene: {},
       createdAt: new Date().toISOString(),

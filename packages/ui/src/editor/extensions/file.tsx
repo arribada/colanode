@@ -1,5 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { toast } from 'sonner';
 
@@ -61,7 +61,7 @@ export const FileNode = Node.create<FileNodeOptions>({
             }
 
             const fileId = fileCreateResult.output.id;
-            const pos = tr.selection.$head.pos;
+            const pos = editor.state.selection.$head.pos;
             editor
               .chain()
               .focus()
@@ -70,6 +70,30 @@ export const FileNode = Node.create<FileNodeOptions>({
                 attrs: {
                   id: fileId,
                 },
+              })
+              // A file is an atom block; if it lands as the last child of its
+              // container (e.g. a table cell) there is no text position after
+              // it to type into, so add an empty paragraph and put the cursor
+              // there. Only when nothing typable already follows.
+              .command(({ tr, state, dispatch }) => {
+                const after = pos + 1;
+                if (after > tr.doc.content.size) {
+                  return true;
+                }
+                const next = tr.doc.resolve(after).nodeAfter;
+                if (next && next.isTextblock) {
+                  return true;
+                }
+                if (dispatch) {
+                  const paragraph = state.schema.nodes.paragraph?.create();
+                  if (paragraph) {
+                    tr.insert(after, paragraph);
+                    tr.setSelection(
+                      TextSelection.near(tr.doc.resolve(after + 1))
+                    );
+                  }
+                }
+                return true;
               })
               .run();
           })();
