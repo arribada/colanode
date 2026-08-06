@@ -6,6 +6,7 @@ import { DocumentContent, NodeAttributes } from '@colanode/core';
 import { YDoc } from '@colanode/crdt';
 
 import { database } from '@colanode/server/data/database';
+import { createNotification } from '@colanode/server/lib/notifications';
 import { SelectNodeShare } from '@colanode/server/data/schema';
 import {
   renderDocumentHtml,
@@ -143,4 +144,29 @@ export const createSuggestion = async (
       created_at: new Date(),
     })
     .execute();
+
+  try {
+    const node = await database
+      .selectFrom('nodes')
+      .select(['root_id'])
+      .where('id', '=', share.node_id)
+      .executeTakeFirst();
+    if (node) {
+      await createNotification({
+        userId: share.created_by,
+        workspaceId: share.workspace_id,
+        rootId: node.root_id,
+        type: 'share_suggestion',
+        sourceNodeId: share.node_id,
+        actorId: share.created_by,
+        preview: {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: input.email,
+        },
+      });
+    }
+  } catch {
+    // the suggestion is already stored; a failed notification must not fail it
+  }
 };

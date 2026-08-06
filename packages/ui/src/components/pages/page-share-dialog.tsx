@@ -27,6 +27,16 @@ interface ShareItem {
   createdAt: string;
 }
 
+interface SuggestionItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  proposedHtml: string;
+  proposedText: string | null;
+  createdAt: string;
+}
+
 interface PageShareDialogProps {
   page: LocalPageNode;
   open: boolean;
@@ -51,6 +61,8 @@ export const PageShareDialog = ({
   const workspace = useWorkspace();
 
   const [shares, setShares] = useState<ShareItem[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -71,12 +83,40 @@ export const PageShareDialog = ({
       if (result.success) {
         setShares((result.output as { shares: ShareItem[] }).shares);
       }
+      const sug = await window.colanode.executeMutation({
+        type: 'node.share.suggestions.list',
+        userId: workspace.userId,
+        nodeId: page.id,
+      });
+      if (sug.success) {
+        setSuggestions(
+          (sug.output as { suggestions: SuggestionItem[] }).suggestions
+        );
+      }
     } catch {
-      // ignore — the list just stays as-is
+      // ignore — the lists just stay as-is
     } finally {
       setLoading(false);
     }
   }, [workspace.userId, page.id]);
+
+  const resolve = async (
+    suggestionId: string,
+    status: 'approved' | 'rejected'
+  ) => {
+    try {
+      await window.colanode.executeMutation({
+        type: 'node.share.suggestion.resolve',
+        userId: workspace.userId,
+        suggestionId,
+        status,
+      });
+      setExpanded(null);
+      await refresh();
+    } catch {
+      toast.error('Could not update the suggestion');
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -300,6 +340,63 @@ export const PageShareDialog = ({
               </div>
             ))}
           </div>
+
+          {suggestions.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Pending suggestions ({suggestions.length})
+              </p>
+              {suggestions.map((sg) => (
+                <div key={sg.id} className="rounded-md border p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate">
+                      <span className="font-medium">
+                        {sg.firstName} {sg.lastName}
+                      </span>{' '}
+                      <span className="text-xs text-muted-foreground">
+                        {sg.email}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpanded(expanded === sg.id ? null : sg.id)
+                      }
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      {expanded === sg.id ? 'Hide' : 'View'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => resolve(sg.id, 'approved')}
+                      className="rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-700"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => resolve(sg.id, 'rejected')}
+                      className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                  {expanded === sg.id && (
+                    <iframe
+                      title="Proposed content"
+                      sandbox=""
+                      srcDoc={sg.proposedHtml}
+                      className="mt-2 h-64 w-full rounded border bg-white"
+                    />
+                  )}
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                Approving records the suggestion; apply the change to the page
+                yourself for now.
+              </p>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

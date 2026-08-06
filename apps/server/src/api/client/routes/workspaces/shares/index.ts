@@ -119,5 +119,56 @@ export const shareRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
     },
   });
 
+  // List pending suggestions for a node.
+  instance.route({
+    method: 'GET',
+    url: '/suggestions',
+    schema: {
+      querystring: z.object({ nodeId: z.string() }),
+    },
+    handler: async (request) => {
+      const rows = await database
+        .selectFrom('share_suggestions')
+        .selectAll()
+        .where('node_id', '=', request.query.nodeId)
+        .where('workspace_id', '=', request.workspace.id)
+        .where('status', '=', 'pending')
+        .orderBy('created_at', 'desc')
+        .execute();
+
+      return rows.map((r) => ({
+        id: r.id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email,
+        proposedHtml: r.proposed_html,
+        proposedText: r.proposed_text,
+        createdAt: new Date(r.created_at).toISOString(),
+      }));
+    },
+  });
+
+  // Approve or reject a suggestion.
+  instance.route({
+    method: 'PATCH',
+    url: '/suggestions/:suggestionId',
+    schema: {
+      params: z.object({
+        workspaceId: z.string(),
+        suggestionId: z.string(),
+      }),
+      body: z.object({ status: z.enum(['approved', 'rejected']) }),
+    },
+    handler: async (request) => {
+      await database
+        .updateTable('share_suggestions')
+        .set({ status: request.body.status })
+        .where('id', '=', request.params.suggestionId)
+        .where('workspace_id', '=', request.workspace.id)
+        .execute();
+      return { success: true };
+    },
+  });
+
   done();
 };

@@ -20,7 +20,12 @@ type CreateNotificationInput = {
   userId: string;
   workspaceId: string;
   rootId: string;
-  type: 'mention' | 'direct_message' | 'task_assigned' | 'task_status';
+  type:
+    | 'mention'
+    | 'direct_message'
+    | 'task_assigned'
+    | 'task_status'
+    | 'share_suggestion';
   sourceNodeId: string;
   actorId: string | null;
   preview: Record<string, unknown>;
@@ -74,27 +79,31 @@ export const createNotification = async (
   // No-ops instantly when disabled (see lib/zulip/notifier.ts); when
   // enabled it fires-and-forgets, so a slow/down Zulip never delays or
   // fails notification creation.
-  notifyZulip({
-    userId: input.userId,
-    workspaceId: input.workspaceId,
-    rootId: input.rootId,
-    type: input.type,
-    sourceNodeId: input.sourceNodeId,
-    actorId: input.actorId,
-  });
+  // External share-suggestion notifications stay in-app only.
+  if (input.type !== 'share_suggestion') {
+    const relayType = input.type;
+    notifyZulip({
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+      rootId: input.rootId,
+      type: relayType,
+      sourceNodeId: input.sourceNodeId,
+      actorId: input.actorId,
+    });
 
-  // Same shape, same guarantees: relay to the dashboard so one bell shows the
-  // wiki, Plane and the dashboard together. Dormant unless ARRIBADA_NOTIFY_URL
-  // and _SECRET are set, and never able to delay or fail what is already stored.
-  notifyDashboard({
-    userId: input.userId,
-    workspaceId: input.workspaceId,
-    rootId: input.rootId,
-    type: input.type,
-    sourceNodeId: input.sourceNodeId,
-    actorId: input.actorId,
-    notificationId: created.id,
-  });
+    // Same shape, same guarantees: relay to the dashboard so one bell shows the
+    // wiki, Plane and the dashboard together. Dormant unless ARRIBADA_NOTIFY_URL
+    // and _SECRET are set, and never able to delay or fail what is already stored.
+    notifyDashboard({
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+      rootId: input.rootId,
+      type: relayType,
+      sourceNodeId: input.sourceNodeId,
+      actorId: input.actorId,
+      notificationId: created.id,
+    });
+  }
 
   return created;
 };

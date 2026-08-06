@@ -40,6 +40,8 @@ export * from './workspaces/workspace-update';
 export * from './nodes/node-share-create';
 export * from './nodes/node-share-list';
 export * from './nodes/node-share-revoke';
+export * from './nodes/node-share-suggestions-list';
+export * from './nodes/node-share-suggestion-resolve';
 export * from './users/user-role-update';
 export * from './users/user-storage-update';
 export * from './users/users-create';
