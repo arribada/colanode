@@ -224,22 +224,39 @@ export const TableView = () => {
   // --- cell-range selection (Ctrl + drag) -----------------------------------
   const [anchor, setAnchor] = useState<CellPos | null>(null);
   const [focus, setFocus] = useState<CellPos | null>(null);
-  const selectingRef = useRef(false);
   const clipboardRef = useRef<{
     values: (FieldValue | undefined)[][];
     types: string[];
   } | null>(null);
 
+  // Start a range at a cell and drive it entirely from window pointer events,
+  // resolving the hovered cell via elementFromPoint + its data-cell-* markers.
+  // This is robust regardless of per-cell pointer-enter quirks.
   const beginAt = useCallback((row: number, col: number) => {
-    selectingRef.current = true;
     setAnchor({ row, col });
     setFocus({ row, col });
-  }, []);
 
-  const extendTo = useCallback((row: number, col: number) => {
-    if (selectingRef.current) {
-      setFocus({ row, col });
-    }
+    const onMove = (e: PointerEvent) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const cell =
+        el instanceof Element
+          ? (el.closest('[data-cell-row]') as HTMLElement | null)
+          : null;
+      if (!cell) {
+        return;
+      }
+      const r = Number(cell.getAttribute('data-cell-row'));
+      const c = Number(cell.getAttribute('data-cell-col'));
+      if (Number.isFinite(r) && Number.isFinite(c)) {
+        setFocus({ row: r, col: c });
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }, []);
 
   const clearRange = useCallback(() => {
@@ -260,14 +277,6 @@ export const TableView = () => {
     },
     [anchor, focus]
   );
-
-  useEffect(() => {
-    const up = () => {
-      selectingRef.current = false;
-    };
-    window.addEventListener('pointerup', up);
-    return () => window.removeEventListener('pointerup', up);
-  }, []);
 
   const copyRange = useCallback(() => {
     if (!anchor || !focus) {
@@ -369,11 +378,11 @@ export const TableView = () => {
       focus,
       isActive: !!(anchor && focus),
       beginAt,
-      extendTo,
+      extendTo: () => {},
       isSelected: isCellSelected,
       clear: clearRange,
     }),
-    [anchor, focus, beginAt, extendTo, isCellSelected, clearRange]
+    [anchor, focus, beginAt, isCellSelected, clearRange]
   );
 
   return (

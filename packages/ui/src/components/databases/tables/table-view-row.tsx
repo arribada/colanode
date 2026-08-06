@@ -40,6 +40,7 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
         data-testid={`table-row-${record.id}`}
         className={cn(
           'group/row animate-fade-in flex flex-row items-center gap-0.5 border-b transition-colors hover:bg-muted/30',
+          view.zebra && index % 2 === 1 && 'bg-muted/25',
           selected && 'bg-accent/40',
           colorClass
         )}
@@ -74,6 +75,8 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
           return (
             <div
               key={`row-${record.id}-${field.field.id}`}
+              data-cell-row={index}
+              data-cell-col={col}
               className={cn(
                 'group/cell relative h-8 border-r p-1 overflow-hidden',
                 inFillRange && 'bg-blue-100/70 dark:bg-blue-900/40',
@@ -82,7 +85,8 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
               )}
               style={{ width: `${field.width}px` }}
               // Ctrl (or Cmd) + press starts a cell-range selection. Capture
-              // phase so it fires before the cell's own editor opens.
+              // phase so it fires before the cell's own editor opens; the drag
+              // itself is tracked at the window level (see table-view.tsx).
               onPointerDownCapture={(e) => {
                 if (e.ctrlKey || e.metaKey) {
                   e.preventDefault();
@@ -90,10 +94,7 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
                   range?.beginAt(index, col);
                 }
               }}
-              onPointerEnter={() => {
-                fill?.enter(index, col);
-                range?.extendTo(index, col);
-              }}
+              onPointerEnter={() => fill?.enter(index, col)}
             >
               <RecordFieldValue field={field.field} />
               {canFill && (

@@ -37,8 +37,7 @@ export const BoardViewColumn = () => {
     <div
       ref={dropRef as React.Ref<HTMLDivElement>}
       className={cn(
-        'flex min-h-[400px] flex-col rounded-xl p-2 transition-colors',
-        columnClass,
+        'relative isolate flex min-h-[400px] flex-col rounded-xl p-2 transition-colors',
         isOver && 'ring-2 ring-inset ring-primary/40'
       )}
       style={{
@@ -47,6 +46,15 @@ export const BoardViewColumn = () => {
         width: '272px',
       }}
     >
+      {/* Soft tag-colour wash behind the column — kept faint so it tints
+          rather than shouts (a full colour block was too aggressive). */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute inset-0 -z-10 rounded-xl opacity-25',
+          columnClass
+        )}
+      />
       <div className="flex flex-row items-center gap-2 px-1 py-0.5">
         {boardView.header}
       </div>

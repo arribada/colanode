@@ -25,6 +25,7 @@ interface DatabaseViewContext {
   chart: DatabaseViewChartAttributes | null | undefined;
   conditionalColors: DatabaseViewConditionalColorAttributes[];
   nameWidth: number;
+  zebra: boolean;
   isSearchBarOpened: boolean;
   isSortsOpened: boolean;
   initFieldFilter: (fieldId: string) => void;

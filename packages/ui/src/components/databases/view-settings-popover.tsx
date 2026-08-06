@@ -1,4 +1,4 @@
-import { Lock, LockOpen, Trash2 } from 'lucide-react';
+import { Check, Lock, LockOpen, Rows3, Trash2 } from 'lucide-react';
 import { Fragment, ReactNode, useState } from 'react';
 
 import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
@@ -17,6 +17,7 @@ import {
 } from '@colanode/ui/components/ui/popover';
 import { Separator } from '@colanode/ui/components/ui/separator';
 import { useDatabase } from '@colanode/ui/contexts/database';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 
 interface ViewSettingsPopoverProps {
@@ -38,6 +39,7 @@ export const ViewSettingsPopover = ({
 }: ViewSettingsPopoverProps) => {
   const database = useDatabase();
   const view = useDatabaseView();
+  const workspace = useWorkspace();
 
   const [open, setOpen] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
@@ -96,6 +98,28 @@ export const ViewSettingsPopover = ({
               <Separator />
               <div className="flex flex-col gap-2 text-sm">
                 <p className="my-1 font-semibold">Settings</p>
+                {view.layout === 'table' && (
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"
+                    onClick={() => {
+                      const nodes = workspace.collections.nodes;
+                      if (!nodes.has(view.id)) {
+                        return;
+                      }
+                      nodes.update(view.id, (draft) => {
+                        if (draft.type !== 'database_view') {
+                          return;
+                        }
+                        draft.zebra = !(draft.zebra ?? false);
+                      });
+                    }}
+                  >
+                    <Rows3 className="size-4" />
+                    <span className="flex-1">Alternating row colours</span>
+                    {view.zebra && <Check className="size-4" />}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"

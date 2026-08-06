@@ -143,6 +143,8 @@ export const databaseViewAttributesSchema = z.object({
     .array(databaseViewConditionalColorAttributesSchema)
     .optional()
     .nullable(),
+  // Alternating row background (zebra striping) in the table layout.
+  zebra: z.boolean().nullable().optional(),
 });
 
 export type DatabaseViewAttributes = z.infer<

@@ -118,6 +118,7 @@ export const View = ({ view }: ViewProps) => {
         groupBy: view.groupBy,
         chart: view.chart,
         conditionalColors: view.conditionalColors ?? [],
+        zebra: view.zebra ?? false,
         nameWidth: view.nameWidth ?? getDefaultNameWidth(),
         isSearchBarOpened: isSearchBarOpened || openedFieldFilters.length > 0,
         isSortsOpened,
