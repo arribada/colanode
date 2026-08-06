@@ -3,7 +3,7 @@
 // ABOUTME: the public schema does not know (mention, database, file, whiteboard…).
 import '@colanode/ui/styles/editor.css';
 
-import { JSONContent } from '@tiptap/core';
+import { Editor, JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { useEffect } from 'react';
 
@@ -233,7 +233,7 @@ export const buildPublicShareExtensions = (editable: boolean) => {
 interface PublicShareEditorProps {
   content: RichTextContent;
   editable: boolean;
-  onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
+  onEditorReady?: (editor: Editor) => void;
 }
 
 export const PublicShareEditor = ({

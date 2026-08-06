@@ -1,12 +1,15 @@
 // ABOUTME: The public, no-account share page (/share/$token) — fetches the
-// ABOUTME: shared document from /share-api, handles password/404, and renders it
-// ABOUTME: read-only with the pure editor subset.
+// ABOUTME: shared document from /share-api, handles password/404, renders it
+// ABOUTME: read-only, and (when permission==='suggest') lets an identified
+// ABOUTME: visitor edit and submit a suggestion.
+import { Editor } from '@tiptap/core';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { RichTextContent } from '@colanode/core';
 import { ArribadaWordmark } from '@colanode/ui/components/ui/arribada-logo';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
+import { Label } from '@colanode/ui/components/ui/label';
 import { Spinner } from '@colanode/ui/components/ui/spinner';
 
 const PublicShareEditor = lazy(() =>
@@ -15,12 +18,20 @@ const PublicShareEditor = lazy(() =>
   }))
 );
 
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 export interface PublicShareData {
   name: string;
   permission: 'read' | 'suggest';
   includeSubpages: boolean;
   workspaceName: string | null;
   content: RichTextContent;
+}
+
+interface Identity {
+  firstName: string;
+  lastName: string;
+  email: string;
 }
 
 type Phase =
@@ -130,15 +141,24 @@ const PasswordGate = ({
   );
 };
 
-const ShareHeader = ({ data }: { data: PublicShareData }) => (
+const ShareHeader = ({
+  data,
+  action,
+}: {
+  data: PublicShareData;
+  action?: React.ReactNode;
+}) => (
   <header className="mb-8 flex flex-col gap-4 border-b border-border/60 pb-6">
     <div className="flex items-center justify-between gap-3">
       <ArribadaWordmark className="h-6 w-auto opacity-80" />
-      {data.workspaceName && (
-        <span className="truncate text-xs uppercase tracking-wide text-muted-foreground">
-          {data.workspaceName}
-        </span>
-      )}
+      <div className="flex items-center gap-3">
+        {data.workspaceName && (
+          <span className="hidden truncate text-xs uppercase tracking-wide text-muted-foreground sm:inline">
+            {data.workspaceName}
+          </span>
+        )}
+        {action}
+      </div>
     </div>
     <h1 className="text-3xl font-semibold leading-tight text-foreground">
       {data.name}
@@ -148,29 +168,255 @@ const ShareHeader = ({ data }: { data: PublicShareData }) => (
 
 const ShareFooter = ({ data }: { data: PublicShareData }) => (
   <footer className="mt-12 border-t border-border/60 pt-4 text-xs text-muted-foreground">
-    Shared read-only
+    {data.permission === 'suggest'
+      ? 'Shared for suggestions'
+      : 'Shared read-only'}
     {data.workspaceName ? ` from ${data.workspaceName}` : ''} · Powered by
     Arribada
   </footer>
 );
 
-const ReadyView = ({ data }: { data: PublicShareData }) => (
-  <PublicShell>
-    <ShareHeader data={data} />
-    <main className="flex-1">
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center py-16">
-            <Spinner className="size-6" />
+// Modal identity gate — a suggestion is only accepted with a name + a valid
+// email (the owner needs to know who proposed the edit; the server re-validates
+// all of this).
+const IdentityGate = ({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (identity: Identity) => void;
+}) => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+
+  const valid =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    EMAIL_RE.test(email.trim());
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!valid) {
+      return;
+    }
+    onSubmit({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-lg">
+        <h2 className="text-lg font-semibold text-foreground">
+          Suggest an edit
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Tell us who you are, then edit the page. Your changes are sent to the
+          owner as a suggestion — the live page is not changed.
+        </p>
+        <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="share-first-name">First name</Label>
+            <Input
+              id="share-first-name"
+              autoFocus
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+            />
           </div>
-        }
-      >
-        <PublicShareEditor content={data.content} editable={false} />
-      </Suspense>
-    </main>
-    <ShareFooter data={data} />
-  </PublicShell>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="share-last-name">Last name</Label>
+            <Input
+              id="share-last-name"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="share-email">Email</Label>
+            <Input
+              id="share-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!valid}>
+              Start editing
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Sticky bar shown while an identified visitor is editing a suggestion.
+const SuggestBar = ({
+  submitting,
+  error,
+  onDiscard,
+  onSubmit,
+}: {
+  submitting: boolean;
+  error: string | null;
+  onDiscard: () => void;
+  onSubmit: () => void;
+}) => (
+  <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur">
+    <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
+      <div className="min-w-0 text-sm text-muted-foreground">
+        {error ? (
+          <span className="text-destructive">{error}</span>
+        ) : (
+          <span className="hidden sm:inline">
+            You are editing a suggestion. The live page is unchanged.
+          </span>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onDiscard}
+          disabled={submitting}
+        >
+          Discard
+        </Button>
+        <Button type="button" onClick={onSubmit} disabled={submitting}>
+          {submitting ? <Spinner className="size-4" /> : 'Submit suggestion'}
+        </Button>
+      </div>
+    </div>
+  </div>
 );
+
+const ReadyView = ({
+  token,
+  data,
+}: {
+  token: string;
+  data: PublicShareData;
+}) => {
+  const canSuggest = data.permission === 'suggest';
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const [mode, setMode] = useState<
+    'reading' | 'identifying' | 'editing' | 'done'
+  >('reading');
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const onEditorReady = useCallback((instance: Editor) => {
+    setEditor(instance);
+  }, []);
+
+  const submit = async () => {
+    if (!editor || !identity || submitting) {
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const response = await fetch(shareApiUrl(token, 'suggest'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: identity.firstName,
+          lastName: identity.lastName,
+          email: identity.email,
+          html: editor.getHTML(),
+          text: editor.getText(),
+        }),
+      });
+      const body = (await response
+        .json()
+        .catch(() => null)) as { success?: boolean } | null;
+      if (!response.ok || !body?.success) {
+        setSubmitError('Could not submit your suggestion. Please try again.');
+        return;
+      }
+      setMode('done');
+    } catch {
+      setSubmitError('Could not reach the server. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (mode === 'done') {
+    return (
+      <CenteredNotice
+        title="Thank you — your suggestion was sent"
+        description={`The owner${
+          data.workspaceName ? ` of ${data.workspaceName}` : ''
+        } will review your proposed changes. You can close this page.`}
+      />
+    );
+  }
+
+  const editing = mode === 'editing';
+
+  return (
+    <PublicShell>
+      <ShareHeader
+        data={data}
+        action={
+          canSuggest && mode === 'reading' ? (
+            <Button size="sm" onClick={() => setMode('identifying')}>
+              Suggest an edit
+            </Button>
+          ) : undefined
+        }
+      />
+      <main className={editing ? 'flex-1 pb-24' : 'flex-1'}>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-16">
+              <Spinner className="size-6" />
+            </div>
+          }
+        >
+          <PublicShareEditor
+            content={data.content}
+            editable={editing}
+            onEditorReady={onEditorReady}
+          />
+        </Suspense>
+      </main>
+      {mode === 'reading' && <ShareFooter data={data} />}
+
+      {canSuggest && mode === 'identifying' && (
+        <IdentityGate
+          onCancel={() => setMode('reading')}
+          onSubmit={(id) => {
+            setIdentity(id);
+            setMode('editing');
+          }}
+        />
+      )}
+      {editing && (
+        <SuggestBar
+          submitting={submitting}
+          error={submitError}
+          onDiscard={() => {
+            setMode('reading');
+            setIdentity(null);
+            setSubmitError(null);
+          }}
+          onSubmit={() => void submit()}
+        />
+      )}
+    </PublicShell>
+  );
+};
 
 export const PublicShare = ({ token }: { token: string }) => {
   const [phase, setPhase] = useState<Phase>({ status: 'loading' });
@@ -249,5 +495,5 @@ export const PublicShare = ({ token }: { token: string }) => {
     );
   }
 
-  return <ReadyView data={phase.data} />;
+  return <ReadyView token={token} data={phase.data} />;
 };
