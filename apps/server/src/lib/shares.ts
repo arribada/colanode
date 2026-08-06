@@ -1,17 +1,20 @@
 // ABOUTME: Public share helpers — look up a share by token, check it is live,
 // ABOUTME: reconstruct a node's document, and render the shared page(s) to HTML.
 import { randomBytes } from 'crypto';
+import { Readable } from 'stream';
 
-import { DocumentContent, NodeAttributes } from '@colanode/core';
+import { DocumentContent, FileStatus, NodeAttributes } from '@colanode/core';
 import { YDoc } from '@colanode/crdt';
 
 import { database } from '@colanode/server/data/database';
 import { createNotification } from '@colanode/server/lib/notifications';
+import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 import { SelectNodeShare } from '@colanode/server/data/schema';
 import {
   renderDocumentHtml,
   renderSharePage,
 } from '@colanode/server/lib/share-html';
+import { storage } from '@colanode/server/lib/storage';
 
 export const getShareByToken = async (
   token: string
@@ -149,6 +152,55 @@ export const getShareData = async (
     workspaceName: workspace?.name ?? null,
     content: content ?? { type: 'rich_text', blocks: {} },
   };
+};
+
+// Stream a file that is embedded in a shared page — but ONLY if the file lives
+// inside the shared node's subtree. `fetchNodeTree(fileId)` returns the file's
+// full ancestor chain (root -> ... -> file); if the shared node id is not in
+// that chain, the file is outside what was shared and we refuse it. This is the
+// only authorization: there is no account/role on a public request, so subtree
+// containment is what scopes access and prevents leaking arbitrary files.
+export const getShareFile = async (
+  share: SelectNodeShare,
+  fileId: string
+): Promise<{ stream: Readable; contentType?: string } | null> => {
+  const tree = await fetchNodeTree(fileId);
+  if (tree.length === 0) {
+    return null;
+  }
+
+  const nodes = tree.map((node) => mapNode(node));
+  const file = nodes[nodes.length - 1];
+  if (!file || file.id !== fileId || file.type !== 'file') {
+    return null;
+  }
+
+  if (file.status !== FileStatus.Ready) {
+    return null;
+  }
+
+  // Subtree authorization — the shared node must be the file itself or one of
+  // its ancestors.
+  if (!nodes.some((node) => node.id === share.node_id)) {
+    return null;
+  }
+
+  const upload = await database
+    .selectFrom('uploads')
+    .selectAll()
+    .where('file_id', '=', fileId)
+    .executeTakeFirst();
+
+  if (!upload || !upload.uploaded_at) {
+    return null;
+  }
+
+  try {
+    const { stream, contentType } = await storage.download(upload.path);
+    return { stream, contentType: contentType ?? upload.mime_type };
+  } catch {
+    return null;
+  }
 };
 
 // Store an external contributor's proposed edit as a pending suggestion.

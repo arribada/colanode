@@ -7,6 +7,7 @@ import {
   createSuggestion,
   getShareByToken,
   getShareData,
+  getShareFile,
   isShareLive,
 } from '@colanode/server/lib/shares';
 
@@ -85,6 +86,37 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
       text: (body.text ?? '').slice(0, 100000),
     });
     return { success: true };
+  });
+
+  // Stream an image/file embedded in the shared page. Authorization is subtree
+  // containment only (see getShareFile). Every failure path returns an opaque
+  // 404 so this endpoint never reveals whether a given file id exists.
+  instance.get('/share-api/:token/files/:fileId', async (request, reply) => {
+    const { token, fileId } = request.params as {
+      token: string;
+      fileId: string;
+    };
+    const share = await getShareByToken(token);
+    if (!share || !isShareLive(share)) {
+      return reply.code(404).send({ error: 'not_found' });
+    }
+    // Password-protected shares: the unlock flow is stateless (it issues no
+    // session/cookie we could check on a bare <img> request), so we refuse to
+    // serve embedded file bytes rather than leak them to anyone holding just
+    // the token. Images on locked shares therefore do not render — a documented
+    // limitation; a follow-up can issue a signed view-cookie on unlock.
+    if (share.password_hash) {
+      return reply.code(404).send({ error: 'not_found' });
+    }
+    const result = await getShareFile(share, fileId);
+    if (!result) {
+      return reply.code(404).send({ error: 'not_found' });
+    }
+    if (result.contentType) {
+      reply.header('Content-Type', result.contentType);
+    }
+    reply.header('Cache-Control', 'private, max-age=300');
+    return reply.send(result.stream);
   });
 
   done();

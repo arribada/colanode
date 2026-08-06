@@ -55,6 +55,7 @@ import {
   ToggleSummaryNode,
   UnderlineMark,
 } from '@colanode/ui/editor/extensions';
+import { PublicFileNode } from '@colanode/ui/editor/public/public-file-node';
 
 // The set of node/mark types the public editor's schema actually registers.
 // Anything outside this set is removed from the incoming document BEFORE it is
@@ -94,6 +95,7 @@ const PUBLIC_ALLOWED_NODES = new Set<string>([
   'tableOfContents',
   'bookmark',
   'embed',
+  'file',
 ]);
 
 const PUBLIC_ALLOWED_MARKS = new Set<string>([
@@ -177,9 +179,11 @@ export const buildPublicShareContent = (
 // `useNode`, collections, presence, mentions, AI, or the local client — so it
 // runs on a page that has no account/workspace at all. `editable` only adds a
 // couple of editing keymaps used in suggest mode; the schema is identical.
-export const buildPublicShareExtensions = (editable: boolean) => {
+// `token` is only used by the read-only file node to build public image URLs.
+export const buildPublicShareExtensions = (editable: boolean, token: string) => {
   const extensions = [
     IdExtension,
+    PublicFileNode.configure({ token }),
     DocumentNode,
     TextNode,
     ParagraphNode,
@@ -231,19 +235,21 @@ export const buildPublicShareExtensions = (editable: boolean) => {
 };
 
 interface PublicShareEditorProps {
+  token: string;
   content: RichTextContent;
   editable: boolean;
   onEditorReady?: (editor: Editor) => void;
 }
 
 export const PublicShareEditor = ({
+  token,
   content,
   editable,
   onEditorReady,
 }: PublicShareEditorProps) => {
   const editor = useEditor(
     {
-      extensions: buildPublicShareExtensions(editable),
+      extensions: buildPublicShareExtensions(editable, token),
       content: buildPublicShareContent(content),
       editable,
       immediatelyRender: true,
@@ -256,7 +262,7 @@ export const PublicShareEditor = ({
         },
       },
     },
-    [editable]
+    [editable, token]
   );
 
   useEffect(() => {

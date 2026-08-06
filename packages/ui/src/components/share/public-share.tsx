@@ -385,6 +385,7 @@ const ReadyView = ({
           }
         >
           <PublicShareEditor
+            token={token}
             content={data.content}
             editable={editing}
             onEditorReady={onEditorReady}
