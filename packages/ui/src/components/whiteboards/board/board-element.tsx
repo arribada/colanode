@@ -8,15 +8,18 @@ import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import {
+  anchoredCurveControls,
   arrowHeadPoints,
   buildConnectorPath,
   connectorArrowFrom,
   connectorBendPoints,
   connectorHandlePoint,
   connectorWaypoints,
+  cubicPoint,
   pointsToSvg,
   rectCenter,
 } from '@colanode/ui/lib/board/geometry';
+import type { Point } from '@colanode/ui/lib/board/geometry';
 
 // Rough monospace-ish average glyph width for greedy word wrapping. Exact
 // metrics are unnecessary — this only needs to look balanced on screen and
@@ -380,11 +383,38 @@ export const BoardElementView = ({
     const c = element.connector ?? {};
     const routing = c.routing ?? 'straight';
     const bends = connectorBendPoints(c.bends, c.bend);
-    const d = buildConnectorPath(routing, start, end, bends);
-    const wpts = connectorWaypoints(routing, start, end, bends);
-    const head = arrowHeadPoints(end, connectorArrowFrom(routing, start, end, bends), 12);
-    const tail = arrowHeadPoints(start, wpts[1] ?? end, 12);
-    const mid = connectorHandlePoint(routing, start, end, bends);
+    const anchored =
+      routing !== 'elbow' &&
+      bends.length === 0 &&
+      (c.fromAnchor != null || c.toAnchor != null);
+
+    let d: string;
+    let headFrom: Point;
+    let tailFrom: Point;
+    let mid: Point;
+    if (anchored) {
+      const { c1, c2 } = anchoredCurveControls(
+        start,
+        end,
+        c.fromAnchor,
+        c.toAnchor
+      );
+      d =
+        'M ' + start.x + ' ' + start.y + ' C ' + c1.x + ' ' + c1.y + ' ' +
+        c2.x + ' ' + c2.y + ' ' + end.x + ' ' + end.y;
+      headFrom = c2;
+      tailFrom = c1;
+      mid = cubicPoint(start, c1, c2, end, 0.5);
+    } else {
+      d = buildConnectorPath(routing, start, end, bends);
+      const wpts = connectorWaypoints(routing, start, end, bends);
+      headFrom = connectorArrowFrom(routing, start, end, bends);
+      tailFrom = wpts[1] ?? end;
+      mid = connectorHandlePoint(routing, start, end, bends);
+    }
+    const head = arrowHeadPoints(end, headFrom, 13);
+    const tail = arrowHeadPoints(start, tailFrom, 13);
+    const labelWidth = c.label ? Math.max(24, c.label.length * 7 + 12) : 0;
     return (
       <g opacity={opacity}>
         <path
@@ -394,31 +424,38 @@ export const BoardElementView = ({
           strokeDasharray={dash}
           fill="none"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
         {c.arrowEnd !== false && (
-          <polygon
-            points={pointsToSvg(head)}
-            fill={style.stroke ?? '#334155'}
-          />
+          <polygon points={pointsToSvg(head)} fill={style.stroke ?? '#334155'} />
         )}
         {c.arrowStart && (
-          <polygon
-            points={pointsToSvg(tail)}
-            fill={style.stroke ?? '#334155'}
-          />
+          <polygon points={pointsToSvg(tail)} fill={style.stroke ?? '#334155'} />
         )}
         {c.label && (
-          <text
-            x={mid.x}
-            y={mid.y - 6}
-            textAnchor="middle"
-            fontSize={13}
-            fill="#475569"
-            fontFamily="Inter, system-ui, sans-serif"
-            style={{ userSelect: 'none' }}
-          >
-            {c.label}
-          </text>
+          <g style={{ userSelect: 'none' }}>
+            <rect
+              x={mid.x - labelWidth / 2}
+              y={mid.y - 17}
+              width={labelWidth}
+              height={18}
+              rx={5}
+              fill="#ffffff"
+              stroke="#e2e8f0"
+              opacity={0.92}
+            />
+            <text
+              x={mid.x}
+              y={mid.y - 4}
+              textAnchor="middle"
+              fontSize={12}
+              fontWeight={500}
+              fill="#475569"
+              fontFamily="Inter, system-ui, sans-serif"
+            >
+              {c.label}
+            </text>
+          </g>
         )}
       </g>
     );

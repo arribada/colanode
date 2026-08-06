@@ -479,3 +479,57 @@ export const arrowHeadPoints = (
 
 export const pointsToSvg = (points: Point[]): string =>
   points.map((p) => `${p.x},${p.y}`).join(' ');
+
+
+/** Unit direction pointing OUT of a rect for a named anchor (top = up …). */
+export const anchorDir = (anchor?: string | null): Point => {
+  switch (anchor) {
+    case 'top':
+      return { x: 0, y: -1 };
+    case 'bottom':
+      return { x: 0, y: 1 };
+    case 'left':
+      return { x: -1, y: 0 };
+    case 'right':
+      return { x: 1, y: 0 };
+    default:
+      return { x: 0, y: 0 };
+  }
+};
+
+/** Cubic-bezier control points for an anchor-aware connector curve: it leaves
+ * `start` along the `fromAnchor` normal and enters `end` along the `toAnchor`
+ * normal, so it reads as a clean flowchart arc instead of a lopsided bow. */
+export const anchoredCurveControls = (
+  start: Point,
+  end: Point,
+  fromAnchor?: string | null,
+  toAnchor?: string | null
+): { c1: Point; c2: Point } => {
+  const k = Math.max(40, distance(start, end) * 0.4);
+  const f = anchorDir(fromAnchor);
+  const t = anchorDir(toAnchor);
+  return {
+    c1: { x: start.x + f.x * k, y: start.y + f.y * k },
+    c2: { x: end.x + t.x * k, y: end.y + t.y * k },
+  };
+};
+
+/** Evaluate a cubic bezier at parameter t in [0,1]. */
+export const cubicPoint = (
+  p0: Point,
+  p1: Point,
+  p2: Point,
+  p3: Point,
+  t: number
+): Point => {
+  const u = 1 - t;
+  const a = u * u * u;
+  const b = 3 * u * u * t;
+  const c = 3 * u * t * t;
+  const d = t * t * t;
+  return {
+    x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+    y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
+  };
+};
