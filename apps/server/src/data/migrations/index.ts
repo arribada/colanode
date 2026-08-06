@@ -47,6 +47,7 @@ import { fixNodePathUpdateTrigger } from './00044-fix-node-path-update-trigger';
 import { createNodeSnapshotsTable } from './00045-create-node-snapshots-table';
 import { createNodeSharesTable } from './00046-create-node-shares-table';
 import { createShareSuggestionsTable } from './00047-create-share-suggestions-table';
+import { createDocumentSuggestionsTable } from './00048-create-document-suggestions-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -100,4 +101,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00045_create_node_snapshots_table': createNodeSnapshotsTable,
   '00046_create_node_shares_table': createNodeSharesTable,
   '00047_create_share_suggestions_table': createShareSuggestionsTable,
+  '00048_create_document_suggestions_table': createDocumentSuggestionsTable,
 };

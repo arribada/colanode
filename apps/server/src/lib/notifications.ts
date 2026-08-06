@@ -25,7 +25,8 @@ type CreateNotificationInput = {
     | 'direct_message'
     | 'task_assigned'
     | 'task_status'
-    | 'share_suggestion';
+    | 'share_suggestion'
+    | 'document_suggestion';
   sourceNodeId: string;
   actorId: string | null;
   preview: Record<string, unknown>;
@@ -79,8 +80,12 @@ export const createNotification = async (
   // No-ops instantly when disabled (see lib/zulip/notifier.ts); when
   // enabled it fires-and-forgets, so a slow/down Zulip never delays or
   // fails notification creation.
-  // External share-suggestion notifications stay in-app only.
-  if (input.type !== 'share_suggestion') {
+  // External share-suggestion and in-app document-suggestion notifications
+  // stay in-app only (they carry no channel/dashboard relay type).
+  if (
+    input.type !== 'share_suggestion' &&
+    input.type !== 'document_suggestion'
+  ) {
     const relayType = input.type;
     notifyZulip({
       userId: input.userId,

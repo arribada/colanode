@@ -314,6 +314,32 @@ interface ShareSuggestionTable {
 export type SelectShareSuggestion = Selectable<ShareSuggestionTable>;
 export type CreateShareSuggestion = Insertable<ShareSuggestionTable>;
 
+interface DocumentSuggestionTable {
+  id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  node_id: ColumnType<string, string, never>;
+  block_id: ColumnType<string | null, string | null, never>;
+  scope: ColumnType<string, string, never>;
+  proposed_content: ColumnType<
+    Record<string, unknown>,
+    Record<string, unknown>,
+    never
+  >;
+  preview_text: ColumnType<string | null, string | null, never>;
+  origin: ColumnType<string, string, never>;
+  author_id: ColumnType<string | null, string | null, never>;
+  author_name: ColumnType<string | null, string | null, never>;
+  author_email: ColumnType<string | null, string | null, never>;
+  status: ColumnType<string, string, string>;
+  created_at: ColumnType<Date, Date, never>;
+  resolved_at: ColumnType<Date | null, Date | null, Date | null>;
+  resolved_by: ColumnType<string | null, string | null, string | null>;
+}
+
+export type SelectDocumentSuggestion = Selectable<DocumentSuggestionTable>;
+export type CreateDocumentSuggestion = Insertable<DocumentSuggestionTable>;
+export type UpdateDocumentSuggestion = Updateable<DocumentSuggestionTable>;
+
 interface UploadTable {
   file_id: ColumnType<string, string, never>;
   upload_id: ColumnType<string, string, string>;
@@ -555,6 +581,7 @@ export interface DatabaseSchema {
   node_snapshots: NodeSnapshotTable;
   node_shares: NodeShareTable;
   share_suggestions: ShareSuggestionTable;
+  document_suggestions: DocumentSuggestionTable;
   uploads: UploadTable;
   node_embeddings: NodeEmbeddingTable;
   document_embeddings: DocumentEmbeddingTable;
