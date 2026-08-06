@@ -34,9 +34,8 @@ import { cn } from '@colanode/ui/lib/utils';
 export const TableCellDropdownMenu = ({
   editor,
   node,
-  updateAttributes,
 }: NodeViewProps) => {
-  const textAlign = node.attrs.textAlign ?? 'left';
+  const textAlign = node.attrs.align ?? 'left';
   const backgroundColor = node.attrs.backgroundColor ?? 'default';
 
   return (
@@ -62,7 +61,7 @@ export const TableCellDropdownMenu = ({
           <DropdownMenuSubContent className="w-48">
             <DropdownMenuLabel>Alignment</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => updateAttributes({ align: 'left' })}
+              onClick={() => editor.chain().focus().setCellAttribute('align', 'left').run()}
               role="menuitemradio"
               aria-checked={textAlign === 'left'}
               data-testid="editor-table-dropdown-cell-align-left"
@@ -75,7 +74,7 @@ export const TableCellDropdownMenu = ({
               {textAlign === 'left' && <Check className="size-4" />}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => updateAttributes({ align: 'center' })}
+              onClick={() => editor.chain().focus().setCellAttribute('align', 'center').run()}
               role="menuitemradio"
               aria-checked={textAlign === 'center'}
               data-testid="editor-table-dropdown-cell-align-center"
@@ -88,7 +87,7 @@ export const TableCellDropdownMenu = ({
               {textAlign === 'center' && <Check className="size-4" />}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => updateAttributes({ align: 'right' })}
+              onClick={() => editor.chain().focus().setCellAttribute('align', 'right').run()}
               role="menuitemradio"
               aria-checked={textAlign === 'right'}
               data-testid="editor-table-dropdown-cell-align-right"
@@ -113,7 +112,7 @@ export const TableCellDropdownMenu = ({
               <DropdownMenuItem
                 key={color.color}
                 onClick={() =>
-                  updateAttributes({ backgroundColor: color.color })
+                  editor.chain().focus().setCellAttribute('backgroundColor', color.color).run()
                 }
                 role="menuitemradio"
                 aria-checked={backgroundColor === color.color}

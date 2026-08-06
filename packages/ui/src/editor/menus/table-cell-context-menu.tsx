@@ -34,7 +34,6 @@ interface TableCellContextMenuProps extends NodeViewProps {
 export const TableCellContextMenu = ({
   editor,
   node,
-  updateAttributes,
   children,
 }: TableCellContextMenuProps) => {
   const textAlign = node.attrs.align ?? 'left';
@@ -53,7 +52,7 @@ export const TableCellContextMenu = ({
           <ContextMenuSubContent className="w-48">
             <ContextMenuLabel>Alignment</ContextMenuLabel>
             <ContextMenuItem
-              onSelect={() => updateAttributes({ align: 'left' })}
+              onSelect={() => editor.chain().focus().setCellAttribute('align', 'left').run()}
               role="menuitemradio"
               aria-checked={textAlign === 'left'}
               data-testid="editor-table-cell-align-left"
@@ -66,7 +65,7 @@ export const TableCellContextMenu = ({
               {textAlign === 'left' && <Check className="size-4" />}
             </ContextMenuItem>
             <ContextMenuItem
-              onSelect={() => updateAttributes({ align: 'center' })}
+              onSelect={() => editor.chain().focus().setCellAttribute('align', 'center').run()}
               role="menuitemradio"
               aria-checked={textAlign === 'center'}
               data-testid="editor-table-cell-align-center"
@@ -79,7 +78,7 @@ export const TableCellContextMenu = ({
               {textAlign === 'center' && <Check className="size-4" />}
             </ContextMenuItem>
             <ContextMenuItem
-              onSelect={() => updateAttributes({ align: 'right' })}
+              onSelect={() => editor.chain().focus().setCellAttribute('align', 'right').run()}
               role="menuitemradio"
               aria-checked={textAlign === 'right'}
               data-testid="editor-table-cell-align-right"
@@ -104,7 +103,7 @@ export const TableCellContextMenu = ({
               <ContextMenuItem
                 key={color.color}
                 onSelect={() =>
-                  updateAttributes({ backgroundColor: color.color })
+                  editor.chain().focus().setCellAttribute('backgroundColor', color.color).run()
                 }
                 role="menuitemradio"
                 aria-checked={backgroundColor === color.color}
