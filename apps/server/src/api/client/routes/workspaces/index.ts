@@ -7,6 +7,7 @@ import { aiRoutes } from './ai';
 import { documentRoutes } from './documents';
 import { nodeRoutes } from './nodes';
 import { shareRoutes } from './shares';
+import { favoriteRoutes } from './favorites';
 import { suggestionRoutes } from './suggestions';
 import { fileRoutes } from './files';
 import { planeIntegrationRoutes } from './integrations/plane';
@@ -33,6 +34,7 @@ export const workspaceRoutes: FastifyPluginCallback = (instance, _, done) => {
       subInstance.register(documentRoutes, { prefix: '/documents' });
       subInstance.register(nodeRoutes, { prefix: '/nodes' });
       subInstance.register(shareRoutes, { prefix: '/shares' });
+      subInstance.register(favoriteRoutes, { prefix: '/favorites' });
       subInstance.register(suggestionRoutes, { prefix: '/suggestions' });
       subInstance.register(fileRoutes, { prefix: '/files' });
       subInstance.register(userRoutes, { prefix: '/users' });

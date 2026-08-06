@@ -297,6 +297,16 @@ interface NodeShareTable {
 export type SelectNodeShare = Selectable<NodeShareTable>;
 export type CreateNodeShare = Insertable<NodeShareTable>;
 
+interface NodeFavoriteTable {
+  user_id: ColumnType<string, string, never>;
+  node_id: ColumnType<string, string, never>;
+  workspace_id: ColumnType<string, string, never>;
+  created_at: ColumnType<Date, Date, never>;
+}
+
+export type SelectNodeFavorite = Selectable<NodeFavoriteTable>;
+export type CreateNodeFavorite = Insertable<NodeFavoriteTable>;
+
 interface ShareSuggestionTable {
   id: ColumnType<string, string, never>;
   share_id: ColumnType<string, string, never>;
@@ -580,6 +590,7 @@ export interface DatabaseSchema {
   document_snapshots: DocumentSnapshotTable;
   node_snapshots: NodeSnapshotTable;
   node_shares: NodeShareTable;
+  node_favorites: NodeFavoriteTable;
   share_suggestions: ShareSuggestionTable;
   document_suggestions: DocumentSuggestionTable;
   uploads: UploadTable;

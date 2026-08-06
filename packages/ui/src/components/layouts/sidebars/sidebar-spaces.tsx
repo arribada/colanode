@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 
+import { SidebarFavorites } from '@colanode/ui/components/layouts/sidebars/sidebar-favorites';
 import { SidebarHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-header';
 import { SidebarSettingsItem } from '@colanode/ui/components/layouts/sidebars/sidebar-settings-item';
 import { SidebarSpacesSkeleton } from '@colanode/ui/components/layouts/sidebars/sidebar-spaces-skeleton';
@@ -18,6 +19,7 @@ const SidebarSpacesContent = () => {
 
   return (
     <div className="flex flex-col group/sidebar h-full px-2">
+      <SidebarFavorites />
       <SidebarHeader
         title="Spaces"
         actions={canCreateSpace && <SpaceCreateButton />}
