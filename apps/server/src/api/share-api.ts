@@ -61,6 +61,7 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
       email?: string;
       html?: string;
       text?: string;
+      blocks?: Record<string, unknown> | null;
     };
     const share = await getShareByToken(token);
     if (!share || !isShareLive(share) || share.permission !== 'suggest') {
@@ -79,12 +80,15 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
     ) {
       return reply.code(400).send({ success: false });
     }
+    const blocks =
+      body.blocks && typeof body.blocks === 'object' ? body.blocks : null;
     await createSuggestion(share, {
       firstName: firstName.slice(0, 120),
       lastName: lastName.slice(0, 120),
       email: email.slice(0, 255),
       html,
       text: (body.text ?? '').slice(0, 100000),
+      blocks,
     });
     return { success: true };
   });

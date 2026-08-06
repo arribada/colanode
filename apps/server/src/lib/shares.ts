@@ -245,6 +245,11 @@ export const getShareFile = async (
 };
 
 // Store an external contributor's proposed edit as a pending suggestion.
+// The legacy `share_suggestions` row (HTML, for the owner dialog's sandboxed
+// preview) is always written so the existing flow is unchanged. When the SPA
+// also sends structured `blocks`, a unified `document_suggestions` row (whole
+// document) is written too, so the owner can Accept-and-apply in one click via
+// the new Suggestions panel.
 export const createSuggestion = async (
   share: SelectNodeShare,
   input: {
@@ -253,6 +258,7 @@ export const createSuggestion = async (
     email: string;
     html: string;
     text: string;
+    blocks?: Record<string, unknown> | null;
   }
 ): Promise<void> => {
   await database
@@ -271,6 +277,34 @@ export const createSuggestion = async (
       created_at: new Date(),
     })
     .execute();
+
+  // Unified apply path: only when the SPA supplied structured blocks.
+  if (input.blocks && Object.keys(input.blocks).length > 0) {
+    try {
+      await database
+        .insertInto('document_suggestions')
+        .values({
+          id: randomBytes(15).toString('hex'),
+          workspace_id: share.workspace_id,
+          node_id: share.node_id,
+          block_id: null,
+          scope: 'document',
+          proposed_content: { type: 'rich_text', blocks: input.blocks },
+          preview_text: input.text.slice(0, 2000),
+          origin: 'external',
+          author_id: null,
+          author_name: `${input.firstName} ${input.lastName}`.trim(),
+          author_email: input.email,
+          status: 'pending',
+          created_at: new Date(),
+          resolved_at: null,
+          resolved_by: null,
+        })
+        .execute();
+    } catch {
+      // the share_suggestions row already exists; the unified row is best-effort
+    }
+  }
 
   try {
     const node = await database

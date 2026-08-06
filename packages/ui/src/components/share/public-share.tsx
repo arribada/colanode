@@ -20,6 +20,20 @@ const PublicShareEditor = lazy(() =>
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+// The document's top-level blocks are parented to the page/node id (not itself a
+// block). Recover it so the proposed blocks are rooted the same way the reviewer
+// expects. Type-only use of RichTextContent — pulls no editor/tiptap code.
+const rootParentIdOf = (content: RichTextContent): string => {
+  const blocks = content.blocks ?? {};
+  const ids = new Set(Object.keys(blocks));
+  for (const block of Object.values(blocks)) {
+    if (block.parentId && !ids.has(block.parentId)) {
+      return block.parentId;
+    }
+  }
+  return 'public-share-root';
+};
+
 export interface PublicShareData {
   name: string;
   permission: 'read' | 'suggest';
@@ -329,6 +343,16 @@ const ReadyView = ({
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // Structured blocks let the owner Accept-and-apply in one click. The
+      // mapper (and its tiptap deps) is dynamic-imported here so it never lands
+      // in the eager public bundle a read-only viewer downloads — the editor is
+      // already loaded by the time anyone submits.
+      const { mapContentsToBlocks } = await import('@colanode/client/lib');
+      const blocks = mapContentsToBlocks(
+        rootParentIdOf(data.content),
+        editor.getJSON().content ?? [],
+        new Map()
+      );
       const response = await fetch(shareApiUrl(token, 'suggest'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -338,6 +362,7 @@ const ReadyView = ({
           email: identity.email,
           html: editor.getHTML(),
           text: editor.getText(),
+          blocks,
         }),
       });
       const body = (await response

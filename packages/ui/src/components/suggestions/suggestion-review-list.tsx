@@ -327,6 +327,15 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
                         <ReadOnlyPreview content={suggestion.proposedContent} />
                       </div>
                     </div>
+                    {suggestion.scope === 'document' &&
+                      suggestion.origin === 'external' && (
+                        <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                          Accepting replaces the entire page with this proposal.
+                          Content an external editor cannot represent (mentions,
+                          embedded files, databases, whiteboards) is not carried
+                          over — review carefully before accepting.
+                        </p>
+                      )}
                   </div>
                 )}
 
