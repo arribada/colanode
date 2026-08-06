@@ -7,21 +7,26 @@ import { useState } from 'react';
 
 export interface PublicFileOptions {
   token: string;
+  imageKey: string | null;
 }
 
-const fileUrl = (token: string, id: string) =>
-  `/share-api/${encodeURIComponent(token)}/files/${encodeURIComponent(id)}`;
+const fileUrl = (token: string, id: string, imageKey: string | null) => {
+  const base = `/share-api/${encodeURIComponent(token)}/files/${encodeURIComponent(id)}`;
+  // Password-protected shares gate file bytes behind a key handed out by
+  // /unlock (see getShareImageKey on the server); a bare <img> carries it here.
+  return imageKey ? `${base}?k=${encodeURIComponent(imageKey)}` : base;
+};
 
 const PublicFileView = ({ node, extension }: NodeViewProps) => {
   const id = node.attrs.id as string | null;
-  const token = (extension.options as PublicFileOptions).token;
+  const { token, imageKey } = extension.options as PublicFileOptions;
   const [failed, setFailed] = useState(false);
 
   if (!id || !token) {
     return null;
   }
 
-  const url = fileUrl(token, id);
+  const url = fileUrl(token, id, imageKey);
 
   return (
     <NodeViewWrapper className="my-3">
@@ -55,7 +60,7 @@ export const PublicFileNode = Node.create<PublicFileOptions>({
   atom: true,
   draggable: false,
   addOptions() {
-    return { token: '' };
+    return { token: '', imageKey: null };
   },
   addAttributes() {
     return {

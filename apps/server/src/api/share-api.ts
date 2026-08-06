@@ -8,6 +8,7 @@ import {
   getShareByToken,
   getShareData,
   getShareFile,
+  getShareImageKey,
   isShareLive,
 } from '@colanode/server/lib/shares';
 
@@ -106,7 +107,10 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
     // the token. Images on locked shares therefore do not render — a documented
     // limitation; a follow-up can issue a signed view-cookie on unlock.
     if (share.password_hash) {
-      return reply.code(404).send({ error: 'not_found' });
+      const providedKey = (request.query as { k?: string }).k;
+      if (!providedKey || providedKey !== getShareImageKey(share)) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
     }
     const result = await getShareFile(share, fileId);
     if (!result) {

@@ -1,4 +1,5 @@
 // ABOUTME: Public share helpers — look up a share by token, check it is live,
+import { sha256 } from 'js-sha256';
 // ABOUTME: reconstruct a node's document, and render the shared page(s) to HTML.
 import { randomBytes } from 'crypto';
 import { Readable } from 'stream';
@@ -23,6 +24,18 @@ export const getShareByToken = async (
     .selectAll()
     .where('token', '=', token)
     .executeTakeFirst();
+
+// Deterministic per-share image key for password-protected shares. Derived
+// from the (server-only) password hash + token, so it is unguessable without
+// the password and is only ever handed out by /unlock AFTER the password is
+// verified. A bare <img> request then carries it as ?k=. Revoke/expiry still
+// gate every image request via isShareLive, so this never outlives the share.
+export const getShareImageKey = (share: SelectNodeShare): string | null => {
+  if (!share.password_hash) {
+    return null;
+  }
+  return sha256(share.password_hash + ':' + share.token);
+};
 
 export const isShareLive = (share: SelectNodeShare): boolean => {
   if (share.revoked_at) {
@@ -130,6 +143,7 @@ export const getShareData = async (
   workspaceName: string | null;
   content: DocumentContent;
   subPages: Array<{ id: string; name: string; content: DocumentContent }>;
+  imageKey: string | null;
 } | null> => {
   const node = await database
     .selectFrom('nodes')
@@ -177,6 +191,7 @@ export const getShareData = async (
     workspaceName: workspace?.name ?? null,
     content: content ?? { type: 'rich_text', blocks: {} },
     subPages,
+    imageKey: getShareImageKey(share),
   };
 };
 

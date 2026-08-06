@@ -27,6 +27,7 @@ export interface PublicShareData {
   workspaceName: string | null;
   content: RichTextContent;
   subPages: Array<{ id: string; name: string; content: RichTextContent }>;
+  imageKey?: string | null;
 }
 
 interface Identity {
@@ -391,6 +392,7 @@ const ReadyView = ({
             token={token}
             content={data.content}
             editable={editing}
+            imageKey={data.imageKey}
             onEditorReady={onEditorReady}
           />
           {!editing &&
@@ -404,6 +406,7 @@ const ReadyView = ({
                   token={token}
                   content={sub.content}
                   editable={false}
+                  imageKey={data.imageKey}
                 />
               </section>
             ))}

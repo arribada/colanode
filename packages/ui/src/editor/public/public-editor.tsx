@@ -180,10 +180,14 @@ export const buildPublicShareContent = (
 // runs on a page that has no account/workspace at all. `editable` only adds a
 // couple of editing keymaps used in suggest mode; the schema is identical.
 // `token` is only used by the read-only file node to build public image URLs.
-export const buildPublicShareExtensions = (editable: boolean, token: string) => {
+export const buildPublicShareExtensions = (
+  editable: boolean,
+  token: string,
+  imageKey: string | null
+) => {
   const extensions = [
     IdExtension,
-    PublicFileNode.configure({ token }),
+    PublicFileNode.configure({ token, imageKey }),
     DocumentNode,
     TextNode,
     ParagraphNode,
@@ -238,6 +242,7 @@ interface PublicShareEditorProps {
   token: string;
   content: RichTextContent;
   editable: boolean;
+  imageKey?: string | null;
   onEditorReady?: (editor: Editor) => void;
 }
 
@@ -245,11 +250,12 @@ export const PublicShareEditor = ({
   token,
   content,
   editable,
+  imageKey = null,
   onEditorReady,
 }: PublicShareEditorProps) => {
   const editor = useEditor(
     {
-      extensions: buildPublicShareExtensions(editable, token),
+      extensions: buildPublicShareExtensions(editable, token, imageKey),
       content: buildPublicShareContent(content),
       editable,
       immediatelyRender: true,
@@ -262,7 +268,7 @@ export const PublicShareEditor = ({
         },
       },
     },
-    [editable, token]
+    [editable, token, imageKey]
   );
 
   useEffect(() => {
