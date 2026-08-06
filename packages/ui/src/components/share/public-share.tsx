@@ -126,6 +126,7 @@ const PasswordGate = ({
       <form onSubmit={submit} className="flex w-full max-w-xs flex-col gap-3">
         <Input
           type="password"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: the password field is the only input on this gate
           autoFocus
           value={password}
           placeholder="Password"
@@ -222,6 +223,7 @@ const IdentityGate = ({
             <Label htmlFor="share-first-name">First name</Label>
             <Input
               id="share-first-name"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- intentional: focus the first field when the suggest gate opens
               autoFocus
               value={firstName}
               onChange={(event) => setFirstName(event.target.value)}

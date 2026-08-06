@@ -5,11 +5,10 @@ import { Readable } from 'stream';
 
 import { DocumentContent, FileStatus, NodeAttributes } from '@colanode/core';
 import { YDoc } from '@colanode/crdt';
-
 import { database } from '@colanode/server/data/database';
-import { createNotification } from '@colanode/server/lib/notifications';
-import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 import { SelectNodeShare } from '@colanode/server/data/schema';
+import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
+import { createNotification } from '@colanode/server/lib/notifications';
 import {
   renderDocumentHtml,
   renderSharePage,
