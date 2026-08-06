@@ -1,8 +1,14 @@
 import {
+  ArrowDownToLine,
+  ArrowUpToLine,
   Circle,
+  Copy,
   Diamond,
   Expand,
   Eye,
+  ImageDown,
+  Lock,
+  LockOpen,
   Maximize,
   MessageSquare,
   Minus,
@@ -12,6 +18,7 @@ import {
   Smile,
   Square,
   StickyNote,
+  Trash2,
   X,
 } from 'lucide-react';
 import {
@@ -280,6 +287,10 @@ export const WhiteboardCanvas = ({
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [tool, setTool] = useState<BoardTool>('select');
   const [selection, setSelection] = useState<string[]>([]);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   // Element whose comment-thread panel is open (Miro-style board comments).
   const [commentElementId, setCommentElementId] = useState<string | null>(
     null
@@ -664,6 +675,33 @@ export const WhiteboardCanvas = ({
     if (changed.length > 0) {
       commit(before, next, changed);
     }
+  };
+
+  // Move the selection to the very front / back by handing it fresh z-index
+  // keys just above the current max (front) or below the current min (back).
+  const reorderSelection = (toFront: boolean) => {
+    const ids = manipulableIds(selectionRef.current);
+    if (ids.length === 0) {
+      return;
+    }
+    const all = sortedElements(sceneRef.current);
+    if (all.length === 0) {
+      return;
+    }
+    const minZ = all[0]!.z;
+    const maxZ = all[all.length - 1]!.z;
+    const keys = toFront
+      ? generateNKeysBetween(maxZ, null, ids.length)
+      : generateNKeysBetween(null, minZ, ids.length);
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    ids.forEach((id, i) => {
+      const el = next[id];
+      if (el) {
+        next[id] = { ...el, z: keys[i]! };
+      }
+    });
+    commit(before, next, ids);
   };
 
   // ----- ephemeral collaboration (reactions + laser) -----------------------
@@ -2773,9 +2811,13 @@ export const WhiteboardCanvas = ({
                   suppressContextMenuRef.current = false;
                   return;
                 }
-                if (canComment) {
-                  setCommentElementId(el.id);
+                if (!canEdit && !canComment) {
+                  return;
                 }
+                if (!selectionRef.current.includes(el.id)) {
+                  setSelection([el.id]);
+                }
+                setContextMenu({ x: e.clientX, y: e.clientY });
               }}
             >
               <BoardElementView
@@ -3301,6 +3343,121 @@ export const WhiteboardCanvas = ({
           )}
         </g>
       </svg>
+
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-50"
+          onPointerDown={() => setContextMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContextMenu(null);
+          }}
+        >
+          <div
+            className="absolute min-w-44 rounded-md border border-border bg-popover p-1 text-sm text-foreground shadow-md"
+            style={{
+              left: Math.min(contextMenu.x, window.innerWidth - 200),
+              top: Math.min(contextMenu.y, window.innerHeight - 300),
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {canEdit && (
+              <>
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                  onClick={() => {
+                    reorderSelection(true);
+                    setContextMenu(null);
+                  }}
+                >
+                  <ArrowUpToLine className="size-4" /> Bring to front
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                  onClick={() => {
+                    reorderSelection(false);
+                    setContextMenu(null);
+                  }}
+                >
+                  <ArrowDownToLine className="size-4" /> Send to back
+                </button>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                  onClick={() => {
+                    toggleLockSelection();
+                    setContextMenu(null);
+                  }}
+                >
+                  {selectionLocked ? (
+                    <LockOpen className="size-4" />
+                  ) : (
+                    <Lock className="size-4" />
+                  )}{' '}
+                  {selectionLocked ? 'Unlock' : 'Lock'}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                  onClick={() => {
+                    duplicateSelection();
+                    setContextMenu(null);
+                  }}
+                >
+                  <Copy className="size-4" /> Duplicate
+                </button>
+                <div className="my-1 h-px bg-border" />
+              </>
+            )}
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+              onClick={() => {
+                void onExport();
+                setContextMenu(null);
+              }}
+            >
+              <ImageDown className="size-4" /> Export as image
+            </button>
+            {canComment && selection.length === 1 && (
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent"
+                onClick={() => {
+                  const id = selectionRef.current[0];
+                  if (id) {
+                    setCommentElementId(id);
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <MessageSquare className="size-4" /> Add comment
+              </button>
+            )}
+            {canEdit && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  type="button"
+                  className={cn(
+                    'flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent',
+                    'text-red-600'
+                  )}
+                  onClick={() => {
+                    deleteSelection();
+                    setContextMenu(null);
+                  }}
+                >
+                  <Trash2 className="size-4" /> Delete
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <BoardToolbar
         tool={tool}
