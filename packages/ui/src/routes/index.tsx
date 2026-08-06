@@ -8,6 +8,7 @@ import { ssoCallbackRoute } from '@colanode/ui/routes/auth/sso-callback';
 import { workspaceCreateRoute } from '@colanode/ui/routes/create';
 import { homeRoute } from '@colanode/ui/routes/home';
 import { rootRoute } from '@colanode/ui/routes/root';
+import { publicShareRoute } from '@colanode/ui/routes/share';
 import {
   workspaceRoute,
   workspaceMaskRoute,
@@ -60,6 +61,7 @@ export const routeTree = rootRoute.addChildren([
   homeRoute,
   authRoute.addChildren([loginRoute, registerRoute, resetRoute]),
   ssoCallbackRoute,
+  publicShareRoute,
   workspaceCreateRoute,
   workspaceRoute.addChildren([
     workspaceRedirectRoute,
