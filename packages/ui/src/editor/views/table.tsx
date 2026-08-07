@@ -108,7 +108,7 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
   return (
     <NodeViewWrapper
       ref={wrapperRef}
-      className="pr-4 pb-4 pt-4 w-fit"
+      className="pl-4 pr-4 pb-4 pt-4 w-fit"
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}

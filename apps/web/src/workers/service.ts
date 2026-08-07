@@ -5,9 +5,10 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_DISABLE_DEV_LOGS: boolean;
 };
 
+import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { StaleWhileRevalidate } from 'workbox-strategies';
+import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 
 import { WebFileSystem } from '@colanode/web/services/file-system';
 import { WebPathService } from '@colanode/web/services/path-service';
@@ -18,8 +19,26 @@ const fs = new WebFileSystem();
 self.__WB_DISABLE_DEV_LOGS = true;
 precacheAndRoute(self.__WB_MANIFEST);
 
+// Take control of already-open tabs the moment this SW activates, so a new
+// deploy applies without waiting for every tab of the app to be closed.
+clientsClaim();
+
+// HTML navigations go to the network FIRST: a fresh deploy's index.html (which
+// points at the new content-hashed JS/CSS) is then picked up on the next load,
+// so updates land on a single reload instead of being served stale from cache.
+// Falls back to the cached shell when offline.
 registerRoute(
-  ({ url }) => url.origin === self.location.origin,
+  new NavigationRoute(
+    new NetworkFirst({ cacheName: 'html', networkTimeoutSeconds: 5 })
+  )
+);
+
+// Other same-origin assets are content-hashed, so serving them fast while
+// revalidating is safe. Navigations are excluded (handled network-first above)
+// so the entry document is never stale.
+registerRoute(
+  ({ url, request }) =>
+    url.origin === self.location.origin && request.mode !== 'navigate',
   new StaleWhileRevalidate({
     cacheName: 'same-origin-assets',
   })
