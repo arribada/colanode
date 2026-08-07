@@ -4,7 +4,7 @@ import { eq, useLiveQuery } from '@tanstack/react-db';
 import { Loader2, Printer } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
-import { LocalNode, LocalPageNode } from '@colanode/client/types';
+import { LocalNode, LocalPageNode, LocalRecordNode } from '@colanode/client/types';
 import {
   PrintRenderer,
   RenderedPage,
@@ -30,7 +30,7 @@ import {
 } from '@colanode/ui/lib/print-export';
 
 interface PrintExportDialogProps {
-  page: LocalPageNode;
+  page: LocalPageNode | LocalRecordNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

@@ -1,6 +1,6 @@
 // ABOUTME: Share dialog for a page — create a public read-only link (password /
 // ABOUTME: expiry / sub-pages), copy it, and revoke existing links.
-import { Copy, Link2, Loader2, Trash2, Wand2 } from 'lucide-react';
+import { Copy, Link2, Trash2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@colanode/ui/components/ui/dialog';
 import { Input } from '@colanode/ui/components/ui/input';
+import { Spinner } from '@colanode/ui/components/ui/spinner';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -184,16 +185,19 @@ export const PageShareDialog = ({
   };
 
   const revoke = async (shareId: string) => {
+    // Optimistically drop it so the row disappears instantly; refresh reconciles
+    // with the server (which filters revoked links out of the list).
+    setShares((prev) => prev.filter((s) => s.id !== shareId));
     try {
       await window.colanode.executeMutation({
         type: 'node.share.revoke',
         userId: workspace.userId,
         shareId,
       });
-      await refresh();
     } catch {
       toast.error('Could not revoke the link');
     }
+    await refresh();
   };
 
   const copy = (token: string) => {
@@ -340,7 +344,7 @@ export const PageShareDialog = ({
             disabled={creating || passwordTooShort || passwordMissing}
           >
             {creating ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Spinner className="size-4" />
             ) : (
               <Link2 className="size-4" />
             )}

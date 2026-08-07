@@ -44,9 +44,9 @@ const initializeApp = async () => {
     const token = decodeURIComponent(
       window.location.pathname.slice(sharePrefix.length).split('/')[0] ?? ''
     );
-    if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-    }
+    // Public share pages default to LIGHT (readable for any anonymous visitor);
+    // do not follow the OS dark preference here.
+    document.documentElement.classList.remove('dark');
     const shareRoot = createRoot(
       document.getElementById('root') as HTMLElement
     );

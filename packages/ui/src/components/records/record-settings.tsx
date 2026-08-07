@@ -1,4 +1,4 @@
-import { Copy, FileStack, Settings, Share2, Trash2 } from 'lucide-react';
+import { Copy, FileStack, Printer, Settings, Share2, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -8,6 +8,7 @@ import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/nod
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
+import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +31,7 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
     useMutation();
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
   const canDelete =
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
   const canSaveAsTemplate =
@@ -57,6 +59,13 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
           >
             <Share2 className="size-4" />
             Share to web
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowPrintDialog(true)}
+          >
+            <Printer className="size-4" />
+            Print / PDF
           </DropdownMenuItem>
           <DropdownMenuItem className="flex items-center gap-2" disabled>
             <Copy className="size-4" />
@@ -130,6 +139,11 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
         page={record}
         open={showShareDialog}
         onOpenChange={setShowShareDialog}
+      />
+      <PrintExportDialog
+        page={record}
+        open={showPrintDialog}
+        onOpenChange={setShowPrintDialog}
       />
       <NodeDeleteDialog
         id={record.id}
