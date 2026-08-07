@@ -1,7 +1,7 @@
 import { EditorState } from '@tiptap/pm/state';
 import { Editor, isNodeSelection, useEditorState } from '@tiptap/react';
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus';
-import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react';
+import { Bold, Code, Italic, Quote, Strikethrough, Underline } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AiButton } from '@colanode/ui/editor/menus/ai-button';
@@ -48,6 +48,7 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
         isUnderlineActive: editor.isActive('underline'),
         isStrikeActive: editor.isActive('strike'),
         isCodeActive: editor.isActive('code'),
+        isBlockquoteActive: editor.isActive('blockquote'),
       };
     },
   });
@@ -177,6 +178,15 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
         icon={Code}
         label="Code"
         testId="editor-toolbar-code"
+      />
+      <MarkButton
+        isActive={state?.isBlockquoteActive ?? false}
+        onClick={() =>
+          props.editor?.chain().focus().toggleBlockquote().run()
+        }
+        icon={Quote}
+        label="Quote"
+        testId="editor-toolbar-quote"
       />
       <ColorButton
         editor={props.editor}
