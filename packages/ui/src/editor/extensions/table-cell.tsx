@@ -25,6 +25,7 @@ export const TableCellNode = TableCell.extend({
         'data-valign': (node.attrs.valign as string | null) ?? 'middle',
         'data-number-format':
           (node.attrs.numberFormat as string | null) ?? 'none',
+        'data-aggregate': (node.attrs.aggregate as string | null) ?? 'none',
       }),
     });
   },
@@ -75,6 +76,11 @@ export const TableCellNode = TableCell.extend({
         default: null,
         parseHTML: (element: HTMLElement) =>
           element.getAttribute('data-number-format'),
+      },
+      aggregate: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-aggregate'),
       },
     };
   },

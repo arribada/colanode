@@ -11,18 +11,38 @@ import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableCellContextMenu } from '@colanode/ui/editor/menus/table-cell-context-menu';
 import { TableCellDropdownMenu } from '@colanode/ui/editor/menus/table-cell-dropdown-menu';
 import { applyFillFromDrag } from '@colanode/ui/editor/views/table-fill-handle';
+import {
+  type AggregateKind,
+  computeColumnAggregate,
+  formatAggregate,
+} from '@colanode/ui/editor/views/table-aggregate';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const TableCellNodeView = (props: NodeViewProps) => {
+  const aggregateAttr = props.node.attrs.aggregate as string | null;
+  const isAggregate = aggregateAttr != null && aggregateAttr !== 'none';
+  const aggregateKind = aggregateAttr as AggregateKind;
   const state = useEditorState({
     editor: props.editor,
     selector(context) {
+      let aggregateValue: number | null = null;
+      if (isAggregate && typeof props.getPos === 'function') {
+        const pos = props.getPos();
+        if (pos != null) {
+          aggregateValue = computeColumnAggregate(
+            context.editor.state,
+            pos,
+            aggregateKind
+          );
+        }
+      }
       return {
         isActive: context.editor.isActive(
           props.node.type.name,
           props.node.attrs
         ),
+        aggregateValue,
       };
     },
   });
@@ -104,7 +124,7 @@ export const TableCellNodeView = (props: NodeViewProps) => {
           }}
         >
           {isActive && <TableCellDropdownMenu {...props} />}
-          {isActive && !isMerged && (
+          {isActive && !isMerged && !isAggregate && (
             <div
               className="absolute -bottom-[3px] -right-[3px] z-20 size-2 cursor-crosshair rounded-[1px] border border-background bg-primary transition-transform hover:scale-125"
               title="Glisser pour remplir une serie (ex. REQ-1 -> REQ-2)"
@@ -125,7 +145,18 @@ export const TableCellNodeView = (props: NodeViewProps) => {
               }}
             />
           )}
-          <NodeViewContent className="z-0 w-full h-full" />
+          {isAggregate && (
+            <span
+              contentEditable={false}
+              className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 font-medium tabular-nums text-foreground"
+              title="Column summary"
+            >
+              {formatAggregate(state.aggregateValue, aggregateKind)}
+            </span>
+          )}
+          <NodeViewContent
+            className={cn('z-0 h-full w-full', isAggregate && 'invisible')}
+          />
         </Resizable>
       </TableCellContextMenu>
     </NodeViewWrapper>

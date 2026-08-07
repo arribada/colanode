@@ -25,6 +25,7 @@ interface TableCellAttrs {
   borderStyle?: string;
   borderColor?: string;
   numberFormat?: string;
+  aggregate?: string;
 }
 
 const leafBlockTypes = new Set([

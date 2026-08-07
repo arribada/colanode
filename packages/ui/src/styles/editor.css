@@ -247,3 +247,9 @@ td[data-valign='bottom'],
 th[data-valign='bottom'] {
   vertical-align: bottom;
 }
+
+/* Subtle zebra striping for readability. Explicit per-cell background colors are
+   painted on the inner cell element and so still win over this row tint. */
+.prose table tr:nth-child(even) > td {
+  background-color: color-mix(in srgb, var(--muted) 35%, transparent);
+}

@@ -19,6 +19,7 @@ import {
   Palette,
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
+  Sigma,
 } from 'lucide-react';
 
 import {
@@ -39,6 +40,7 @@ import {
   buildColumnSort,
   type SortDirection,
 } from '@colanode/ui/editor/views/table-sort';
+import { AGGREGATE_KINDS } from '@colanode/ui/editor/views/table-aggregate';
 
 export const TableCellDropdownMenu = ({
   editor,
@@ -49,6 +51,7 @@ export const TableCellDropdownMenu = ({
   const borderStyle = node.attrs.borderStyle ?? 'default';
   const borderColor = node.attrs.borderColor ?? 'default';
   const verticalAlign = node.attrs.valign ?? 'middle';
+  const aggregate = node.attrs.aggregate ?? 'none';
 
   const sortColumn = (direction: SortDirection) => {
     const target = activeTableColumn(editor.state);
@@ -148,6 +151,40 @@ export const TableCellDropdownMenu = ({
               >
                 {value}
                 {verticalAlign === value && <Check className="size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="flex gap-2">
+            <Sigma className="size-4 text-muted-foreground" />
+            Summary
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-48">
+            <DropdownMenuLabel>Column summary</DropdownMenuLabel>
+            <DropdownMenuItem
+              onClick={() =>
+                editor.chain().focus().setCellAttribute('aggregate', 'none').run()
+              }
+              role="menuitemradio"
+              aria-checked={aggregate === 'none'}
+              className="flex items-center justify-between"
+            >
+              None
+              {aggregate === 'none' && <Check className="size-4" />}
+            </DropdownMenuItem>
+            {AGGREGATE_KINDS.map((kind) => (
+              <DropdownMenuItem
+                key={kind}
+                onClick={() =>
+                  editor.chain().focus().setCellAttribute('aggregate', kind).run()
+                }
+                role="menuitemradio"
+                aria-checked={aggregate === kind}
+                className="flex items-center justify-between capitalize"
+              >
+                {kind}
+                {aggregate === kind && <Check className="size-4" />}
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>
