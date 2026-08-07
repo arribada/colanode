@@ -88,13 +88,18 @@ export const PrintExportDialog = ({
         .where(({ nodes }) => eq(nodes.rootId, page.rootId)),
     [workspace.userId, page.rootId]
   );
-  const allPages = useMemo<LocalNode[]>(
-    () =>
-      (pagesQuery.data ?? []).filter(
-        (n) => n.type === 'page'
-      ) as unknown as LocalNode[],
-    [pagesQuery.data]
-  );
+  const allPages = useMemo<LocalNode[]>(() => {
+    const pages = (pagesQuery.data ?? []).filter(
+      (n) => n.type === 'page'
+    ) as unknown as LocalNode[];
+    // The node being exported must always be present. A database RECORD is not
+    // type 'page', so it would otherwise be filtered out here and the export
+    // would come back blank (only the cover). Add it explicitly.
+    if (!pages.some((p) => p.id === page.id)) {
+      pages.unshift(page as unknown as LocalNode);
+    }
+    return pages;
+  }, [pagesQuery.data, page]);
 
   const tree = useMemo(
     () => collectPageTree(page.id, allPages),
