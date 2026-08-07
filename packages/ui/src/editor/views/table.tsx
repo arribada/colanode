@@ -109,12 +109,12 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
   return (
     <NodeViewWrapper
       ref={wrapperRef}
-      className="pl-4 pr-4 pb-4 pt-4 w-fit"
+      className="pl-4 pr-4 pb-4 pt-4 w-fit max-w-full"
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <div className="relative" ref={relativeRef}>
+      <div className="relative max-md:overflow-x-auto" ref={relativeRef}>
         <TableSelectionToolbar editor={editor} getPos={getPos} />
         <NodeViewContent<'table'> as="table" className={defaultClasses.table} />
         <TableHandles
