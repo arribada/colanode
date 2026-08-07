@@ -6,6 +6,7 @@ import type { SelectNotification } from '@colanode/client/databases';
 import type { LocalNode } from '@colanode/client/types';
 import { timeAgo } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
 // Turn a notification's stored preview into a human label. Automation
@@ -78,6 +79,7 @@ export const NotificationItem = ({
     notification.preview,
     fallback
   );
+  const { openSuggestions } = usePageSuggestions();
   const unread = !notification.read_at;
 
   const handleClick = () => {
@@ -94,6 +96,17 @@ export const NotificationItem = ({
     // rather than silently doing nothing.
     if (onNavigate) {
       onNavigate(notification.source_node_id);
+    }
+
+    // For an edit-suggestion notification, also open the review panel on the
+    // target page so the owner immediately SEES the proposed change — otherwise,
+    // if they are already on that page, navigating alone does nothing visible.
+    if (
+      notification.source_node_id &&
+      (notification.type === 'share_suggestion' ||
+        notification.type === 'document_suggestion')
+    ) {
+      openSuggestions(notification.source_node_id);
     }
   };
 

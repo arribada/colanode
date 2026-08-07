@@ -45,6 +45,21 @@ export const PageSuggestionsButton = ({
     }
   }, [suggestionsPageId, pageId, refresh]);
 
+  // Keep the count LIVE: a new suggestion fires a notification to the owner, so
+  // re-count on any notification event — the badge then updates while they are
+  // on the page, without a reload.
+  useEffect(() => {
+    const subscriptionId = window.eventBus.subscribe((event) => {
+      if (
+        event.type === 'notification.created' ||
+        event.type === 'notification.read'
+      ) {
+        void refresh();
+      }
+    });
+    return () => window.eventBus.unsubscribe(subscriptionId);
+  }, [refresh]);
+
   return (
     <button
       type="button"
@@ -64,7 +79,9 @@ export const PageSuggestionsButton = ({
     >
       <PencilRuler className="size-4" />
       {count > 0 && (
-        <span className="text-xs tabular-nums">{count}</span>
+        <span className="rounded-full bg-amber-500 px-1.5 text-xs font-medium tabular-nums text-white">
+          {count}
+        </span>
       )}
     </button>
   );
