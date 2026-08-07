@@ -9,6 +9,13 @@ export const TableCellNode = TableCell.extend({
     return ReactNodeViewRenderer(TableCellNodeView, {
       as: 'td',
       className: defaultClasses.tableCellWrapper,
+      // Reflect the cell's borderStyle onto the host <td> as a data attribute
+      // (leaves the class list untouched). editor.css turns it into the matching
+      // border-style / width. Absent / 'default' keeps the built-in 1px border.
+      attrs: ({ node }) => ({
+        'data-border-style':
+          (node.attrs.borderStyle as string | null) ?? 'default',
+      }),
     });
   },
   addAttributes() {
@@ -38,6 +45,11 @@ export const TableCellNode = TableCell.extend({
         default: null,
         parseHTML: (element: HTMLElement) =>
           element.getAttribute('data-background-color'),
+      },
+      borderStyle: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-border-style'),
       },
     };
   },

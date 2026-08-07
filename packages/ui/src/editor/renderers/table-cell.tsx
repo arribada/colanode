@@ -21,7 +21,10 @@ export const TableCellRenderer = ({
     : null;
 
   return (
-    <td className={defaultClasses.tableCellWrapper}>
+    <td
+      className={defaultClasses.tableCellWrapper}
+      data-border-style={node.attrs?.borderStyle ?? 'default'}
+    >
       <div
         className={cn(
           defaultClasses.tableCell,

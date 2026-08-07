@@ -4,7 +4,7 @@ import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalRecordNode } from '@colanode/client/types';
-import { compareString } from '@colanode/core';
+import { compareString, FieldAttributes } from '@colanode/core';
 import { ViewImportCsvDialog } from '@colanode/ui/components/databases/view-import-csv-dialog';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -18,20 +18,27 @@ interface ViewCsvActionsProps {
   closeMenu?: () => void;
 }
 
-export const ViewCsvActions = ({ closeMenu }: ViewCsvActionsProps) => {
+export interface CsvExportSource {
+  databaseId: string;
+  fields: FieldAttributes[];
+  nameFieldName: string;
+  fileName: string;
+}
+
+// Shared Export-CSV mutation so the view settings popover (via ViewCsvActions)
+// and the database gear settings menu run the exact same export instead of each
+// reimplementing the query / serialise / download.
+export const useExportCsvMutation = (source: CsvExportSource) => {
   const workspace = useWorkspace();
-  const database = useDatabase();
 
-  const [openImport, setOpenImport] = useState(false);
-
-  const { mutate: exportCsv, isPending: isExporting } = useMutation({
+  return useMutation({
     mutationFn: async () => {
       const nodes = await window.colanode.executeQuery({
         type: 'node.list',
         userId: workspace.userId,
         filters: [
           { field: ['type'], operator: 'eq', value: 'record' },
-          { field: ['databaseId'], operator: 'eq', value: database.id },
+          { field: ['databaseId'], operator: 'eq', value: source.databaseId },
         ],
         sorts: [],
       });
@@ -41,14 +48,10 @@ export const ViewCsvActions = ({ closeMenu }: ViewCsvActionsProps) => {
       );
       records.sort((a, b) => compareString(a.createdAt, b.createdAt));
 
-      return exportRecordsToCsv(
-        records,
-        database.fields,
-        database.nameField?.name ?? 'Name'
-      );
+      return exportRecordsToCsv(records, source.fields, source.nameFieldName);
     },
     onSuccess: (result) => {
-      downloadCsvFile(`${sanitizeCsvFileName(database.name)}.csv`, result.csv);
+      downloadCsvFile(`${sanitizeCsvFileName(source.fileName)}.csv`, result.csv);
 
       if (result.skippedFields.length > 0) {
         const skippedNames = result.skippedFields
@@ -64,6 +67,19 @@ export const ViewCsvActions = ({ closeMenu }: ViewCsvActionsProps) => {
     onError: () => {
       toast.error('Failed to export CSV.');
     },
+  });
+};
+
+export const ViewCsvActions = ({ closeMenu }: ViewCsvActionsProps) => {
+  const database = useDatabase();
+
+  const [openImport, setOpenImport] = useState(false);
+
+  const { mutate: exportCsv, isPending: isExporting } = useExportCsvMutation({
+    databaseId: database.id,
+    fields: database.fields,
+    nameFieldName: database.nameField?.name ?? 'Name',
+    fileName: database.name,
   });
 
   const canImport = database.canCreateRecord && !database.isLocked;

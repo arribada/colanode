@@ -21,7 +21,10 @@ export const TableHeaderRenderer = ({
     : null;
 
   return (
-    <th className={defaultClasses.tableHeaderWrapper}>
+    <th
+      className={defaultClasses.tableHeaderWrapper}
+      data-border-style={node.attrs?.borderStyle ?? 'default'}
+    >
       <div
         className={cn(
           defaultClasses.tableHeader,

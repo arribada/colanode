@@ -123,3 +123,29 @@ div[data-type='toggle'][data-open='true'] > button[data-toggle-button] svg {
 .editor-small-text .ProseMirror {
   font-size: 0.9375rem;
 }
+
+/* Per-cell border style, set from the table cell/header "Border" submenu. The
+   <td>/<th> already carries a 1px border via the `border` utility; the attribute
+   selectors below (specificity 0,1,1) override its style/width. Absent or
+   "default" keeps that border, so pre-existing tables are unchanged. */
+td[data-border-style='solid'],
+th[data-border-style='solid'] {
+  border-style: solid;
+}
+td[data-border-style='dashed'],
+th[data-border-style='dashed'] {
+  border-style: dashed;
+}
+td[data-border-style='dotted'],
+th[data-border-style='dotted'] {
+  border-style: dotted;
+}
+td[data-border-style='none'],
+th[data-border-style='none'] {
+  border-style: none;
+}
+td[data-border-style='bold'],
+th[data-border-style='bold'] {
+  border-style: solid;
+  border-width: 2px;
+}

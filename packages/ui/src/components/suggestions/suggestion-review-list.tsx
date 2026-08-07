@@ -107,6 +107,19 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
   const role = rootNode ? extractNodeRole(rootNode, workspace.userId) : null;
   const canReview = role ? hasNodeRole(role, 'editor') : false;
 
+  // Page lock: when the page is locked or in suggest mode, only a privileged
+  // user (the page creator or a node admin) may APPLY a suggestion - the server
+  // enforces this in document.update, so mirror it here to keep the Accept
+  // button honest. Null/absent lock => 'open', so unlocked pages are unaffected.
+  const pageNode = page && page.type === 'page' ? page : null;
+  const lockMode = pageNode?.lockMode ?? 'open';
+  const isPrivileged =
+    !!pageNode &&
+    (pageNode.createdBy === workspace.userId ||
+      (role ? hasNodeRole(role, 'admin') : false));
+  const applyRestricted = lockMode === 'locked' || lockMode === 'suggest';
+  const canAccept = canReview && (!applyRestricted || isPrivileged);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,7 +143,7 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
   }, [refresh]);
 
   const accept = async (suggestion: DocumentSuggestionItem) => {
-    if (!canReview || busy) {
+    if (!canAccept || busy) {
       return;
     }
     setBusy(suggestion.id);
@@ -249,6 +262,15 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
             accept or reject them.
           </p>
         )}
+        {canReview &&
+          applyRestricted &&
+          !isPrivileged &&
+          suggestions.length > 0 && (
+            <p className="mb-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              This page is locked. You can review and reject suggestions, but
+              only the page owner or an admin can accept them.
+            </p>
+          )}
         <div className="flex flex-col gap-3">
           {suggestions.map((suggestion) => {
             const isExpanded = expanded === suggestion.id;
@@ -350,8 +372,13 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
                   </button>
                   <button
                     type="button"
-                    disabled={!canReview || isBusy}
+                    disabled={!canAccept || isBusy}
                     onClick={() => void accept(suggestion)}
+                    title={
+                      applyRestricted && !isPrivileged
+                        ? 'This page is locked - only the page owner or an admin can accept suggestions.'
+                        : undefined
+                    }
                     className="flex items-center gap-1 rounded bg-green-600 px-2.5 py-1 text-xs text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isBusy ? <Spinner className="size-3" /> : null}

@@ -71,3 +71,41 @@ export const editorColors: EditorColorOption[] = [
     bgHoverClass: 'hover:bg-red-300 dark:hover:bg-red-800',
   },
 ];
+
+export interface EditorBorderStyleOption {
+  value: string;
+  name: string;
+  previewClass: string;
+}
+
+// Cell border styles for the table "Border" submenu. `default` clears the
+// attribute back to the table's built-in border; the rest are reflected onto the
+// <td>/<th> as data-border-style and styled in editor.css.
+export const editorBorderStyles: EditorBorderStyleOption[] = [
+  { value: 'default', name: 'Default', previewClass: 'border border-border' },
+  {
+    value: 'solid',
+    name: 'Solid',
+    previewClass: 'border border-solid border-foreground',
+  },
+  {
+    value: 'dashed',
+    name: 'Dashed',
+    previewClass: 'border border-dashed border-foreground',
+  },
+  {
+    value: 'dotted',
+    name: 'Dotted',
+    previewClass: 'border border-dotted border-foreground',
+  },
+  {
+    value: 'bold',
+    name: 'Bold',
+    previewClass: 'border-2 border-solid border-foreground',
+  },
+  {
+    value: 'none',
+    name: 'None',
+    previewClass: 'border border-dashed border-muted-foreground/40',
+  },
+];

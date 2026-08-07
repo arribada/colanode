@@ -11,6 +11,7 @@ import {
   Highlighter,
   AlignJustify,
   Check,
+  Square,
 } from 'lucide-react';
 
 import {
@@ -24,7 +25,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@colanode/ui/components/ui/context-menu';
-import { editorColors } from '@colanode/ui/lib/editor';
+import { editorBorderStyles, editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface TableCellContextMenuProps extends NodeViewProps {
@@ -38,6 +39,7 @@ export const TableCellContextMenu = ({
 }: TableCellContextMenuProps) => {
   const textAlign = node.attrs.align ?? 'left';
   const backgroundColor = node.attrs.backgroundColor ?? 'default';
+  const borderStyle = node.attrs.borderStyle ?? 'default';
 
   return (
     <ContextMenu>
@@ -122,6 +124,39 @@ export const TableCellContextMenu = ({
                 {backgroundColor === color.color && (
                   <Check className="size-4" />
                 )}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger className="flex gap-2">
+            <Square className="size-4 text-muted-foreground" />
+            Border
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-48">
+            <ContextMenuLabel>Border</ContextMenuLabel>
+            {editorBorderStyles.map((option) => (
+              <ContextMenuItem
+                key={option.value}
+                onSelect={() =>
+                  editor
+                    .chain()
+                    .focus()
+                    .setCellAttribute('borderStyle', option.value)
+                    .run()
+                }
+                role="menuitemradio"
+                aria-checked={borderStyle === option.value}
+                data-testid={`editor-table-cell-border-${option.value}`}
+                className="flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn('h-4 w-4 rounded-sm', option.previewClass)}
+                  />
+                  {option.name}
+                </div>
+                {borderStyle === option.value && <Check className="size-4" />}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>

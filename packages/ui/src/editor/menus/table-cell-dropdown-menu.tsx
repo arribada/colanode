@@ -15,6 +15,7 @@ import {
   Combine,
   Split,
   Heading,
+  Square,
 } from 'lucide-react';
 
 import {
@@ -28,7 +29,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
-import { editorColors } from '@colanode/ui/lib/editor';
+import { editorBorderStyles, editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const TableCellDropdownMenu = ({
@@ -37,6 +38,7 @@ export const TableCellDropdownMenu = ({
 }: NodeViewProps) => {
   const textAlign = node.attrs.align ?? 'left';
   const backgroundColor = node.attrs.backgroundColor ?? 'default';
+  const borderStyle = node.attrs.borderStyle ?? 'default';
 
   return (
     <DropdownMenu>
@@ -131,6 +133,39 @@ export const TableCellDropdownMenu = ({
                 {backgroundColor === color.color && (
                   <Check className="size-4" />
                 )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="flex gap-2">
+            <Square className="size-4 text-muted-foreground" />
+            Border
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-48">
+            <DropdownMenuLabel>Border</DropdownMenuLabel>
+            {editorBorderStyles.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                onClick={() =>
+                  editor
+                    .chain()
+                    .focus()
+                    .setCellAttribute('borderStyle', option.value)
+                    .run()
+                }
+                role="menuitemradio"
+                aria-checked={borderStyle === option.value}
+                data-testid={`editor-table-dropdown-cell-border-${option.value}`}
+                className="flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn('h-4 w-4 rounded-sm', option.previewClass)}
+                  />
+                  {option.name}
+                </div>
+                {borderStyle === option.value && <Check className="size-4" />}
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>

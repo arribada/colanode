@@ -9,6 +9,13 @@ export const TableHeaderNode = TableHeader.extend({
     return ReactNodeViewRenderer(TableHeaderNodeView, {
       as: 'th',
       className: defaultClasses.tableHeaderWrapper,
+      // Reflect the header cell's borderStyle onto the host <th> as a data
+      // attribute (leaves the class list untouched). editor.css turns it into the
+      // matching border-style / width. Absent / 'default' keeps the built-in border.
+      attrs: ({ node }) => ({
+        'data-border-style':
+          (node.attrs.borderStyle as string | null) ?? 'default',
+      }),
     });
   },
   addAttributes() {
@@ -38,6 +45,11 @@ export const TableHeaderNode = TableHeader.extend({
         default: null,
         parseHTML: (element: HTMLElement) =>
           element.getAttribute('data-background-color'),
+      },
+      borderStyle: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-border-style'),
       },
     };
   },

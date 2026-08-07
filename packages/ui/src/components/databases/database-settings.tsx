@@ -8,6 +8,8 @@ import {
   Lock,
   LockOpen,
   Users,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { Fragment, useCallback, useState } from 'react';
 
@@ -17,6 +19,9 @@ import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/nod
 import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
 import { DatabaseTemplatesDialog } from '@colanode/ui/components/databases/database-templates-dialog';
 import { DatabaseUpdateDialog } from '@colanode/ui/components/databases/database-update-dialog';
+import { Database } from '@colanode/ui/components/databases/database';
+import { useExportCsvMutation } from '@colanode/ui/components/databases/view-csv-actions';
+import { ViewImportCsvDialog } from '@colanode/ui/components/databases/view-import-csv-dialog';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import {
   DropdownMenu,
@@ -44,10 +49,19 @@ export const DatabaseSettings = ({
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
   const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'admin');
   const isLocked = database.locked ?? false;
+  const canImport = canEdit && !isLocked;
+
+  const { mutate: exportCsv, isPending: isExporting } = useExportCsvMutation({
+    databaseId: database.id,
+    fields: Object.values(database.fields),
+    nameFieldName: database.nameField?.name ?? 'Name',
+    fileName: database.name,
+  });
 
   const handleLockDatabase = useCallback(() => {
     if (!canEdit) {
@@ -139,6 +153,25 @@ export const DatabaseSettings = ({
             <Users className="size-4" />
             Collaborators
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            disabled={isExporting}
+            onClick={() => exportCsv()}
+          >
+            <Download className="size-4" />
+            Export CSV
+          </DropdownMenuItem>
+          {canImport && (
+            <DropdownMenuItem
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => setShowImportDialog(true)}
+            >
+              <Upload className="size-4" />
+              Import CSV
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             className="flex items-center gap-2"
             onClick={() => {
@@ -201,6 +234,12 @@ export const DatabaseSettings = ({
         open={showTemplatesDialog}
         onOpenChange={setShowTemplatesDialog}
       />
+      <Database database={database} role={role}>
+        <ViewImportCsvDialog
+          open={showImportDialog}
+          onOpenChange={setShowImportDialog}
+        />
+      </Database>
     </Fragment>
   );
 };
