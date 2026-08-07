@@ -1,7 +1,15 @@
 // ABOUTME: Review list for a page's pending suggestions — shows original vs
 // ABOUTME: proposed and applies the change client-side on Accept (block or doc).
 import { eq, useLiveQuery as useCollectionQuery } from '@tanstack/react-db';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 
 import { DocumentSuggestionItem } from '@colanode/client/mutations';
@@ -62,6 +70,11 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Suggestions whose document change we already applied this session. Even if
+  // the server-side resolve failed (they stay 'pending' on the server), they
+  // must never be offered for Accept again — re-applying a document-scope
+  // proposal would delete edits made in between. refresh() filters these out.
+  const appliedIdsRef = useRef<Set<string>>(new Set());
 
   const stateQuery = useLiveQuery({
     type: 'document.state.get',
@@ -130,7 +143,11 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
         nodeId: pageId,
       });
       if (result.success) {
-        setSuggestions(result.output.suggestions);
+        setSuggestions(
+          result.output.suggestions.filter(
+            (s) => !appliedIdsRef.current.has(s.id)
+          )
+        );
       }
     } catch {
       // leave the list as-is
@@ -206,6 +223,14 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
           return;
         }
       }
+
+      // The change is now in the document. Guard against re-accepting it: even
+      // if the resolve below fails, re-applying a document-scope proposal would
+      // clobber edits made in the meantime. Mark it applied and drop it locally
+      // so no refresh (trailing, poll, or focus) can offer it again this
+      // session.
+      appliedIdsRef.current.add(suggestion.id);
+      setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
 
       const resolved = await window.colanode.executeMutation({
         type: 'document.suggestion.resolve',
