@@ -135,16 +135,29 @@ export const extractBlockSubtree = (
     return null;
   }
 
+  // Index children by parent once, then walk down — O(N) instead of the
+  // O(N * frontier) rescan of every block at each BFS level (which froze the
+  // suggestion panel on large tables).
+  const childrenByParent = new Map<string, Block[]>();
+  for (const block of Object.values(blocks)) {
+    const siblings = childrenByParent.get(block.parentId);
+    if (siblings) {
+      siblings.push(block);
+    } else {
+      childrenByParent.set(block.parentId, [block]);
+    }
+  }
+
   const subtree: Record<string, Block> = {
     [blockId]: { ...target, parentId: nodeId },
   };
   let frontier = [blockId];
   while (frontier.length > 0) {
     const next: string[] = [];
-    for (const block of Object.values(blocks)) {
-      if (block.parentId && frontier.includes(block.parentId)) {
-        subtree[block.id] = block;
-        next.push(block.id);
+    for (const parentId of frontier) {
+      for (const child of childrenByParent.get(parentId) ?? []) {
+        subtree[child.id] = child;
+        next.push(child.id);
       }
     }
     frontier = next;
@@ -187,14 +200,26 @@ export const wrapRowInSyntheticTable = (
     [rowId]: { ...row, parentId: syntheticTableId },
   };
 
-  // Copy the row's descendants (cells -> their content -> …) verbatim.
+  // Copy the row's descendants (cells -> their content -> …) verbatim. Index
+  // children by parent once and walk down — O(N) instead of rescanning every
+  // block at each BFS level.
+  const childrenByParent = new Map<string, Block[]>();
+  for (const block of Object.values(blocks)) {
+    const siblings = childrenByParent.get(block.parentId);
+    if (siblings) {
+      siblings.push(block);
+    } else {
+      childrenByParent.set(block.parentId, [block]);
+    }
+  }
+
   let frontier = [rowId];
   while (frontier.length > 0) {
     const next: string[] = [];
-    for (const block of Object.values(blocks)) {
-      if (block.parentId && frontier.includes(block.parentId)) {
-        subtree[block.id] = block;
-        next.push(block.id);
+    for (const parentId of frontier) {
+      for (const child of childrenByParent.get(parentId) ?? []) {
+        subtree[child.id] = child;
+        next.push(child.id);
       }
     }
     frontier = next;

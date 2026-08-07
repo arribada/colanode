@@ -36,11 +36,32 @@ interface DiffRowData {
   index: string;
 }
 
+// A parentId -> sorted-children index. Built ONCE per content so the recursive
+// fingerprint (and the top-level / row scans) never re-filter every block at
+// every node — that O(N^2) pass froze the panel on large tables (~1000 rows).
+const indexByParent = (content: RichTextContent): Map<string, Block[]> => {
+  const map = new Map<string, Block[]>();
+  for (const block of Object.values(content.blocks ?? {})) {
+    const siblings = map.get(block.parentId);
+    if (siblings) {
+      siblings.push(block);
+    } else {
+      map.set(block.parentId, [block]);
+    }
+  }
+  for (const siblings of map.values()) {
+    siblings.sort((a, b) =>
+      a.index < b.index ? -1 : a.index > b.index ? 1 : 0
+    );
+  }
+  return map;
+};
+
 // Top-level blocks (direct children of the document node), in reading order.
-const topLevelBlocks = (content: RichTextContent, nodeId: string): Block[] =>
-  Object.values(content.blocks ?? {})
-    .filter((block) => block.parentId === nodeId)
-    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
+const topLevelBlocks = (
+  childrenByParent: Map<string, Block[]>,
+  nodeId: string
+): Block[] => childrenByParent.get(nodeId) ?? [];
 
 // Recursively drop volatile / empty values (null, '', {}, []) and sort keys, so
 // serialization noise never reads as a real change: the external editor
@@ -73,6 +94,7 @@ const canonical = (value: unknown): unknown => {
 // external editor regenerated their child ids on submit — killing the
 // "everything is CHANGED" false positives.
 const fingerprint = (
+  childrenByParent: Map<string, Block[]>,
   blocks: Record<string, Block>,
   blockId: string
 ): unknown => {
@@ -80,10 +102,9 @@ const fingerprint = (
   if (!block) {
     return null;
   }
-  const children = Object.values(blocks)
-    .filter((b) => b.parentId === blockId)
-    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0))
-    .map((child) => fingerprint(blocks, child.id));
+  const children = (childrenByParent.get(blockId) ?? []).map((child) =>
+    fingerprint(childrenByParent, blocks, child.id)
+  );
   return {
     type: block.type,
     content: canonical(block.content),
@@ -117,20 +138,21 @@ const BORDER: Record<DiffStatus, string> = {
 // ---------------------------------------------------------------------------
 
 // Direct `tableRow` children of a table block, in reading order.
-const childRows = (blocks: Record<string, Block>, tableId: string): Block[] =>
-  Object.values(blocks)
-    .filter(
-      (b) => b.parentId === tableId && b.type === EditorNodeTypes.TableRow
-    )
-    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
+const childRows = (
+  childrenByParent: Map<string, Block[]>,
+  tableId: string
+): Block[] =>
+  (childrenByParent.get(tableId) ?? []).filter(
+    (b) => b.type === EditorNodeTypes.TableRow
+  );
 
 // A row is a header row when any of its cells is a `tableHeader`.
 const rowHasHeaderCell = (
-  blocks: Record<string, Block>,
+  childrenByParent: Map<string, Block[]>,
   rowId: string
 ): boolean =>
-  Object.values(blocks).some(
-    (b) => b.parentId === rowId && b.type === EditorNodeTypes.TableHeader
+  (childrenByParent.get(rowId) ?? []).some(
+    (b) => b.type === EditorNodeTypes.TableHeader
   );
 
 // Is the block a table? (`type === 'table'`, or — defensively — it has
@@ -164,9 +186,13 @@ const computeRowDiff = (
 ): { rows: RowDiff[]; headerRowId: string | null } => {
   const currentMap = current.blocks ?? {};
   const proposedMap = proposed.blocks ?? {};
-  const currentById = new Map(childRows(currentMap, tableId).map((r) => [r.id, r]));
+  const currentChildren = indexByParent(current);
+  const proposedChildren = indexByParent(proposed);
+  const currentById = new Map(
+    childRows(currentChildren, tableId).map((r) => [r.id, r])
+  );
   const proposedById = new Map(
-    childRows(proposedMap, tableId).map((r) => [r.id, r])
+    childRows(proposedChildren, tableId).map((r) => [r.id, r])
   );
 
   const ids = new Set<string>([...currentById.keys(), ...proposedById.keys()]);
@@ -177,8 +203,8 @@ const computeRowDiff = (
     const index = (inProposed ?? inCurrent)!.index;
     let status: DiffStatus;
     if (inCurrent && inProposed) {
-      const a = JSON.stringify(fingerprint(currentMap, id));
-      const b = JSON.stringify(fingerprint(proposedMap, id));
+      const a = JSON.stringify(fingerprint(currentChildren, currentMap, id));
+      const b = JSON.stringify(fingerprint(proposedChildren, proposedMap, id));
       status = a === b ? 'unchanged' : 'modified';
     } else if (inProposed) {
       status = 'added';
@@ -192,8 +218,8 @@ const computeRowDiff = (
   let headerRowId: string | null = null;
   for (const row of rows) {
     if (
-      rowHasHeaderCell(currentMap, row.id) ||
-      rowHasHeaderCell(proposedMap, row.id)
+      rowHasHeaderCell(currentChildren, row.id) ||
+      rowHasHeaderCell(proposedChildren, row.id)
     ) {
       headerRowId = row.id;
       break;
@@ -505,12 +531,14 @@ export const SuggestionDiff = ({
   proposed: RichTextContent;
 }) => {
   const rows = useMemo<DiffRowData[]>(() => {
-    const currentBlocks = topLevelBlocks(current, nodeId);
-    const proposedBlocks = topLevelBlocks(proposed, nodeId);
-    const currentById = new Map(currentBlocks.map((b) => [b.id, b]));
-    const proposedById = new Map(proposedBlocks.map((b) => [b.id, b]));
     const currentMap = current.blocks ?? {};
     const proposedMap = proposed.blocks ?? {};
+    const currentChildren = indexByParent(current);
+    const proposedChildren = indexByParent(proposed);
+    const currentBlocks = topLevelBlocks(currentChildren, nodeId);
+    const proposedBlocks = topLevelBlocks(proposedChildren, nodeId);
+    const currentById = new Map(currentBlocks.map((b) => [b.id, b]));
+    const proposedById = new Map(proposedBlocks.map((b) => [b.id, b]));
 
     const ids = new Set<string>([
       ...currentById.keys(),
@@ -523,8 +551,10 @@ export const SuggestionDiff = ({
       const index = (inProposed ?? inCurrent)!.index;
       let status: DiffStatus;
       if (inCurrent && inProposed) {
-        const a = JSON.stringify(fingerprint(currentMap, id));
-        const b = JSON.stringify(fingerprint(proposedMap, id));
+        const a = JSON.stringify(fingerprint(currentChildren, currentMap, id));
+        const b = JSON.stringify(
+          fingerprint(proposedChildren, proposedMap, id)
+        );
         status = a === b ? 'unchanged' : 'modified';
       } else if (inProposed) {
         status = 'added';
@@ -533,6 +563,42 @@ export const SuggestionDiff = ({
       }
       result.push({ id, status, index });
     }
+
+    // Reconcile id-less top-level blocks. Blocks like columns / chart /
+    // bookmark / tableOfContents / embed carry no schema id, so the external
+    // round-trip mints a fresh id and an UNCHANGED one shows up as a removed
+    // (old id) + added (new id) pair. Match a removed block to an added block
+    // of identical structural fingerprint and collapse the pair into a single
+    // 'unchanged' row so it stops reading as a delete + insert.
+    const removedRows = result.filter((r) => r.status === 'removed');
+    const addedRows = result.filter((r) => r.status === 'added');
+    if (removedRows.length > 0 && addedRows.length > 0) {
+      const addedFps = addedRows.map((r) => ({
+        row: r,
+        fp: JSON.stringify(fingerprint(proposedChildren, proposedMap, r.id)),
+        used: false,
+      }));
+      const dropIds = new Set<string>();
+      for (const r of removedRows) {
+        const fp = JSON.stringify(
+          fingerprint(currentChildren, currentMap, r.id)
+        );
+        const match = addedFps.find((a) => !a.used && a.fp === fp);
+        if (match) {
+          match.used = true;
+          r.status = 'unchanged';
+          dropIds.add(match.row.id);
+        }
+      }
+      if (dropIds.size > 0) {
+        return result
+          .filter((r) => !dropIds.has(r.id))
+          .sort((x, y) =>
+            x.index < y.index ? -1 : x.index > y.index ? 1 : 0
+          );
+      }
+    }
+
     result.sort((x, y) => (x.index < y.index ? -1 : x.index > y.index ? 1 : 0));
     return result;
   }, [current, proposed, nodeId]);
