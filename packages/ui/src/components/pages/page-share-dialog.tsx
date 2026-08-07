@@ -1,6 +1,6 @@
 // ABOUTME: Share dialog for a page — create a public read-only link (password /
 // ABOUTME: expiry / sub-pages), copy it, and revoke existing links.
-import { Copy, Link2, Loader2, Trash2 } from 'lucide-react';
+import { Copy, Link2, Loader2, Trash2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -124,7 +124,29 @@ export const PageShareDialog = ({
     }
   }, [open, refresh]);
 
+  const passwordTooShort =
+    usePassword && password.length > 0 && password.length < 8;
+  const passwordMissing = usePassword && password.length === 0;
+
+  // Strong random password; skips ambiguous glyphs (O/0, l/1) so it stays
+  // readable when shared out of band.
+  const generatePassword = () => {
+    const charset =
+      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
+    const values = new Uint32Array(16);
+    crypto.getRandomValues(values);
+    let out = '';
+    for (let i = 0; i < values.length; i++) {
+      out += charset[(values[i] ?? 0) % charset.length];
+    }
+    setPassword(out);
+  };
+
   const create = async () => {
+    if (usePassword && password.length < 8) {
+      toast.error('Password must be at least 8 characters.');
+      return;
+    }
     setCreating(true);
     try {
       const result = await window.colanode.executeMutation({
@@ -255,12 +277,33 @@ export const PageShareDialog = ({
               <span className="text-sm font-medium">Require a password</span>
             </button>
             {usePassword && (
-              <Input
-                type="text"
-                value={password}
-                placeholder="Password"
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="text"
+                    value={password}
+                    placeholder="Password (min 8 characters)"
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={generatePassword}
+                    className="shrink-0"
+                    title="Generate a strong password"
+                  >
+                    <Wand2 className="size-4" />
+                    Generate
+                  </Button>
+                </div>
+                {passwordTooShort && (
+                  <p className="text-xs text-red-600">
+                    Password must be at least 8 characters.
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -287,7 +330,11 @@ export const PageShareDialog = ({
             </div>
           </div>
 
-          <Button type="button" onClick={create} disabled={creating}>
+          <Button
+            type="button"
+            onClick={create}
+            disabled={creating || passwordTooShort || passwordMissing}
+          >
             {creating ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
