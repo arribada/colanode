@@ -220,3 +220,30 @@ body.colanode-table-dragging * {
   cursor: grabbing !important;
   user-select: none !important;
 }
+
+/* Spreadsheet niceties for editor tables. */
+
+/* Sticky header row: as a tall table scrolls past, its header cells stay pinned
+   so column meaning is never lost. The header's inner cell keeps its bg-muted so
+   body rows do not show through. Harmless for short tables (nothing scrolls). */
+.prose table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Vertical alignment for the static (non-editable) renderer, whose cells are
+   plain <td>/<th> where CSS vertical-align applies natively (the live editor
+   cell uses flex items-* instead). */
+td[data-valign='top'],
+th[data-valign='top'] {
+  vertical-align: top;
+}
+td[data-valign='middle'],
+th[data-valign='middle'] {
+  vertical-align: middle;
+}
+td[data-valign='bottom'],
+th[data-valign='bottom'] {
+  vertical-align: bottom;
+}

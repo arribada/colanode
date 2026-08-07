@@ -17,6 +17,8 @@ import {
   Heading,
   Square,
   Palette,
+  ArrowDownNarrowWide,
+  ArrowUpNarrowWide,
 } from 'lucide-react';
 
 import {
@@ -32,6 +34,11 @@ import {
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { editorBorderStyles, editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
+import {
+  activeTableColumn,
+  buildColumnSort,
+  type SortDirection,
+} from '@colanode/ui/editor/views/table-sort';
 
 export const TableCellDropdownMenu = ({
   editor,
@@ -41,6 +48,23 @@ export const TableCellDropdownMenu = ({
   const backgroundColor = node.attrs.backgroundColor ?? 'default';
   const borderStyle = node.attrs.borderStyle ?? 'default';
   const borderColor = node.attrs.borderColor ?? 'default';
+  const verticalAlign = node.attrs.valign ?? 'middle';
+
+  const sortColumn = (direction: SortDirection) => {
+    const target = activeTableColumn(editor.state);
+    if (!target) {
+      return;
+    }
+    const { tr, result } = buildColumnSort(
+      editor.state,
+      target.tablePos,
+      target.colIndex,
+      direction
+    );
+    if (tr && result === 'sorted') {
+      editor.view.dispatch(tr);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -103,6 +127,29 @@ export const TableCellDropdownMenu = ({
               </div>
               {textAlign === 'right' && <Check className="size-4" />}
             </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="flex gap-2">
+            <AlignJustify className="size-4 text-muted-foreground" />
+            Vertical align
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-48">
+            <DropdownMenuLabel>Vertical align</DropdownMenuLabel>
+            {(['top', 'middle', 'bottom'] as const).map((value) => (
+              <DropdownMenuItem
+                key={value}
+                onClick={() =>
+                  editor.chain().focus().setCellAttribute('valign', value).run()
+                }
+                role="menuitemradio"
+                aria-checked={verticalAlign === value}
+                className="flex items-center justify-between capitalize"
+              >
+                {value}
+                {verticalAlign === value && <Check className="size-4" />}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSub>
@@ -236,6 +283,20 @@ export const TableCellDropdownMenu = ({
         >
           <Trash className="size-4" />
           Delete column
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-column-sort-asc"
+          onClick={() => sortColumn('asc')}
+        >
+          <ArrowDownNarrowWide className="size-4" />
+          Sort ascending
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-column-sort-desc"
+          onClick={() => sortColumn('desc')}
+        >
+          <ArrowUpNarrowWide className="size-4" />
+          Sort descending
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Row Actions</DropdownMenuLabel>
