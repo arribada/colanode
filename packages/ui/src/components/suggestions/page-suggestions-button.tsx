@@ -49,13 +49,20 @@ export const PageSuggestionsButton = ({
   // sync, but polling covers the case where they haven't yet.
   useEffect(() => {
     const interval = window.setInterval(() => void refresh(), 15000);
-    const onFocus = () => void refresh();
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
+    // One handler for both focus and visibilitychange, guarded on the visible
+    // state: this skips the wasted re-count fired when the tab goes HIDDEN
+    // (visibilitychange also fires on hide), and only refreshes on a real return.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [refresh]);
 

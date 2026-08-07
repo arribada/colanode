@@ -160,19 +160,11 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
     void refresh();
   }, [refresh]);
 
-  // Auto-refresh the open panel: poll + refetch on tab focus, so newly arrived
-  // suggestions appear without the reviewer reloading the page.
-  useEffect(() => {
-    const interval = window.setInterval(() => void refresh(), 15000);
-    const onFocus = () => void refresh();
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, [refresh]);
+  // No own interval / focus listeners here: the always-mounted suggestions badge
+  // (page-suggestions-button) already polls + refreshes on tab return, so running
+  // a second set from this panel meant a double fetch of document.suggestion.list
+  // whenever it was open. This list refreshes on open (above) and after every
+  // accept/reject, which is enough while the panel is the active view.
 
   const accept = async (suggestion: DocumentSuggestionItem) => {
     if (!canAccept || busy) {
