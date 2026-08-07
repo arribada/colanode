@@ -119,6 +119,7 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
           editor={editor}
           getPos={getPos}
           containerRef={relativeRef}
+          hoverRef={wrapperRef}
         />
         {isSideHovered && (
           <div className="absolute -right-6 top-0 h-full flex items-center">

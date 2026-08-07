@@ -12,6 +12,8 @@ import {
   AlignJustify,
   Check,
   Square,
+  Combine,
+  Split,
 } from 'lucide-react';
 
 import {
@@ -46,6 +48,21 @@ export const TableCellContextMenu = ({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <ContextMenuLabel>Cell Actions</ContextMenuLabel>
+        <ContextMenuItem
+          data-testid="editor-table-cell-merge"
+          onSelect={() => editor.chain().focus().mergeCells().run()}
+        >
+          <Combine className="size-4" />
+          Merge cells
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="editor-table-cell-split"
+          onSelect={() => editor.chain().focus().splitCell().run()}
+        >
+          <Split className="size-4" />
+          Split cell
+        </ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuSub>
           <ContextMenuSubTrigger className="flex gap-2">
             <AlignJustify className="size-4 text-muted-foreground" />

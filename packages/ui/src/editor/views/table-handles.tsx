@@ -34,7 +34,11 @@ type DragState = { axis: Axis; from: number; gap: number };
 interface TableHandlesProps {
   editor: Editor;
   getPos: () => number | undefined;
+  // The table's inner "relative" box — used to MEASURE row/column geometry.
   containerRef: React.RefObject<HTMLDivElement | null>;
+  // The outer wrapper (table + its padding margins where the handles sit) —
+  // used to TRACK hover, so moving out to grab a handle isn't seen as leaving.
+  hoverRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // The grab bar's size on its cross axis (row bars are this wide, column bars this
@@ -97,6 +101,7 @@ export const TableHandles = ({
   editor,
   getPos,
   containerRef,
+  hoverRef,
 }: TableHandlesProps) => {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [visible, setVisible] = useState(false);
@@ -152,8 +157,9 @@ export const TableHandles = ({
   // mousemove (rAF-throttled) and whenever the table resizes, so the handles
   // follow column resizes and content edits without a render loop.
   useEffect(() => {
+    const hover = hoverRef.current;
     const container = containerRef.current;
-    if (!container) return;
+    if (!hover || !container) return;
 
     const onEnter = () => {
       setVisible(true);
@@ -166,16 +172,19 @@ export const TableHandles = ({
         applyMeasure();
       });
     };
+    // Hover is tracked on the OUTER wrapper (table + padding margins where the
+    // handles live), so moving the pointer out to grab a handle is not treated
+    // as leaving — the handles no longer disappear the moment you reach for them.
     const onLeave = (event: MouseEvent) => {
       if (draggingRef.current) return;
       const related = event.relatedTarget as Node | null;
-      if (related && container.contains(related)) return;
+      if (related && hover.contains(related)) return;
       setVisible(false);
     };
 
-    container.addEventListener('mouseenter', onEnter);
-    container.addEventListener('mousemove', onMove);
-    container.addEventListener('mouseleave', onLeave);
+    hover.addEventListener('mouseenter', onEnter);
+    hover.addEventListener('mousemove', onMove);
+    hover.addEventListener('mouseleave', onLeave);
 
     const table = container.querySelector(':scope > table');
     const ro = table
@@ -186,16 +195,16 @@ export const TableHandles = ({
     ro?.observe(table!);
 
     return () => {
-      container.removeEventListener('mouseenter', onEnter);
-      container.removeEventListener('mousemove', onMove);
-      container.removeEventListener('mouseleave', onLeave);
+      hover.removeEventListener('mouseenter', onEnter);
+      hover.removeEventListener('mousemove', onMove);
+      hover.removeEventListener('mouseleave', onLeave);
       ro?.disconnect();
       if (rafRef.current != null) {
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
     };
-  }, [containerRef, applyMeasure]);
+  }, [hoverRef, containerRef, applyMeasure]);
 
   const endDragCleanup = () => {
     document.body.classList.remove('colanode-table-dragging');
@@ -312,9 +321,10 @@ export const TableHandles = ({
   }
 
   const handleBase =
-    'pointer-events-auto absolute rounded-sm border border-border bg-muted/70 ' +
-    'transition-colors hover:bg-primary/70 focus-visible:bg-primary/70 ' +
-    'focus-visible:outline-none cursor-grab';
+    'pointer-events-auto absolute rounded-full bg-muted-foreground/25 shadow-sm ' +
+    'ring-1 ring-inset ring-border/50 transition-all duration-150 ' +
+    'hover:bg-primary hover:ring-primary hover:shadow focus-visible:bg-primary ' +
+    'focus-visible:outline-none cursor-grab active:cursor-grabbing';
 
   return (
     <div
