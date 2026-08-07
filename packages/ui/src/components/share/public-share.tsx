@@ -3,6 +3,7 @@
 // ABOUTME: read-only, and (when permission==='suggest') lets an identified
 // ABOUTME: visitor edit and submit a suggestion.
 import { Editor } from '@tiptap/core';
+import { Moon, Sun } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { RichTextContent } from '@colanode/core';
@@ -60,13 +61,48 @@ type Phase =
 const shareApiUrl = (token: string, path: string) =>
   `/share-api/${encodeURIComponent(token)}/${path}`;
 
-const PublicShell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-[100dvh] w-full overflow-y-auto bg-background text-foreground">
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-3xl flex-col px-5 py-8 sm:px-8">
-      {children}
+const PublicShell = ({ children }: { children: React.ReactNode }) => {
+  // Public pages default to LIGHT (readable for any visitor); a toggle lets the
+  // reader switch to dark, persisted per-browser. main.tsx already strips the
+  // dark class on boot, so the first paint is light with no flash.
+  const [dark, setDark] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('arribada-share-theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    const el = document.documentElement;
+    if (dark) {
+      el.classList.add('dark');
+    } else {
+      el.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('arribada-share-theme', dark ? 'dark' : 'light');
+    } catch {
+      // storage may be unavailable (private mode); the toggle still works live
+    }
+  }, [dark]);
+
+  return (
+    <div className="min-h-[100dvh] w-full overflow-y-auto bg-background text-foreground">
+      <button
+        type="button"
+        onClick={() => setDark((d) => !d)}
+        aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+        title={dark ? 'Switch to light' : 'Switch to dark'}
+        className="fixed right-3 top-3 z-50 rounded-md border border-border bg-background/80 p-2 text-muted-foreground shadow-sm backdrop-blur hover:text-foreground"
+      >
+        {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </button>
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-3xl flex-col px-5 py-8 sm:px-8">
+        {children}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const CenteredNotice = ({
   title,
