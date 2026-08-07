@@ -16,6 +16,7 @@ import {
   Split,
   Heading,
   Square,
+  Palette,
 } from 'lucide-react';
 
 import {
@@ -39,6 +40,7 @@ export const TableCellDropdownMenu = ({
   const textAlign = node.attrs.align ?? 'left';
   const backgroundColor = node.attrs.backgroundColor ?? 'default';
   const borderStyle = node.attrs.borderStyle ?? 'default';
+  const borderColor = node.attrs.borderColor ?? 'default';
 
   return (
     <DropdownMenu>
@@ -166,6 +168,42 @@ export const TableCellDropdownMenu = ({
                   {option.name}
                 </div>
                 {borderStyle === option.value && <Check className="size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="flex gap-2">
+            <Palette className="size-4 text-muted-foreground" />
+            Border color
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-48">
+            <DropdownMenuLabel>Border color</DropdownMenuLabel>
+            {editorColors.map((color) => (
+              <DropdownMenuItem
+                key={color.color}
+                onClick={() =>
+                  editor
+                    .chain()
+                    .focus()
+                    .setCellAttribute('borderColor', color.color)
+                    .run()
+                }
+                role="menuitemradio"
+                aria-checked={borderColor === color.color}
+                data-testid={`editor-table-dropdown-cell-border-color-${color.color}`}
+                className="flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-4 w-4 rounded-sm border-2"
+                    style={{
+                      borderColor: color.borderColorValue || 'var(--border)',
+                    }}
+                  />
+                  {color.name}
+                </div>
+                {borderColor === color.color && <Check className="size-4" />}
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>

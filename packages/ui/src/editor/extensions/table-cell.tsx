@@ -9,12 +9,15 @@ export const TableCellNode = TableCell.extend({
     return ReactNodeViewRenderer(TableCellNodeView, {
       as: 'td',
       className: defaultClasses.tableCellWrapper,
-      // Reflect the cell's borderStyle onto the host <td> as a data attribute
-      // (leaves the class list untouched). editor.css turns it into the matching
-      // border-style / width. Absent / 'default' keeps the built-in 1px border.
+      // Reflect the cell's borderStyle / borderColor onto the host <td> as data
+      // attributes (leaves the class list untouched). editor.css turns them into
+      // the matching border-style / width and border-color. Absent / 'default'
+      // keeps the built-in 1px border in its default color.
       attrs: ({ node }) => ({
         'data-border-style':
           (node.attrs.borderStyle as string | null) ?? 'default',
+        'data-border-color':
+          (node.attrs.borderColor as string | null) ?? 'default',
         // Apply the merge spans to the host cell so merged cells actually span
         // visually (the custom NodeView bypasses tiptap's default cell render).
         colspan: String((node.attrs.colspan as number | null) ?? 1),
@@ -54,6 +57,11 @@ export const TableCellNode = TableCell.extend({
         default: null,
         parseHTML: (element: HTMLElement) =>
           element.getAttribute('data-border-style'),
+      },
+      borderColor: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-border-color'),
       },
     };
   },

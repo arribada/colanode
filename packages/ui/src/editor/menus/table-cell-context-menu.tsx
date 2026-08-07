@@ -12,6 +12,7 @@ import {
   AlignJustify,
   Check,
   Square,
+  Palette,
   Combine,
   Split,
 } from 'lucide-react';
@@ -42,6 +43,7 @@ export const TableCellContextMenu = ({
   const textAlign = node.attrs.align ?? 'left';
   const backgroundColor = node.attrs.backgroundColor ?? 'default';
   const borderStyle = node.attrs.borderStyle ?? 'default';
+  const borderColor = node.attrs.borderColor ?? 'default';
 
   return (
     <ContextMenu>
@@ -174,6 +176,42 @@ export const TableCellContextMenu = ({
                   {option.name}
                 </div>
                 {borderStyle === option.value && <Check className="size-4" />}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger className="flex gap-2">
+            <Palette className="size-4 text-muted-foreground" />
+            Border color
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-48">
+            <ContextMenuLabel>Border color</ContextMenuLabel>
+            {editorColors.map((color) => (
+              <ContextMenuItem
+                key={color.color}
+                onSelect={() =>
+                  editor
+                    .chain()
+                    .focus()
+                    .setCellAttribute('borderColor', color.color)
+                    .run()
+                }
+                role="menuitemradio"
+                aria-checked={borderColor === color.color}
+                data-testid={`editor-table-cell-border-color-${color.color}`}
+                className="flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-4 w-4 rounded-sm border-2"
+                    style={{
+                      borderColor: color.borderColorValue || 'var(--border)',
+                    }}
+                  />
+                  {color.name}
+                </div>
+                {borderColor === color.color && <Check className="size-4" />}
               </ContextMenuItem>
             ))}
           </ContextMenuSubContent>

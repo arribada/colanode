@@ -150,6 +150,45 @@ th[data-border-style='bold'] {
   border-width: 2px;
 }
 
+/* Per-cell border COLOR, set from the table cell/header "Border color" submenu.
+   Same mechanism as border-style: the <td>/<th> carries data-border-color and
+   these attribute selectors (specificity 0,1,1) override the built-in border
+   color. Absent / "default" emits no rule, so the default border color stays.
+   Values mirror editorColors[].borderColorValue in packages/ui/src/lib/editor.ts
+   (Tailwind 500 shades — legible in both light and dark themes). */
+td[data-border-color='gray'],
+th[data-border-color='gray'] {
+  border-color: #6b7280;
+}
+td[data-border-color='orange'],
+th[data-border-color='orange'] {
+  border-color: #f97316;
+}
+td[data-border-color='yellow'],
+th[data-border-color='yellow'] {
+  border-color: #eab308;
+}
+td[data-border-color='green'],
+th[data-border-color='green'] {
+  border-color: #22c55e;
+}
+td[data-border-color='blue'],
+th[data-border-color='blue'] {
+  border-color: #3b82f6;
+}
+td[data-border-color='purple'],
+th[data-border-color='purple'] {
+  border-color: #a855f7;
+}
+td[data-border-color='pink'],
+th[data-border-color='pink'] {
+  border-color: #ec4899;
+}
+td[data-border-color='red'],
+th[data-border-color='red'] {
+  border-color: #ef4444;
+}
+
 
 /* Multi-cell selection highlight. ProseMirror's tableEditing plugin adds the
     class to every <td>/<th> in a CellSelection, but the fork had
