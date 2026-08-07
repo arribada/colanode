@@ -4,6 +4,7 @@ import { Lock } from 'lucide-react';
 
 import { cn } from '@colanode/ui/lib/utils';
 import { DocumentToc } from '@colanode/ui/components/documents/document-toc';
+import { DocumentReadingProgress } from '@colanode/ui/components/documents/document-reading-progress';
 
 import {
   EditorContent,
@@ -764,6 +765,9 @@ export const DocumentEditor = ({
       )}
       {isPage && showToc && editor && viewReady && (
         <DocumentToc editor={editor} />
+      )}
+      {isPage && editor && viewReady && (
+        <DocumentReadingProgress editor={editor} />
       )}
       <div
         className={cn(

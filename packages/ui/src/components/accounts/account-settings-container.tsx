@@ -1,4 +1,5 @@
 import { AccountDelete } from '@colanode/ui/components/accounts/account-delete';
+import { AccountPreferences } from '@colanode/ui/components/accounts/account-preferences';
 import { AccountResetLocalData } from '@colanode/ui/components/accounts/account-reset-local-data';
 import { AccountSettingsBreadcrumb } from '@colanode/ui/components/accounts/account-settings-breadcrumb';
 import { AccountUpdate } from '@colanode/ui/components/accounts/account-update';
@@ -15,6 +16,16 @@ export const AccountSettingsContainer = () => {
             <Separator className="mt-3" />
           </div>
           <AccountUpdate />
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Preferences
+            </h2>
+            <Separator className="mt-3" />
+          </div>
+          <AccountPreferences />
         </div>
 
         <div className="space-y-6">
