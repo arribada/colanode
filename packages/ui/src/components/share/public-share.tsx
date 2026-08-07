@@ -12,6 +12,7 @@ import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
 import { Label } from '@colanode/ui/components/ui/label';
 import { Spinner } from '@colanode/ui/components/ui/spinner';
+import { getThemeVariables } from '@colanode/ui/lib/themes';
 
 const PublicShareEditor = lazy(() =>
   import('@colanode/ui/editor/public/public-editor').then((module) => ({
@@ -74,13 +75,22 @@ const PublicShell = ({ children }: { children: React.ReactNode }) => {
   });
   useEffect(() => {
     const el = document.documentElement;
+    const mode = dark ? 'dark' : 'light';
     if (dark) {
       el.classList.add('dark');
     } else {
       el.classList.remove('dark');
     }
+    // The public page renders WITHOUT AppThemeProvider, so apply the full theme
+    // variable set inline here (exactly what the provider does). Otherwise only
+    // index.html's OS-driven --background/--foreground exist and the page is
+    // stuck on the visitor's OS theme regardless of this toggle.
+    const vars = getThemeVariables(mode, undefined);
+    for (const [key, value] of Object.entries(vars)) {
+      el.style.setProperty(key, value);
+    }
     try {
-      localStorage.setItem('arribada-share-theme', dark ? 'dark' : 'light');
+      localStorage.setItem('arribada-share-theme', mode);
     } catch {
       // storage may be unavailable (private mode); the toggle still works live
     }

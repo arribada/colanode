@@ -5,6 +5,7 @@ import { eventBus } from '@colanode/client/lib';
 import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
 import { BrowserNotSupported } from '@colanode/web/components/browser-not-supported';
 import { ColanodeWorkerApi } from '@colanode/web/lib/types';
+import { getThemeVariables } from '@colanode/ui/lib/themes';
 import { PublicShare } from '@colanode/ui/components/share/public-share';
 import { Toaster } from '@colanode/ui/components/ui/sonner';
 import { isOpfsSupported } from '@colanode/web/lib/utils';
@@ -44,9 +45,16 @@ const initializeApp = async () => {
     const token = decodeURIComponent(
       window.location.pathname.slice(sharePrefix.length).split('/')[0] ?? ''
     );
-    // Public share pages default to LIGHT (readable for any anonymous visitor);
-    // do not follow the OS dark preference here.
-    document.documentElement.classList.remove('dark');
+    // Public share pages default to LIGHT (readable for any anonymous visitor)
+    // and do not follow the OS dark preference. Apply the full light theme
+    // variables before first paint so there is no dark flash and every token
+    // (not just --background) is defined; PublicShell then honours the toggle.
+    const themeEl = document.documentElement;
+    themeEl.classList.remove('dark');
+    const lightVars = getThemeVariables('light', undefined);
+    for (const [key, value] of Object.entries(lightVars)) {
+      themeEl.style.setProperty(key, value);
+    }
     const shareRoot = createRoot(
       document.getElementById('root') as HTMLElement
     );
