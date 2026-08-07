@@ -127,14 +127,26 @@ export const PageShareDialog = ({
         toast.error(result.error.message ?? 'Could not create the link');
         return;
       }
-      const token = (result.output as { token: string }).token;
+      const output = result.output as { id: string; token: string };
+      const newShare: ShareItem = {
+        id: output.id,
+        token: output.token,
+        includeSubpages,
+        hasPassword: usePassword && password.length > 0,
+        expiresAt: expiryDays
+          ? new Date(Date.now() + expiryDays * 86400000).toISOString()
+          : null,
+        createdAt: new Date().toISOString(),
+      };
+      // Optimistically show the new link right away — a list read immediately
+      // after create can miss it (read-after-write lag) and show it as absent.
+      setShares((prev) => [newShare, ...prev]);
       await navigator.clipboard
-        ?.writeText(shareUrl(token))
+        ?.writeText(shareUrl(output.token))
         .catch(() => undefined);
       toast.success('Share link created and copied');
       setPassword('');
       setUsePassword(false);
-      await refresh();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Could not create the link'
@@ -155,9 +167,12 @@ export const PageShareDialog = ({
         shareId,
       });
     } catch {
+      // Only refresh on failure (to restore the row). On success we keep the
+      // optimistic removal — a list read right after delete can still return the
+      // revoked link and would make it reappear, forcing a second click.
       toast.error('Could not revoke the link');
+      await refresh();
     }
-    await refresh();
   };
 
   const copy = (token: string) => {
