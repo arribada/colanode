@@ -118,6 +118,25 @@ const sanitizeNode = (node: JSONContent): JSONContent | null => {
     return null;
   }
 
+  // Drop a bookmark whose url is not a plain web link. A public-share
+  // suggestion could smuggle a `javascript:` / `data:` bookmark that would run
+  // in the owner's authenticated session when the proposal is previewed; the
+  // node view guards the same thing, this is the belt-and-suspenders at parse
+  // time.
+  if (node.type === 'bookmark') {
+    const url =
+      typeof node.attrs?.url === 'string' ? (node.attrs.url as string) : '';
+    let safe = false;
+    try {
+      safe = /^https?:$/i.test(new URL(url).protocol);
+    } catch {
+      safe = false;
+    }
+    if (!safe) {
+      return null;
+    }
+  }
+
   const cleaned: JSONContent = { ...node };
 
   if (node.marks && node.marks.length > 0) {

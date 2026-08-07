@@ -52,6 +52,14 @@ export const BookmarkNodeView = ({
     ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
     : '';
 
+  // Scheme guard. A bookmark can arrive from an anonymous public-share
+  // suggestion; a `javascript:` / `data:` / `vbscript:` url would run in the
+  // owner's authenticated session the moment the card is previewed (and would
+  // persist on Accept). Only web + mail schemes are ever treated as links.
+  const isSafeUrl = parsed
+    ? /^(https?|mailto):$/i.test(parsed.protocol)
+    : !/^\s*(javascript|data|vbscript|file|blob):/i.test(url);
+
   if (!url) {
     if (!editable) {
       return (
@@ -87,6 +95,28 @@ export const BookmarkNodeView = ({
             }}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
+        </div>
+      </NodeViewWrapper>
+    );
+  }
+
+  if (!isSafeUrl) {
+    return (
+      <NodeViewWrapper data-type="bookmark">
+        <div
+          contentEditable={false}
+          className="my-1 flex select-none items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3"
+          title={url}
+        >
+          <Globe className="size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">
+              {title}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              Link hidden for safety
+            </p>
+          </div>
         </div>
       </NodeViewWrapper>
     );
