@@ -5,6 +5,8 @@ import { eventBus } from '@colanode/client/lib';
 import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
 import { BrowserNotSupported } from '@colanode/web/components/browser-not-supported';
 import { ColanodeWorkerApi } from '@colanode/web/lib/types';
+import { PublicShare } from '@colanode/ui/components/share/public-share';
+import { Toaster } from '@colanode/ui/components/ui/sonner';
 import { isOpfsSupported } from '@colanode/web/lib/utils';
 import { Root } from '@colanode/web/root';
 import {
@@ -33,6 +35,30 @@ const initializeApp = async () => {
   // packages/ui), so we no longer gate rendering on a user-agent check here.
   // OPFS is the only real hard requirement: the client engine needs it for
   // local storage/sync, and there is no fallback.
+  // Public share links (/share/<token>) render a STANDALONE, read-only viewer
+  // that talks only to /share-api over fetch — no local DB, dedicated worker or
+  // OPFS. Handle it BEFORE the OPFS gate so an external visitor (including a
+  // browser without OPFS, e.g. some private windows) can open a shared page.
+  const sharePrefix = '/share/';
+  if (window.location.pathname.startsWith(sharePrefix)) {
+    const token = decodeURIComponent(
+      window.location.pathname.slice(sharePrefix.length).split('/')[0] ?? ''
+    );
+    if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark');
+    }
+    const shareRoot = createRoot(
+      document.getElementById('root') as HTMLElement
+    );
+    shareRoot.render(
+      <AppErrorBoundary context="web-share">
+        <PublicShare token={token} />
+        <Toaster />
+      </AppErrorBoundary>
+    );
+    return;
+  }
+
   const hasOpfsSupport = await isOpfsSupported();
   if (!hasOpfsSupport) {
     const root = createRoot(document.getElementById('root') as HTMLElement);
