@@ -1,6 +1,11 @@
 import { PencilRuler } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@colanode/ui/components/ui/tooltip';
 import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
@@ -60,29 +65,43 @@ export const PageSuggestionsButton = ({
     return () => window.eventBus.unsubscribe(subscriptionId);
   }, [refresh]);
 
+  const hasPending = count > 0;
+
   return (
-    <button
-      type="button"
-      aria-label={isOpen ? 'Close suggestions' : 'Open suggestions'}
-      data-testid={`page-suggestions-button-${pageId}`}
-      className={cn(
-        'flex cursor-pointer flex-row items-center gap-1 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground',
-        isOpen && 'text-foreground'
-      )}
-      onClick={() => {
-        if (isOpen) {
-          closeSuggestions();
-        } else {
-          openSuggestions(pageId);
-        }
-      }}
-    >
-      <PencilRuler className="size-4" />
-      {count > 0 && (
-        <span className="rounded-full bg-amber-500 px-1.5 text-xs font-medium tabular-nums text-white">
-          {count}
-        </span>
-      )}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={isOpen ? 'Close suggestions' : 'Open suggestions'}
+          data-testid={`page-suggestions-button-${pageId}`}
+          className={cn(
+            'flex cursor-pointer flex-row items-center gap-1 rounded-md p-1 hover:bg-accent',
+            hasPending
+              ? 'text-amber-600 hover:text-amber-700'
+              : 'text-muted-foreground hover:text-foreground',
+            isOpen && 'bg-accent text-foreground'
+          )}
+          onClick={() => {
+            if (isOpen) {
+              closeSuggestions();
+            } else {
+              openSuggestions(pageId);
+            }
+          }}
+        >
+          <PencilRuler className="size-4" />
+          {hasPending && (
+            <span className="rounded-full bg-amber-500 px-1.5 text-xs font-medium tabular-nums text-white">
+              {count}
+            </span>
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {hasPending
+          ? `${count} proposed edit${count > 1 ? 's' : ''} from members/guests — click to review &amp; approve change by change`
+          : 'Proposed edits (from members or external guests)'}
+      </TooltipContent>
+    </Tooltip>
   );
 };

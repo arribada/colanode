@@ -81,7 +81,7 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
           {data.node.type === 'page' && (
             <PageCommentsButton pageId={data.node.id} />
           )}
-          {data.node.type === 'page' && (
+          {(data.node.type === 'page' || data.node.type === 'record') && (
             <PageSuggestionsButton pageId={data.node.id} />
           )}
           {(data.node.type === 'page' || data.node.type === 'record') && (
