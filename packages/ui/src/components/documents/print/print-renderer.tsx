@@ -67,7 +67,22 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
       if (cancelled) {
         return;
       }
-      const allReady = ids.every((id) => getDocumentExporter(id) !== null);
+      // Wait until each page's editor has actually LOADED its content (not just
+      // registered an empty exporter) — otherwise the off-screen editor is
+      // captured before its document renders and the PDF body comes out blank.
+      // A genuinely empty page never satisfies this and falls through to the
+      // timeout below (then exports empty, which is correct).
+      const allReady = ids.every((id) => {
+        const exporter = getDocumentExporter(id);
+        if (!exporter) {
+          return false;
+        }
+        try {
+          return exporter.getMarkdown().trim().length > 0;
+        } catch {
+          return false;
+        }
+      });
       const elapsed = Date.now() - start;
       if (allReady || elapsed > 8000) {
         // Let async content (mermaid / KaTeX / database embeds) settle.
