@@ -399,7 +399,13 @@ const ReadyView = ({
         editor.getJSON().content ?? [],
         new Map()
       );
-      const response = await fetch(shareApiUrl(token, 'suggest'), {
+      // On a password-protected share, prove the unlock by echoing the
+      // password-derived key the server handed us at unlock time (data.imageKey
+      // is only non-null once unlocked); the server requires it on /suggest.
+      const suggestPath = data.imageKey
+        ? `suggest?k=${encodeURIComponent(data.imageKey)}`
+        : 'suggest';
+      const response = await fetch(shareApiUrl(token, suggestPath), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

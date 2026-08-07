@@ -61,3 +61,34 @@ export const isDeviceSocketRateLimited = async (
     window: 60, // 1 minute
   });
 };
+
+// Public share endpoints have no account, so they are keyed by IP. Same Redis
+// mechanism as the auth limits above.
+export const isShareUnlockRateLimited = async (
+  ip: string
+): Promise<boolean> => {
+  // Tight: /unlock runs argon2 verify (CPU-heavy) and is the password
+  // brute-force surface, so keep it to a handful per minute per IP.
+  return await isRateLimited(`su:${ip}`, {
+    limit: 10,
+    window: 60, // 1 minute
+  });
+};
+
+export const isShareSuggestRateLimited = async (
+  ip: string
+): Promise<boolean> => {
+  // Looser: guards suggestion DB / notification flooding.
+  return await isRateLimited(`ss:${ip}`, {
+    limit: 30,
+    window: 60, // 1 minute
+  });
+};
+
+export const isShareDataRateLimited = async (ip: string): Promise<boolean> => {
+  // Generous: one request per share page load; a sane ceiling on abuse.
+  return await isRateLimited(`sd:${ip}`, {
+    limit: 120,
+    window: 60, // 1 minute
+  });
+};

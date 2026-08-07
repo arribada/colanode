@@ -4,6 +4,11 @@ import { FastifyPluginCallback } from 'fastify';
 
 import { verifyPassword } from '@colanode/server/lib/accounts';
 import {
+  isShareDataRateLimited,
+  isShareSuggestRateLimited,
+  isShareUnlockRateLimited,
+} from '@colanode/server/lib/rate-limits';
+import {
   createSuggestion,
   getShareByToken,
   getShareData,
@@ -16,6 +21,9 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
   instance.get('/share-api/:token/data', async (request, reply) => {
+    if (await isShareDataRateLimited(request.client.ip)) {
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
     const token = (request.params as { token: string }).token;
     const share = await getShareByToken(token);
     if (!share || !isShareLive(share)) {
@@ -32,6 +40,11 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
   });
 
   instance.post('/share-api/:token/unlock', async (request, reply) => {
+    // Tight per-IP limit: /unlock runs argon2 verify (CPU-heavy) and is the
+    // password brute-force surface, so cap attempts hard.
+    if (await isShareUnlockRateLimited(request.client.ip)) {
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
     const token = (request.params as { token: string }).token;
     const body = (request.body ?? {}) as { password?: string };
     const share = await getShareByToken(token);
@@ -54,6 +67,10 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
   });
 
   instance.post('/share-api/:token/suggest', async (request, reply) => {
+    // Looser per-IP limit: guards against suggestion DB / notification flooding.
+    if (await isShareSuggestRateLimited(request.client.ip)) {
+      return reply.code(429).send({ success: false });
+    }
     const token = (request.params as { token: string }).token;
     const body = (request.body ?? {}) as {
       firstName?: string;
@@ -66,6 +83,16 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
     const share = await getShareByToken(token);
     if (!share || !isShareLive(share) || share.permission !== 'suggest') {
       return reply.code(404).send({ success: false });
+    }
+    // Password gate: a password-protected share must not accept suggestions
+    // from someone holding only the token. Reuse the password-derived image key
+    // (handed out by /unlock AFTER the password is verified) as ?k= rather than
+    // re-running argon2 on this flooding-prone path — same mechanism as /files.
+    if (share.password_hash) {
+      const providedKey = (request.query as { k?: string }).k;
+      if (!providedKey || providedKey !== getShareImageKey(share)) {
+        return reply.code(404).send({ success: false });
+      }
     }
     const firstName = (body.firstName ?? '').trim();
     const lastName = (body.lastName ?? '').trim();

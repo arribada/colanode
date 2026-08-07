@@ -222,8 +222,22 @@ export const getShareFile = async (
 
   // Subtree authorization — the shared node must be the file itself or one of
   // its ancestors.
-  if (!nodes.some((node) => node.id === share.node_id)) {
+  const shareIndex = nodes.findIndex((node) => node.id === share.node_id);
+  if (shareIndex === -1) {
     return null;
+  }
+
+  // Honor include_subpages: when sub-pages are NOT shared, only the shared
+  // node's OWN embedded files are exposed. A file separated from the shared
+  // node by a descendant sub-page (a 'page' node between the shared node and
+  // the file in the ancestor chain) belongs to a page that was deliberately
+  // not shared, so refuse it — otherwise its assets leak through this endpoint
+  // even though that sub-page is never rendered.
+  if (!share.include_subpages) {
+    const intervening = nodes.slice(shareIndex + 1, nodes.length - 1);
+    if (intervening.some((node) => node.type === 'page')) {
+      return null;
+    }
   }
 
   const upload = await database
