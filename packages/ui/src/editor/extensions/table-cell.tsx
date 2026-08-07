@@ -22,6 +22,9 @@ export const TableCellNode = TableCell.extend({
         // visually (the custom NodeView bypasses tiptap's default cell render).
         colspan: String((node.attrs.colspan as number | null) ?? 1),
         rowspan: String((node.attrs.rowspan as number | null) ?? 1),
+        'data-valign': (node.attrs.valign as string | null) ?? 'middle',
+        'data-number-format':
+          (node.attrs.numberFormat as string | null) ?? 'none',
       }),
     });
   },
@@ -62,6 +65,16 @@ export const TableCellNode = TableCell.extend({
         default: null,
         parseHTML: (element: HTMLElement) =>
           element.getAttribute('data-border-color'),
+      },
+      valign: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-valign'),
+      },
+      numberFormat: {
+        default: null,
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute('data-number-format'),
       },
     };
   },

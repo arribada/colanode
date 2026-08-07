@@ -20,7 +20,11 @@ interface TableCellAttrs {
   rowspan: number;
   colwidth: number[] | null;
   align?: 'left' | 'center' | 'right';
+  valign?: 'top' | 'middle' | 'bottom';
   backgroundColor?: string;
+  borderStyle?: string;
+  borderColor?: string;
+  numberFormat?: string;
 }
 
 const leafBlockTypes = new Set([

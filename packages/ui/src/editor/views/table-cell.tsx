@@ -37,6 +37,14 @@ export const TableCellNodeView = (props: NodeViewProps) => {
       ? colwidthAttr
       : 100;
   const align = props.node.attrs.align;
+  const valign = props.node.attrs.valign;
+  const colspan = Number(props.node.attrs.colspan) || 1;
+  const rowspan = Number(props.node.attrs.rowspan) || 1;
+  // A merged cell must fill the <td> that already spans several columns
+  // (the browser handles the span via colspan/rowspan); forcing a single
+  // column's fixed width is exactly what made merges render misaligned.
+  const isMerged = colspan > 1 || rowspan > 1;
+  const cellWidth = isMerged ? '100%' : `${colWidth}px`;
   const backgroundColor = editorColors.find(
     (color) => color.color === props.node.attrs.backgroundColor
   );
@@ -52,22 +60,25 @@ export const TableCellNodeView = (props: NodeViewProps) => {
             backgroundColor?.bgClass,
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',
-            align === 'right' && 'justify-end'
+            align === 'right' && 'justify-end',
+            valign === 'top' && 'items-start',
+            valign === 'middle' && 'items-center',
+            valign === 'bottom' && 'items-end'
           )}
           defaultSize={{
-            width: `${colWidth}px`,
+            width: cellWidth,
           }}
           minWidth={100}
           maxWidth={500}
           size={{
-            width: `${colWidth}px`,
+            width: cellWidth,
           }}
           enable={{
             bottom: false,
             bottomLeft: false,
             bottomRight: false,
             left: false,
-            right: !isActive,
+            right: !isActive && !isMerged,
             top: false,
             topLeft: false,
             topRight: false,
