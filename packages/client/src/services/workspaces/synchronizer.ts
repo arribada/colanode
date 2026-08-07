@@ -18,6 +18,16 @@ export type SynchronizerStatus = 'idle' | 'waiting' | 'processing';
 
 const debug = createDebugger('desktop:synchronizer');
 
+// How many revisions the self-healing re-sync rewinds its cursor on each
+// pass. `revision` is assigned at INSERT but rows commit out of order, so a
+// writer that took a low revision yet committed late can land BELOW a cursor
+// that already advanced past it -- `revision > cursor` then never returns it
+// and the update is silently dropped from this client. Rewinding by a bounded
+// window and re-pulling recovers it; every row re-pulled is re-applied
+// idempotently, so this only needs to exceed the realistic number of
+// concurrent commits during one slow transaction.
+const HEAL_LOOKBACK = 200n;
+
 export class Synchronizer<TInput extends SynchronizerInput> {
   private readonly id: string;
   private readonly input: TInput;
@@ -44,13 +54,17 @@ export class Synchronizer<TInput extends SynchronizerInput> {
   private status: SynchronizerStatus = 'idle';
   private cursor: string = '0';
   private initialized: boolean = false;
+  private readonly healable: boolean;
+  private healLoop: EventLoop | null = null;
+  private healing: boolean = false;
 
   constructor(
     workspace: WorkspaceService,
     input: TInput,
     cursorKey: string,
     processor: (data: SynchronizerMap[TInput['type']]['data']) => Promise<void>,
-    canPull?: () => boolean
+    canPull?: () => boolean,
+    healable: boolean = false
   ) {
     this.workspace = workspace;
     this.connection = workspace.account.socket;
@@ -59,6 +73,7 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     this.id = this.generateId();
     this.processor = processor;
     this.canPull = canPull;
+    this.healable = healable;
 
     this.eventLoop = new EventLoop(
       ms('1 minute'),
@@ -77,6 +92,7 @@ export class Synchronizer<TInput extends SynchronizerInput> {
         event.accountId === this.workspace.account.id
       ) {
         this.eventLoop.trigger();
+        this.healLoop?.trigger();
       } else if (
         event.type === 'account.connection.closed' &&
         event.accountId === this.workspace.account.id
@@ -92,6 +108,14 @@ export class Synchronizer<TInput extends SynchronizerInput> {
     this.cursor = await this.fetchCursor();
     this.initConsumer();
     this.eventLoop.start();
+    if (this.healable) {
+      this.healLoop = new EventLoop(
+        ms('3 minutes'),
+        ms('10 seconds'),
+        this.heal.bind(this)
+      );
+      this.healLoop.start();
+    }
     this.initialized = true;
   }
 
@@ -139,7 +163,9 @@ export class Synchronizer<TInput extends SynchronizerInput> {
       // Best-effort progress signal for the UI's "Synchronisation..."
       // indicator -- fire only when something was actually applied so an
       // empty poll (caught up, nothing new) doesn't look like activity.
-      if (processedCount > 0) {
+      const wasHealing = this.healing;
+      this.healing = false;
+      if (processedCount > 0 && !wasHealing) {
         eventBus.publish({
           type: 'workspace.sync.progress',
           workspace: {
@@ -230,6 +256,8 @@ export class Synchronizer<TInput extends SynchronizerInput> {
 
   public destroy() {
     this.eventLoop.stop();
+    this.healLoop?.stop();
+    this.healLoop = null;
     eventBus.unsubscribe(this.eventSubscriptionId);
   }
 
@@ -240,6 +268,34 @@ export class Synchronizer<TInput extends SynchronizerInput> {
       .deleteFrom('cursors')
       .where('key', '=', this.cursorKey)
       .execute();
+  }
+
+  // Periodic self-healing re-sync: rewind the cursor by a bounded window and
+  // re-pull so an out-of-order commit that slipped below the cursor gets
+  // delivered. Safe ONLY for streams whose re-apply is side-effect-free --
+  // documents are CRDT merges and tombstones are guarded idempotent deletes.
+  // It is deliberately NOT enabled for node updates, whose re-delivery after a
+  // delete would resurrect the node.
+  private heal() {
+    if (!this.healable || this.status !== 'idle') {
+      return;
+    }
+    if (!this.connection.isConnected()) {
+      return;
+    }
+
+    const current = BigInt(this.cursor);
+    if (current <= 0n) {
+      return;
+    }
+
+    const rewound = current > HEAL_LOOKBACK ? current - HEAL_LOOKBACK : 0n;
+    // Only rewind the in-memory cursor; the re-pull re-advances it and
+    // saveCursor persists the new high-water mark, so an interrupted heal never
+    // leaves a regressed persisted cursor.
+    this.healing = true;
+    this.cursor = rewound.toString();
+    this.initConsumer();
   }
 
   private generateId() {

@@ -284,14 +284,16 @@ export class SyncService {
         { type: 'node.tombstones', rootId },
         `${rootId}.node.tombstones`,
         this.syncHandlers.nodeTombstones,
-        canPull
+        canPull,
+        true
       ),
       documentUpdates: new Synchronizer(
         this.workspace,
         { type: 'document.updates', rootId },
         `${rootId}.document.updates`,
         this.syncHandlers.documentUpdates,
-        canPull
+        canPull,
+        true
       ),
     };
 

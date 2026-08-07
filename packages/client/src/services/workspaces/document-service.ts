@@ -733,6 +733,14 @@ export class DocumentService {
       extractBlocksMentions(data.documentId, content.blocks) ?? [];
     const mentionChanges = checkMentionChanges(beforeMentions, afterMentions);
 
+    // Idempotent short-circuit: if applying this update leaves the materialized
+    // content identical to what is already stored, it adds nothing new -- e.g.
+    // the periodic healing re-sync re-delivering an update we already applied.
+    // Skip the write entirely so a heal that finds nothing missing costs nothing.
+    if (document && JSON.stringify(content) === document.content) {
+      return true;
+    }
+
     if (document) {
       const {
         updatedDocument,
