@@ -45,14 +45,28 @@ const initializeApp = async () => {
     const token = decodeURIComponent(
       window.location.pathname.slice(sharePrefix.length).split('/')[0] ?? ''
     );
-    // Public share pages default to LIGHT (readable for any anonymous visitor)
-    // and do not follow the OS dark preference. Apply the full light theme
-    // variables before first paint so there is no dark flash and every token
-    // (not just --background) is defined; PublicShell then honours the toggle.
+    // Public share pages don't follow the OS dark preference; they honour the
+    // reader's OWN persisted choice (arribada-share-theme — the same key
+    // PublicShell writes), defaulting to LIGHT when unset. Apply the full theme
+    // variables + dark class before first paint so a reader who picked dark gets
+    // no light flash on each load, and every token (not just --background) is
+    // defined; PublicShell then keeps the toggle in sync.
     const themeEl = document.documentElement;
-    themeEl.classList.remove('dark');
-    const lightVars = getThemeVariables('light', undefined);
-    for (const [key, value] of Object.entries(lightVars)) {
+    let shareMode: 'light' | 'dark' = 'light';
+    try {
+      if (localStorage.getItem('arribada-share-theme') === 'dark') {
+        shareMode = 'dark';
+      }
+    } catch {
+      // localStorage may be unavailable (e.g. private windows) → default light
+    }
+    if (shareMode === 'dark') {
+      themeEl.classList.add('dark');
+    } else {
+      themeEl.classList.remove('dark');
+    }
+    const shareVars = getThemeVariables(shareMode, undefined);
+    for (const [key, value] of Object.entries(shareVars)) {
       themeEl.style.setProperty(key, value);
     }
     const shareRoot = createRoot(
