@@ -737,7 +737,11 @@ export class DocumentService {
     // content identical to what is already stored, it adds nothing new -- e.g.
     // the periodic healing re-sync re-delivering an update we already applied.
     // Skip the write entirely so a heal that finds nothing missing costs nothing.
-    if (document && JSON.stringify(content) === document.content) {
+    if (
+      document &&
+      JSON.stringify(content) === document.content &&
+      !documentUpdates.some((update) => updatesToDelete.includes(update.id))
+    ) {
       return true;
     }
 
