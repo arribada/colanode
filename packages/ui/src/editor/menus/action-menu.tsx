@@ -24,6 +24,7 @@ import {
   Pilcrow,
   Plus,
   Quote,
+  Sparkles,
   Trash2,
   Type,
 } from 'lucide-react';
@@ -31,17 +32,20 @@ import { useState, useEffect, useRef } from 'react';
 
 import { findBlockFromPos, isDescendantNode } from '@colanode/client/lib';
 import { generateId, IdType } from '@colanode/core';
+import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -51,6 +55,13 @@ interface ActionMenuProps {
   // block menu offers "Comment" / "Suggest edit" wired to the same panels.
   onAddComment?: (threadId: string) => void;
   onSuggestEdit?: (blockId: string) => void;
+  // The requesting user's id. When present an "Ask AI" item is shown; it opens
+  // the same wiki-agent prompt as the toolbar's AI button and the /ai command.
+  userId?: string;
+  // The node id of the page/record being edited. Used to build the "Copy link
+  // to block" link (page-level, since blocks have no standalone anchor) and to
+  // anchor the AI prompt to this page.
+  pageId?: string;
 }
 
 const LEFT_MARGIN = 45;
@@ -67,6 +78,8 @@ export const ActionMenu = ({
   editor,
   onAddComment,
   onSuggestEdit,
+  userId,
+  pageId,
 }: ActionMenuProps) => {
   // Do NOT read editor.view during render: @tiptap/react v3 creates the view
   // asynchronously, so editor.view can throw "editor view is not available"
@@ -503,6 +516,31 @@ export const ActionMenu = ({
     }
   };
 
+  // Ask AI about this block: select the block's text and open the same wiki
+  // agent prompt the toolbar's AI button and the /ai slash command use
+  // (published to the <AiSlashPrompt/> mounted alongside this menu). The prompt
+  // reads the text preceding insertPos as grounding and drops any answer there.
+  const askAi = () => {
+    if (!userId) {
+      return;
+    }
+
+    const range = blockTextRange();
+    const insertPos =
+      range?.to ??
+      (menuState.pos !== undefined && menuState.pmNode
+        ? menuState.pos + menuState.pmNode.nodeSize - 1
+        : editor.state.selection.from);
+
+    editor.chain().setTextSelection(insertPos).focus().run();
+    openAiPrompt({
+      editor,
+      insertPos,
+      userId,
+      pageId: pageId ?? null,
+    });
+  };
+
   return (
     <FloatingPortal>
       <div
@@ -601,7 +639,7 @@ export const ActionMenu = ({
           <DropdownMenuContent
             align="start"
             side="bottom"
-            className="w-48"
+            className="w-64"
             onCloseAutoFocus={(event) => {
               // Return focus to the editor (not the hover-only grip) on Escape,
               // item selection, or dismiss.
@@ -772,13 +810,37 @@ export const ActionMenu = ({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
+            {canTurnInto && <DropdownMenuSeparator />}
+            {pageId && (
+              <CopyLinkAction
+                nodeId={pageId}
+                item={DropdownMenuItem}
+                label="Copy link to block"
+                shortcut={
+                  <DropdownMenuShortcut>Alt+Shift+L</DropdownMenuShortcut>
+                }
+              />
+            )}
             <DropdownMenuItem
               data-testid="editor-action-menu-duplicate"
               onClick={duplicateBlock}
             >
               <Copy className="size-4" />
               Duplicate
+              <DropdownMenuShortcut>Ctrl+D</DropdownMenuShortcut>
             </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="editor-action-menu-delete"
+              onClick={deleteBlock}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="size-4" />
+              Delete
+              <DropdownMenuShortcut>Del</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            {(onAddComment || onSuggestEdit || userId) && (
+              <DropdownMenuSeparator />
+            )}
             {onAddComment && (
               <DropdownMenuItem
                 data-testid="editor-action-menu-comment"
@@ -786,6 +848,7 @@ export const ActionMenu = ({
               >
                 <MessageSquarePlus className="size-4" />
                 Comment
+                <DropdownMenuShortcut>Ctrl+Shift+M</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
             {onSuggestEdit && (
@@ -795,17 +858,19 @@ export const ActionMenu = ({
               >
                 <PencilLine className="size-4" />
                 Suggest edit
+                <DropdownMenuShortcut>Ctrl+Shift+Alt+X</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              data-testid="editor-action-menu-delete"
-              onClick={deleteBlock}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="size-4" />
-              Delete
-            </DropdownMenuItem>
+            {userId && (
+              <DropdownMenuItem
+                data-testid="editor-action-menu-ask-ai"
+                onClick={askAi}
+              >
+                <Sparkles className="size-4" />
+                Ask AI
+                <DropdownMenuShortcut>Ctrl+J</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

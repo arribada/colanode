@@ -741,6 +741,8 @@ export const DocumentEditor = ({
             <Fragment>
               <ActionMenu
                 editor={editor}
+                userId={workspace.userId}
+                pageId={node.id}
                 onAddComment={
                   isPage
                     ? (threadId) => openComments(node.id, threadId)

@@ -18,6 +18,9 @@ interface CopyLinkActionProps {
   nodeId: string;
   item: ComponentType<CopyLinkMenuItemProps>;
   label?: string;
+  // Optional trailing node (e.g. a <DropdownMenuShortcut>) pushed to the right
+  // of the label; menu-agnostic, so the caller owns its styling.
+  shortcut?: ReactNode;
 }
 
 // The path is always /{workspaceId}/{nodeId}, stable across users. The origin is
@@ -29,6 +32,7 @@ export const CopyLinkAction = ({
   nodeId,
   item: MenuItem,
   label = 'Copy link',
+  shortcut,
 }: CopyLinkActionProps) => {
   const workspace = useWorkspace();
 
@@ -55,6 +59,7 @@ export const CopyLinkAction = ({
     >
       <Link2 className="size-4" />
       {label}
+      {shortcut}
     </MenuItem>
   );
 };
