@@ -149,3 +149,24 @@ th[data-border-style='bold'] {
   border-style: solid;
   border-width: 2px;
 }
+
+
+/* Multi-cell selection highlight. ProseMirror's tableEditing plugin adds the
+    class to every <td>/<th> in a CellSelection, but the fork had
+   NO rule for it, so dragging across cells produced an invisible selection. The
+   cell content lives inside a re-resizable wrapper (with its own background), so
+   the overlay needs a z-index to paint above it and pointer-events:none so it
+   never swallows the drag that extends the selection. */
+.ProseMirror td.selectedCell,
+.ProseMirror th.selectedCell {
+  position: relative;
+}
+.ProseMirror td.selectedCell::after,
+.ProseMirror th.selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background: rgba(59, 130, 246, 0.22);
+}
