@@ -28,7 +28,8 @@ const BASE_CSS = `
   .print-root { padding: 8px 4px; max-width: 860px; margin: 0 auto; }
   img, svg, canvas { max-width: 100%; height: auto; }
   table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+  th, td { border: 1px solid #9ca3af; padding: 6px 10px; text-align: left; }
+  th { background: #f3f4f6; }
   pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   pre { white-space: pre-wrap; word-wrap: break-word; background: #f3f4f6; padding: 10px; border-radius: 6px; }
   blockquote { margin: 0; padding-left: 12px; border-left: 3px solid #d1d5db; color: #4b5563; }
