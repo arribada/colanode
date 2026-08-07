@@ -178,7 +178,9 @@ export class SyncService {
         this.workspace,
         { type: 'collaborations' },
         'collaborations',
-        this.syncHandlers.collaborations
+        this.syncHandlers.collaborations,
+        undefined,
+        true
       );
 
       await this.collaborationSynchronizer.init();
@@ -263,7 +265,8 @@ export class SyncService {
         { type: 'node.updates', rootId },
         `${rootId}.node.updates`,
         this.syncHandlers.nodeUpdates,
-        canPull
+        canPull,
+        true
       ),
       nodeInteractions: new Synchronizer(
         this.workspace,

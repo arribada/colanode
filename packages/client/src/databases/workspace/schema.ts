@@ -213,6 +213,17 @@ export type SelectTombsonte = Selectable<TombstoneTable>;
 export type CreateTombstone = Insertable<TombstoneTable>;
 export type UpdateTombstone = Updateable<TombstoneTable>;
 
+interface NodeTombstoneTable {
+  id: ColumnType<string, string, never>;
+  root_id: ColumnType<string, string, string>;
+  revision: ColumnType<string, string, string>;
+  created_at: ColumnType<string, string, string>;
+}
+
+export type SelectNodeTombstone = Selectable<NodeTombstoneTable>;
+export type CreateNodeTombstone = Insertable<NodeTombstoneTable>;
+export type UpdateNodeTombstone = Updateable<NodeTombstoneTable>;
+
 interface CursorTable {
   key: ColumnType<string, string, never>;
   value: ColumnType<string, string, string>;
@@ -341,6 +352,7 @@ export interface WorkspaceDatabaseSchema {
   downloads: DownloadTable;
   mutations: MutationTable;
   tombstones: TombstoneTable;
+  node_tombstones: NodeTombstoneTable;
   cursors: CursorTable;
   notifications: NotificationTable;
   notification_mutes: NotificationMuteTable;

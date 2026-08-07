@@ -39,6 +39,21 @@ export class CollaborationService {
       `Applying server collaboration: ${collaboration.nodeId} for workspace ${this.workspace.workspaceId}`
     );
 
+    // Ignore a stale re-delivery (e.g. from the healing re-sync): if we already
+    // hold this revision or newer, re-running the delete side-effects below
+    // would wrongly wipe a space whose access was re-granted after this row.
+    const existingCollaboration = await this.workspace.database
+      .selectFrom('collaborations')
+      .select('revision')
+      .where('node_id', '=', collaboration.nodeId)
+      .executeTakeFirst();
+    if (
+      existingCollaboration &&
+      BigInt(existingCollaboration.revision) >= BigInt(collaboration.revision)
+    ) {
+      return;
+    }
+
     const upsertedCollaboration = await this.workspace.database
       .insertInto('collaborations')
       .returningAll()

@@ -23,6 +23,7 @@ import { createDownloadsTable } from './00020-create-downloads-table';
 import { createNotificationsTable } from './00021-create-notifications-table';
 import { createNotificationMutesTable } from './00022-create-notification-mutes-table';
 import { recreateFtsTablesNonContentless } from './00023-recreate-fts-tables';
+import { createNodeTombstonesTable } from './00024-create-node-tombstones-table';
 
 export const workspaceDatabaseMigrations: Record<string, Migration> = {
   '00001-create-users-table': createUsersTable,
@@ -48,4 +49,5 @@ export const workspaceDatabaseMigrations: Record<string, Migration> = {
   '00021-create-notifications-table': createNotificationsTable,
   '00022-create-notification-mutes-table': createNotificationMutesTable,
   '00023-recreate-fts-tables': recreateFtsTablesNonContentless,
+  '00024-create-node-tombstones-table': createNodeTombstonesTable,
 };

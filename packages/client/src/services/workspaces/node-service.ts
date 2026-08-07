@@ -1035,6 +1035,23 @@ export class NodeService {
   private async tryCreateServerNode(
     update: SyncNodeUpdateData
   ): Promise<boolean> {
+    // Resurrection guard: the healing re-sync (or any cursor rewind) can
+    // re-deliver an OLD update for a node that has since been deleted. Creating
+    // it here would bring the node back from the dead, so if we hold a tombstone
+    // newer than this update, drop it.
+    const nodeTombstone = await this.workspace.database
+      .selectFrom('node_tombstones')
+      .select('revision')
+      .where('id', '=', update.nodeId)
+      .executeTakeFirst();
+    if (
+      nodeTombstone &&
+      BigInt(nodeTombstone.revision) > BigInt(update.revision)
+    ) {
+      debug(`Skipping recreate of deleted node ${update.nodeId}`);
+      return true;
+    }
+
     const ydoc = new YDoc(update.data);
     const attributes = ydoc.getObject<NodeAttributes>();
 
@@ -1193,6 +1210,26 @@ export class NodeService {
     const mergedUpdateIds = update.mergedUpdates?.map((u) => u.id) ?? [];
     const updatesToDelete = [update.id, ...mergedUpdateIds];
 
+    // A re-delivered update (e.g. from the healing re-sync) whose data is
+    // already merged in leaves the attributes unchanged and has no local
+    // pending row to clear -- skip the write entirely so heal costs nothing.
+    const contentChanged =
+      JSON.stringify(attributes) !== existingNode.attributes;
+    const hasPendingUpdate = nodeUpdates.some((nodeUpdate) =>
+      updatesToDelete.includes(nodeUpdate.id)
+    );
+    if (!contentChanged && !hasPendingUpdate) {
+      return true;
+    }
+
+    // Metadata (root_id, updated_at/by, server_revision) only advances for an
+    // update NEWER than what we already applied. Healing content from an OLD
+    // re-delivered update merges its Yjs data (above) WITHOUT rolling back the
+    // row's root_id -- otherwise re-applying a pre-move update would yank a
+    // cross-space-moved node back to its old space.
+    const advancesMetadata =
+      BigInt(update.revision) > BigInt(existingNode.server_revision);
+
     const { updatedNode, createdNodeReferences, deletedNodeReferences } =
       await this.workspace.database.transaction().execute(async (trx) => {
         const updatedNode = await trx
@@ -1204,12 +1241,18 @@ export class NodeService {
             // carrying its new rootId. Applying it keyed by node id relocates the
             // single local row in place — no delete/re-create, so a client that
             // can see both spaces never blinks the node out of existence.
-            root_id: update.rootId,
+            root_id: advancesMetadata ? update.rootId : existingNode.root_id,
             attributes: JSON.stringify(attributes),
-            updated_at: update.createdAt,
-            updated_by: update.createdBy,
+            updated_at: advancesMetadata
+              ? update.createdAt
+              : existingNode.updated_at,
+            updated_by: advancesMetadata
+              ? update.createdBy
+              : existingNode.updated_by,
             local_revision: localRevision.toString(),
-            server_revision: update.revision,
+            server_revision: advancesMetadata
+              ? update.revision
+              : existingNode.server_revision,
           })
           .where('id', '=', existingNode.id)
           .where('local_revision', '=', existingNode.local_revision)
@@ -1328,6 +1371,30 @@ export class NodeService {
     const { deletedNode, deletedCollaborations } = await this.workspace.database
       .transaction()
       .execute(async (trx) => {
+        // Persist the tombstone durably (idempotent, keep the newest revision)
+        // BEFORE touching the node and regardless of whether a local row exists,
+        // so a later re-delivered update for this node (e.g. from the healing
+        // re-sync) is recognized as deleted and not resurrected.
+        await trx
+          .insertInto('node_tombstones')
+          .values({
+            id: tombstone.id,
+            root_id: tombstone.rootId,
+            revision: tombstone.revision,
+            created_at: tombstone.deletedAt,
+          })
+          .onConflict((oc) =>
+            oc
+              .column('id')
+              .doUpdateSet({
+                root_id: tombstone.rootId,
+                revision: tombstone.revision,
+                created_at: tombstone.deletedAt,
+              })
+              .where('revision', '<', tombstone.revision)
+          )
+          .execute();
+
         // Root-guard the delete. A cross-space move emits a tombstone in the OLD
         // root so a user who can see only that space drops the node. A user who
         // can see BOTH spaces has already relocated their local copy to the new
