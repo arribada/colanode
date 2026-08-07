@@ -9,6 +9,7 @@ import {
 } from '@colanode/ui/components/ui/tooltip';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableHandles } from '@colanode/ui/editor/views/table-handles';
+import { TableSelectionToolbar } from '@colanode/ui/editor/views/table-selection-toolbar';
 
 export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
   const [isSideHovered, setIsSideHovered] = useState(false);
@@ -114,6 +115,7 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
       onMouseLeave={handleMouseLeave}
     >
       <div className="relative" ref={relativeRef}>
+        <TableSelectionToolbar editor={editor} getPos={getPos} />
         <NodeViewContent<'table'> as="table" className={defaultClasses.table} />
         <TableHandles
           editor={editor}
