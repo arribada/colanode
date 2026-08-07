@@ -152,3 +152,53 @@ export const extractBlockSubtree = (
 
   return { type: 'rich_text', blocks: subtree };
 };
+
+// Wrap a SINGLE table row in a synthetic one-row table so it can be rendered on
+// its own. A bare `tableRow` has no `<table>` ancestor in the public editor's
+// ProseMirror schema and therefore will not render; the synthetic wrapper gives
+// it one. The wrapper table:
+//   - gets a clearly-synthetic id (prefix `synthetic-table-`): real block ids are
+//     `ulid().toLowerCase()` + a 2-char type suffix (lowercase base32, no hyphens),
+//     so this can never collide with a real id;
+//   - is parented to `nodeId` (the document), so it is the sole block whose parent
+//     is not itself a block — `findRootParentId` re-roots there and
+//     `buildEditorContent(nodeId, …)` emits `<doc><table><tr>…`;
+//   - copies the real table's `attrs` so table-level rendering matches.
+// The row is re-parented to the synthetic table; its full cell/content subtree
+// (tableCell / tableHeader with colspan / rowspan / colwidth / align /
+// backgroundColor / borderStyle attrs, and every descendant) is copied UNCHANGED,
+// so cells render correctly.
+export const wrapRowInSyntheticTable = (
+  nodeId: string,
+  content: RichTextContent,
+  table: Block,
+  rowId: string
+): RichTextContent | null => {
+  const blocks = content.blocks ?? {};
+  const row = blocks[rowId];
+  if (!row) {
+    return null;
+  }
+
+  const syntheticTableId = `synthetic-table-${rowId}`;
+
+  const subtree: Record<string, Block> = {
+    [syntheticTableId]: { ...table, id: syntheticTableId, parentId: nodeId },
+    [rowId]: { ...row, parentId: syntheticTableId },
+  };
+
+  // Copy the row's descendants (cells -> their content -> …) verbatim.
+  let frontier = [rowId];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    for (const block of Object.values(blocks)) {
+      if (block.parentId && frontier.includes(block.parentId)) {
+        subtree[block.id] = block;
+        next.push(block.id);
+      }
+    }
+    frontier = next;
+  }
+
+  return { type: 'rich_text', blocks: subtree };
+};
