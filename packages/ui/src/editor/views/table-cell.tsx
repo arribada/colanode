@@ -10,6 +10,7 @@ import { updateColumnWidth } from '@colanode/client/lib';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableCellContextMenu } from '@colanode/ui/editor/menus/table-cell-context-menu';
 import { TableCellDropdownMenu } from '@colanode/ui/editor/menus/table-cell-dropdown-menu';
+import { applyFillFromDrag } from '@colanode/ui/editor/views/table-fill-handle';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -103,6 +104,27 @@ export const TableCellNodeView = (props: NodeViewProps) => {
           }}
         >
           {isActive && <TableCellDropdownMenu {...props} />}
+          {isActive && !isMerged && (
+            <div
+              className="absolute -bottom-[3px] -right-[3px] z-20 size-2 cursor-crosshair rounded-[1px] border border-background bg-primary transition-transform hover:scale-125"
+              title="Glisser pour remplir une serie (ex. REQ-1 -> REQ-2)"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const pos = props.getPos();
+                if (pos === undefined || pos === null) {
+                  return;
+                }
+                const onUp = (up: PointerEvent) => {
+                  document.removeEventListener('pointerup', onUp, true);
+                  document.body.classList.remove('colanode-table-filling');
+                  applyFillFromDrag(props.editor, pos, up.clientX, up.clientY);
+                };
+                document.body.classList.add('colanode-table-filling');
+                document.addEventListener('pointerup', onUp, true);
+              }}
+            />
+          )}
           <NodeViewContent className="z-0 w-full h-full" />
         </Resizable>
       </TableCellContextMenu>
