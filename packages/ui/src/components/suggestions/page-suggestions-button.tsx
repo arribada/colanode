@@ -43,6 +43,22 @@ export const PageSuggestionsButton = ({
     void refresh();
   }, [refresh]);
 
+  // Auto-refresh so pending feedback (member or external guest) shows up on the
+  // badge WITHOUT a manual reload: poll on an interval + re-count when the tab
+  // regains focus. Notification events already trigger a re-count when they
+  // sync, but polling covers the case where they haven't yet.
+  useEffect(() => {
+    const interval = window.setInterval(() => void refresh(), 15000);
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [refresh]);
+
   // Re-count whenever this page's panel closes (a review may have resolved some).
   useEffect(() => {
     if (suggestionsPageId !== pageId) {

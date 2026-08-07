@@ -143,6 +143,20 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
     void refresh();
   }, [refresh]);
 
+  // Auto-refresh the open panel: poll + refetch on tab focus, so newly arrived
+  // suggestions appear without the reviewer reloading the page.
+  useEffect(() => {
+    const interval = window.setInterval(() => void refresh(), 15000);
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [refresh]);
+
   const accept = async (suggestion: DocumentSuggestionItem) => {
     if (!canAccept || busy) {
       return;

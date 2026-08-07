@@ -33,29 +33,60 @@ interface DiffRowData {
   index: string;
 }
 
-const EMPTY: RichTextContent = { type: 'rich_text', blocks: {} };
-
 // Top-level blocks (direct children of the document node), in reading order.
 const topLevelBlocks = (content: RichTextContent, nodeId: string): Block[] =>
   Object.values(content.blocks ?? {})
     .filter((block) => block.parentId === nodeId)
     .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
 
-// A stable signature of a block subtree for equality: the volatile fractional
-// `index` is dropped (a pure move is not a content change) and keys are sorted.
-const signature = (content: RichTextContent | null): string => {
-  const blocks = content?.blocks ?? {};
-  const normalized: Record<string, unknown> = {};
-  for (const id of Object.keys(blocks).sort()) {
-    const block = blocks[id]!;
-    normalized[id] = {
-      type: block.type,
-      parentId: block.parentId,
-      content: block.content ?? null,
-      attrs: block.attrs ?? null,
-    };
+// Recursively drop volatile / empty values (null, '', {}, []) and sort keys, so
+// serialization noise never reads as a real change: the external editor
+// re-serializes the whole document, producing empty-vs-absent attrs, empty mark
+// arrays, etc. that are semantically identical.
+const canonical = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    const arr = value.map(canonical).filter((v) => v !== undefined);
+    return arr.length > 0 ? arr : undefined;
   }
-  return JSON.stringify(normalized);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const c = canonical((value as Record<string, unknown>)[key]);
+      if (c !== undefined) {
+        out[key] = c;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+  if (value === null || value === '') {
+    return undefined;
+  }
+  return value;
+};
+
+// A STRUCTURAL fingerprint of the subtree rooted at `blockId`, ignoring block
+// ids and fractional indexes (only type + content + attrs + child order matter).
+// Two blocks with the same visible content therefore match even when the
+// external editor regenerated their child ids on submit — killing the
+// "everything is CHANGED" false positives.
+const fingerprint = (
+  blocks: Record<string, Block>,
+  blockId: string
+): unknown => {
+  const block = blocks[blockId];
+  if (!block) {
+    return null;
+  }
+  const children = Object.values(blocks)
+    .filter((b) => b.parentId === blockId)
+    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0))
+    .map((child) => fingerprint(blocks, child.id));
+  return {
+    type: block.type,
+    content: canonical(block.content),
+    attrs: canonical(block.attrs),
+    children: children.length > 0 ? children : undefined,
+  };
 };
 
 const CHIP: Record<DiffStatus, string> = {
@@ -164,6 +195,8 @@ export const SuggestionDiff = ({
     const proposedBlocks = topLevelBlocks(proposed, nodeId);
     const currentById = new Map(currentBlocks.map((b) => [b.id, b]));
     const proposedById = new Map(proposedBlocks.map((b) => [b.id, b]));
+    const currentMap = current.blocks ?? {};
+    const proposedMap = proposed.blocks ?? {};
 
     const ids = new Set<string>([
       ...currentById.keys(),
@@ -176,8 +209,8 @@ export const SuggestionDiff = ({
       const index = (inProposed ?? inCurrent)!.index;
       let status: DiffStatus;
       if (inCurrent && inProposed) {
-        const a = signature(extractBlockSubtree(nodeId, current, id) ?? EMPTY);
-        const b = signature(extractBlockSubtree(nodeId, proposed, id) ?? EMPTY);
+        const a = JSON.stringify(fingerprint(currentMap, id));
+        const b = JSON.stringify(fingerprint(proposedMap, id));
         status = a === b ? 'unchanged' : 'modified';
       } else if (inProposed) {
         status = 'added';
