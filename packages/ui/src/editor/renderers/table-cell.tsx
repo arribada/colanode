@@ -24,6 +24,8 @@ export const TableCellRenderer = ({
     <td
       className={defaultClasses.tableCellWrapper}
       data-border-style={node.attrs?.borderStyle ?? 'default'}
+      colSpan={(node.attrs?.colspan as number | null) ?? 1}
+      rowSpan={(node.attrs?.rowspan as number | null) ?? 1}
     >
       <div
         className={cn(
