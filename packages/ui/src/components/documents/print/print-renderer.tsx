@@ -22,6 +22,18 @@ interface PrintRendererProps {
   onReady: (rendered: RenderedPage[]) => void;
 }
 
+const hasContent = (id: string): boolean => {
+  const exporter = getDocumentExporter(id);
+  if (!exporter) {
+    return false;
+  }
+  try {
+    return exporter.getMarkdown().trim().length > 0;
+  } catch {
+    return false;
+  }
+};
+
 // Tag tables / database embeds that are wider than the page so the assembled
 // document can drop them onto a landscape page.
 const markWideElements = (container: HTMLElement) => {
@@ -38,10 +50,32 @@ const markWideElements = (container: HTMLElement) => {
 export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Snapshot the HTML of any page whose editor is ALREADY mounted and loaded
+  // (the page the user is looking at). This happens on the very first render,
+  // before the off-screen <Document> copies below register (and overwrite) the
+  // exporter with an empty second editor — two editors on the same node's synced
+  // doc don't both load, which is why exporting the open page came out blank.
+  // Pre-captured pages then skip the off-screen mount entirely.
+  const preloadedRef = useRef<Map<string, string> | null>(null);
+  if (preloadedRef.current === null) {
+    const map = new Map<string, string>();
+    for (const page of pages) {
+      if (hasContent(page.id)) {
+        const html = getDocumentExporter(page.id)?.getRenderedHtml() ?? '';
+        if (html.trim().length > 0) {
+          map.set(page.id, html);
+        }
+      }
+    }
+    preloadedRef.current = map;
+  }
+  const preloaded = preloadedRef.current;
+  const pendingPages = pages.filter((p) => !preloaded.has(p.id));
+
   useEffect(() => {
     let cancelled = false;
     const start = Date.now();
-    const ids = pages.map((p) => p.id);
+    const pendingIds = pendingPages.map((p) => p.id);
 
     const finish = () => {
       if (cancelled) {
@@ -58,7 +92,10 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
       const rendered = pages.map((p) => ({
         id: p.id,
         title: (('name' in p && p.name) || 'Untitled') as string,
-        html: getDocumentExporter(p.id)?.getRenderedHtml() ?? '',
+        html:
+          preloaded.get(p.id) ??
+          getDocumentExporter(p.id)?.getRenderedHtml() ??
+          '',
       }));
       onReady(rendered);
     };
@@ -67,26 +104,14 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
       if (cancelled) {
         return;
       }
-      // Wait until each page's editor has actually LOADED its content (not just
-      // registered an empty exporter) — otherwise the off-screen editor is
-      // captured before its document renders and the PDF body comes out blank.
-      // A genuinely empty page never satisfies this and falls through to the
-      // timeout below (then exports empty, which is correct).
-      const allReady = ids.every((id) => {
-        const exporter = getDocumentExporter(id);
-        if (!exporter) {
-          return false;
-        }
-        try {
-          return exporter.getMarkdown().trim().length > 0;
-        } catch {
-          return false;
-        }
-      });
+      // Only the OFF-SCREEN (pending) pages need to load; pre-captured ones are
+      // already in hand. A genuinely empty page never satisfies hasContent and
+      // falls through to the timeout, then exports empty (correct).
+      const allReady = pendingIds.every((id) => hasContent(id));
       const elapsed = Date.now() - start;
-      if (allReady || elapsed > 8000) {
+      if (pendingIds.length === 0 || allReady || elapsed > 8000) {
         // Let async content (mermaid / KaTeX / database embeds) settle.
-        window.setTimeout(finish, 1000);
+        window.setTimeout(finish, pendingIds.length === 0 ? 0 : 1000);
       } else {
         window.setTimeout(tick, 200);
       }
@@ -115,7 +140,7 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
         zIndex: -1,
       }}
     >
-      {pages.map((page) => (
+      {pendingPages.map((page) => (
         <div key={page.id} style={{ width: PRINT_WIDTH }}>
           <Document node={page} canEdit={false} />
         </div>
