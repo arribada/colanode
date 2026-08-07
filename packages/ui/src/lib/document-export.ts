@@ -18,10 +18,20 @@ export const registerDocumentExporter = (
   nodeId: string,
   exporter: DocumentExporter
 ): (() => void) => {
+  // Remember any exporter this one shadows (e.g. the LIVE open editor, when the
+  // print renderer briefly mounts a second off-screen editor for the same node).
+  // On cleanup we restore it instead of deleting, so unmounting the off-screen
+  // editor never leaves the still-open live editor with no exporter (which made
+  // re-exports of the open page come out blank until navigating away and back).
+  const previous = registry.get(nodeId);
   registry.set(nodeId, exporter);
   return () => {
     if (registry.get(nodeId) === exporter) {
-      registry.delete(nodeId);
+      if (previous) {
+        registry.set(nodeId, previous);
+      } else {
+        registry.delete(nodeId);
+      }
     }
   };
 };
