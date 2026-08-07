@@ -35,10 +35,17 @@ registerRoute(
 
 // Other same-origin assets are content-hashed, so serving them fast while
 // revalidating is safe. Navigations are excluded (handled network-first above)
-// so the entry document is never stale.
+// so the entry document is never stale. API paths are excluded too: SWR would
+// serve a cached 200 for /share-api/:token/data even after the share is revoked
+// or expired (silently defeating revocation), and stale /api|/client responses
+// must never be replayed — those always go to the network.
 registerRoute(
   ({ url, request }) =>
-    url.origin === self.location.origin && request.mode !== 'navigate',
+    url.origin === self.location.origin &&
+    request.mode !== 'navigate' &&
+    !url.pathname.startsWith('/share-api') &&
+    !url.pathname.startsWith('/api') &&
+    !url.pathname.startsWith('/client'),
   new StaleWhileRevalidate({
     cacheName: 'same-origin-assets',
   })
