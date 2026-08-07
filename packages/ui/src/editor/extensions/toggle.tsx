@@ -10,9 +10,11 @@ declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     toggle: {
       /**
-       * Wrap the current block into a toggle (details/summary) block
+       * Wrap the current block into a toggle (details/summary) block. An
+       * optional heading level (1-3) styles the summary line as a heading, so a
+       * heading turns into a collapsible "toggle heading" (accordion).
        */
-      setToggle: () => ReturnType;
+      setToggle: (level?: number) => ReturnType;
     };
   }
 }
@@ -115,7 +117,7 @@ export const ToggleNode = Node.create({
   addCommands() {
     return {
       setToggle:
-        () =>
+        (level?: number) =>
         ({ state, dispatch }) => {
           const { schema } = state;
           const { $from } = state.selection;
@@ -134,7 +136,10 @@ export const ToggleNode = Node.create({
           }
 
           try {
-            const summary = summaryType.create(null, block.content);
+            const summary = summaryType.create(
+              level && level >= 1 && level <= 3 ? { level } : null,
+              block.content
+            );
             const content = contentType.create(null, paragraphType.create());
             const toggle = toggleType.create({ open: true }, [
               summary,

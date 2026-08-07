@@ -12,6 +12,8 @@ import {
   Heading2,
   Heading3,
   Highlighter,
+  ChevronsDownUp,
+  Hash,
   List,
   ListOrdered,
   ListTodo,
@@ -411,6 +413,15 @@ export const ActionMenu = ({
     apply(editor.chain().setTextSelection(menuState.pos + 1)).focus().run();
   };
 
+  // The hovered heading's level (1-3), used to seed a "toggle heading" so the
+  // accordion keeps the heading size. Non-headings fall back to level 1.
+  const currentHeadingLevel = (): number => {
+    const name = menuState.pmNode?.type.name;
+    if (name === 'heading2') return 2;
+    if (name === 'heading3') return 3;
+    return 1;
+  };
+
   // The full text range of the hovered block — used to color/highlight or
   // comment on all of its text at once.
   const blockTextRange = () => {
@@ -688,6 +699,24 @@ export const ActionMenu = ({
                   >
                     <Megaphone className="size-4" />
                     Callout
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-toggle-heading"
+                    onClick={() =>
+                      turnIntoWith((c) => c.setToggle(currentHeadingLevel()))
+                    }
+                  >
+                    <ChevronsDownUp className="size-4" />
+                    Toggle heading (accordion)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="editor-action-menu-turn-number-headings"
+                    onClick={() =>
+                      editor.chain().focus().toggleHeadingNumbering().run()
+                    }
+                  >
+                    <Hash className="size-4" />
+                    Number headings
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
