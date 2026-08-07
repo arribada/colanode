@@ -184,7 +184,7 @@ export const DocumentReadingProgress = ({
     // column. The wrapper takes no pointer events; only the strip and (on
     // hover) the panel do, so it can never block clicks on the page beneath it.
     <div className="pointer-events-none fixed right-1 top-1/2 z-20 hidden -translate-y-1/2 xl:block">
-      <div className="group/toc pointer-events-auto relative flex flex-col items-end gap-1.5 py-2 pl-6 pr-1">
+      <div className="group/toc pointer-events-auto relative flex max-h-[85vh] flex-col items-end gap-1.5 overflow-y-auto overscroll-contain py-2 pl-6 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {headings.map((heading, index) => (
           <span
             key={`line-${heading.pos}-${index}`}
