@@ -199,7 +199,7 @@ export const PageShareDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="flex max-h-[85vh] max-w-lg flex-col overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Share this page</DialogTitle>
           <DialogDescription>
