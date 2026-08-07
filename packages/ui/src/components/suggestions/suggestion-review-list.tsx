@@ -236,7 +236,14 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
     }
   };
 
-  if (!page || page.type !== 'page') {
+  if (pageQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Spinner className="size-4" />
+      </div>
+    );
+  }
+  if (!page || (page.type !== 'page' && page.type !== 'record')) {
     return (
       <p className="p-4 text-sm text-muted-foreground">Page not found.</p>
     );
