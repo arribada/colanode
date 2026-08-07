@@ -1,4 +1,5 @@
 import { type NodeViewProps } from '@tiptap/core';
+import { useEffect, useRef } from 'react';
 import {
   NodeViewContent,
   NodeViewWrapper,
@@ -20,6 +21,18 @@ import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const TableCellNodeView = (props: NodeViewProps) => {
+  // Track the fill drag's document listener so a mid-drag unmount can't leak
+  // it (or leave the grabbing body class stuck / fire against a dead editor).
+  const fillUpRef = useRef<((event: PointerEvent) => void) | null>(null);
+  useEffect(
+    () => () => {
+      if (fillUpRef.current) {
+        document.removeEventListener('pointerup', fillUpRef.current, true);
+        document.body.classList.remove('colanode-table-filling');
+      }
+    },
+    []
+  );
   const aggregateAttr = props.node.attrs.aggregate as string | null;
   const isAggregate = aggregateAttr != null && aggregateAttr !== 'none';
   const aggregateKind = aggregateAttr as AggregateKind;
@@ -137,9 +150,11 @@ export const TableCellNodeView = (props: NodeViewProps) => {
                 }
                 const onUp = (up: PointerEvent) => {
                   document.removeEventListener('pointerup', onUp, true);
+                  fillUpRef.current = null;
                   document.body.classList.remove('colanode-table-filling');
                   applyFillFromDrag(props.editor, pos, up.clientX, up.clientY);
                 };
+                fillUpRef.current = onUp;
                 document.body.classList.add('colanode-table-filling');
                 document.addEventListener('pointerup', onUp, true);
               }}

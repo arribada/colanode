@@ -1041,11 +1041,15 @@ export class NodeService {
     // newer than this update, drop it.
     const nodeTombstone = await this.workspace.database
       .selectFrom('node_tombstones')
-      .select('revision')
+      .select(['revision', 'root_id'])
       .where('id', '=', update.nodeId)
       .executeTakeFirst();
+    // Only block a genuine resurrection (same root). A cross-space move emits
+    // a tombstone in the OLD root while the re-homed update carries the NEW
+    // root -- differing roots means relocation, not deletion, so let it create.
     if (
       nodeTombstone &&
+      nodeTombstone.root_id === update.rootId &&
       BigInt(nodeTombstone.revision) > BigInt(update.revision)
     ) {
       debug(`Skipping recreate of deleted node ${update.nodeId}`);
@@ -1267,13 +1271,17 @@ export class NodeService {
           .returningAll()
           .values({
             id: existingNode.id,
-            revision: update.revision,
+            revision: advancesMetadata
+              ? update.revision
+              : (nodeState?.revision ?? update.revision),
             state: serverState,
           })
           .onConflict((cb) =>
             cb
               .doUpdateSet({
-                revision: update.revision,
+                revision: advancesMetadata
+                  ? update.revision
+                  : (nodeState?.revision ?? update.revision),
                 state: serverState,
               })
               .where('revision', '=', nodeState?.revision ?? '0')

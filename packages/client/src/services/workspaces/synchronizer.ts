@@ -273,9 +273,11 @@ export class Synchronizer<TInput extends SynchronizerInput> {
   // Periodic self-healing re-sync: rewind the cursor by a bounded window and
   // re-pull so an out-of-order commit that slipped below the cursor gets
   // delivered. Safe ONLY for streams whose re-apply is side-effect-free --
-  // documents are CRDT merges and tombstones are guarded idempotent deletes.
-  // It is deliberately NOT enabled for node updates, whose re-delivery after a
-  // delete would resurrect the node.
+  // documents/nodes are CRDT merges; tombstones/collaborations are revision-
+  // guarded. Enabled for document updates, node tombstones, node updates AND
+  // collaborations (see sync-service). Node-update healing is safe ONLY because
+  // tryCreateServerNode consults the node_tombstones resurrection guard -- do
+  // not weaken that guard on the assumption node updates are never re-delivered.
   private heal() {
     if (!this.healable || this.status !== 'idle') {
       return;

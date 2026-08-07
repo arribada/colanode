@@ -31,6 +31,9 @@ export const TabKeymapExtension = Extension.create({
 
         const { tr, selection } = editor.view.state;
         const tabPosition = selection.$from.pos - 1;
+        if (tabPosition < 0) {
+          return false;
+        }
         const textBetween = tr.doc.textBetween(tabPosition, tabPosition + 1);
 
         if (textBetween === '\t') {

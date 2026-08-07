@@ -57,7 +57,8 @@ export const computeFillSeries = (source: string[], count: number): string[] => 
     tokens.every(
       (token) =>
         token!.prefix === tokens[0]!.prefix &&
-        token!.suffix === tokens[0]!.suffix
+        token!.suffix === tokens[0]!.suffix &&
+        Number.isSafeInteger(token!.value)
     );
 
   if (samePattern) {

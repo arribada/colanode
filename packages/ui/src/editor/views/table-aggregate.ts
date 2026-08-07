@@ -87,26 +87,55 @@ const locateCell = (
   return null;
 };
 
+// Cache column aggregates per immutable table node instance. Any in-table edit
+// yields a new table node (ProseMirror trees are immutable) which drops the entry;
+// edits elsewhere keep the node identity so summary cells hit the cache instead of
+// re-scanning the column on every unrelated transaction (and remote keystroke).
+const aggregateCache = new WeakMap<PMNode, Map<string, number | null>>();
+const MAX_AGGREGATE_ROWS = 5000;
+
 // The aggregate of the cells sitting ABOVE the given cell in its column, skipping
-// header cells and other summary cells. Used by the summary cell node view, which
-// recomputes it on every editor transaction so totals stay live.
+// header cells and other summary cells. Called from the summary cell node view on
+// every transaction -- memoized on the table node and row-bounded to stay cheap.
 export const computeColumnAggregate = (
   state: EditorState,
   cellPos: number,
   kind: AggregateKind
 ): number | null => {
-  const location = locateCell(state, cellPos);
+  let location: CellLocation | null = null;
+  try {
+    location = locateCell(state, cellPos);
+  } catch {
+    // A stale getPos() after a shrinking transaction can resolve out of range.
+    return null;
+  }
   if (!location) {
     return null;
   }
   const { table, tableStart, row, col } = location;
+
+  let tableCache = aggregateCache.get(table);
+  if (!tableCache) {
+    tableCache = new Map();
+    aggregateCache.set(table, tableCache);
+  }
+  const cacheKey = `${row}:${col}:${kind}`;
+  const cached = tableCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const map = TableMap.get(table);
   const texts: string[] = [];
-  for (let r = 0; r < row; r++) {
+  const seen = new Set<number>();
+  const limit = Math.min(row, MAX_AGGREGATE_ROWS);
+  for (let r = 0; r < limit; r++) {
     const offset = map.map[r * map.width + col];
-    if (offset === undefined) {
+    // A row-spanning cell repeats its offset for each covered row -- count once.
+    if (offset === undefined || seen.has(offset)) {
       continue;
     }
+    seen.add(offset);
     const cell = state.doc.nodeAt(tableStart + offset);
     if (!cell || tableRole(cell) === 'header_cell') {
       continue;
@@ -117,5 +146,7 @@ export const computeColumnAggregate = (
     }
     texts.push(cell.textContent);
   }
-  return computeAggregate(texts, kind);
+  const result = computeAggregate(texts, kind);
+  tableCache.set(cacheKey, result);
+  return result;
 };

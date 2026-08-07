@@ -132,11 +132,22 @@ export const applyFillFromDrag = (
   const tr = editor.state.tr;
   // Apply from the bottom/right-most cell upwards so each replacement sits above
   // (after) the next one and never shifts the positions still to be written.
+  // Dedup by position: a row/col-spanning cell maps to the same offset for
+  // every grid slot it covers, so without this two targets would write the
+  // SAME cell -- the second write, using a now-stale size, corrupts the doc.
+  const seenPos = new Set<number>();
   const writes = targets
     .map((cell, index) => ({
       pos: cellPosOf(table, tableStart, cell.row, cell.col),
       text: values[index] ?? '',
     }))
+    .filter((write) => {
+      if (seenPos.has(write.pos)) {
+        return false;
+      }
+      seenPos.add(write.pos);
+      return true;
+    })
     .sort((a, b) => b.pos - a.pos);
 
   for (const write of writes) {

@@ -78,10 +78,12 @@ export class CollaborationService {
       )
       .executeTakeFirst();
 
-    this.collaborations.set(
-      collaboration.nodeId,
-      upsertedCollaboration as SelectCollaboration
-    );
+    if (upsertedCollaboration) {
+      this.collaborations.set(
+        collaboration.nodeId,
+        upsertedCollaboration as SelectCollaboration
+      );
+    }
 
     if (collaboration.deletedAt) {
       this.collaborations.delete(collaboration.nodeId);
