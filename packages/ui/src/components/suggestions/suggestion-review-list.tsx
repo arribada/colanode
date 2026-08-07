@@ -13,6 +13,7 @@ import {
   richTextContentSchema,
 } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
+import { SuggestionDiff } from '@colanode/ui/components/suggestions/suggestion-diff';
 import { Spinner } from '@colanode/ui/components/ui/spinner';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
@@ -345,17 +346,31 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
                         </div>
                       </div>
                     )}
-                    <div>
-                      <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        Proposed
-                        {suggestion.scope === 'document'
-                          ? ' (replaces the whole page)'
-                          : ''}
-                      </p>
-                      <div className="rounded border border-border bg-green-500/5 p-2">
-                        <ReadOnlyPreview content={suggestion.proposedContent} />
+                    {suggestion.scope === 'document' ? (
+                      <div>
+                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Proposed changes
+                        </p>
+                        <SuggestionDiff
+                          nodeId={suggestion.nodeId}
+                          current={
+                            currentContent ?? { type: 'rich_text', blocks: {} }
+                          }
+                          proposed={suggestion.proposedContent}
+                        />
                       </div>
-                    </div>
+                    ) : (
+                      <div>
+                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Proposed
+                        </p>
+                        <div className="rounded border border-border bg-green-500/5 p-2">
+                          <ReadOnlyPreview
+                            content={suggestion.proposedContent}
+                          />
+                        </div>
+                      </div>
+                    )}
                     {suggestion.scope === 'document' &&
                       suggestion.origin === 'external' && (
                         <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
