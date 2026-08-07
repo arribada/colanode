@@ -4,6 +4,7 @@ import {
   Image,
   LetterText,
   Settings,
+  Share2,
   Trash2,
   Lock,
   LockOpen,
@@ -23,6 +24,7 @@ import { Database } from '@colanode/ui/components/databases/database';
 import { useExportCsvMutation } from '@colanode/ui/components/databases/view-csv-actions';
 import { ViewImportCsvDialog } from '@colanode/ui/components/databases/view-import-csv-dialog';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
+import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +52,7 @@ export const DatabaseSettings = ({
   const [showCollaboratorsDialog, setShowCollaboratorsDialog] = useState(false);
   const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
   const canDelete = hasNodeRole(role, 'admin');
@@ -92,6 +95,13 @@ export const DatabaseSettings = ({
         <DropdownMenuContent side="bottom" className="mr-2 w-80">
           <DropdownMenuLabel>{database.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowShareDialog(true)}
+          >
+            <Share2 className="size-4" />
+            Share to web
+          </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
@@ -208,6 +218,11 @@ export const DatabaseSettings = ({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <PageShareDialog
+        page={database}
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+      />
       <NodeDeleteDialog
         id={database.id}
         title="Are you sure you want delete this database?"
