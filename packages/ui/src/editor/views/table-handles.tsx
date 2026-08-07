@@ -5,8 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
+  captureAxisId,
   reorderTableColumn,
   reorderTableRow,
+  resolveAxisIndex,
   selectTableColumn,
   selectTableRow,
 } from '@colanode/ui/editor/views/table-reorder';
@@ -113,6 +115,10 @@ export const TableHandles = ({
   const draggingRef = useRef(false); // crossed the threshold → suppress the click
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef<number | null>(null);
+  // Block id of the grabbed row/column, captured at pointer-down so the drop can
+  // re-resolve its CURRENT index (guards against a concurrent structural edit
+  // moving the wrong line).
+  const dragFromIdRef = useRef<string | null>(null);
 
   // Measure the real rendered geometry from the DOM (via getBoundingClientRect)
   // so the handles line up with the re-resizable cells at any column width, and
@@ -203,6 +209,14 @@ export const TableHandles = ({
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      // If the table unmounts mid-drag, drop the global drag affordance so the
+      // body isn't left stuck with grabbing cursor / disabled text selection,
+      // and clear the drag bookkeeping. Refs only — no setState on unmount.
+      document.body.classList.remove('colanode-table-dragging');
+      dragRef.current = null;
+      draggingRef.current = false;
+      pointerStart.current = null;
+      dragFromIdRef.current = null;
     };
   }, [hoverRef, containerRef, applyMeasure]);
 
@@ -210,6 +224,7 @@ export const TableHandles = ({
     document.body.classList.remove('colanode-table-dragging');
     dragRef.current = null;
     pointerStart.current = null;
+    dragFromIdRef.current = null;
     setDrag(null);
   };
 
@@ -224,6 +239,13 @@ export const TableHandles = ({
     event.currentTarget.setPointerCapture(event.pointerId);
     pointerStart.current = { x: event.clientX, y: event.clientY };
     draggingRef.current = false;
+    // Remember the grabbed row/column by its stable block id so the drop can
+    // re-resolve its current index even if the table changed underneath.
+    const pos = getPos();
+    dragFromIdRef.current =
+      pos === undefined
+        ? null
+        : captureAxisId(editor.view.state, pos, axis, index);
     // Do NOT set React `drag` yet: only a real drag (past threshold) shows the
     // indicator, so a plain click still falls through to onClick → select.
     dragRef.current = { axis, from: index, gap: index };
@@ -260,6 +282,7 @@ export const TableHandles = ({
   const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
     const current = dragRef.current;
     const wasDrag = draggingRef.current;
+    const fromId = dragFromIdRef.current;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -272,12 +295,30 @@ export const TableHandles = ({
 
     const pos = getPos();
     if (pos !== undefined) {
-      const result =
-        current.axis === 'row'
-          ? reorderTableRow(editor, pos, current.from, current.gap)
-          : reorderTableColumn(editor, pos, current.from, current.gap);
-      if (result === 'merged') {
-        toast("Can't reorder across merged cells");
+      // Re-resolve the grabbed line's CURRENT index from its captured block id:
+      // a concurrent structural edit may have shifted indices since pointer-down,
+      // and moving the stale `from` would relocate the wrong row/column. If the
+      // id can't be read (fallback) use the captured index; if it's gone, abort.
+      let fromIndex: number | null = current.from;
+      if (fromId !== null) {
+        const resolved = resolveAxisIndex(
+          editor.view.state,
+          pos,
+          current.axis,
+          fromId
+        );
+        fromIndex = resolved < 0 ? null : resolved;
+      }
+      if (fromIndex === null) {
+        toast("Can't reorder — that row or column changed");
+      } else {
+        const result =
+          current.axis === 'row'
+            ? reorderTableRow(editor, pos, fromIndex, current.gap)
+            : reorderTableColumn(editor, pos, fromIndex, current.gap);
+        if (result === 'merged') {
+          toast("Can't reorder across merged cells");
+        }
       }
     }
     // Suppress the click the browser synthesizes right after this pointerup.

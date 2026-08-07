@@ -11,6 +11,9 @@ import { CellSelection, TableMap } from '@tiptap/pm/tables';
 // 'invalid'– bad position / not a table / ragged rows; refused defensively.
 export type TableMoveResult = 'moved' | 'noop' | 'merged' | 'invalid';
 
+// Reorder axis, matching the drag handles' own union.
+type Axis = 'row' | 'col';
+
 // Resolve nodes by their prosemirror-tables `tableRole` rather than by node name.
 // TipTap renames the nodes to camelCase (tableRow/tableCell/tableHeader) but keeps
 // the role, and raw prosemirror-tables uses snake_case — the role is stable across
@@ -272,4 +275,68 @@ export const selectTableColumn = (
     state.tr.setSelection(colSelectionAt(state.doc, table, tablePos, colIndex))
   );
   editor.view.focus();
+};
+
+// ---------------------------------------------------------------------------
+// Stable-id capture / resolve for the drag handles. The grabbed row/column is
+// remembered by its block id at pointer-down and its index re-resolved at drop,
+// so a concurrent structural edit (a row/column inserted or removed elsewhere)
+// moves the line the user actually grabbed — not whatever now sits at the old
+// index. Every table row/cell carries a stable `id` (the editor's global id
+// plugin). Reorder is refused on merged tables, so within a table that can move
+// a cell's within-row index equals its visual column index.
+// ---------------------------------------------------------------------------
+
+// The block id of the row (axis 'row') or of the top cell of the column (axis
+// 'col') at `index`, captured at pointer-down. Returns null if it can't be read
+// (no table / out of range / missing id) — the caller then falls back to the
+// raw index.
+export const captureAxisId = (
+  state: EditorState,
+  tablePos: number,
+  axis: Axis,
+  index: number
+): string | null => {
+  const table = tableNodeAt(state.doc, tablePos);
+  if (!table || table.childCount === 0) return null;
+  if (axis === 'row') {
+    if (index < 0 || index >= table.childCount) return null;
+    const id = table.child(index).attrs.id;
+    return typeof id === 'string' ? id : null;
+  }
+  const firstRow = table.child(0);
+  if (index < 0 || index >= firstRow.childCount) return null;
+  const id = firstRow.child(index).attrs.id;
+  return typeof id === 'string' ? id : null;
+};
+
+// Re-resolve the CURRENT index of a previously-captured row/column by its block
+// id, re-reading the table at `tablePos`. Returns -1 if that row/cell no longer
+// exists (the caller then aborts the move rather than moving the wrong line).
+export const resolveAxisIndex = (
+  state: EditorState,
+  tablePos: number,
+  axis: Axis,
+  id: string
+): number => {
+  const table = tableNodeAt(state.doc, tablePos);
+  if (!table) return -1;
+  let found = -1;
+  if (axis === 'row') {
+    let rowIndex = 0;
+    table.forEach((row) => {
+      if (found === -1 && row.attrs.id === id) found = rowIndex;
+      rowIndex += 1;
+    });
+    return found;
+  }
+  table.forEach((row) => {
+    if (found !== -1) return;
+    let cellIndex = 0;
+    row.forEach((cell) => {
+      if (found === -1 && cell.attrs.id === id) found = cellIndex;
+      cellIndex += 1;
+    });
+  });
+  return found;
 };
