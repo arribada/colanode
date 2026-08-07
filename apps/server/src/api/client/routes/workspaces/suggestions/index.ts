@@ -145,7 +145,17 @@ export const suggestionRoutes: FastifyPluginCallbackZod = (
     schema: {
       querystring: z.object({ nodeId: z.string() }),
     },
-    handler: async (request) => {
+    handler: async (request, reply) => {
+      const userId = request.workspace.user.id;
+      const tree = await fetchNodeTree(request.query.nodeId);
+      const treeNodes = tree.map((node) => mapNode(node));
+      const role = extractNodeRole(treeNodes, userId);
+      if (!role || !hasNodeRole(role, 'viewer')) {
+        return reply
+          .code(403)
+          .send({ code: 'forbidden', message: 'No access to this page.' });
+      }
+
       const rows = await database
         .selectFrom('document_suggestions')
         .selectAll()
@@ -177,13 +187,27 @@ export const suggestionRoutes: FastifyPluginCallbackZod = (
     method: 'GET',
     url: '/all',
     handler: async (request) => {
-      const rows = await database
+      const userId = request.workspace.user.id;
+      const allRows = await database
         .selectFrom('document_suggestions')
         .selectAll()
         .where('workspace_id', '=', request.workspace.id)
         .where('status', '=', 'pending')
         .orderBy('created_at', 'desc')
         .execute();
+
+      // Filter to suggestions on nodes the caller has a role on — this inbox
+      // must not surface pending suggestions (with author names) for pages the
+      // caller cannot see. Resolve each distinct node's tree once (deduped).
+      const visibleNodeIds = new Set<string>();
+      for (const nodeId of new Set(allRows.map((r) => r.node_id))) {
+        const tree = await fetchNodeTree(nodeId);
+        const treeNodes = tree.map((node) => mapNode(node));
+        if (extractNodeRole(treeNodes, userId) !== null) {
+          visibleNodeIds.add(nodeId);
+        }
+      }
+      const rows = allRows.filter((r) => visibleNodeIds.has(r.node_id));
 
       const nodeIds = Array.from(new Set(rows.map((r) => r.node_id)));
       const nodes =
@@ -250,12 +274,38 @@ export const suggestionRoutes: FastifyPluginCallbackZod = (
 
       const tree = await fetchNodeTree(suggestion.node_id);
       const treeNodes = tree.map((node) => mapNode(node));
+      const target = treeNodes[treeNodes.length - 1];
       const role = extractNodeRole(treeNodes, userId);
       if (!role || !hasNodeRole(role, 'editor')) {
         return reply.code(403).send({
           code: 'forbidden',
           message: 'You must be an editor of this page to review suggestions.',
         });
+      }
+
+      // Honor the page lock. Accepting a document-scope suggestion is applied
+      // via the reviewer's own document.update, which page.canUpdateDocument
+      // refuses for a non-privileged user on a 'locked'/'suggest' page — so the
+      // apply silently no-ops while we would still mark the suggestion resolved,
+      // discarding the contributor's edit. Require privileged (page creator or
+      // node admin) to ACCEPT on a locked page; reject stays editor-level.
+      if (
+        request.body.status === 'accepted' &&
+        target &&
+        target.type === 'page'
+      ) {
+        const lockMode = target.lockMode ?? 'open';
+        if (lockMode === 'locked' || lockMode === 'suggest') {
+          const privileged =
+            target.createdBy === userId || hasNodeRole(role, 'admin');
+          if (!privileged) {
+            return reply.code(403).send({
+              code: 'forbidden',
+              message:
+                'This page is locked. Only the page owner or an admin can accept suggestions.',
+            });
+          }
+        }
       }
 
       // Only the first resolution wins; a concurrent accept+reject can't both

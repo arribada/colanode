@@ -4,7 +4,9 @@ import { FastifyPluginCallbackZod } from 'fastify-type-provider-zod';
 import { sql } from 'kysely';
 import { z } from 'zod/v4';
 
+import { extractNodeRole, hasNodeRole } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
+import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 
 export const viewRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
   // Record that the current user viewed a node. UPSERT on (user_id, node_id):
@@ -72,7 +74,17 @@ export const viewRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
         nodeId: z.string(),
       }),
     },
-    handler: async (request) => {
+    handler: async (request, reply) => {
+      const userId = request.workspace.user.id;
+      const tree = await fetchNodeTree(request.params.nodeId);
+      const treeNodes = tree.map((node) => mapNode(node));
+      const role = extractNodeRole(treeNodes, userId);
+      if (!role || !hasNodeRole(role, 'viewer')) {
+        return reply
+          .code(403)
+          .send({ code: 'forbidden', message: 'No access to this page.' });
+      }
+
       const rows = await database
         .selectFrom('node_views')
         .select(['user_id', 'last_viewed_at', 'view_count'])
