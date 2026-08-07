@@ -28,11 +28,13 @@ import {
 } from '@colanode/client/types';
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
+import { NodeViewedBy } from '@colanode/ui/components/documents/node-viewed-by';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useRecordNodeView } from '@colanode/ui/hooks/use-node-views';
 import {
   AiCommand,
   BlockquoteCommand,
@@ -289,6 +291,9 @@ export const DocumentEditor = ({
           : 'This page is read-only.';
 
   const presences = usePresences(node.id);
+  // Record ONE historical view of this page/record on open (throttled inside
+  // the hook so re-renders/navigation do not spam the endpoint).
+  useRecordNodeView(workspace.userId, node.id);
   const { publish: publishPresence } = usePresencePublisher({
     nodeId: node.id,
     rootId: node.rootId,
@@ -712,11 +717,10 @@ export const DocumentEditor = ({
 
   return (
     <div className="relative">
-      {presences.length > 0 && (
-        <div className="absolute right-2 top-2 z-10">
-          <PresenceAvatars presences={presences} />
-        </div>
-      )}
+      <div className="absolute right-2 top-2 z-10 flex flex-col items-end gap-1">
+        {presences.length > 0 && <PresenceAvatars presences={presences} />}
+        <NodeViewedBy nodeId={node.id} />
+      </div>
       {editor && viewReady && (canEdit || canSuggestEdits) && (
         <Fragment>
           <ToolbarMenu

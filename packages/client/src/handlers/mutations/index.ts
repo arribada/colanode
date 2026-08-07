@@ -82,6 +82,8 @@ import { NodeShareWorkspaceListMutationHandler } from './nodes/node-share-worksp
 import { NodeFavoriteAddMutationHandler } from './nodes/node-favorite-add';
 import { NodeFavoriteRemoveMutationHandler } from './nodes/node-favorite-remove';
 import { NodeFavoriteListMutationHandler } from './nodes/node-favorite-list';
+import { NodeViewRecordMutationHandler } from './nodes/node-view-record';
+import { NodeViewListMutationHandler } from './nodes/node-view-list';
 
 export type MutationHandlerMap = {
   [K in keyof MutationMap]: MutationHandler<MutationMap[K]['input']>;
@@ -138,6 +140,8 @@ export const buildMutationHandlerMap = (
     'node.favorite.add': new NodeFavoriteAddMutationHandler(app),
     'node.favorite.remove': new NodeFavoriteRemoveMutationHandler(app),
     'node.favorite.list': new NodeFavoriteListMutationHandler(app),
+    'node.view.record': new NodeViewRecordMutationHandler(app),
+    'node.view.list': new NodeViewListMutationHandler(app),
     'avatar.upload': new AvatarUploadMutationHandler(app),
     'account.logout': new AccountLogoutMutationHandler(app),
     'file.create': new FileCreateMutationHandler(app),

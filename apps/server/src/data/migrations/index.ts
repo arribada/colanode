@@ -49,6 +49,7 @@ import { createNodeSharesTable } from './00046-create-node-shares-table';
 import { createShareSuggestionsTable } from './00047-create-share-suggestions-table';
 import { createDocumentSuggestionsTable } from './00048-create-document-suggestions-table';
 import { createNodeFavoritesTable } from './00049-create-node-favorites-table';
+import { createNodeViewsTable } from './00050-create-node-views-table';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -104,4 +105,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00047_create_share_suggestions_table': createShareSuggestionsTable,
   '00048_create_document_suggestions_table': createDocumentSuggestionsTable,
   '00049_create_node_favorites_table': createNodeFavoritesTable,
+  '00050_create_node_views_table': createNodeViewsTable,
 };

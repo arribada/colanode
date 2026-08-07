@@ -50,6 +50,8 @@ export * from './nodes/node-share-workspace-list';
 export * from './nodes/node-favorite-add';
 export * from './nodes/node-favorite-remove';
 export * from './nodes/node-favorite-list';
+export * from './nodes/node-view-record';
+export * from './nodes/node-view-list';
 export * from './users/user-role-update';
 export * from './users/user-storage-update';
 export * from './users/users-create';
