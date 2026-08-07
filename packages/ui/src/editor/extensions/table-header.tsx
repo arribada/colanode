@@ -15,6 +15,10 @@ export const TableHeaderNode = TableHeader.extend({
       attrs: ({ node }) => ({
         'data-border-style':
           (node.attrs.borderStyle as string | null) ?? 'default',
+        // Apply the merge spans to the host cell so merged cells actually span
+        // visually (the custom NodeView bypasses tiptap's default cell render).
+        colspan: String((node.attrs.colspan as number | null) ?? 1),
+        rowspan: String((node.attrs.rowspan as number | null) ?? 1),
       }),
     });
   },

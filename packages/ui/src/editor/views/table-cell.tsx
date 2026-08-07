@@ -27,7 +27,15 @@ export const TableCellNodeView = (props: NodeViewProps) => {
   });
 
   const isActive = state.isActive;
-  const colWidth = props.node.attrs.colwidth ?? 100;
+  const colwidthAttr = props.node.attrs.colwidth as number[] | number | null;
+  const colWidth = Array.isArray(colwidthAttr)
+    ? colwidthAttr.reduce(
+        (sum: number, w) => sum + (Number(w) > 0 ? Number(w) : 100),
+        0
+      )
+    : typeof colwidthAttr === 'number' && colwidthAttr > 0
+      ? colwidthAttr
+      : 100;
   const align = props.node.attrs.align;
   const backgroundColor = editorColors.find(
     (color) => color.color === props.node.attrs.backgroundColor
