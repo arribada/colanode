@@ -170,3 +170,14 @@ th[data-border-style='bold'] {
   pointer-events: none;
   background: rgba(59, 130, 246, 0.22);
 }
+
+/* Row/column reorder handles (editor/views/table-handles.tsx). While a handle
+   drag is in flight we force a grabbing cursor everywhere and suppress text
+   selection so the pointer feedback is consistent and no cell text is selected
+   mid-drag. The handles themselves are plain overlay buttons positioned from the
+   cells' measured rects; only this global drag affordance needs real CSS. */
+body.colanode-table-dragging,
+body.colanode-table-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}

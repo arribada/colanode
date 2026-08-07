@@ -8,11 +8,13 @@ import {
   TooltipContent,
 } from '@colanode/ui/components/ui/tooltip';
 import { defaultClasses } from '@colanode/ui/editor/classes';
+import { TableHandles } from '@colanode/ui/editor/views/table-handles';
 
 export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
   const [isSideHovered, setIsSideHovered] = useState(false);
   const [isBottomHovered, setIsBottomHovered] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const relativeRef = useRef<HTMLDivElement>(null);
 
   const focusTable = () => {
     if (!getPos || typeof getPos !== 'function') {
@@ -111,8 +113,13 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <div className="relative">
+      <div className="relative" ref={relativeRef}>
         <NodeViewContent<'table'> as="table" className={defaultClasses.table} />
+        <TableHandles
+          editor={editor}
+          getPos={getPos}
+          containerRef={relativeRef}
+        />
         {isSideHovered && (
           <div className="absolute -right-6 top-0 h-full flex items-center">
             <Tooltip delayDuration={500}>
