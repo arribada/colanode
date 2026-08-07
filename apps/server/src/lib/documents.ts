@@ -233,9 +233,13 @@ const tryUpdateDocumentFromMutation = async (
   }
 
   try {
-    const { updatedDocument, createdDocumentUpdate } = await database
+    const outcome = await database
       .transaction()
       .execute(async (trx) => {
+        // Idempotent insert: a replayed update (same id — an at-least-once
+        // retry after e.g. a dropped response) inserts nothing. The append-only
+        // log already has it, so the document is already up to date: report a
+        // replay and skip re-writing the cache / re-broadcasting.
         const createdDocumentUpdate = await trx
           .insertInto('document_updates')
           .returningAll()
@@ -249,13 +253,16 @@ const tryUpdateDocumentFromMutation = async (
             created_by: workspace.user.id,
             merged_updates: null,
           })
+          .onConflict((cb) => cb.doNothing())
           .executeTakeFirst();
 
         if (!createdDocumentUpdate) {
-          throw new Error('Failed to create document update');
+          return { replay: true as const };
         }
 
-        const updatedDocument = document
+        // Fast path: refresh the derived `documents` cache to the content we
+        // computed, guarded on the revision we read.
+        let updatedDocument = document
           ? await trx
               .updateTable('documents')
               .returningAll()
@@ -282,15 +289,79 @@ const tryUpdateDocumentFromMutation = async (
               .onConflict((cb) => cb.doNothing())
               .executeTakeFirst();
 
+        // Merge path (rare): a concurrent edit moved the revision (or a racing
+        // first-insert already created the row), so the guarded write touched 0
+        // rows. That concurrent update is committed (that is WHY the revision
+        // changed), so re-reading the append-only log now sees every update.
+        // Rebuild the merged (Yjs CRDT, conflict-free) content and write it
+        // unconditionally, so neither user's edit is dropped from the cache.
         if (!updatedDocument) {
-          throw new Error('Failed to create document');
+          const allUpdates = await trx
+            .selectFrom('document_updates')
+            .where('document_id', '=', mutation.documentId)
+            .selectAll()
+            .execute();
+          const mergedYdoc = new YDoc();
+          for (const documentUpdate of allUpdates) {
+            mergedYdoc.applyUpdate(documentUpdate.data);
+          }
+          const mergedContent = mergedYdoc.getObject<DocumentContent>();
+          const maxRevision = allUpdates.reduce(
+            (max, documentUpdate) =>
+              documentUpdate.revision > max ? documentUpdate.revision : max,
+            createdDocumentUpdate.revision
+          );
+
+          updatedDocument = await trx
+            .updateTable('documents')
+            .returningAll()
+            .set({
+              content: JSON.stringify(mergedContent),
+              updated_at: new Date(mutation.createdAt),
+              updated_by: workspace.user.id,
+              revision: maxRevision,
+            })
+            .where('id', '=', mutation.documentId)
+            .executeTakeFirst();
+
+          if (!updatedDocument) {
+            updatedDocument = await trx
+              .insertInto('documents')
+              .returningAll()
+              .values({
+                id: mutation.documentId,
+                workspace_id: workspace.id,
+                content: JSON.stringify(mergedContent),
+                created_at: new Date(mutation.createdAt),
+                created_by: workspace.user.id,
+                revision: maxRevision,
+              })
+              .onConflict((cb) => cb.doNothing())
+              .executeTakeFirst();
+          }
+        }
+
+        if (!updatedDocument) {
+          throw new Error('Failed to update document');
         }
 
         return {
+          replay: false as const,
           updatedDocument,
           createdDocumentUpdate,
         };
       });
+
+    // A replayed (already-applied) update: it was already broadcast + notified
+    // the first time, so report success idempotently and stop here.
+    if (outcome.replay) {
+      return {
+        type: 'success',
+        output: MutationStatus.OK,
+      };
+    }
+
+    const { updatedDocument, createdDocumentUpdate } = outcome;
 
     if (!updatedDocument || !createdDocumentUpdate) {
       throw new Error('Failed to update document');
