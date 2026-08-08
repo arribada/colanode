@@ -32,6 +32,12 @@ export const FileNode = Node.create<FileNodeOptions>({
       id: {
         default: null,
       },
+      width: {
+        default: null,
+      },
+      caption: {
+        default: null,
+      },
     };
   },
   renderHTML({ HTMLAttributes }) {
