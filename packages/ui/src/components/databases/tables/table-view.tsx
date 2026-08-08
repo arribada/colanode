@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FieldValue } from '@colanode/core';
+import { parseNumberLoose } from '@colanode/ui/editor/views/table-sort';
 import { LocalRecordNode } from '@colanode/client/types';
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
@@ -59,8 +60,8 @@ const coerceCell = (
       if (trimmed === '') {
         return undefined;
       }
-      const parsed = Number(trimmed.replace(/,/g, ''));
-      return Number.isFinite(parsed)
+      const parsed = parseNumberLoose(trimmed);
+      return parsed !== null
         ? { type: 'number', value: parsed }
         : 'skip';
     }
@@ -372,7 +373,7 @@ export const TableView = () => {
     try {
       const text = await navigator.clipboard?.readText();
       if (text && (text.includes('\t') || text.includes('\n'))) {
-        if (!buf || text !== buf.tsv) {
+        if (!buf || text.replace(/\r\n?/g, '\n') !== buf.tsv) {
           external = parseTsv(text);
         }
       }

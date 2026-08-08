@@ -1,7 +1,7 @@
 // ABOUTME: A single column footer cell in the table summary row — a dropdown to
 // ABOUTME: pick an aggregation and the live-computed value for that column.
 import { ChevronDown } from 'lucide-react';
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { FieldAttributes } from '@colanode/core';
@@ -42,7 +42,10 @@ export const TableViewSummaryCell = ({
   onChange,
 }: TableViewSummaryCellProps) => {
   const showNumeric = isNumericSummaryField(field);
-  const value = computeSummaryValue(records, field, kind);
+  const value = useMemo(
+    () => computeSummaryValue(records, field, kind),
+    [records, field, kind]
+  );
 
   // A number column's chosen format drives how its numeric summaries render, so
   // a Sum of a currency column reads as currency too.

@@ -29,6 +29,14 @@ export const TableNode = Table.configure({
             if (!tableFromSelection(view.state)) {
               return false;
             }
+            // Only grid-fill for a genuine spreadsheet/table copy -- those carry
+            // an HTML <table> on the clipboard. Never for a plain line of prose
+            // that merely contains a comma/tab (that would overwrite adjacent
+            // cells); let it fall through to the normal single-cell paste.
+            const html = event.clipboardData?.getData('text/html') ?? '';
+            if (!/<table[\s>]/i.test(html)) {
+              return false;
+            }
             const text =
               event.clipboardData?.getData('text/plain') ?? '';
             const grid = parseClipboardGrid(text);
