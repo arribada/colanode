@@ -9,6 +9,7 @@ import { TableSelectionBar } from '@colanode/ui/components/databases/tables/tabl
 import { TableViewBody } from '@colanode/ui/components/databases/tables/table-view-body';
 import { TableViewHeader } from '@colanode/ui/components/databases/tables/table-view-header';
 import { TableViewRecordCreateRow } from '@colanode/ui/components/databases/tables/table-view-record-create-row';
+import { TableViewSummaryRow } from '@colanode/ui/components/databases/tables/table-view-summary-row';
 import { ViewFullscreenButton } from '@colanode/ui/components/databases/view-fullscreen-button';
 import { ViewSettingsPopover } from '@colanode/ui/components/databases/view-settings-popover';
 import { ViewTabs } from '@colanode/ui/components/databases/view-tabs';
@@ -410,6 +411,7 @@ export const TableView = () => {
               <TableViewHeader />
               <TableViewBody />
               <TableViewRecordCreateRow />
+              <TableViewSummaryRow />
             </div>
             <TableSelectionBar />
           </Fragment>

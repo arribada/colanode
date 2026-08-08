@@ -145,6 +145,10 @@ export const databaseViewAttributesSchema = z.object({
     .nullable(),
   // Alternating row background (zebra striping) in the table layout.
   zebra: z.boolean().nullable().optional(),
+  // Per-column summary aggregation shown in the table view footer, keyed by
+  // field id (or the special 'name' id). Values are SummaryKind strings
+  // ('count_all' | 'sum' | 'average' | ...). Absent = no footer summary.
+  summaries: z.record(z.string(), z.string()).optional().nullable(),
 });
 
 export type DatabaseViewAttributes = z.infer<
