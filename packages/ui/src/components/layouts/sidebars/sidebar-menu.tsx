@@ -2,6 +2,7 @@ import { count, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Bell,
+  Boxes,
   FolderKanban,
   Github,
   Home,
@@ -19,6 +20,13 @@ import { SidebarMenuType, UploadStatus } from '@colanode/client/types';
 import { SidebarMenuFooter } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer';
 import { SidebarMenuHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-header';
 import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-icon';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@colanode/ui/components/ui/dropdown-menu';
 import { useRadar } from '@colanode/ui/contexts/radar';
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -163,14 +171,30 @@ export const SidebarMenu = ({
           }}
         />
         <div className="my-1 h-px w-8 bg-sidebar-border" />
-        {ARRIBADA_APPS.map((app) => (
-          <SidebarMenuIcon
-            key={app.url}
-            icon={app.icon}
-            label={app.label}
-            onClick={() => window.colanode.openExternalUrl(app.url)}
-          />
-        ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Arribada apps"
+              className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-md hover:bg-sidebar-accent"
+            >
+              <Boxes className="size-5 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-52">
+            <DropdownMenuLabel>Arribada apps</DropdownMenuLabel>
+            {ARRIBADA_APPS.map((app) => (
+              <DropdownMenuItem
+                key={app.url}
+                onClick={() => window.colanode.openExternalUrl(app.url)}
+                className="flex cursor-pointer items-center gap-2"
+              >
+                <app.icon className="size-4 text-muted-foreground" />
+                {app.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="mt-auto" />
         {onToggleCollapsed && (
           <SidebarMenuIcon

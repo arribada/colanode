@@ -189,7 +189,7 @@ export const DocumentReadingProgress = ({
           <span
             key={`line-${heading.pos}-${index}`}
             className={cn(
-              'h-0.5 rounded-full bg-muted-foreground/30 transition-colors',
+              'h-0.5 rounded-full bg-muted-foreground/45 transition-colors',
               lineWidth(heading.level),
               index === activeIndex && 'bg-foreground/80'
             )}
@@ -207,7 +207,7 @@ export const DocumentReadingProgress = ({
                 type="button"
                 onClick={() => scrollTo(heading, index)}
                 className={cn(
-                  'truncate rounded px-2 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                  'truncate rounded px-2 py-1 text-left text-sm text-foreground/80 transition-colors hover:bg-accent hover:text-foreground',
                   heading.level === 2 && 'pl-4',
                   heading.level === 3 && 'pl-7',
                   index === activeIndex && 'font-medium text-foreground'

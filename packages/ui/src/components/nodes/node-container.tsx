@@ -22,6 +22,7 @@ import { PageSuggestionsButton } from '@colanode/ui/components/suggestions/page-
 import { Button } from '@colanode/ui/components/ui/button';
 import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { ContainerType } from '@colanode/ui/contexts/container';
+import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { useNode } from '@colanode/ui/contexts/node';
 import { useNodeRadar } from '@colanode/ui/hooks/use-node-radar';
 
@@ -45,6 +46,7 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
   const canToggleView =
     data.node.type === 'page' || data.node.type === 'folder';
   const [viewMode, setViewMode] = useState<'document' | 'board'>('document');
+  const isMobile = useIsMobile();
   const boardActive = canToggleView && viewMode === 'board';
 
   return (
@@ -64,7 +66,7 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
                 onClick={() => setViewMode('document')}
               >
                 <FileText className="size-4" />
-                Document
+                {!isMobile && 'Document'}
               </Button>
               <Button
                 type="button"
@@ -74,7 +76,7 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
                 onClick={() => setViewMode('board')}
               >
                 <LayoutDashboard className="size-4" />
-                Board
+                {!isMobile && 'Board'}
               </Button>
             </div>
           )}
