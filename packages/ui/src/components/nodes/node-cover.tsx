@@ -1,9 +1,10 @@
-import { ImageIcon, Trash2, Upload } from 'lucide-react';
+import { ImageIcon, Search, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { NodeCover } from '@colanode/core';
+import { NodeCover, UnsplashPhoto } from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
+import { Input } from '@colanode/ui/components/ui/input';
 import {
   Popover,
   PopoverContent,
@@ -17,8 +18,10 @@ import {
   TabsTrigger,
 } from '@colanode/ui/components/ui/tabs';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useDebouncedValue } from '@colanode/ui/hooks/use-debounced-value';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
+import { useQuery } from '@colanode/ui/hooks/use-query';
 import {
   coverColorPresets,
   coverGradientPresets,
@@ -61,6 +64,181 @@ const CoverImage = ({ value }: { value: string }) =>
   ) : (
     <AvatarCoverImage avatarId={value} />
   );
+
+// ---- unsplash tab -------------------------------------------------------
+interface UnsplashTabProps {
+  accountId: string;
+  cover: NodeCover | null | undefined;
+  // Sets the cover to the given remote image URL and closes the popover —
+  // the same path the curated presets and the palette use.
+  onSelect: (url: string) => void;
+}
+
+// The Unsplash tab: a debounced live search over the server proxy plus the
+// curated presets shown while the search box is empty. The Unsplash Access
+// Key lives only on the server; this component never sees it.
+const UnsplashTab = ({ accountId, cover, onSelect }: UnsplashTabProps) => {
+  const [search, setSearch] = useState('');
+  const debounced = useDebouncedValue(search, 400);
+  const trimmed = debounced.trim();
+  const { mutate } = useMutation();
+
+  const searchQuery = useQuery(
+    {
+      type: 'unsplash.search',
+      accountId,
+      query: trimmed,
+      page: 1,
+    },
+    {
+      // Only hit the network once there's something to search for; the
+      // curated presets carry the empty state.
+      enabled: trimmed.length > 0,
+    }
+  );
+
+  const handlePhoto = (photo: UnsplashPhoto) => {
+    // Unsplash API guideline: ping the photo's download endpoint when it's
+    // actually used. Fire-and-forget — never blocks selecting the cover.
+    mutate({
+      input: {
+        type: 'unsplash.download',
+        accountId,
+        downloadLocation: photo.downloadLocation,
+      },
+    });
+    onSelect(photo.regular);
+  };
+
+  const results = searchQuery.data?.results ?? [];
+
+  return (
+    <div className="flex flex-col gap-2 pt-2">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search Unsplash photos"
+          className="h-8 pl-8 text-sm"
+          autoFocus
+        />
+      </div>
+
+      {trimmed.length === 0 ? (
+        <div className="flex max-h-72 flex-col gap-3 overflow-y-auto pr-1">
+          {unsplashCoverCategories.map((category) => (
+            <div key={category.title}>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                {category.title}
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {category.presets.map((preset) => {
+                  const isActive =
+                    cover?.type === 'image' && cover?.value === preset.url;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      title={preset.label}
+                      aria-label={`${preset.label} cover`}
+                      className={cn(
+                        'h-12 w-full cursor-pointer overflow-hidden rounded-md bg-muted',
+                        isActive
+                          ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
+                          : 'hover:opacity-80'
+                      )}
+                      onClick={() => onSelect(preset.url)}
+                    >
+                      <img
+                        src={preset.thumb}
+                        alt={preset.label}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex max-h-72 min-h-24 flex-col overflow-y-auto pr-1">
+          {searchQuery.isLoading ? (
+            <div className="flex flex-1 items-center justify-center py-8">
+              <Spinner />
+            </div>
+          ) : searchQuery.data?.error ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              Unsplash unavailable
+            </p>
+          ) : results.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              No results
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5">
+              {results.map((photo) => {
+                const isActive =
+                  cover?.type === 'image' && cover?.value === photo.regular;
+                return (
+                  <div
+                    key={photo.id}
+                    className="group/photo relative h-16 overflow-hidden rounded-md bg-muted"
+                  >
+                    <button
+                      type="button"
+                      title={`Photo by ${photo.authorName} on Unsplash`}
+                      aria-label={`Select photo by ${photo.authorName}`}
+                      className={cn(
+                        'h-full w-full cursor-pointer',
+                        isActive
+                          ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
+                          : 'hover:opacity-80'
+                      )}
+                      onClick={() => handlePhoto(photo)}
+                    >
+                      <img
+                        src={photo.thumb}
+                        alt={photo.description ?? 'Unsplash photo'}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                    {photo.authorUsername && (
+                      <a
+                        href={`https://unsplash.com/@${photo.authorUsername}?utm_source=colanode&utm_medium=referral`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                        className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-1 py-0.5 text-[9px] text-white opacity-0 transition-opacity hover:underline group-hover/photo:opacity-100"
+                      >
+                        {photo.authorName}
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="mt-1 text-center text-[11px] text-muted-foreground">
+        Photos from{' '}
+        <a
+          href="https://unsplash.com/?utm_source=colanode&utm_medium=referral"
+          target="_blank"
+          rel="noreferrer"
+          className="underline hover:text-foreground"
+        >
+          Unsplash
+        </a>
+      </p>
+    </div>
+  );
+};
 
 // ---- picker -------------------------------------------------------------
 interface CoverPickerProps {
@@ -174,50 +352,15 @@ const CoverPicker = ({ cover, onChange, children }: CoverPickerProps) => {
           </TabsContent>
 
           {/* Unsplash */}
-          <TabsContent value="unsplash" className="pt-2">
-            <div className="flex max-h-72 flex-col gap-3 overflow-y-auto pr-1">
-              {unsplashCoverCategories.map((category) => (
-                <div key={category.title}>
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                    {category.title}
-                  </p>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {category.presets.map((preset) => {
-                      const isActive =
-                        cover?.type === 'image' && cover?.value === preset.url;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          title={preset.label}
-                          aria-label={`${preset.label} cover`}
-                          className={cn(
-                            'h-12 w-full cursor-pointer overflow-hidden rounded-md bg-muted',
-                            isActive
-                              ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
-                              : 'hover:opacity-80'
-                          )}
-                          onClick={() => {
-                            onChange({ type: 'image', value: preset.url });
-                            setOpen(false);
-                          }}
-                        >
-                          <img
-                            src={preset.thumb}
-                            alt={preset.label}
-                            loading="lazy"
-                            className="h-full w-full object-cover"
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Photos from Unsplash
-            </p>
+          <TabsContent value="unsplash">
+            <UnsplashTab
+              accountId={workspace.accountId}
+              cover={cover}
+              onSelect={(url) => {
+                onChange({ type: 'image', value: url });
+                setOpen(false);
+              }}
+            />
           </TabsContent>
         </Tabs>
 
