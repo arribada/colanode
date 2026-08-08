@@ -218,7 +218,7 @@ export const ViewFilters = () => {
       <ViewFilterAddPopover>
         <button
           type="button"
-          className="flex cursor-pointer flex-row items-center gap-1 rounded-lg p-1 text-sm text-muted-foreground hover:bg-accent"
+          className="flex cursor-pointer flex-row items-center gap-1 rounded-md p-1 text-sm text-muted-foreground hover:bg-accent"
           data-testid="view-filter-add-button"
         >
           <Plus className="size-4" />

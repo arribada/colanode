@@ -48,7 +48,7 @@ export const TableHeaderNodeView = (props: NodeViewProps) => {
           className={cn(
             defaultClasses.tableHeader,
             'relative',
-            isActive && 'outline outline-primary',
+            isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
             backgroundColor?.bgClass,
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',

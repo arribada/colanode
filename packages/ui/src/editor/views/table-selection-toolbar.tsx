@@ -102,7 +102,7 @@ export const TableSelectionToolbar = ({ editor, getPos }: Props) => {
           title={color.name}
           onClick={() => setAttr('backgroundColor', color.color)}
           className={cn(
-            'size-4 rounded border border-border',
+            'size-4 rounded border border-border transition-opacity hover:opacity-80',
             color.bgClass
           )}
         />

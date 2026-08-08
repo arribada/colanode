@@ -84,7 +84,7 @@ export const TableCellDropdownMenu = ({
           aria-label="Cell actions"
           data-testid="editor-table-cell-menu-trigger"
           className={cn(
-            'absolute top-1/2 -right-2 transform -translate-y-1/2 bg-secondary py-1 cursor-pointer border border-border rounded z-10'
+            'absolute top-1/2 -right-2 transform -translate-y-1/2 bg-secondary hover:bg-accent px-0.5 py-1 cursor-pointer border border-border rounded z-10'
           )}
         >
           <EllipsisVertical className="size-3 text-muted-foreground" />
@@ -247,7 +247,7 @@ export const TableCellDropdownMenu = ({
                 <div className="flex items-center gap-2">
                   <div
                     className={cn(
-                      'w-4 h-4 rounded border border-border',
+                      'w-4 h-4 rounded-sm border border-border',
                       color.bgClass
                     )}
                   />

@@ -155,7 +155,7 @@ export const TableCellNodeView = (props: NodeViewProps) => {
           {isActive && !isMerged && !isAggregate && (
             <div
               className="absolute -bottom-[3px] -right-[3px] z-20 size-2 cursor-crosshair rounded-[1px] border border-background bg-primary transition-transform hover:scale-125"
-              title="Glisser pour remplir une serie (ex. REQ-1 -> REQ-2)"
+              title="Drag to fill a series (e.g. REQ-1 → REQ-2)"
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
