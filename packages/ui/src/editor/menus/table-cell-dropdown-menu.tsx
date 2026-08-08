@@ -20,6 +20,7 @@ import {
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
   Sigma,
+  Hash,
 } from 'lucide-react';
 
 import {
@@ -41,6 +42,7 @@ import {
   type SortDirection,
 } from '@colanode/ui/editor/views/table-sort';
 import { AGGREGATE_KINDS } from '@colanode/ui/editor/views/table-aggregate';
+import { NUMBER_FORMATS } from '@colanode/ui/lib/number-format';
 
 export const TableCellDropdownMenu = ({
   editor,
@@ -52,6 +54,7 @@ export const TableCellDropdownMenu = ({
   const borderColor = node.attrs.borderColor ?? 'default';
   const verticalAlign = node.attrs.valign ?? 'middle';
   const aggregate = node.attrs.aggregate ?? 'none';
+  const numberFormat = node.attrs.numberFormat ?? 'plain';
 
   const sortColumn = (direction: SortDirection) => {
     const target = activeTableColumn(editor.state);
@@ -151,6 +154,35 @@ export const TableCellDropdownMenu = ({
               >
                 {value}
                 {verticalAlign === value && <Check className="size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="flex gap-2">
+            <Hash className="size-4 text-muted-foreground" />
+            Number format
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-52">
+            <DropdownMenuLabel>Number format</DropdownMenuLabel>
+            {NUMBER_FORMATS.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                onClick={() =>
+                  editor
+                    .chain()
+                    .focus()
+                    .setCellAttribute('numberFormat', option.value)
+                    .run()
+                }
+                role="menuitemradio"
+                aria-checked={numberFormat === option.value}
+                className="flex items-center justify-between"
+              >
+                <span>{option.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {option.example}
+                </span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>

@@ -17,6 +17,8 @@ import {
   computeColumnAggregate,
   formatAggregate,
 } from '@colanode/ui/editor/views/table-aggregate';
+import { parseNumberLoose } from '@colanode/ui/editor/views/table-sort';
+import { formatNumber, isNumericFormat } from '@colanode/ui/lib/number-format';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -61,6 +63,19 @@ export const TableCellNodeView = (props: NodeViewProps) => {
   });
 
   const isActive = state.isActive;
+  const numberFormat = props.node.attrs.numberFormat as string | null;
+  // Show the formatted number only when the cell is not being edited; click
+  // in (isActive) to see/edit the raw value -- classic spreadsheet behavior.
+  const showFormatted =
+    isNumericFormat(numberFormat) && !isActive && !isAggregate;
+  const formattedValue = showFormatted
+    ? (() => {
+        const parsed = parseNumberLoose(props.node.textContent);
+        return parsed === null
+          ? props.node.textContent
+          : formatNumber(parsed, numberFormat);
+      })()
+    : null;
   const colwidthAttr = props.node.attrs.colwidth as number[] | number | null;
   const colWidth = Array.isArray(colwidthAttr)
     ? colwidthAttr.reduce(
@@ -166,11 +181,26 @@ export const TableCellNodeView = (props: NodeViewProps) => {
               className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 font-medium tabular-nums text-foreground"
               title="Column summary"
             >
-              {formatAggregate(state.aggregateValue, aggregateKind)}
+              {state.aggregateValue !== null &&
+              isNumericFormat(numberFormat) &&
+              aggregateKind !== 'count'
+                ? formatNumber(state.aggregateValue, numberFormat)
+                : formatAggregate(state.aggregateValue, aggregateKind)}
+            </span>
+          )}
+          {!isAggregate && showFormatted && (
+            <span
+              contentEditable={false}
+              className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 tabular-nums"
+            >
+              {formattedValue}
             </span>
           )}
           <NodeViewContent
-            className={cn('z-0 h-full w-full', isAggregate && 'invisible')}
+            className={cn(
+              'z-0 h-full w-full',
+              (isAggregate || showFormatted) && 'invisible'
+            )}
           />
         </Resizable>
       </TableCellContextMenu>
