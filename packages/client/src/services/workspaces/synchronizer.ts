@@ -29,6 +29,13 @@ const debug = createDebugger('desktop:synchronizer');
 // concurrent commits during one slow transaction.
 const HEAL_LOOKBACK = 200n;
 
+// A single heal never rewinds more than this, so an extreme burst (a root that
+// commits a huge number of updates between two heals) can't turn one heal into
+// an unbounded re-pull. Beyond this window the (already negligible) skip risk
+// returns, but 5000 updates on ONE root inside a 3-minute heal interval is far
+// past any realistic wiki load.
+const MAX_HEAL_LOOKBACK = 5000n;
+
 export class Synchronizer<TInput extends SynchronizerInput> {
   private readonly id: string;
   private readonly input: TInput;
@@ -58,6 +65,9 @@ export class Synchronizer<TInput extends SynchronizerInput> {
   private readonly healable: boolean;
   private healLoop: EventLoop | null = null;
   private healing: boolean = false;
+  // The cursor value at the start of the previous heal pass; the next heal
+  // reaches back to here so consecutive heal windows overlap (see heal()).
+  private previousHealCursor: bigint | null = null;
 
   constructor(
     workspace: WorkspaceService,
@@ -292,7 +302,16 @@ export class Synchronizer<TInput extends SynchronizerInput> {
       return;
     }
 
-    const rewound = computeHealCursor(current, HEAL_LOOKBACK);
+    const rewound = computeHealCursor(
+      current,
+      HEAL_LOOKBACK,
+      this.previousHealCursor,
+      MAX_HEAL_LOOKBACK
+    );
+    // Remember where THIS heal started so the next one can reach back to here:
+    // overlapping windows guarantee their union covers everything the cursor
+    // advanced past between heals, even a >LOOKBACK burst on a busy root.
+    this.previousHealCursor = current;
     // Only rewind the in-memory cursor; the re-pull re-advances it and
     // saveCursor persists the new high-water mark, so an interrupted heal never
     // leaves a regressed persisted cursor.

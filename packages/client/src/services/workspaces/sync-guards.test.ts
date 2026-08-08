@@ -80,4 +80,20 @@ describe('computeHealCursor', () => {
     expect(computeHealCursor(150n, 200n)).toBe(0n);
     expect(computeHealCursor(200n, 200n)).toBe(0n);
   });
+  it('reaches back to the previous heal start so windows overlap', () => {
+    // Busy root: cursor jumped 1000 in one interval (>lookback). A fixed 200
+    // rewind would strand (prev, current-200]; the previous heal cursor pulls
+    // the floor back so consecutive windows overlap.
+    expect(computeHealCursor(1000n, 200n, 300n)).toBe(300n);
+  });
+  it('keeps the fixed window when the previous heal is nearer than it', () => {
+    // Quiet root: the previous heal is only 50 back, so the fixed 200 window is
+    // deeper and wins.
+    expect(computeHealCursor(500n, 200n, 450n)).toBe(300n);
+    expect(computeHealCursor(500n, 200n, null)).toBe(300n);
+  });
+  it('caps a single rewind at maxLookback', () => {
+    // Extreme burst: previous heal was 9000 back, but the cap bounds one pass.
+    expect(computeHealCursor(10000n, 200n, 1000n, 5000n)).toBe(5000n);
+  });
 });

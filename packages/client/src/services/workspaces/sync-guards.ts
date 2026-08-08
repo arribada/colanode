@@ -36,5 +36,29 @@ export const isStaleCollaboration = (
 
 // Heal rewinds the cursor by a bounded window, never below zero, so the re-pull
 // re-delivers a recently-committed lower revision that the live cursor skipped.
-export const computeHealCursor = (current: bigint, lookback: bigint): bigint =>
-  current > lookback ? current - lookback : 0n;
+//
+// It ALSO reaches back to where the previous heal started (`previousHealCursor`)
+// so consecutive heal windows OVERLAP: their union then covers every revision
+// the cursor advanced past between two heals, even when that growth exceeded
+// `lookback`. Without this, a busy root that commits >lookback updates between
+// heals strands an out-of-order-committed revision permanently below the fixed
+// window (it never re-enters `revision > cursor`). `maxLookback` caps a single
+// pass so an extreme burst can't turn one heal into an unbounded re-pull.
+export const computeHealCursor = (
+  current: bigint,
+  lookback: bigint,
+  previousHealCursor?: bigint | null,
+  maxLookback?: bigint | null
+): bigint => {
+  let floor = current > lookback ? current - lookback : 0n;
+  if (previousHealCursor != null && previousHealCursor < floor) {
+    floor = previousHealCursor;
+  }
+  if (maxLookback != null) {
+    const capped = current > maxLookback ? current - maxLookback : 0n;
+    if (floor < capped) {
+      floor = capped;
+    }
+  }
+  return floor;
+};
