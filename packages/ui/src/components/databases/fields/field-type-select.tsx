@@ -55,6 +55,10 @@ const fieldTypes: FieldTypeOption[] = [
     type: 'email',
   },
   {
+    name: 'File',
+    type: 'file',
+  },
+  {
     name: 'Formula',
     type: 'formula',
   },
