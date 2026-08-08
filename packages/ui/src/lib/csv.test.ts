@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { LocalRecordNode } from '@colanode/client/types';
-import { FieldAttributes } from '@colanode/core';
+import { FieldAttributes, RollupFieldAttributes } from '@colanode/core';
 
 import {
   buildCsvImportPlan,
+  buildRollupCsvValues,
   CsvImportIdGenerators,
   detectCsvDelimiter,
   exportRecordsToCsv,
@@ -12,6 +13,8 @@ import {
   parseCsvBoolean,
   parseCsvDate,
   parseCsvNumber,
+  RollupCsvContext,
+  RollupCsvValues,
   sanitizeCsvFileName,
   serializeCsv,
   splitCsvMultiValues,
@@ -254,6 +257,134 @@ describe('exportRecordsToCsv', () => {
     const rows = parseCsv(result.csv, ',');
     expect(rows[0]).toEqual(['Name', 'Price', 'Quantity', 'Total']);
     expect(rows[1]).toEqual(['Widget', '4', '3', '12']);
+  });
+
+  it('exports precomputed rollup values and blanks records without one', () => {
+    const withRollup: FieldAttributes[] = [
+      field({ id: 'f_text', type: 'text', name: 'Notes', index: 'a1' }),
+      {
+        id: 'f_roll',
+        type: 'rollup',
+        name: 'Total',
+        index: 'a2',
+        relationFieldId: 'f_rel',
+        targetFieldId: 'c_price',
+        aggregation: 'sum',
+      },
+    ];
+    const records = [
+      record('Widget', { f_text: { type: 'text', value: 'hi' } }, { id: 'p1' }),
+      record('Gadget', { f_text: { type: 'text', value: 'yo' } }, { id: 'p2' }),
+    ];
+    const rollupValues: RollupCsvValues = new Map([
+      ['p1', new Map([['f_roll', '15']])],
+    ]);
+
+    const result = exportRecordsToCsv(records, withRollup, 'Name', rollupValues);
+    // The rollup column is exported, not skipped.
+    expect(result.skippedFields.map((f) => f.name)).not.toContain('Total');
+    const rows = parseCsv(result.csv, ',');
+    expect(rows[0]).toEqual(['Name', 'Notes', 'Total']);
+    expect(rows[1]).toEqual(['Widget', 'hi', '15']);
+    // No precomputed value for p2 -> empty cell.
+    expect(rows[2]).toEqual(['Gadget', 'yo', '']);
+  });
+});
+
+describe('buildRollupCsvValues', () => {
+  const priceField = field({
+    id: 'c_price',
+    type: 'number',
+    name: 'Price',
+    index: 'a1',
+  });
+  const child1 = record(
+    'Child 1',
+    { c_price: { type: 'number', value: 10 } },
+    { id: 'ch1' }
+  );
+  const child2 = record(
+    'Child 2',
+    { c_price: { type: 'number', value: 5 } },
+    { id: 'ch2' }
+  );
+
+  const sumRollup: RollupFieldAttributes = {
+    id: 'f_roll_sum',
+    type: 'rollup',
+    name: 'Total price',
+    index: 'a9',
+    relationFieldId: 'f_rel',
+    targetFieldId: 'c_price',
+    aggregation: 'sum',
+  };
+  const countRollup: RollupFieldAttributes = {
+    id: 'f_roll_count',
+    type: 'rollup',
+    name: 'Child count',
+    index: 'a10',
+    relationFieldId: 'f_rel',
+    targetFieldId: null,
+    aggregation: 'count',
+  };
+  const unconfiguredRollup: RollupFieldAttributes = {
+    id: 'f_roll_bad',
+    type: 'rollup',
+    name: 'Broken',
+    index: 'a11',
+    relationFieldId: null,
+    targetFieldId: null,
+    aggregation: null,
+  };
+
+  it('aggregates related records exactly like the RecordRollupValue cell', () => {
+    const parent = record(
+      'Parent',
+      { f_rel: { type: 'string_array', value: ['ch1', 'ch2'] } },
+      { id: 'p1' }
+    );
+    const relatedRecordsById = new Map<string, LocalRecordNode>([
+      ['ch1', child1],
+      ['ch2', child2],
+    ]);
+    const context = new Map<string, RollupCsvContext>([
+      ['f_roll_sum', { targetField: priceField, relatedRecordsById }],
+      ['f_roll_count', { targetField: undefined, relatedRecordsById }],
+    ]);
+
+    const values = buildRollupCsvValues(
+      [parent],
+      [sumRollup, countRollup, unconfiguredRollup],
+      context
+    );
+
+    const perField = values.get('p1');
+    expect(perField?.get('f_roll_sum')).toBe('15');
+    expect(perField?.get('f_roll_count')).toBe('2');
+    // An unconfigured rollup mirrors the cell's "Not configured" placeholder.
+    expect(perField?.get('f_roll_bad')).toBe('Not configured');
+  });
+
+  it('treats missing relations as an empty related set', () => {
+    const parent = record('Lonely', {}, { id: 'p2' });
+    const context = new Map<string, RollupCsvContext>([
+      [
+        'f_roll_sum',
+        { targetField: priceField, relatedRecordsById: new Map() },
+      ],
+      ['f_roll_count', { targetField: undefined, relatedRecordsById: new Map() }],
+    ]);
+
+    const values = buildRollupCsvValues(
+      [parent],
+      [sumRollup, countRollup],
+      context
+    );
+
+    const perField = values.get('p2');
+    // sum over nothing is 0; count of nothing is 0.
+    expect(perField?.get('f_roll_sum')).toBe('0');
+    expect(perField?.get('f_roll_count')).toBe('0');
   });
 });
 
