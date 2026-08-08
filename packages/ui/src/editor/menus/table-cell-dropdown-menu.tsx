@@ -21,6 +21,7 @@ import {
   ArrowUpNarrowWide,
   Sigma,
   Hash,
+  Download,
 } from 'lucide-react';
 
 import {
@@ -43,6 +44,10 @@ import {
 } from '@colanode/ui/editor/views/table-sort';
 import { AGGREGATE_KINDS } from '@colanode/ui/editor/views/table-aggregate';
 import { NUMBER_FORMATS } from '@colanode/ui/lib/number-format';
+import {
+  tableFromSelection,
+  tableNodeToCsv,
+} from '@colanode/ui/editor/views/table-csv';
 
 export const TableCellDropdownMenu = ({
   editor,
@@ -424,6 +429,19 @@ export const TableCellDropdownMenu = ({
         >
           <Heading className="size-4" />
           Toggle header row
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-copy-csv"
+          onClick={() => {
+            const table = tableFromSelection(editor.state);
+            if (table) {
+              void navigator.clipboard?.writeText(tableNodeToCsv(table));
+            }
+          }}
+        >
+          <Download className="size-4" />
+          Copy as CSV
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
