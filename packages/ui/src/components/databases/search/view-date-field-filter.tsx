@@ -1,7 +1,7 @@
 import { ChevronDown, Trash2 } from 'lucide-react';
 
 import {
-  DateFieldAttributes,
+  FieldAttributes,
   DatabaseViewFieldFilterAttributes,
 } from '@colanode/core';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
@@ -23,7 +23,7 @@ import { useViewFilter } from '@colanode/ui/hooks/use-view-filter';
 import { dateFieldFilterOperators } from '@colanode/ui/lib/databases';
 
 interface ViewDateFieldFilterProps {
-  field: DateFieldAttributes;
+  field: FieldAttributes;
   filter: DatabaseViewFieldFilterAttributes;
 }
 

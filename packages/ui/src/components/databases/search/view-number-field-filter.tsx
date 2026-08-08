@@ -1,7 +1,7 @@
 import { ChevronDown, Trash2 } from 'lucide-react';
 
 import {
-  NumberFieldAttributes,
+  FieldAttributes,
   DatabaseViewFieldFilterAttributes,
 } from '@colanode/core';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
@@ -23,7 +23,7 @@ import { useViewFilter } from '@colanode/ui/hooks/use-view-filter';
 import { numberFieldFilterOperators } from '@colanode/ui/lib/databases';
 
 interface ViewNumberFieldFilterProps {
-  field: NumberFieldAttributes;
+  field: FieldAttributes;
   filter: DatabaseViewFieldFilterAttributes;
 }
 

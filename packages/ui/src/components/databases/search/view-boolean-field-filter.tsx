@@ -1,7 +1,7 @@
 import { ChevronDown, Trash2 } from 'lucide-react';
 
 import {
-  BooleanFieldAttributes,
+  FieldAttributes,
   DatabaseViewFieldFilterAttributes,
 } from '@colanode/core';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
@@ -22,7 +22,7 @@ import { useViewFilter } from '@colanode/ui/hooks/use-view-filter';
 import { booleanFieldFilterOperators } from '@colanode/ui/lib/databases';
 
 interface ViewBooleanFieldFilterProps {
-  field: BooleanFieldAttributes;
+  field: FieldAttributes;
   filter: DatabaseViewFieldFilterAttributes;
 }
 

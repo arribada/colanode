@@ -170,6 +170,47 @@ export const ViewFilters = () => {
                 />
               );
 
+            case 'formula': {
+              // Formula values are materialised into a real FieldValue that
+              // matches the field's resultType, so reuse the concrete per-type
+              // filter UI. resultType absent -> treat it as text.
+              const resultType = field.resultType ?? 'string';
+              if (resultType === 'number') {
+                return (
+                  <ViewNumberFieldFilter
+                    key={filter.id}
+                    field={field}
+                    filter={filter}
+                  />
+                );
+              }
+              if (resultType === 'boolean') {
+                return (
+                  <ViewBooleanFieldFilter
+                    key={filter.id}
+                    field={field}
+                    filter={filter}
+                  />
+                );
+              }
+              if (resultType === 'date') {
+                return (
+                  <ViewDateFieldFilter
+                    key={filter.id}
+                    field={field}
+                    filter={filter}
+                  />
+                );
+              }
+              return (
+                <ViewTextFieldFilter
+                  key={filter.id}
+                  field={field}
+                  filter={filter}
+                />
+              );
+            }
+
             default:
               return null;
           }

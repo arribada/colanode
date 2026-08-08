@@ -338,6 +338,28 @@ const buildFieldFilterExpression = (
       return buildDateComparisonExpression(filter, record.updatedAt, true);
     case 'updated_by':
       return buildUpdatedByFilterExpression(filter, record, currentUserId);
+    case 'formula': {
+      // Formula values are materialised into a stored FieldValue matching the
+      // field's resultType, so filter them through the matching builder.
+      const resultType = field.resultType ?? 'string';
+      if (resultType === 'number') {
+        return buildNumberFilterExpression(filter, record, field.id);
+      }
+      if (resultType === 'boolean') {
+        return buildBooleanFilterExpression(filter, record, field.id);
+      }
+      if (resultType === 'date') {
+        return buildDateComparisonExpression(
+          filter,
+          getFieldValue<StringValueExpression>(record, field.id),
+          true
+        );
+      }
+      return buildStringFilterExpression(
+        filter,
+        getFieldValue<StringValueExpression>(record, field.id)
+      );
+    }
     default:
       return null;
   }
