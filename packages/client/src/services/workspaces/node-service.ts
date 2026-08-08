@@ -72,6 +72,11 @@ export type UpdateNodeResult =
 
 const debug = createDebugger('desktop:service:node');
 
+// A node_tombstones row is only needed while a heal could still re-deliver an
+// old update for the node (a bounded ~200-revision window). Well past that a
+// tombstone is moot, so prune by age to keep the table from growing forever.
+const NODE_TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 export class NodeService {
   private readonly workspace: WorkspaceService;
 
@@ -1402,6 +1407,15 @@ export class NodeService {
                 created_at: tombstone.deletedAt,
               })
               .where('revision', '<', tombstone.revision)
+          )
+          .execute();
+
+        await trx
+          .deleteFrom('node_tombstones')
+          .where(
+            'created_at',
+            '<',
+            new Date(Date.now() - NODE_TOMBSTONE_RETENTION_MS).toISOString()
           )
           .execute();
 
