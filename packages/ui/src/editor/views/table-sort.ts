@@ -4,7 +4,10 @@ import { type Node as PMNode } from '@tiptap/pm/model';
 import { type EditorState, type Transaction } from '@tiptap/pm/state';
 import { TableMap } from '@tiptap/pm/tables';
 
-import { tableHasMergedCells } from '@colanode/ui/editor/views/table-reorder';
+import {
+  colSelectionAt,
+  tableHasMergedCells,
+} from '@colanode/ui/editor/views/table-reorder';
 
 export type TableSortResult = 'sorted' | 'noop' | 'merged' | 'invalid';
 export type SortDirection = 'asc' | 'desc';
@@ -131,12 +134,32 @@ export const buildColumnSort = (
     return { tr: null, result: 'noop' };
   }
 
-  const newTable = table.type.create(table.attrs, [...headerRows, ...sorted]);
-  const tr = state.tr.replaceRangeWith(
-    tablePos,
-    tablePos + table.nodeSize,
-    newTable
+  // Replace only the table's *content* (its rows), reusing the existing row
+  // node instances rather than rebuilding the whole table node. This preserves
+  // the table node itself (and its stable id), so the Yjs binding re-diffs only
+  // the rows: an "already mostly sorted" column keeps its unchanged leading and
+  // trailing rows and rewrites just the ones that actually move.
+  //
+  // Tradeoff: a full reshuffle still rewrites the moved span — y-prosemirror's
+  // tree diff can't express row *moves*, so a minimal move-based delta isn't
+  // reachable without a different sync model. This keeps the common case cheap
+  // without that architecture, and (unlike the previous whole-table replace) no
+  // longer recreates the table node's own Yjs element on every sort.
+  const tableStart = tablePos + 1;
+  const tr = state.tr.replaceWith(
+    tableStart,
+    tableStart + table.content.size,
+    [...headerRows, ...sorted]
   );
+
+  // Restore a CellSelection on the sorted column so the local cursor doesn't
+  // jump to the document start after the rows are rewritten (the previous
+  // whole-table replace dropped the selection). Mirrors the post-move selection
+  // restore in table-reorder.
+  const sortedTable = tableNodeAt(tr.doc, tablePos);
+  if (sortedTable) {
+    tr.setSelection(colSelectionAt(tr.doc, sortedTable, tablePos, colIndex));
+  }
   return { tr, result: 'sorted' };
 };
 
