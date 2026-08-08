@@ -10,6 +10,47 @@ const logger = createLogger('api:client:unsplash:search');
 const UNSPLASH_API_BASE = 'https://api.unsplash.com';
 const PER_PAGE = 24;
 
+// A tiny in-memory response cache. The Demo tier allows ~50 requests/hour on
+// the shared server key, so without this a handful of users typing the same
+// popular query would exhaust the budget for everyone. Successful responses
+// (including legitimately-empty ones) are memoised per query+page for a few
+// minutes; error / throttle responses are never cached so they retry.
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 256;
+type UnsplashSearchOutput = z.infer<typeof unsplashSearchOutputSchema>;
+const searchCache = new Map<
+  string,
+  { expires: number; payload: UnsplashSearchOutput }
+>();
+
+const cacheKey = (query: string, page: number): string =>
+  `${query.toLowerCase()}::${page}`;
+
+const readCache = (key: string): UnsplashSearchOutput | null => {
+  const hit = searchCache.get(key);
+  if (!hit) {
+    return null;
+  }
+  if (hit.expires <= Date.now()) {
+    searchCache.delete(key);
+    return null;
+  }
+  return hit.payload;
+};
+
+const writeCache = (key: string, payload: UnsplashSearchOutput): void => {
+  // Bound memory: Map preserves insertion order, so evict the oldest entry
+  // once full. Deleting first keeps a refreshed key at the newest position.
+  searchCache.delete(key);
+  if (searchCache.size >= CACHE_MAX_ENTRIES) {
+    const oldest = searchCache.keys().next().value;
+    if (oldest !== undefined) {
+      searchCache.delete(oldest);
+    }
+  }
+  searchCache.set(key, { expires: Date.now() + CACHE_TTL_MS, payload });
+};
+
 // Minimal shape of the Unsplash `/search/photos` response we depend on. Kept
 // deliberately loose (everything optional) so a shape change upstream degrades
 // to a skipped field rather than a thrown handler.
@@ -65,6 +106,12 @@ export const unsplashSearchRoute: FastifyPluginCallbackZod = (
         return { results: [] };
       }
 
+      const key = cacheKey(query, request.query.page);
+      const cached = readCache(key);
+      if (cached) {
+        return cached;
+      }
+
       try {
         const url = new URL('/search/photos', UNSPLASH_API_BASE);
         url.searchParams.set('query', query);
@@ -117,7 +164,9 @@ export const unsplashSearchRoute: FastifyPluginCallbackZod = (
             downloadLocation: photo.links!.download_location!,
           }));
 
-        return { results };
+        const payload = { results };
+        writeCache(key, payload);
+        return payload;
       } catch (error) {
         logger.error(toSafeLogFields(error), 'Failed to search Unsplash');
         return { results: [], error: 'unavailable' };
