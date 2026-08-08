@@ -141,7 +141,7 @@ class PushService {
         if (!recipientUserId) return Promise.resolve();
         return sendWebPush(sub, {
           ...basePayload,
-          url: `/workspace/${recipientUserId}/${container.id}`,
+          url: `/workspace/${recipientUserId}/${node.id}`,
         }).catch((e) => logger.error(e, `push send failed for ${sub.id}`));
       }),
       ...apnsSubscriptions.map((sub) => {
@@ -149,7 +149,7 @@ class PushService {
         if (!recipientUserId) return Promise.resolve();
         return sendApns(sub, {
           ...basePayload,
-          url: `/workspace/${recipientUserId}/${container.id}`,
+          url: `/workspace/${recipientUserId}/${node.id}`,
         }).catch((e) => logger.error(e, `apns send failed for ${sub.id}`));
       }),
     ]);
