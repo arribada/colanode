@@ -3,14 +3,20 @@ import { Download, Upload } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalRecordNode } from '@colanode/client/types';
-import { compareString, FieldAttributes } from '@colanode/core';
+import { LocalDatabaseNode, LocalRecordNode } from '@colanode/client/types';
+import {
+  compareString,
+  FieldAttributes,
+  RollupFieldAttributes,
+} from '@colanode/core';
 import { ViewImportCsvDialog } from '@colanode/ui/components/databases/view-import-csv-dialog';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
+  buildRollupCsvValues,
   downloadCsvFile,
   exportRecordsToCsv,
+  RollupCsvContext,
   sanitizeCsvFileName,
 } from '@colanode/ui/lib/csv';
 
@@ -48,7 +54,89 @@ export const useExportCsvMutation = (source: CsvExportSource) => {
       );
       records.sort((a, b) => compareString(a.createdAt, b.createdAt));
 
-      return exportRecordsToCsv(records, source.fields, source.nameFieldName);
+      // Rollup fields aggregate related records that live in ANOTHER database,
+      // which the pure CSV serializer cannot load. Resolve, per rollup field,
+      // its target field (from the related database's schema) and the related
+      // records it references — mirroring RecordRollupValue — then precompute
+      // the display strings and hand them to the exporter.
+      const rollupFields = source.fields.filter(
+        (field): field is RollupFieldAttributes => field.type === 'rollup'
+      );
+
+      const rollupContext = new Map<string, RollupCsvContext>();
+      for (const rollupField of rollupFields) {
+        if (!rollupField.relationFieldId || !rollupField.aggregation) {
+          continue;
+        }
+
+        const relationField = source.fields.find(
+          (field) => field.id === rollupField.relationFieldId
+        );
+        const relatedDatabaseId =
+          relationField && relationField.type === 'relation'
+            ? (relationField.databaseId ?? null)
+            : null;
+
+        // The aggregation target field lives on the related database's schema.
+        let targetField: FieldAttributes | undefined;
+        if (relatedDatabaseId && rollupField.targetFieldId) {
+          const databaseNodes = await window.colanode.executeQuery({
+            type: 'node.list',
+            userId: workspace.userId,
+            filters: [
+              { field: ['id'], operator: 'eq', value: relatedDatabaseId },
+            ],
+            sorts: [],
+          });
+          const relatedDatabase = databaseNodes.find(
+            (node): node is LocalDatabaseNode => node.type === 'database'
+          );
+          targetField = relatedDatabase?.fields[rollupField.targetFieldId];
+        }
+
+        // Union of every related record id referenced through this relation.
+        const relatedIds = new Set<string>();
+        for (const record of records) {
+          const value = record.fields[rollupField.relationFieldId];
+          if (value && value.type === 'string_array') {
+            for (const id of value.value) {
+              relatedIds.add(id);
+            }
+          }
+        }
+
+        const relatedRecordsById = new Map<string, LocalRecordNode>();
+        if (relatedIds.size > 0) {
+          const relatedNodes = await window.colanode.executeQuery({
+            type: 'node.list',
+            userId: workspace.userId,
+            filters: [
+              { field: ['id'], operator: 'in', value: [...relatedIds] },
+            ],
+            sorts: [],
+          });
+          for (const node of relatedNodes) {
+            if (node.type === 'record') {
+              relatedRecordsById.set(node.id, node);
+            }
+          }
+        }
+
+        rollupContext.set(rollupField.id, { targetField, relatedRecordsById });
+      }
+
+      const rollupValues = buildRollupCsvValues(
+        records,
+        rollupFields,
+        rollupContext
+      );
+
+      return exportRecordsToCsv(
+        records,
+        source.fields,
+        source.nameFieldName,
+        rollupValues
+      );
     },
     onSuccess: (result) => {
       downloadCsvFile(`${sanitizeCsvFileName(source.fileName)}.csv`, result.csv);

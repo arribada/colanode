@@ -1,10 +1,16 @@
-import { evaluateFormulaField, formatFormulaValue } from '@colanode/client/lib';
+import {
+  evaluateFormulaField,
+  evaluateRollup,
+  formatFormulaValue,
+  formatRollupValue,
+} from '@colanode/client/lib';
 import { LocalRecordNode } from '@colanode/client/types';
 import {
   compareString,
   FieldAttributes,
   FieldValue,
   generateFractionalIndex,
+  RollupFieldAttributes,
   SelectOptionAttributes,
 } from '@colanode/core';
 
@@ -159,6 +165,7 @@ const CSV_EXPORTABLE_FIELD_TYPES = new Set<FieldAttributes['type']>([
   'multi_select',
   'number',
   'phone',
+  'rollup',
   'select',
   'text',
   'updated_at',
@@ -185,10 +192,75 @@ export const isCsvImportableField = (field: FieldAttributes): boolean => {
   return CSV_IMPORTABLE_FIELD_TYPES.has(field.type);
 };
 
+// Per rollup field, everything the aggregation needs that this pure module
+// cannot load on its own: the target field (resolved from the RELATED
+// database's schema) and the related records addressable by their id. The
+// export caller (view-csv-actions) assembles this from the workspace node
+// collection, mirroring how the live RecordRollupValue cell fetches.
+export interface RollupCsvContext {
+  targetField: FieldAttributes | undefined;
+  relatedRecordsById: Map<string, LocalRecordNode>;
+}
+
+// recordId -> (rollup fieldId -> formatted display string). Precomputed so the
+// pure serializer can emit rollup columns without any workspace access.
+export type RollupCsvValues = Map<string, Map<string, string>>;
+
+// Mirrors RecordRollupValue exactly: for each record and rollup field, read the
+// related record ids from the relation field value, resolve them against the
+// supplied context, aggregate with evaluateRollup and format with
+// formatRollupValue. Unconfigured rollups render "Not configured", just like
+// the live cell. Pure and deterministic; the impure fetching lives in the
+// caller.
+export const buildRollupCsvValues = (
+  records: LocalRecordNode[],
+  rollupFields: RollupFieldAttributes[],
+  contextByFieldId: Map<string, RollupCsvContext>
+): RollupCsvValues => {
+  const result: RollupCsvValues = new Map();
+  if (rollupFields.length === 0) {
+    return result;
+  }
+
+  for (const record of records) {
+    const perField = new Map<string, string>();
+
+    for (const field of rollupFields) {
+      if (!field.relationFieldId || !field.aggregation) {
+        perField.set(field.id, 'Not configured');
+        continue;
+      }
+
+      const context = contextByFieldId.get(field.id);
+      const relationValue = record.fields[field.relationFieldId];
+      const relationIds =
+        relationValue && relationValue.type === 'string_array'
+          ? relationValue.value
+          : [];
+
+      const relatedRecords = relationIds
+        .map((id) => context?.relatedRecordsById.get(id))
+        .filter((related): related is LocalRecordNode => related !== undefined);
+
+      const value = evaluateRollup(
+        field.aggregation,
+        context?.targetField,
+        relatedRecords
+      );
+      perField.set(field.id, formatRollupValue(value, field.aggregation));
+    }
+
+    result.set(record.id, perField);
+  }
+
+  return result;
+};
+
 export const serializeFieldValueToCsv = (
   record: LocalRecordNode,
   field: FieldAttributes,
-  fields: FieldAttributes[]
+  fields: FieldAttributes[],
+  rollupValues?: RollupCsvValues
 ): string => {
   if (field.type === 'created_at') {
     return record.createdAt ?? '';
@@ -198,11 +270,16 @@ export const serializeFieldValueToCsv = (
     return record.updatedAt ?? '';
   }
 
+  // Rollup fields aggregate *related* records from another database, which this
+  // pure serializer cannot load. The caller precomputes the display strings
+  // (mirroring the live RecordRollupValue cell) and passes them in.
+  if (field.type === 'rollup') {
+    return rollupValues?.get(record.id)?.get(field.id) ?? '';
+  }
+
   // Formula fields store no value; compute it from the record's other fields
   // at export time using the same engine the RecordFormulaValue cell uses, so
-  // the CSV matches what the app shows. (Rollup is intentionally not handled
-  // here: it aggregates *related* records, which this pure serializer can't
-  // load — see the export note.)
+  // the CSV matches what the app shows.
   if (field.type === 'formula') {
     const result = evaluateFormulaField(
       field,
@@ -272,7 +349,8 @@ export interface CsvExportResult {
 export const exportRecordsToCsv = (
   records: LocalRecordNode[],
   fields: FieldAttributes[],
-  nameHeader = 'Name'
+  nameHeader = 'Name',
+  rollupValues?: RollupCsvValues
 ): CsvExportResult => {
   const sortedFields = [...fields].sort((a, b) =>
     compareString(a.index, b.index)
@@ -287,7 +365,7 @@ export const exportRecordsToCsv = (
   const rows = records.map((record) => [
     record.name ?? '',
     ...includedFields.map((field) =>
-      serializeFieldValueToCsv(record, field, sortedFields)
+      serializeFieldValueToCsv(record, field, sortedFields, rollupValues)
     ),
   ]);
 
