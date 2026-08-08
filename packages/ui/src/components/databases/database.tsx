@@ -4,6 +4,7 @@ import { LocalDatabaseNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { DatabaseContext } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useFormulaBackfill } from '@colanode/ui/hooks/use-formula-backfill';
 
 interface DatabaseProps {
   database: LocalDatabaseNode;
@@ -17,6 +18,10 @@ export const Database = ({ database, role, children }: DatabaseProps) => {
   const canEdit = hasNodeRole(role, 'editor');
   const isLocked = database.locked ?? false;
   const canCreateRecord = hasNodeRole(role, 'editor');
+
+  // Backfill materialised formula values for records created before the
+  // feature shipped, so they sort/filter correctly too (once, per client).
+  useFormulaBackfill(database, canEdit);
 
   const toggleLock = useCallback(() => {
     if (!canEdit) {
