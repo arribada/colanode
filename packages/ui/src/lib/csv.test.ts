@@ -228,6 +228,33 @@ describe('exportRecordsToCsv', () => {
     );
     expect(parseCsv(result.csv, ',')[1]).toEqual(['Empty', '']);
   });
+
+  it('computes and exports formula field values', () => {
+    const withFormula: FieldAttributes[] = [
+      field({ id: 'f_price', type: 'number', name: 'Price', index: 'a1' }),
+      field({ id: 'f_qty', type: 'number', name: 'Quantity', index: 'a2' }),
+      {
+        id: 'f_total',
+        type: 'formula',
+        name: 'Total',
+        index: 'a3',
+        expression: "prop('Price') * prop('Quantity')",
+      },
+    ];
+    const records = [
+      record('Widget', {
+        f_price: { type: 'number', value: 4 },
+        f_qty: { type: 'number', value: 3 },
+      }),
+    ];
+
+    const result = exportRecordsToCsv(records, withFormula, 'Name');
+    // The formula column is exported, not skipped.
+    expect(result.skippedFields.map((f) => f.name)).not.toContain('Total');
+    const rows = parseCsv(result.csv, ',');
+    expect(rows[0]).toEqual(['Name', 'Price', 'Quantity', 'Total']);
+    expect(rows[1]).toEqual(['Widget', '4', '3', '12']);
+  });
 });
 
 describe('csv value parsers', () => {

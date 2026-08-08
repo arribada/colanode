@@ -1,3 +1,4 @@
+import { evaluateFormulaField, formatFormulaValue } from '@colanode/client/lib';
 import { LocalRecordNode } from '@colanode/client/types';
 import {
   compareString,
@@ -154,6 +155,7 @@ const CSV_EXPORTABLE_FIELD_TYPES = new Set<FieldAttributes['type']>([
   'created_at',
   'date',
   'email',
+  'formula',
   'multi_select',
   'number',
   'phone',
@@ -185,7 +187,8 @@ export const isCsvImportableField = (field: FieldAttributes): boolean => {
 
 export const serializeFieldValueToCsv = (
   record: LocalRecordNode,
-  field: FieldAttributes
+  field: FieldAttributes,
+  fields: FieldAttributes[]
 ): string => {
   if (field.type === 'created_at') {
     return record.createdAt ?? '';
@@ -193,6 +196,27 @@ export const serializeFieldValueToCsv = (
 
   if (field.type === 'updated_at') {
     return record.updatedAt ?? '';
+  }
+
+  // Formula fields store no value; compute it from the record's other fields
+  // at export time using the same engine the RecordFormulaValue cell uses, so
+  // the CSV matches what the app shows. (Rollup is intentionally not handled
+  // here: it aggregates *related* records, which this pure serializer can't
+  // load — see the export note.)
+  if (field.type === 'formula') {
+    const result = evaluateFormulaField(
+      field,
+      {
+        fields: record.fields,
+        name: record.name,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        createdBy: record.createdBy,
+        updatedBy: record.updatedBy,
+      },
+      fields
+    );
+    return result.error ? '' : formatFormulaValue(result.value);
   }
 
   const value = record.fields[field.id];
@@ -262,7 +286,9 @@ export const exportRecordsToCsv = (
   const header = [nameHeader, ...includedFields.map((field) => field.name)];
   const rows = records.map((record) => [
     record.name ?? '',
-    ...includedFields.map((field) => serializeFieldValueToCsv(record, field)),
+    ...includedFields.map((field) =>
+      serializeFieldValueToCsv(record, field, sortedFields)
+    ),
   ]);
 
   return {

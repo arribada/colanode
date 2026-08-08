@@ -90,7 +90,7 @@ const rowSelectionAt = (
   return CellSelection.rowSelection(anchor, head);
 };
 
-const colSelectionAt = (
+export const colSelectionAt = (
   doc: ProseMirrorNode,
   table: ProseMirrorNode,
   tablePos: number,
