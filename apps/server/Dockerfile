@@ -28,8 +28,14 @@ COPY ../../tsconfig.base.json ./
 # Build packages
 RUN npm run build -w @colanode/core && \
     npm run build -w @colanode/crdt && \
-    npm run build -w @colanode/server && \
-    npm prune --production
+    npm run build -w @colanode/server
+
+# Build gate: run the tested shared package (core) so a regression fails the
+# server image build too, not just the web one. crdt/server have no test
+# files. Must precede the prune, which removes vitest.
+RUN (cd packages/core && npx vitest run)
+
+RUN npm prune --production
 
 ENV NODE_ENV=production
 

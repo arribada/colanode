@@ -37,8 +37,19 @@ RUN npm run build -w @colanode/core && \
     npm run build -w @colanode/crdt && \
     npm run build -w @colanode/client && \
     npm run build -w @colanode/ui && \
-    npm run build -w @colanode/web && \
-    npm prune --production
+    npm run build -w @colanode/web
+
+# Run unit tests as a build gate: a failing test fails `docker build`, so a
+# regression can never reach the deploy on an otherwise-green build (the way
+# the v161 sidebar-menu break shipped, because the image build only ran tsc).
+# better-sqlite3 is compiled for this musl image by the toolchain above, so the
+# native FTS test runs here too. Must precede the prune, which removes vitest.
+RUN (cd packages/core && npx vitest run) && \
+    (cd packages/client && npx vitest run) && \
+    (cd packages/ui && npx vitest run)
+
+# Strip dev dependencies from the final artifact
+RUN npm prune --production
 
 
 FROM nginx:1.27-alpine
