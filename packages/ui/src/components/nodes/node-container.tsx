@@ -1,5 +1,5 @@
 import { Outlet } from '@tanstack/react-router';
-import { FileText, LayoutDashboard } from 'lucide-react';
+import { FileText, LayoutDashboard, MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 
 import { ChannelContainer } from '@colanode/ui/components/channels/channel-container';
@@ -23,6 +23,11 @@ import { Button } from '@colanode/ui/components/ui/button';
 import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { ContainerType } from '@colanode/ui/contexts/container';
 import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@colanode/ui/components/ui/dropdown-menu';
 import { useNode } from '@colanode/ui/contexts/node';
 import { useNodeRadar } from '@colanode/ui/hooks/use-node-radar';
 
@@ -80,17 +85,48 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
               </Button>
             </div>
           )}
-          {data.node.type === 'page' && (
-            <PageCommentsButton pageId={data.node.id} />
-          )}
-          {(data.node.type === 'page' || data.node.type === 'record') && (
-            <PageSuggestionsButton pageId={data.node.id} />
-          )}
-          {(data.node.type === 'page' || data.node.type === 'record') && (
-            <NodePresenceViewers nodeId={data.node.id} />
-          )}
-          {(data.node.type === 'page' || data.node.type === 'record') && (
-            <NodeFavoriteButton nodeId={data.node.id} />
+          {isMobile ? (
+            (data.node.type === 'page' || data.node.type === 'record') && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="More actions"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto p-2">
+                  <div className="flex items-center gap-2">
+                    {data.node.type === 'page' && (
+                      <PageCommentsButton pageId={data.node.id} />
+                    )}
+                    <PageSuggestionsButton pageId={data.node.id} />
+                    <NodePresenceViewers nodeId={data.node.id} />
+                    <NodeFavoriteButton nodeId={data.node.id} />
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          ) : (
+            <>
+              {data.node.type === 'page' && (
+                <PageCommentsButton pageId={data.node.id} />
+              )}
+              {(data.node.type === 'page' ||
+                data.node.type === 'record') && (
+                <PageSuggestionsButton pageId={data.node.id} />
+              )}
+              {(data.node.type === 'page' ||
+                data.node.type === 'record') && (
+                <NodePresenceViewers nodeId={data.node.id} />
+              )}
+              {(data.node.type === 'page' ||
+                data.node.type === 'record') && (
+                <NodeFavoriteButton nodeId={data.node.id} />
+              )}
+            </>
           )}
           <NodeSettings
             node={data.node}

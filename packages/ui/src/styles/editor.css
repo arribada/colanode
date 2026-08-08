@@ -1,5 +1,10 @@
 .ProseMirror {
   padding: 0;
+  /* Long unbreakable strings (URLs, IDs, code spans) must wrap instead of
+     widening the content column and forcing horizontal page scroll on
+     phones. Wide block children (tables, <pre>) still scroll in their own
+     overflow-x box; this only rescues inline runs. */
+  overflow-wrap: break-word;
 }
 
 .ProseMirror .is-editor-empty:first-child::before {
