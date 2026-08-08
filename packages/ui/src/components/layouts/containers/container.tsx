@@ -66,9 +66,11 @@ export const Container = ({
               <Fullscreen className="size-4" />
             </button>
           )}
-          <div className="flex-1 flex justify-between items-center">
-            <div>{type === 'full' ? breadcrumb : null}</div>
-            <div>{actions}</div>
+          <div className="flex-1 flex justify-between items-center gap-2 min-w-0">
+            <div className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap">
+              {type === 'full' ? breadcrumb : null}
+            </div>
+            <div className="flex shrink-0 items-center">{actions}</div>
           </div>
         </div>
         {fill ? (
