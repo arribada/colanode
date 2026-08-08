@@ -66,11 +66,11 @@ const coerceCell = (
         : 'skip';
     }
     case 'text':
-      return trimmed === '' ? undefined : { type: 'text', value: raw };
+      return trimmed === '' ? undefined : { type: 'text', value: trimmed };
     case 'email':
     case 'phone':
     case 'url':
-      return trimmed === '' ? undefined : { type: 'string', value: raw };
+      return trimmed === '' ? undefined : { type: 'string', value: trimmed };
     default:
       return 'skip';
   }
@@ -382,32 +382,43 @@ export const TableView = () => {
     }
 
     if (external) {
+      // Apply each row as ONE record mutation instead of one per cell: fewer
+      // optimistic transactions + sync operations, and a row's cells land
+      // atomically rather than as a burst of independent updates.
       for (let i = 0; i < external.length; i++) {
         const row = external[i];
-        if (!row) {
+        const target = records[startRow + i];
+        if (!row || !target) {
           continue;
         }
+        const edits: Array<{ fieldId: string; value: FieldValue | undefined }> =
+          [];
         for (let j = 0; j < row.length; j++) {
-          const target = records[startRow + i];
           const targetField = cols[startCol + j]?.field;
-          if (!target || !targetField) {
+          if (!targetField) {
             continue;
           }
           const coerced = coerceCell(row[j] ?? '', targetField.type);
           if (coerced === 'skip') {
             continue;
           }
-          workspace.collections.nodes.update(target.id, (draft) => {
-            if (draft.type !== 'record') {
-              return;
-            }
-            if (coerced === undefined) {
-              delete draft.fields[targetField.id];
-            } else {
-              draft.fields[targetField.id] = coerced;
-            }
-          });
+          edits.push({ fieldId: targetField.id, value: coerced });
         }
+        if (edits.length === 0) {
+          continue;
+        }
+        workspace.collections.nodes.update(target.id, (draft) => {
+          if (draft.type !== 'record') {
+            return;
+          }
+          for (const edit of edits) {
+            if (edit.value === undefined) {
+              delete draft.fields[edit.fieldId];
+            } else {
+              draft.fields[edit.fieldId] = edit.value;
+            }
+          }
+        });
       }
       return;
     }
@@ -416,26 +427,38 @@ export const TableView = () => {
       return;
     }
     for (let i = 0; i < buf.values.length; i++) {
+      const target = records[startRow + i];
+      if (!target) {
+        continue;
+      }
+      const edits: Array<{ fieldId: string; value: FieldValue | undefined }> =
+        [];
       for (let j = 0; j < buf.types.length; j++) {
-        const tr = startRow + i;
-        const tc = startCol + j;
-        const target = records[tr];
-        const targetField = cols[tc]?.field;
-        if (!target || !targetField || targetField.type !== buf.types[j]) {
+        const targetField = cols[startCol + j]?.field;
+        if (!targetField || targetField.type !== buf.types[j]) {
           continue;
         }
         const v = buf.values[i]?.[j];
-        workspace.collections.nodes.update(target.id, (draft) => {
-          if (draft.type !== 'record') {
-            return;
-          }
-          if (v === undefined) {
-            delete draft.fields[targetField.id];
-          } else {
-            draft.fields[targetField.id] = JSON.parse(JSON.stringify(v));
-          }
+        edits.push({
+          fieldId: targetField.id,
+          value: v === undefined ? undefined : JSON.parse(JSON.stringify(v)),
         });
       }
+      if (edits.length === 0) {
+        continue;
+      }
+      workspace.collections.nodes.update(target.id, (draft) => {
+        if (draft.type !== 'record') {
+          return;
+        }
+        for (const edit of edits) {
+          if (edit.value === undefined) {
+            delete draft.fields[edit.fieldId];
+          } else {
+            draft.fields[edit.fieldId] = edit.value;
+          }
+        }
+      });
     }
   }, [anchor, focus, workspace]);
 
