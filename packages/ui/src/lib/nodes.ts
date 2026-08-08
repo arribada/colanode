@@ -116,6 +116,11 @@ export const applyNodeTransaction = async (
       });
     } else if (mutation.type === 'update') {
       const node = cloneDeep(mutation.modified);
+      if (node.type === 'database') {
+        // A formula definition may have changed -> drop the cached field set
+        // so subsequent record writes materialise with the new formula.
+        databaseFieldsCache.delete(node.id);
+      }
       await materializeRecordFormulas(userId, node);
       const attributes = mapNodeAttributes(node);
       await window.colanode.executeMutation({

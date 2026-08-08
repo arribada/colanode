@@ -164,9 +164,24 @@ const buildYDoc = (
   state: DocumentState | null | undefined,
   updates: DocumentUpdate[]
 ) => {
-  const ydoc = new YDoc(state?.state);
+  // A corrupt stored state/update must never throw here: buildYDoc runs in a
+  // useRef initializer (during render), so a throw would trip the route
+  // boundary into a latched "Node error". Apply each piece defensively and
+  // skip any that fail, so the document still opens (minus the bad update).
+  const ydoc = new YDoc();
+  if (state?.state) {
+    try {
+      ydoc.applyUpdate(state.state);
+    } catch {
+      // skip a corrupt base state
+    }
+  }
   for (const update of updates) {
-    ydoc.applyUpdate(update.data);
+    try {
+      ydoc.applyUpdate(update.data);
+    } catch {
+      // skip a corrupt update
+    }
   }
   return ydoc;
 };
@@ -592,9 +607,19 @@ export const DocumentEditor = ({
 
     const beforeContent = ydocRef.current.getObject<RichTextContent>();
 
-    ydocRef.current.applyUpdate(state.state);
+    // A corrupt update arriving via sync must not throw into this effect and
+    // flip an open, healthy page into a latched "Node error" -- skip bad ones.
+    try {
+      ydocRef.current.applyUpdate(state.state);
+    } catch {
+      // skip a corrupt base state
+    }
     for (const update of updates) {
-      ydocRef.current.applyUpdate(update.data);
+      try {
+        ydocRef.current.applyUpdate(update.data);
+      } catch {
+        // skip a corrupt update
+      }
     }
 
     const afterContent = ydocRef.current.getObject<RichTextContent>();

@@ -107,7 +107,12 @@ export const DocumentReadingProgress = ({
       if (!item) {
         continue;
       }
-      const node = editor.view.nodeDOM(item.pos) as HTMLElement | null;
+      let node: HTMLElement | null = null;
+      try {
+        node = editor.view.nodeDOM(item.pos) as HTMLElement | null;
+      } catch {
+        // a heading pos can lag a fast edit -> out-of-range; ignore
+      }
       if (!node || typeof node.getBoundingClientRect !== 'function') {
         continue;
       }
@@ -167,7 +172,12 @@ export const DocumentReadingProgress = ({
   }, [editor, onScroll, recompute, headings.length]);
 
   const scrollTo = (heading: HeadingItem, index: number) => {
-    const node = editor.view.nodeDOM(heading.pos) as HTMLElement | null;
+    let node: HTMLElement | null = null;
+    try {
+      node = editor.view.nodeDOM(heading.pos) as HTMLElement | null;
+    } catch {
+      // stale heading pos -> ignore
+    }
     if (node && typeof node.scrollIntoView === 'function') {
       node.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

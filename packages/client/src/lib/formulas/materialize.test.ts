@@ -53,6 +53,9 @@ describe('formulaValueToFieldValue', () => {
     expect(formulaValueToFieldValue(Infinity, 'number')).toBeNull();
     expect(formulaValueToFieldValue('not-a-date', 'date')).toBeNull();
   });
+  it('returns null (never throws) for an invalid Date in the string branch', () => {
+    expect(formulaValueToFieldValue(new Date('nope'), 'string')).toBeNull();
+  });
 });
 
 describe('computeRecordFormulaValues', () => {
@@ -101,6 +104,18 @@ describe('computeRecordFormulaValues', () => {
   it('omits an erroring formula (reads as empty)', () => {
     const values = computeRecordFormulaValues(record, fields);
     expect(values.f_broken).toBeUndefined();
+  });
+  it('does not materialise a time-dependent formula (now/today)', () => {
+    const nowField: FieldAttributes = {
+      id: 'f_now',
+      type: 'formula',
+      name: 'Age',
+      index: 'f',
+      expression: "dateBetween(prop('Created'), now(), 'days')",
+      resultType: 'number',
+    };
+    const values = computeRecordFormulaValues(record, [...fields, nowField]);
+    expect(values.f_now).toBeUndefined();
   });
 
   it('ignores non-formula fields', () => {

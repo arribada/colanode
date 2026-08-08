@@ -21,7 +21,7 @@ export const Database = ({ database, role, children }: DatabaseProps) => {
 
   // Backfill materialised formula values for records created before the
   // feature shipped, so they sort/filter correctly too (once, per client).
-  useFormulaBackfill(database, canEdit);
+  useFormulaBackfill(database, canEdit && !isLocked);
 
   const toggleLock = useCallback(() => {
     if (!canEdit) {
@@ -46,7 +46,7 @@ export const Database = ({ database, role, children }: DatabaseProps) => {
         name: database.name,
         nameField: database.nameField,
         role,
-        fields: Object.values(database.fields),
+        fields: Object.values(database.fields ?? {}),
         automations: database.automations ?? [],
         canEdit: canEdit,
         isLocked,

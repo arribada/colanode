@@ -4,9 +4,13 @@ import { useEffect, useState } from 'react';
 
 import { NodeContainerSkeleton } from '@colanode/ui/components/nodes/node-container-skeleton';
 
-const MAX_AUTO_RETRIES = 3;
-const RETRY_DELAY_MS = 1200;
-const RETRY_WINDOW_MS = 15000;
+const MAX_AUTO_RETRIES = 6;
+const RETRY_DELAY_MS = 1000;
+const RETRY_WINDOW_MS = 30000;
+// A re-mount after a gap longer than the longest backoff step is a fresh
+// open (the user navigated back), not an active retry loop -- so it earns a
+// fresh set of retries instead of the stale, exhausted "Node error".
+const FRESH_OPEN_GAP_MS = 8000;
 
 // A node route almost always errors only transiently — a referenced node
 // (mention/embed) or an ancestor in the chain is still syncing — and simply
@@ -30,8 +34,11 @@ export const NodeErrorContainer = ({ reset }: ErrorComponentProps) => {
 
   const now = Date.now();
   const previous = retryLog.get(key);
-  const attempts =
-    previous != null && now - previous.ts < RETRY_WINDOW_MS ? previous.count : 0;
+  const isActiveRetryLoop =
+    previous != null &&
+    now - previous.ts < RETRY_WINDOW_MS &&
+    now - previous.ts < FRESH_OPEN_GAP_MS;
+  const attempts = isActiveRetryLoop ? previous!.count : 0;
   const canRetry = attempts < MAX_AUTO_RETRIES;
 
   useEffect(() => {
@@ -44,7 +51,9 @@ export const NodeErrorContainer = ({ reset }: ErrorComponentProps) => {
       // so the node renders again once the missing data has synced in.
       setAttempt((a) => a + 1);
       reset();
-    }, RETRY_DELAY_MS);
+      // Back off so a slow-syncing large workspace has time to catch up
+      // before we give up, without hammering the route.
+    }, RETRY_DELAY_MS * Math.min(attempts + 1, 4));
     return () => clearTimeout(timer);
     // `attempts` is intentionally read at schedule time, not tracked as a dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps

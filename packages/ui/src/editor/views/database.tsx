@@ -27,6 +27,13 @@ const DatabaseNodeViewContent = ({
 }) => {
   const { node: database, role } = useNode<LocalDatabaseNode>();
 
+  // The embed id can transiently resolve to a non-database node during sync,
+  // or point at a deleted/replaced node; rendering <Database> then runs
+  // Object.values(database.fields) on undefined and throws into the page.
+  if (database.type !== 'database') {
+    return null;
+  }
+
   if (inline) {
     // Resolve a human label for the per-embed filter so it is visible on the
     // view (the filter is applied at query level, not stored on the view node).

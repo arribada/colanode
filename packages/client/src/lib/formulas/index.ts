@@ -246,10 +246,14 @@ export const formulaValueToFieldValue = (
     }
     case 'string':
     default: {
-      const text =
-        value instanceof Date
-          ? (value.toISOString().split('T')[0] ?? '')
-          : String(value);
+      if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) {
+          return null;
+        }
+        const iso = value.toISOString().split('T')[0];
+        return iso ? { type: 'text', value: iso } : null;
+      }
+      const text = String(value);
       return text.length > 0 ? { type: 'text', value: text } : null;
     }
   }
@@ -258,6 +262,14 @@ export const formulaValueToFieldValue = (
 // Compute the stored FieldValue for every formula field on a record, keyed by
 // field id. A null/empty (or erroring) formula is omitted, so it reads as an
 // empty cell for filters. Pure: the caller supplies the database's field defs.
+// A formula that reads the current time yields a value valid only at compute
+// time; materialising it would make sort/filter operate on a frozen, wrong
+// value, so such formulas are left unmaterialised (their cell still renders
+// live).
+const isTimeDependentFormula = (
+  expression: string | null | undefined
+): boolean => (expression ? /\b(now|today)\s*\(/i.test(expression) : false);
+
 export const computeRecordFormulaValues = (
   record: FormulaRecordLike,
   fields: FieldAttributes[],
@@ -269,6 +281,9 @@ export const computeRecordFormulaValues = (
       continue;
     }
     const formulaField = field as FormulaFieldAttributes;
+    if (isTimeDependentFormula(formulaField.expression)) {
+      continue;
+    }
     const evaluation = evaluateFormulaField(
       formulaField,
       record,

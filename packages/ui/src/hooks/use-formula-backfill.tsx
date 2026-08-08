@@ -2,7 +2,10 @@
 // ABOUTME: database's pre-existing records, so formula sort/filter cover them too.
 import { useEffect } from 'react';
 
-import { computeRecordFormulaValues } from '@colanode/client/lib';
+import {
+  computeRecordFormulaValues,
+  mapNodeAttributes,
+} from '@colanode/client/lib';
 import { LocalDatabaseNode } from '@colanode/client/types';
 import { FieldValue } from '@colanode/core';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -34,6 +37,11 @@ const scalarEquals = (
 // flood the sync queue in one synchronous burst.
 const BACKFILL_YIELD_EVERY = 25;
 
+// Guards a redundant re-scan while the persistent `done` flag is still loading
+// (useMetadata can't distinguish "loading" from "unset"): once a database has
+// been attempted this session, don't attempt it again.
+const backfilledThisSession = new Set<string>();
+
 export const useFormulaBackfill = (
   database: LocalDatabaseNode,
   enabled: boolean
@@ -45,7 +53,7 @@ export const useFormulaBackfill = (
   );
 
   useEffect(() => {
-    if (!enabled || done) {
+    if (!enabled || done || backfilledThisSession.has(database.id)) {
       return;
     }
 
@@ -86,18 +94,24 @@ export const useFormulaBackfill = (
           continue;
         }
 
-        workspace.collections.nodes.update(node.id, (draft) => {
-          if (draft.type !== 'record') {
-            return;
+        const updated = { ...node, fields: { ...node.fields } };
+        for (const field of formulaFields) {
+          const next = computed[field.id];
+          if (next) {
+            updated.fields[field.id] = next;
+          } else if (updated.fields[field.id]) {
+            delete updated.fields[field.id];
           }
-          for (const field of formulaFields) {
-            const next = computed[field.id];
-            if (next) {
-              draft.fields[field.id] = next;
-            } else if (draft.fields[field.id]) {
-              delete draft.fields[field.id];
-            }
-          }
+        }
+        // Persist through the direct mutation funnel, NOT
+        // collections.nodes.update -- that throws UpdateKeyNotFoundError for a
+        // record not in the on-demand collection (any row past the view's first
+        // page, or hidden by an active filter).
+        await window.colanode.executeMutation({
+          type: 'node.update',
+          userId: workspace.userId,
+          nodeId: node.id,
+          attributes: mapNodeAttributes(updated),
         });
 
         written += 1;
@@ -111,6 +125,7 @@ export const useFormulaBackfill = (
       }
     };
 
+    backfilledThisSession.add(database.id);
     void run().catch(() => {
       // Best-effort: on failure leave the flag unset so a later open retries.
     });
