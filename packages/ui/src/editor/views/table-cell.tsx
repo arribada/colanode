@@ -159,14 +159,20 @@ export const TableCellNodeView = (props: NodeViewProps) => {
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                const pos = props.getPos();
-                if (pos === undefined || pos === null) {
+                if (typeof props.getPos !== 'function') {
                   return;
                 }
                 const onUp = (up: PointerEvent) => {
                   document.removeEventListener('pointerup', onUp, true);
                   fillUpRef.current = null;
                   document.body.classList.remove('colanode-table-filling');
+                  // Resolve the source cell position at DROP -- getPos() is a
+                  // live getter, so a concurrent edit during the drag can't make
+                  // it stale and target the wrong cell.
+                  const pos = props.getPos();
+                  if (pos === undefined || pos === null) {
+                    return;
+                  }
                   applyFillFromDrag(props.editor, pos, up.clientX, up.clientY);
                 };
                 fillUpRef.current = onUp;
