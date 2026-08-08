@@ -37,6 +37,44 @@ const cellToText = (v: FieldValue | undefined): string => {
   return typeof val === 'object' ? JSON.stringify(val) : String(val);
 };
 
+// Parse a TSV clipboard payload into a grid of raw strings. Rows split on
+// newlines (tolerating CRLF), columns on tabs; a trailing newline is ignored.
+const parseTsv = (text: string): string[][] =>
+  text
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n$/, '')
+    .split('\n')
+    .map((line) => line.split('\t'));
+
+// Coerce one pasted cell string to the target field's value shape. Returns
+// undefined to clear an empty cell, or 'skip' for field types we don't paste
+// into (dates, selects, relations, ...) so we never corrupt structured values.
+const coerceCell = (
+  raw: string,
+  type: string
+): FieldValue | undefined | 'skip' => {
+  const trimmed = raw.trim();
+  switch (type) {
+    case 'number': {
+      if (trimmed === '') {
+        return undefined;
+      }
+      const parsed = Number(trimmed.replace(/,/g, ''));
+      return Number.isFinite(parsed)
+        ? { type: 'number', value: parsed }
+        : 'skip';
+    }
+    case 'text':
+      return trimmed === '' ? undefined : { type: 'text', value: raw };
+    case 'email':
+    case 'phone':
+    case 'url':
+      return trimmed === '' ? undefined : { type: 'string', value: raw };
+    default:
+      return 'skip';
+  }
+};
+
 export const TableView = () => {
   const workspace = useWorkspace();
   useDatabase();
@@ -228,6 +266,7 @@ export const TableView = () => {
   const clipboardRef = useRef<{
     values: (FieldValue | undefined)[][];
     types: string[];
+    tsv: string;
   } | null>(null);
 
   // Start a range at a cell and drive it entirely from window pointer events,
@@ -307,23 +346,74 @@ export const TableView = () => {
       values.push(row);
       tsvRows.push(text.join('\t'));
     }
-    clipboardRef.current = { values, types };
+    const tsv = tsvRows.join('\n');
+    clipboardRef.current = { values, types, tsv };
     try {
-      void navigator.clipboard?.writeText(tsvRows.join('\n'));
+      void navigator.clipboard?.writeText(tsv);
     } catch {
       // clipboard may be unavailable; internal buffer still works
     }
   }, [anchor, focus]);
 
-  const pasteRange = useCallback(() => {
-    const buf = clipboardRef.current;
-    if (!buf || !anchor) {
+  const pasteRange = useCallback(async () => {
+    if (!anchor) {
       return;
     }
     const records = recordsRef.current;
     const cols = columnsRef.current;
     const startRow = Math.min(anchor.row, focus?.row ?? anchor.row);
     const startCol = Math.min(anchor.col, focus?.col ?? anchor.col);
+    const buf = clipboardRef.current;
+
+    // Prefer the system clipboard when it holds an EXTERNAL grid (a paste from a
+    // spreadsheet / another app). We recognise our own copy by comparing to the
+    // buffer's TSV, in which case we keep the richer internal values below.
+    let external: string[][] | null = null;
+    try {
+      const text = await navigator.clipboard?.readText();
+      if (text && (text.includes('\t') || text.includes('\n'))) {
+        if (!buf || text !== buf.tsv) {
+          external = parseTsv(text);
+        }
+      }
+    } catch {
+      // Clipboard may reject (permissions/focus); fall back to the buffer.
+    }
+
+    if (external) {
+      for (let i = 0; i < external.length; i++) {
+        const row = external[i];
+        if (!row) {
+          continue;
+        }
+        for (let j = 0; j < row.length; j++) {
+          const target = records[startRow + i];
+          const targetField = cols[startCol + j]?.field;
+          if (!target || !targetField) {
+            continue;
+          }
+          const coerced = coerceCell(row[j] ?? '', targetField.type);
+          if (coerced === 'skip') {
+            continue;
+          }
+          workspace.collections.nodes.update(target.id, (draft) => {
+            if (draft.type !== 'record') {
+              return;
+            }
+            if (coerced === undefined) {
+              delete draft.fields[targetField.id];
+            } else {
+              draft.fields[targetField.id] = coerced;
+            }
+          });
+        }
+      }
+      return;
+    }
+
+    if (!buf) {
+      return;
+    }
     for (let i = 0; i < buf.values.length; i++) {
       for (let j = 0; j < buf.types.length; j++) {
         const tr = startRow + i;
@@ -364,7 +454,7 @@ export const TableView = () => {
         copyRange();
       } else if (mod && e.key.toLowerCase() === 'v' && !editing) {
         e.preventDefault();
-        pasteRange();
+        void pasteRange();
       } else if (e.key === 'Escape') {
         clearRange();
       }
