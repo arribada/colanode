@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -51,6 +52,21 @@ vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-menu-header', () => ({
 vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-menu-footer', () => ({
   SidebarMenuFooter: () => null,
 }));
+
+// The apps launcher uses a Radix DropdownMenu, whose context hooks assume a
+// live client render and throw under renderToStaticMarkup. This test only
+// asserts the rail's icon aria-labels (all outside the dropdown), so stub the
+// menu parts with passthroughs that render their children.
+vi.mock('@colanode/ui/components/ui/dropdown-menu', () => {
+  const Passthrough = ({ children }: { children?: ReactNode }) => children;
+  return {
+    DropdownMenu: Passthrough,
+    DropdownMenuTrigger: Passthrough,
+    DropdownMenuContent: Passthrough,
+    DropdownMenuItem: Passthrough,
+    DropdownMenuLabel: Passthrough,
+  };
+});
 
 import { SidebarMenu } from '@colanode/ui/components/layouts/sidebars/sidebar-menu';
 
