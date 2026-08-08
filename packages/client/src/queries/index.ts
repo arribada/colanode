@@ -54,6 +54,7 @@ export * from './plane/plane-my-issues';
 export * from './plane/plane-project-board';
 export * from './plane/plane-projects-list';
 export * from './presence/presence-list';
+export * from './unsplash/unsplash-search';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface QueryMap {}

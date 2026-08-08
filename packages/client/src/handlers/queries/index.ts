@@ -53,6 +53,7 @@ import { RecordFieldValueCountQueryHandler } from './records/record-field-value-
 import { RecordSearchQueryHandler } from './records/record-search';
 import { RecordTemplateListQueryHandler } from './records/record-template-list';
 import { ServerListQueryHandler } from './servers/server-list';
+import { UnsplashSearchQueryHandler } from './unsplash/unsplash-search';
 import { UserListQueryHandler } from './users/user-list';
 import { UserSearchQueryHandler } from './users/user-search';
 import { WorkspaceListQueryHandler } from './workspaces/workspace-list';
@@ -117,5 +118,6 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'plane.project.board': new PlaneProjectBoardQueryHandler(app),
     'plane.projects.list': new PlaneProjectsListQueryHandler(app),
     'presence.list': new PresenceListQueryHandler(app),
+    'unsplash.search': new UnsplashSearchQueryHandler(app),
   };
 };
