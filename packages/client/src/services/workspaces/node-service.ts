@@ -5,6 +5,10 @@ import {
 } from '@colanode/client/databases/workspace';
 import { eventBus } from '@colanode/client/lib/event-bus';
 import {
+  isNewerRevision,
+  shouldBlockResurrection,
+} from '@colanode/client/services/workspaces/sync-guards';
+import {
   mapDownload,
   mapNode,
   mapNodeAttributes,
@@ -1047,11 +1051,7 @@ export class NodeService {
     // Only block a genuine resurrection (same root). A cross-space move emits
     // a tombstone in the OLD root while the re-homed update carries the NEW
     // root -- differing roots means relocation, not deletion, so let it create.
-    if (
-      nodeTombstone &&
-      nodeTombstone.root_id === update.rootId &&
-      BigInt(nodeTombstone.revision) > BigInt(update.revision)
-    ) {
+    if (shouldBlockResurrection(nodeTombstone, update)) {
       debug(`Skipping recreate of deleted node ${update.nodeId}`);
       return true;
     }
@@ -1231,8 +1231,10 @@ export class NodeService {
     // re-delivered update merges its Yjs data (above) WITHOUT rolling back the
     // row's root_id -- otherwise re-applying a pre-move update would yank a
     // cross-space-moved node back to its old space.
-    const advancesMetadata =
-      BigInt(update.revision) > BigInt(existingNode.server_revision);
+    const advancesMetadata = isNewerRevision(
+      update.revision,
+      existingNode.server_revision
+    );
 
     const { updatedNode, createdNodeReferences, deletedNodeReferences } =
       await this.workspace.database.transaction().execute(async (trx) => {

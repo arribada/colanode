@@ -1,4 +1,5 @@
 import { SelectCollaboration } from '@colanode/client/databases/workspace';
+import { isStaleCollaboration } from '@colanode/client/services/workspaces/sync-guards';
 import { eventBus } from '@colanode/client/lib/event-bus';
 import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 import { SyncCollaborationData, createDebugger } from '@colanode/core';
@@ -48,8 +49,10 @@ export class CollaborationService {
       .where('node_id', '=', collaboration.nodeId)
       .executeTakeFirst();
     if (
-      existingCollaboration &&
-      BigInt(existingCollaboration.revision) >= BigInt(collaboration.revision)
+      isStaleCollaboration(
+        existingCollaboration?.revision,
+        collaboration.revision
+      )
     ) {
       return;
     }

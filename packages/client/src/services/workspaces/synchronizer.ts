@@ -1,4 +1,5 @@
 import { sha256 } from 'js-sha256';
+import { computeHealCursor } from '@colanode/client/services/workspaces/sync-guards';
 import ms from 'ms';
 
 import { eventBus } from '@colanode/client/lib/event-bus';
@@ -291,7 +292,7 @@ export class Synchronizer<TInput extends SynchronizerInput> {
       return;
     }
 
-    const rewound = current > HEAL_LOOKBACK ? current - HEAL_LOOKBACK : 0n;
+    const rewound = computeHealCursor(current, HEAL_LOOKBACK);
     // Only rewind the in-memory cursor; the re-pull re-advances it and
     // saveCursor persists the new high-water mark, so an interrupted heal never
     // leaves a regressed persisted cursor.
