@@ -10,6 +10,11 @@ import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useRecordsQuery } from '@colanode/ui/hooks/use-records-query';
 
+// Cap the eager pagination so a very large database can't freeze the client
+// loading every record just to aggregate a column; past this the value is
+// shown as approximate (~) over the first N.
+const MAX_SUMMARY_RECORDS = 5000;
+
 export const TableViewSummaryRow = () => {
   const workspace = useWorkspace();
   const database = useDatabase();
@@ -26,10 +31,15 @@ export const TableViewSummaryRow = () => {
     useRecordsQuery(view.filters, view.sorts, 200);
 
   useEffect(() => {
-    if (hasAnySummary && hasNextPage && !isFetchingNextPage) {
+    if (
+      hasAnySummary &&
+      hasNextPage &&
+      !isFetchingNextPage &&
+      (data?.length ?? 0) < MAX_SUMMARY_RECORDS
+    ) {
       fetchNextPage();
     }
-  }, [hasAnySummary, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasAnySummary, hasNextPage, isFetchingNextPage, fetchNextPage, data]);
 
   const setSummary = (fieldId: string, kind: SummaryKind) => {
     if (!canEdit) {
@@ -55,6 +65,7 @@ export const TableViewSummaryRow = () => {
   }
 
   const records = data;
+  const capped = hasNextPage && (data?.length ?? 0) >= MAX_SUMMARY_RECORDS;
   const nameKind = (summaries[SpecialId.Name] as SummaryKind) ?? 'none';
 
   return (
@@ -72,6 +83,7 @@ export const TableViewSummaryRow = () => {
           records={records}
           kind={nameKind}
           canEdit={canEdit}
+          capped={capped}
           onChange={(kind) => setSummary(SpecialId.Name, kind)}
         />
       </div>
@@ -88,6 +100,7 @@ export const TableViewSummaryRow = () => {
               records={records}
               kind={kind}
               canEdit={canEdit}
+              capped={capped}
               onChange={(next) => setSummary(viewField.field.id, next)}
             />
           </div>

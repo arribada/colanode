@@ -29,6 +29,7 @@ interface TableViewSummaryCellProps {
   records: LocalRecordNode[];
   kind: SummaryKind;
   canEdit: boolean;
+  capped?: boolean;
   onChange: (kind: SummaryKind) => void;
 }
 
@@ -37,6 +38,7 @@ export const TableViewSummaryCell = ({
   records,
   kind,
   canEdit,
+  capped,
   onChange,
 }: TableViewSummaryCellProps) => {
   const showNumeric = isNumericSummaryField(field);
@@ -78,7 +80,15 @@ export const TableViewSummaryCell = ({
       ) : (
         <Fragment>
           <span className="truncate opacity-70">{SUMMARY_LABELS[kind]}</span>
-          <span className="truncate font-medium tabular-nums text-foreground">
+          <span
+            className="truncate font-medium tabular-nums text-foreground"
+            title={
+              capped
+                ? 'Approximate — based on the first 5,000 records'
+                : undefined
+            }
+          >
+            {capped && value !== null ? '≈ ' : ''}
             {text}
           </span>
         </Fragment>
