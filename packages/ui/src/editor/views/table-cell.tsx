@@ -99,14 +99,15 @@ export const TableCellNodeView = (props: NodeViewProps) => {
   );
 
   return (
-    <NodeViewWrapper>
+    <NodeViewWrapper
+      className={cn('h-full w-full', backgroundColor?.bgClass)}
+    >
       <TableCellContextMenu {...props}>
         <Resizable
           className={cn(
             defaultClasses.tableCell,
             'relative',
             isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
-            backgroundColor?.bgClass,
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',
             align === 'right' && 'justify-end',

@@ -883,8 +883,26 @@ export class NodeService {
 
   public async deleteNode(nodeId: string) {
     const tree = await fetchNodeTree(this.workspace.database, nodeId);
-    const node = tree[tree.length - 1];
+    let node = tree[tree.length - 1];
+    let contextTree = tree;
     if (!node || node.id !== nodeId) {
+      // Robustness: an orphaned node whose ancestor chain is missing or
+      // broken locally (a ghost left by a failed sync) may not resolve as the
+      // tail of its tree. Fall back to a direct row lookup so it can still be
+      // deleted instead of a silent no-op; only a genuinely absent row is
+      // 'not_found'.
+      const orphan = await this.workspace.database
+        .selectFrom('nodes')
+        .selectAll()
+        .where('id', '=', nodeId)
+        .executeTakeFirst();
+      if (!orphan) {
+        return 'not_found';
+      }
+      node = mapNode(orphan);
+      contextTree = [node];
+    }
+    if (!node) {
       return 'not_found';
     }
 
@@ -896,7 +914,7 @@ export class NodeService {
         workspaceId: this.workspace.workspaceId,
         accountId: this.workspace.accountId,
       },
-      tree: tree,
+      tree: contextTree,
       node: node,
     };
 
