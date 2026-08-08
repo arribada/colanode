@@ -1193,7 +1193,10 @@ export const isSortableField = (field: FieldAttributes) => {
     field.type === 'email' ||
     field.type === 'phone' ||
     field.type === 'select' ||
-    field.type === 'url'
+    field.type === 'url' ||
+    // Formula values are materialised into a real stored FieldValue on write
+    // (see materializeRecordFormulas), so the view query can order by them.
+    field.type === 'formula'
   );
 };
 

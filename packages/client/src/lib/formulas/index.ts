@@ -3,7 +3,9 @@
 
 import {
   FieldAttributes,
+  FieldValue,
   FormulaFieldAttributes,
+  FormulaResultType,
 } from '@colanode/core';
 
 import { evaluate, FormulaContext, FormulaEvalError } from './evaluator';
@@ -204,4 +206,85 @@ export const formatFormulaValue = (value: FormulaValue): string => {
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
   return String(value);
+};
+
+const inferFormulaResultType = (value: FormulaValue): FormulaResultType => {
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  if (value instanceof Date) return 'date';
+  return 'string';
+};
+
+// Map a computed formula value onto the stored FieldValue shape so a record's
+// MATERIALISED formula column can be sorted/filtered/exported like any real
+// field. The declared resultType wins; otherwise the runtime JS type decides.
+// A date is stored as a date-only ISO string ('YYYY-MM-DD') because that is how
+// date FIELDS store their value (no dedicated date FieldValue variant exists),
+// so the existing date filter/sort expressions compare it correctly.
+export const formulaValueToFieldValue = (
+  value: FormulaValue,
+  resultType?: FormulaResultType | null
+): FieldValue | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const type = resultType ?? inferFormulaResultType(value);
+  switch (type) {
+    case 'number': {
+      const n = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(n) ? { type: 'number', value: n } : null;
+    }
+    case 'boolean':
+      return { type: 'boolean', value: Boolean(value) };
+    case 'date': {
+      const date = value instanceof Date ? value : new Date(String(value));
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+      const iso = date.toISOString().split('T')[0];
+      return iso ? { type: 'string', value: iso } : null;
+    }
+    case 'string':
+    default: {
+      const text =
+        value instanceof Date
+          ? (value.toISOString().split('T')[0] ?? '')
+          : String(value);
+      return text.length > 0 ? { type: 'text', value: text } : null;
+    }
+  }
+};
+
+// Compute the stored FieldValue for every formula field on a record, keyed by
+// field id. A null/empty (or erroring) formula is omitted, so it reads as an
+// empty cell for filters. Pure: the caller supplies the database's field defs.
+export const computeRecordFormulaValues = (
+  record: FormulaRecordLike,
+  fields: FieldAttributes[],
+  now?: Date
+): Record<string, FieldValue> => {
+  const result: Record<string, FieldValue> = {};
+  for (const field of fields) {
+    if (field.type !== 'formula') {
+      continue;
+    }
+    const formulaField = field as FormulaFieldAttributes;
+    const evaluation = evaluateFormulaField(
+      formulaField,
+      record,
+      fields,
+      now ? { now } : {}
+    );
+    if (evaluation.error) {
+      continue;
+    }
+    const fieldValue = formulaValueToFieldValue(
+      evaluation.value,
+      formulaField.resultType
+    );
+    if (fieldValue) {
+      result[field.id] = fieldValue;
+    }
+  }
+  return result;
 };
