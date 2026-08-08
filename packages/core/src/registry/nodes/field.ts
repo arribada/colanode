@@ -125,6 +125,14 @@ export const numberFieldAttributesSchema = z.object({
   type: z.literal('number'),
   name: z.string(),
   index: z.string(),
+  // Optional display format for the number's READ rendering (the stored value
+  // is never transformed). Matches NumberFormatKind in the shared number-format
+  // util; absent/'plain' renders the raw number, so existing fields are
+  // unaffected.
+  format: z
+    .enum(['plain', 'number', 'integer', 'percent', 'eur', 'usd', 'gbp'])
+    .optional()
+    .nullable(),
 });
 
 export type NumberFieldAttributes = z.infer<typeof numberFieldAttributesSchema>;

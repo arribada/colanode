@@ -7,6 +7,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { LocalNode, ViewField } from '@colanode/client/types';
 import { FieldDeleteDialog } from '@colanode/ui/components/databases/fields/field-delete-dialog';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
+import { FieldNumberFormat } from '@colanode/ui/components/databases/fields/field-number-format';
 import { FieldRenameInput } from '@colanode/ui/components/databases/fields/field-rename-input';
 import {
   Popover,
@@ -227,6 +228,12 @@ export const TableViewFieldHeader = ({
           <PopoverContent className="ml-1 flex w-72 flex-col gap-1 p-2 text-sm">
             <FieldRenameInput field={viewField.field} />
             <Separator />
+            {viewField.field.type === 'number' && (
+              <Fragment>
+                <FieldNumberFormat field={viewField.field} />
+                <Separator />
+              </Fragment>
+            )}
             {canSort && (
               <Fragment>
                 <button

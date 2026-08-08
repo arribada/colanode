@@ -4,6 +4,7 @@ import { NumberFieldValue, type NumberFieldAttributes } from '@colanode/core';
 import { Input } from '@colanode/ui/components/ui/input';
 import { useRecord } from '@colanode/ui/contexts/record';
 import { useRecordField } from '@colanode/ui/hooks/use-record-field';
+import { formatNumber, isNumericFormat } from '@colanode/ui/lib/number-format';
 
 interface RecordNumberValueProps {
   field: NumberFieldAttributes;
@@ -22,12 +23,14 @@ export const RecordNumberValue = ({
   const [localValue, setLocalValue] = useState<string>(
     value?.value?.toString() ?? ''
   );
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     setLocalValue(value?.value?.toString() ?? '');
   }, [value?.value]);
 
   const handleBlur = () => {
+    setFocused(false);
     if (!record.canEdit || readOnly) return;
 
     const trimmedValue = localValue.trim();
@@ -52,11 +55,22 @@ export const RecordNumberValue = ({
     });
   };
 
+  // The read display honors the field's format; while the cell is being edited
+  // (focused + editable) it shows the raw value so typing stays exact.
+  const editing = focused && record.canEdit && !readOnly;
+  const isNumericValue =
+    localValue.trim() !== '' && Number.isFinite(Number(localValue));
+  const displayValue =
+    !editing && isNumericFormat(field.format) && isNumericValue
+      ? formatNumber(Number(localValue), field.format)
+      : localValue;
+
   return (
     <Input
       aria-label={field.name}
-      value={localValue}
+      value={displayValue}
       readOnly={!record.canEdit || readOnly}
+      onFocus={() => setFocused(true)}
       onChange={(e) => {
         if (!record.canEdit || readOnly) return;
         setLocalValue(e.target.value);
