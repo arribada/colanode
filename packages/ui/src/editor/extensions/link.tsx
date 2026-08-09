@@ -7,7 +7,7 @@ export type LinkClickMode = 'same' | 'newtab' | 'modal';
 // Returns true if it handled the navigation (the click is then swallowed).
 export type LinkClickHandler = (href: string, mode: LinkClickMode) => boolean;
 
-interface LinkMarkOptions extends LinkOptions {
+export interface LinkMarkOptions extends LinkOptions {
   onLinkClick?: LinkClickHandler;
 }
 
@@ -17,18 +17,8 @@ export const LinkMark = Link.extend<LinkMarkOptions>({
   addOptions() {
     return {
       ...this.parent?.(),
-      autolink: true,
-      enableClickSelection: false,
-      // We route clicks ourselves (below) so an internal wiki link navigates in
-      // place -- Ctrl/Cmd (or middle-click) opens a new tab, Shift opens a
-      // modal. tiptap's default openOnClick does window.open(), which ALWAYS
-      // spawns a new tab; that is the behaviour we are replacing.
-      openOnClick: false,
-      HTMLAttributes: {
-        class: defaultClasses.link,
-      },
       onLinkClick: undefined,
-    };
+    } as LinkMarkOptions;
   },
 
   addProseMirrorPlugins() {
@@ -91,5 +81,14 @@ export const LinkMark = Link.extend<LinkMarkOptions>({
       }),
       ...plugins,
     ];
+  },
+}).configure({
+  autolink: true,
+  enableClickSelection: false,
+  // We route clicks ourselves (above): tiptap's default openOnClick does
+  // window.open(), which always spawns a new tab -- the behaviour we replace.
+  openOnClick: false,
+  HTMLAttributes: {
+    class: defaultClasses.link,
   },
 });
