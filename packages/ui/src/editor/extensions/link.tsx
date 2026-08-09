@@ -1,66 +1,95 @@
-import { Link } from '@tiptap/extension-link';
+import { Link, LinkOptions } from '@tiptap/extension-link';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 import { defaultClasses } from '@colanode/ui/editor/classes';
 
-export const LinkMark = Link.extend({
+export type LinkClickMode = 'same' | 'newtab' | 'modal';
+// Returns true if it handled the navigation (the click is then swallowed).
+export type LinkClickHandler = (href: string, mode: LinkClickMode) => boolean;
+
+interface LinkMarkOptions extends LinkOptions {
+  onLinkClick?: LinkClickHandler;
+}
+
+export const LinkMark = Link.extend<LinkMarkOptions>({
   inclusive: false,
-})
-  .configure({
-    autolink: true,
-    enableClickSelection: false,
-    HTMLAttributes: {
-      class: defaultClasses.link,
-    },
-  })
-  .extend({
-    addProseMirrorPlugins() {
-      const plugins = this.parent?.() || [];
 
-      return [
-        new Plugin({
-          key: new PluginKey('handleRouterClickLink'),
-          props: {
-            handleClick: (_, __, event) => {
-              // Don't handle clicks on links that are created and handled by Tanstack Router
-              // Find the link element that is closest to the target - based on the original Tiptap link implementation
+  addOptions() {
+    return {
+      ...this.parent?.(),
+      autolink: true,
+      enableClickSelection: false,
+      // We route clicks ourselves (below) so an internal wiki link navigates in
+      // place -- Ctrl/Cmd (or middle-click) opens a new tab, Shift opens a
+      // modal. tiptap's default openOnClick does window.open(), which ALWAYS
+      // spawns a new tab; that is the behaviour we are replacing.
+      openOnClick: false,
+      HTMLAttributes: {
+        class: defaultClasses.link,
+      },
+      onLinkClick: undefined,
+    };
+  },
 
-              let link: HTMLAnchorElement | null = null;
+  addProseMirrorPlugins() {
+    const plugins = this.parent?.() || [];
+    const editor = this.editor;
+    const options = this.options;
 
-              if (event.target instanceof HTMLAnchorElement) {
-                link = event.target;
-              } else {
-                const target = event.target as HTMLElement | null;
-                if (!target) {
-                  return false;
-                }
+    return [
+      new Plugin({
+        key: new PluginKey('handleRouterClickLink'),
+        props: {
+          handleClick: (_, __, event) => {
+            let link: HTMLAnchorElement | null = null;
 
-                const root = this.editor.view.dom;
-
-                // Tntentionally limit the lookup to the editor root.
-                // Using tag names like DIV as boundaries breaks with custom NodeViews,
-                link = target.closest<HTMLAnchorElement>('a');
-
-                if (link && !root.contains(link)) {
-                  link = null;
-                }
-              }
-
-              if (!link) {
+            if (event.target instanceof HTMLAnchorElement) {
+              link = event.target;
+            } else {
+              const target = event.target as HTMLElement | null;
+              if (!target) {
                 return false;
               }
-
-              const isDataRouterLink = link.dataset.routerLink === 'true';
-
-              if (isDataRouterLink) {
-                return true;
+              // Limit the lookup to the editor root; using tag names as
+              // boundaries breaks with custom NodeViews.
+              link = target.closest<HTMLAnchorElement>('a');
+              if (link && !editor.view.dom.contains(link)) {
+                link = null;
               }
+            }
 
+            if (!link) {
               return false;
-            },
+            }
+
+            // Tanstack Router links handle their own navigation.
+            if (link.dataset.routerLink === 'true') {
+              return true;
+            }
+
+            const href = link.getAttribute('href');
+            const onLinkClick = options.onLinkClick;
+            if (!href || !onLinkClick) {
+              return false;
+            }
+
+            const mouse = event as MouseEvent;
+            const mode: LinkClickMode = mouse.shiftKey
+              ? 'modal'
+              : mouse.ctrlKey || mouse.metaKey || mouse.button === 1
+                ? 'newtab'
+                : 'same';
+
+            if (onLinkClick(href, mode)) {
+              event.preventDefault();
+              return true;
+            }
+
+            return false;
           },
-        }),
-        ...plugins,
-      ];
-    },
-  });
+        },
+      }),
+      ...plugins,
+    ];
+  },
+});

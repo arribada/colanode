@@ -12,8 +12,16 @@ import {
   JSONContent,
   useEditor,
 } from '@tiptap/react';
+import { useRouter } from '@tanstack/react-router';
 import { debounce, isEqual } from 'lodash-es';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -32,6 +40,7 @@ import { encodeState, YDoc } from '@colanode/crdt';
 import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
+import { useLayout } from '@colanode/ui/contexts/layout';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useRecordNodeView } from '@colanode/ui/hooks/use-node-views';
 import {
@@ -369,6 +378,62 @@ export const DocumentEditor = ({
     [node.id]
   );
 
+  const router = useRouter();
+  const layout = useLayout();
+  const linkNavRef = useRef({ router, layout });
+  linkNavRef.current = { router, layout };
+
+  // Route clicks on plain <a> links inside the editor. An INTERNAL node link
+  // (a real /workspace/<userId>/<nodeId> route) navigates in place; Ctrl/Cmd
+  // or middle-click opens a new tab; Shift opens it as a modal. External
+  // links, in-page anchors and unresolved markdown links keep the browser's
+  // default (a new tab) so nothing that worked before is broken.
+  const handleLinkClick = useCallback(
+    (href: string, mode: 'same' | 'newtab' | 'modal'): boolean => {
+      if (href.startsWith('#')) {
+        return false;
+      }
+      let url: URL;
+      try {
+        url = new URL(href, window.location.href);
+      } catch {
+        return false;
+      }
+      const segments = url.pathname.split('/').filter(Boolean);
+      const isNodeRoute =
+        url.origin === window.location.origin &&
+        segments[0] === 'workspace' &&
+        segments.length >= 3 &&
+        /^[0-9a-z]{18,}$/i.test(segments[2] ?? '');
+      const { router: appRouter, layout: appLayout } = linkNavRef.current;
+      if (!isNodeRoute) {
+        // External or a non-node link (e.g. an unresolved markdown link):
+        // preserve the previous behaviour instead of breaking it.
+        window.open(url.href, '_blank', 'noopener,noreferrer');
+        return true;
+      }
+      const nodeId = segments[2]!;
+      const path = url.pathname + url.search + url.hash;
+      if (mode === 'newtab') {
+        if (appLayout?.openInNewTab) {
+          appLayout.openInNewTab(path);
+        } else {
+          window.open(url.href, '_blank', 'noopener,noreferrer');
+        }
+        return true;
+      }
+      if (mode === 'modal') {
+        appRouter.history.push(
+          `${window.location.pathname}/modal/${nodeId}`
+        );
+        return true;
+      }
+      appRouter.history.push(path);
+      return true;
+    },
+    []
+  );
+
   const editor = useEditor(
     {
       extensions: [
@@ -437,7 +502,7 @@ export const DocumentEditor = ({
         MermaidNode,
         TrailingNode,
         PresenceExtension,
-        LinkMark,
+        LinkMark.configure({ onLinkClick: handleLinkClick }),
         DeleteControlExtension,
         DropcursorExtension,
         DatabaseNode,
