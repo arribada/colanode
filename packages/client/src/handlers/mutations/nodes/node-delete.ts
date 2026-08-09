@@ -13,15 +13,14 @@ export class NodeDeleteMutationHandler
     input: NodeDeleteMutationInput
   ): Promise<NodeDeleteMutationOutput> {
     const workspace = this.getWorkspace(input.userId);
-    const result = await workspace.nodes.deleteNode(input.nodeId);
 
-    if (result === 'not_found') {
-      // Don't pretend it worked: the node isn't in the local database (e.g. a
-      // stale display-only ghost). Tell the user so they can reload.
-      throw new Error(
-        'This item is no longer in your local data. Reload the page to refresh the view.'
-      );
-    }
+    // A not_found result is intentional here: the node wasn't in the local
+    // database (a stale ghost), and collections.nodes.delete already removed it
+    // from the view optimistically -- THROWING would only roll that removal
+    // back and strand the user with an undeletable item. deleteNode still
+    // deletes and tombstones a node that IS present (including an orphan with a
+    // broken ancestor chain), so a real node is removed and synced properly.
+    await workspace.nodes.deleteNode(input.nodeId);
 
     return {
       success: true,

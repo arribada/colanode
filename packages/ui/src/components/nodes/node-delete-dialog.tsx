@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
 
+import { MutationErrorCode } from '@colanode/client/mutations';
 import { getIdType, IdType } from '@colanode/core';
 import {
   AlertDialog,
@@ -128,6 +129,16 @@ export const NodeDeleteDialog = ({
           });
         },
         onError(error) {
+          // A soft-delete-type ghost (e.g. a whiteboard left in the local
+          // cache but already gone server-side) can't be trashed because it
+          // isn't in the local database. Rather than leave the user stuck,
+          // remove it from the view directly; any other error is surfaced.
+          const code = (error as { code?: string } | null)?.code;
+          if (code === MutationErrorCode.NodeNotFound) {
+            workspace.collections.nodes.delete(id);
+            toast(`Removed \"${title}\"`);
+            return;
+          }
           toast.error(error.message);
         },
       });
