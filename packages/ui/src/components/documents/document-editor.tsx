@@ -169,6 +169,70 @@ interface DocumentEditorProps {
   autoFocus?: FocusPosition;
 }
 
+// Slugify a page name or an imported markdown-link target so they can be
+// matched. GitHub-wiki links store the page title with spaces turned into '-'
+// (e.g. '05 ‐ Boards' -> '05-‐-Boards.md'); normalise dashes + punctuation
+// on both sides so the comparison is stable.
+const slugifyLinkTarget = (value: string): string => {
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    // keep the raw value if it isn't valid percent-encoding
+  }
+  return decoded
+    .toLowerCase()
+    .replace(/\.md$/, '')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014]/g, '-')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+// Resolved imported-markdown-link slugs, keyed by `${rootId}::${slug}`.
+const markdownLinkCache = new Map<string, string | null>();
+
+const resolveMarkdownLink = async (
+  base: string,
+  userId: string,
+  rootId: string,
+  parentId: string | null
+): Promise<string | null> => {
+  const slug = slugifyLinkTarget(base);
+  if (!slug) {
+    return null;
+  }
+  const key = `${rootId}::${slug}`;
+  const cached = markdownLinkCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let nodeId: string | null = null;
+  try {
+    const pages = await window.colanode.executeQuery({
+      type: 'node.list',
+      userId,
+      filters: [{ field: ['type'], operator: 'eq', value: 'page' }],
+      sorts: [],
+    });
+    const matches = pages.filter(
+      (page) =>
+        slugifyLinkTarget(
+          (page as { name?: string | null }).name ?? ''
+        ) === slug
+    );
+    const chosen =
+      matches.find((page) => page.parentId === parentId) ??
+      matches.find((page) => page.rootId === rootId) ??
+      matches[0] ??
+      null;
+    nodeId = chosen?.id ?? null;
+  } catch {
+    nodeId = null;
+  }
+  markdownLinkCache.set(key, nodeId);
+  return nodeId;
+};
+
 const buildYDoc = (
   state: DocumentState | null | undefined,
   updates: DocumentUpdate[]
@@ -380,14 +444,50 @@ export const DocumentEditor = ({
 
   const router = useRouter();
   const layout = useLayout();
-  const linkNavRef = useRef({ router, layout });
-  linkNavRef.current = { router, layout };
+  const linkNavRef = useRef({
+    router,
+    layout,
+    userId: workspace.userId,
+    rootId: node.rootId,
+    parentId: node.parentId,
+  });
+  linkNavRef.current = {
+    router,
+    layout,
+    userId: workspace.userId,
+    rootId: node.rootId,
+    parentId: node.parentId,
+  };
 
-  // Route clicks on plain <a> links inside the editor. An INTERNAL node link
-  // (a real /workspace/<userId>/<nodeId> route) navigates in place; Ctrl/Cmd
-  // or middle-click opens a new tab; Shift opens it as a modal. External
-  // links, in-page anchors and unresolved markdown links keep the browser's
-  // default (a new tab) so nothing that worked before is broken.
+  const navigateToNode = useCallback(
+    (nodeId: string, mode: 'same' | 'newtab' | 'modal', anchor: string) => {
+      const {
+        router: appRouter,
+        layout: appLayout,
+        userId,
+      } = linkNavRef.current;
+      const path = `/workspace/${userId}/${nodeId}${anchor}`;
+      if (mode === 'newtab') {
+        if (appLayout?.openInNewTab) {
+          appLayout.openInNewTab(path);
+        } else {
+          window.open(path, '_blank', 'noopener,noreferrer');
+        }
+        return;
+      }
+      if (mode === 'modal') {
+        appRouter.history.push(`${window.location.pathname}/modal/${nodeId}`);
+        return;
+      }
+      appRouter.history.push(path);
+    },
+    []
+  );
+
+  // Route clicks on plain <a> links inside the editor. A real node link
+  // navigates in place (Ctrl/Cmd or middle-click = new tab, Shift = modal); an
+  // imported markdown link (05-Boards.md) is resolved to its page by slug;
+  // external links and in-page anchors keep the browser default.
   const handleLinkClick = useCallback(
     (href: string, mode: 'same' | 'newtab' | 'modal'): boolean => {
       if (href.startsWith('#')) {
@@ -399,39 +499,37 @@ export const DocumentEditor = ({
       } catch {
         return false;
       }
-      const segments = url.pathname.split('/').filter(Boolean);
-      const isNodeRoute =
-        url.origin === window.location.origin &&
-        segments[0] === 'workspace' &&
-        segments.length >= 3 &&
-        /^[0-9a-z]{18,}$/i.test(segments[2] ?? '');
-      const { router: appRouter, layout: appLayout } = linkNavRef.current;
-      if (!isNodeRoute) {
-        // External or a non-node link (e.g. an unresolved markdown link):
-        // preserve the previous behaviour instead of breaking it.
+      if (url.origin !== window.location.origin) {
         window.open(url.href, '_blank', 'noopener,noreferrer');
         return true;
       }
-      const nodeId = segments[2]!;
-      const path = url.pathname + url.search + url.hash;
-      if (mode === 'newtab') {
-        if (appLayout?.openInNewTab) {
-          appLayout.openInNewTab(path);
-        } else {
-          window.open(url.href, '_blank', 'noopener,noreferrer');
+      const segments = url.pathname.split('/').filter(Boolean);
+      const isNodeRoute =
+        segments[0] === 'workspace' &&
+        segments.length >= 3 &&
+        /^[0-9a-z]{18,}$/i.test(segments[2] ?? '');
+      if (isNodeRoute) {
+        navigateToNode(segments[2]!, mode, url.hash);
+        return true;
+      }
+      // Internal but not a node route -> an imported markdown link. Resolve
+      // the slug to a real page and navigate; fall back to a new tab if it
+      // can't be resolved.
+      const { userId, rootId, parentId } = linkNavRef.current;
+      const base = url.pathname.split('/').pop() ?? '';
+      const anchor = url.hash;
+      void resolveMarkdownLink(base, userId, rootId, parentId).then(
+        (nodeId) => {
+          if (nodeId) {
+            navigateToNode(nodeId, mode, anchor);
+          } else {
+            window.open(url.href, '_blank', 'noopener,noreferrer');
+          }
         }
-        return true;
-      }
-      if (mode === 'modal') {
-        appRouter.history.push(
-          `${window.location.pathname}/modal/${nodeId}`
-        );
-        return true;
-      }
-      appRouter.history.push(path);
+      );
       return true;
     },
-    []
+    [navigateToNode]
   );
 
   const editor = useEditor(
