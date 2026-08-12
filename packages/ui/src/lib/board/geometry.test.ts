@@ -5,6 +5,7 @@ import {
   arrowHeadPoints,
   computeAlignmentSnap,
   distance,
+  moveConnectorSegment,
   nearestAnchor,
   normalizeRect,
   pointInRotatedRect,
@@ -187,5 +188,48 @@ describe('arrowHeadPoints', () => {
     expect(pts[2]!.x).toBeLessThan(tip.x);
     expect(Math.sign(pts[1]!.y)).not.toBe(Math.sign(pts[2]!.y));
     expect(distance(tip, pts[1]!)).toBeCloseTo(12, 0);
+  });
+});
+
+describe('moveConnectorSegment', () => {
+  // an elbow route: right out of A, across, then down into B
+  const pts = [
+    { x: 0, y: 0 },
+    { x: 50, y: 0 },
+    { x: 50, y: 100 },
+    { x: 100, y: 100 },
+  ];
+
+  it('slides a vertical segment in x only', () => {
+    const bends = moveConnectorSegment(pts, 1, { x: 20, y: 999 });
+    expect(bends).toEqual([
+      { x: 70, y: 0 },
+      { x: 70, y: 100 },
+    ]);
+  });
+
+  it('slides a horizontal segment in y only', () => {
+    // segment 2 is the last one, so it touches the anchored endpoint: the
+    // movement is absorbed by an inserted bend rather than detaching the end.
+    const bends = moveConnectorSegment(pts, 2, { x: 999, y: -30 });
+    expect(bends).toEqual([
+      { x: 50, y: 0 },
+      { x: 50, y: 70 },
+      { x: 100, y: 70 },
+    ]);
+  });
+
+  it('inserts a bend rather than detaching an anchored endpoint', () => {
+    const bends = moveConnectorSegment(pts, 0, { x: 0, y: 15 });
+    // the start point itself is untouched; a bend absorbs the movement
+    expect(bends[0]).toEqual({ x: 0, y: 15 });
+    expect(bends).toHaveLength(3);
+  });
+
+  it('returns the interior bends unchanged for an out-of-range index', () => {
+    expect(moveConnectorSegment(pts, 9, { x: 5, y: 5 })).toEqual([
+      { x: 50, y: 0 },
+      { x: 50, y: 100 },
+    ]);
   });
 });

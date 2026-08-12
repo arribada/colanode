@@ -517,6 +517,61 @@ const distanceToSegment = (p: Point, a: Point, b: Point): number => {
 
 /** Index of the polyline segment (0-based) nearest to p; insert a new bend at
  * this index into the bends array to place it on that segment. */
+/**
+ * Translates segment `index` of a connector polyline and returns the new
+ * INTERIOR bend list (endpoints excluded — they stay anchored to their shapes).
+ *
+ * A segment is moved along its normal only: a vertical segment slides in x, a
+ * horizontal one in y, so an elbow route stays orthogonal. A diagonal segment
+ * (straight routing) takes the full delta.
+ *
+ * When the segment touches an endpoint, the endpoint cannot move, so a bend is
+ * inserted next to it to absorb the translation.
+ */
+export const moveConnectorSegment = (
+  pts: Point[],
+  index: number,
+  delta: Point
+): Point[] => {
+  if (index < 0 || index >= pts.length - 1) {
+    return pts.slice(1, -1);
+  }
+
+  const a = pts[index]!;
+  const b = pts[index + 1]!;
+  const vertical = Math.abs(b.x - a.x) < 0.5;
+  const horizontal = Math.abs(b.y - a.y) < 0.5;
+
+  // Constrain to the segment normal so orthogonal routes stay orthogonal.
+  const d: Point = vertical
+    ? { x: delta.x, y: 0 }
+    : horizontal
+      ? { x: 0, y: delta.y }
+      : delta;
+
+  const moved = pts.map((p, i) =>
+    i === index || i === index + 1 ? { x: p.x + d.x, y: p.y + d.y } : p
+  );
+
+  // Endpoints are anchored: restore them and keep their moved copy as a bend,
+  // otherwise the drag would silently detach the connector.
+  const out = moved.slice();
+  if (index === 0) {
+    out[0] = pts[0]!;
+    out.splice(1, 0, { x: pts[0]!.x + d.x, y: pts[0]!.y + d.y });
+  }
+  const last = out.length - 1;
+  if (index + 1 === pts.length - 1) {
+    out[last] = pts[pts.length - 1]!;
+    out.splice(last, 0, {
+      x: pts[pts.length - 1]!.x + d.x,
+      y: pts[pts.length - 1]!.y + d.y,
+    });
+  }
+
+  return out.slice(1, -1);
+};
+
 export const nearestSegmentIndex = (pts: Point[], p: Point): number => {
   let best = 0, bestD = Infinity;
   for (let i = 0; i < pts.length - 1; i++) {
