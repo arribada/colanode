@@ -308,6 +308,40 @@ export const FRAME_PRESETS: FramePreset[] = [
  * are banded into rows first: two frames share a row when they overlap
  * vertically by more than half the shorter one.
  */
+/**
+ * The z key that puts `id` one place further forward, or null when it is
+ * already at the front.
+ *
+ * One step, not all the way: with three overlapping shapes, "bring to front"
+ * is the wrong tool twice out of three times.
+ */
+export const zKeyForStep = (
+  scene: BoardScene,
+  id: string,
+  direction: 'up' | 'down'
+): string | null => {
+  const ordered = sortedElements(scene);
+  const index = ordered.findIndex((el) => el.id === id);
+  if (index < 0) {
+    return null;
+  }
+  if (direction === 'up') {
+    const next = ordered[index + 1];
+    if (!next) {
+      return null;
+    }
+    // Between the neighbour and the one beyond it, so the two swap places.
+    const after = ordered[index + 2];
+    return generateKeyBetween(next.z, after ? after.z : null);
+  }
+  const prev = ordered[index - 1];
+  if (!prev) {
+    return null;
+  }
+  const before = ordered[index - 2];
+  return generateKeyBetween(before ? before.z : null, prev.z);
+};
+
 export const frameOrder = (scene: BoardScene): BoardElement[] => {
   const frames = Object.values(scene)
     .filter((el) => el.type === 'frame')

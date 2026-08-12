@@ -50,6 +50,7 @@ import {
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
 import { BoardCommentsPanel } from '@colanode/ui/components/whiteboards/board/board-comments-panel';
 import { BoardElementView } from '@colanode/ui/components/whiteboards/board/board-element';
+import { BoardLayers } from '@colanode/ui/components/whiteboards/board/board-layers';
 import { BoardMiroImportDialog } from '@colanode/ui/components/whiteboards/board/board-miro-import';
 import { BoardPresenceLayer } from '@colanode/ui/components/whiteboards/board/board-presence-layer';
 import { BoardShortcutsDialog } from '@colanode/ui/components/whiteboards/board/board-shortcuts';
@@ -74,6 +75,7 @@ import {
   frameChildIds,
   frameOrder,
   resolveConnectorEndpoints,
+  zKeyForStep,
   sortedElements,
   topZ,
 } from '@colanode/ui/lib/board/elements';
@@ -2949,6 +2951,36 @@ export const WhiteboardCanvas = ({
   };
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
+
+  const toggleElementFlag = (id: string, flag: 'hidden' | 'locked') => {
+    const el = sceneRef.current[id];
+    if (!el || isLockedForMe(id)) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = {
+      ...sceneRef.current,
+      [id]: { ...el, [flag]: el[flag] ? undefined : true },
+    };
+    commit(before, next, [id]);
+  };
+
+  /** Move one element one place through the stack. */
+  const moveInStack = (id: string, direction: 'up' | 'down') => {
+    const el = sceneRef.current[id];
+    if (!el || isLockedForMe(id)) {
+      return;
+    }
+    const z = zKeyForStep(sceneRef.current, id, direction);
+    if (!z) {
+      // Already at that end of the stack.
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current, [id]: { ...el, z } };
+    commit(before, next, [id]);
+  };
 
   // Format painter: the style lifted off one element, waiting to be dropped
   // on others. Kept in a ref as well because the pointer handler that applies
@@ -3538,7 +3570,17 @@ export const WhiteboardCanvas = ({
   };
 
   // ----- rendering ---------------------------------------------------------
-  const hiddenIds = useMemo(() => mindmapHiddenIds(scene), [scene]);
+  // Collapsed mind-map descendants, plus anything hidden from the layers
+  // panel: both are "in the scene but not drawn".
+  const hiddenIds = useMemo(() => {
+    const ids = mindmapHiddenIds(scene);
+    for (const el of Object.values(scene)) {
+      if (el.hidden) {
+        ids.add(el.id);
+      }
+    }
+    return ids;
+  }, [scene]);
   const mindEdges = useMemo(() => mindmapEdges(scene), [scene]);
   const ordered = useMemo(
     () => sortedElements(scene).filter((el) => !hiddenIds.has(el.id)),
@@ -4641,6 +4683,8 @@ export const WhiteboardCanvas = ({
         onEmoji={onEmoji}
         styleBrushActive={styleBrush !== null}
         onStyleBrush={pickUpStyle}
+        layersOpen={layersOpen}
+        onToggleLayers={() => setLayersOpen((open) => !open)}
         privateMode={privateMode}
         onPrivateMode={togglePrivateMode}
         privateCount={privateElementIds.length}
@@ -5089,6 +5133,27 @@ export const WhiteboardCanvas = ({
             </button>
           </div>
         </>
+      )}
+
+      {layersOpen && (
+        <BoardLayers
+          scene={scene}
+          selection={selection}
+          canEdit={canEdit}
+          onSelect={(id, additive) =>
+            setSelection(
+              additive
+                ? selection.includes(id)
+                  ? selection.filter((s) => s !== id)
+                  : [...selection, id]
+                : [id]
+            )
+          }
+          onToggleHidden={(id) => toggleElementFlag(id, 'hidden')}
+          onToggleLocked={(id) => toggleElementFlag(id, 'locked')}
+          onMove={moveInStack}
+          onClose={() => setLayersOpen(false)}
+        />
       )}
 
       <BoardShortcutsDialog

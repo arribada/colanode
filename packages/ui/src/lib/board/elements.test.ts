@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { BoardElement, BoardScene } from '@colanode/core';
-import { frameOrder } from '@colanode/ui/lib/board/elements';
+import {
+  frameOrder,
+  sortedElements,
+  zKeyForStep,
+} from '@colanode/ui/lib/board/elements';
 
 const frame = (
   id: string,
@@ -57,5 +61,56 @@ describe('frameOrder', () => {
 
   it('is empty for a board with no frames', () => {
     expect(frameOrder({})).toEqual([]);
+  });
+});
+
+const stacked = (id: string, z: string): BoardElement =>
+  ({ id, type: 'rect', x: 0, y: 0, w: 10, h: 10, z, style: {} }) as BoardElement;
+
+// three boxes, back to front: a, b, c
+const stack = (): BoardScene => ({
+  a: stacked('a', 'a0'),
+  b: stacked('b', 'a1'),
+  c: stacked('c', 'a2'),
+});
+
+const order = (s: BoardScene) => sortedElements(s).map((e) => e.id);
+
+const step = (s: BoardScene, id: string, dir: 'up' | 'down'): BoardScene => {
+  const z = zKeyForStep(s, id, dir);
+  return z ? { ...s, [id]: { ...s[id]!, z } } : s;
+};
+
+describe('zKeyForStep', () => {
+  it('moves one place, not all the way', () => {
+    // The whole point: with three overlapping shapes, "bring to front" is the
+    // wrong tool two times out of three.
+    expect(order(step(stack(), 'a', 'up'))).toEqual(['b', 'a', 'c']);
+  });
+
+  it('moves back one place', () => {
+    expect(order(step(stack(), 'c', 'down'))).toEqual(['a', 'c', 'b']);
+  });
+
+  it('is its own inverse', () => {
+    const once = step(stack(), 'a', 'up');
+    expect(order(step(once, 'a', 'down'))).toEqual(['a', 'b', 'c']);
+  });
+
+  it('refuses to move past the front or the back', () => {
+    expect(zKeyForStep(stack(), 'c', 'up')).toBeNull();
+    expect(zKeyForStep(stack(), 'a', 'down')).toBeNull();
+  });
+
+  it('returns null for an element that is not there', () => {
+    expect(zKeyForStep(stack(), 'nope', 'up')).toBeNull();
+  });
+
+  it('walks an element all the way through the stack', () => {
+    let s = stack();
+    s = step(s, 'a', 'up');
+    s = step(s, 'a', 'up');
+    expect(order(s)).toEqual(['b', 'c', 'a']);
+    expect(zKeyForStep(s, 'a', 'up')).toBeNull();
   });
 });

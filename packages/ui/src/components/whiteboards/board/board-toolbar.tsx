@@ -15,6 +15,7 @@ import {
   Frame,
   Hand,
   Highlighter,
+  Layers,
   LayoutTemplate,
   Lock,
   LockOpen,
@@ -396,6 +397,8 @@ interface BoardToolbarProps {
   onEmoji: (character: string) => void;
   styleBrushActive: boolean;
   onStyleBrush: () => void;
+  layersOpen: boolean;
+  onToggleLayers: () => void;
   privateMode: boolean;
   onPrivateMode: () => void;
   privateCount: number;
@@ -450,6 +453,8 @@ export const BoardToolbar = ({
   onEmoji,
   styleBrushActive,
   onStyleBrush,
+  layersOpen,
+  onToggleLayers,
   privateMode,
   onPrivateMode,
   privateCount,
@@ -787,6 +792,14 @@ export const BoardToolbar = ({
                 <LockOpen className="size-4" />
               )}
             </ToolbarButton>
+            <ToolbarButton
+              title="Layers"
+              active={layersOpen}
+              onClick={onToggleLayers}
+            >
+              <Layers className="size-4" />
+            </ToolbarButton>
+
             <ToolbarButton
               title={
                 styleBrushActive

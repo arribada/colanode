@@ -175,6 +175,9 @@ export const boardElementSchema = z.object({
   // outright would lose it. An unknown name simply falls back to the base
   // rectangle. Absent = the element's own default outline.
   shape: z.string().optional(),
+  // Taken out of the way without being deleted. Still listed in the layers
+  // panel — invisible and forgotten are different things.
+  hidden: z.boolean().optional(),
   // User id of whoever made this while private mode was on. Other clients
   // drop it on arrival instead of drawing it, until it is revealed.
   // This hides the element; it does not withhold it — the data still travels.
