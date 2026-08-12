@@ -3492,7 +3492,10 @@ export const WhiteboardCanvas = ({
             height={gridSize}
             patternUnits="userSpaceOnUse"
           >
-            <circle cx={1} cy={1} r={1} fill="currentColor" opacity={0.25} />
+            {/* Sized and weighted to read on WHITE. The old quarter-opacity
+                dot was chosen against the grey surface the board used to
+                have, and disappeared entirely when that went white. */}
+            <circle cx={1} cy={1} r={1.2} fill="currentColor" opacity={0.75} />
           </pattern>
         </defs>
 
@@ -3503,7 +3506,7 @@ export const WhiteboardCanvas = ({
           <rect
             // Fixed grey, not a theme token: the dots have to read against
             // the white surface above, whatever theme the app is in.
-            className="board-no-export text-slate-400"
+            className="board-no-export text-slate-500"
             x={-viewport.x / viewport.zoom - 2000}
             y={-viewport.y / viewport.zoom - 2000}
             width={

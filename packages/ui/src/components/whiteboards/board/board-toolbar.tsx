@@ -95,20 +95,55 @@ const MINDMAP_DIRECTIONS: {
   { value: 'up', label: 'Grow up', icon: ArrowUp },
 ];
 
-const TOOLS: ToolDef[] = [
+interface ToolGroup {
+  id: string;
+  label: string;
+  tools: ToolDef[];
+}
+
+// Select and pan are half of all tool use; everything else is grouped by what
+// it makes, so the row is six buttons instead of fourteen.
+const LOOSE_TOOLS: ToolDef[] = [
   { tool: 'select', label: 'Select (V)', icon: MousePointer2 },
   { tool: 'hand', label: 'Pan (H)', icon: Hand },
-  { tool: 'sticky', label: 'Sticky note (S)', icon: StickyNote },
-  { tool: 'rect', label: 'Rectangle (R)', icon: Square },
-  { tool: 'ellipse', label: 'Ellipse (O)', icon: Circle },
-  { tool: 'diamond', label: 'Diamond (D)', icon: Diamond },
-  { tool: 'text', label: 'Text (T)', icon: Type },
-  { tool: 'connector', label: 'Connector (C)', icon: Spline },
-  { tool: 'pen', label: 'Pen (P)', icon: Pencil },
-  { tool: 'frame', label: 'Frame (F)', icon: Frame },
-  { tool: 'mindmap', label: 'Mind map (M)', icon: Network },
-  { tool: 'highlighter', label: 'Highlighter (K)', icon: Highlighter },
-  { tool: 'eraser', label: 'Eraser (E)', icon: Eraser },
+];
+
+const TOOL_GROUPS: ToolGroup[] = [
+  {
+    id: 'notes',
+    label: 'Notes and text',
+    tools: [
+      { tool: 'sticky', label: 'Sticky note (S)', icon: StickyNote },
+      { tool: 'text', label: 'Text (T)', icon: Type },
+    ],
+  },
+  {
+    id: 'shapes',
+    label: 'Shapes',
+    tools: [
+      { tool: 'rect', label: 'Rectangle (R)', icon: Square },
+      { tool: 'ellipse', label: 'Ellipse (O)', icon: Circle },
+      { tool: 'diamond', label: 'Diamond (D)', icon: Diamond },
+      { tool: 'frame', label: 'Frame (F)', icon: Frame },
+    ],
+  },
+  {
+    id: 'connect',
+    label: 'Connect',
+    tools: [
+      { tool: 'connector', label: 'Connector (C)', icon: Spline },
+      { tool: 'mindmap', label: 'Mind map (M)', icon: Network },
+    ],
+  },
+  {
+    id: 'ink',
+    label: 'Ink',
+    tools: [
+      { tool: 'pen', label: 'Pen (P)', icon: Pencil },
+      { tool: 'highlighter', label: 'Highlighter (K)', icon: Highlighter },
+      { tool: 'eraser', label: 'Eraser (E)', icon: Eraser },
+    ],
+  },
 ];
 
 const STROKE_WIDTHS = [1, 2, 4, 8];
@@ -311,6 +346,7 @@ export const BoardToolbar = ({
   const [collapsed, setCollapsed] = useState(false);
   // Once-a-session actions live behind one button so the drawing tools, which
   // are what anyone actually reaches for, stay in the hot path.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [boardMenu, setBoardMenu] = useState(false);
   const boardMenuWrapRef = useRef<HTMLDivElement>(null);
@@ -502,7 +538,10 @@ export const BoardToolbar = ({
 
         {!collapsed && (
           <>
-            {TOOLS.map((t) => (
+            {/* Select and pan stay out in the open — they are half of all
+                tool use and hiding them behind a menu would cost a click
+                every time you stop drawing. */}
+            {LOOSE_TOOLS.map((t) => (
               <ToolbarButton
                 key={t.tool}
                 title={t.label}
@@ -512,6 +551,65 @@ export const BoardToolbar = ({
                 <t.icon className="size-4" />
               </ToolbarButton>
             ))}
+
+            {TOOL_GROUPS.map((group) => {
+              // The group shows the tool you last picked from it, so the row
+              // still tells you what is armed without opening anything.
+              const activeInGroup = group.tools.find((t) => t.tool === tool);
+              const shown = activeInGroup ?? group.tools[0]!;
+              return (
+                <Popover
+                  key={group.id}
+                  open={openGroup === group.id}
+                  onOpenChange={(o) => setOpenGroup(o ? group.id : null)}
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      title={group.label}
+                      aria-label={group.label}
+                      className={cn(
+                        'flex size-8 items-center justify-center rounded-md hover:bg-accent',
+                        activeInGroup && 'bg-primary/10 text-primary'
+                      )}
+                      onClick={(e) => {
+                        // A plain click arms the group's current tool; the
+                        // chevron area opens the list. Keeps one click for the
+                        // common case and two only when switching.
+                        if (!activeInGroup) {
+                          e.preventDefault();
+                          onToolChange(shown.tool);
+                        }
+                      }}
+                    >
+                      <shown.icon className="size-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-1" align="start">
+                    <div className="flex items-center gap-0.5">
+                      {group.tools.map((t) => (
+                        <button
+                          key={t.tool}
+                          type="button"
+                          title={t.label}
+                          aria-label={t.label}
+                          onClick={() => {
+                            onToolChange(t.tool);
+                            setOpenGroup(null);
+                          }}
+                          className={cn(
+                            'flex size-8 items-center justify-center rounded-md hover:bg-accent',
+                            tool === t.tool && 'bg-primary/10 text-primary'
+                          )}
+                        >
+                          <t.icon className="size-4" />
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              );
+            })}
 
             <div className="mx-1 h-6 w-px bg-border" />
 

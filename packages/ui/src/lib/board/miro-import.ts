@@ -282,6 +282,9 @@ export const convertMiroBoard = (
   const scene: BoardScene = {};
   // Miro id -> board id, so connectors and frame membership can be rewired.
   const idMap: Record<string, string> = {};
+  // Mind-map node id -> its position as Miro states it, which for a non-root
+  // node is measured from its PARENT NODE's top-left corner.
+  const relativeCentres = new Map<string, { x: number; y: number }>();
 
   for (const item of ordered) {
     const box = topLeft(item);
@@ -356,6 +359,8 @@ export const convertMiroBoard = (
         break;
       }
       case 'mindmap_node': {
+        // x/y are provisional: for anything but a root they are measured from
+        // the PARENT NODE, and are corrected by the walk further down.
         el = createElement({
           type: 'mindmap',
           x,
@@ -370,6 +375,10 @@ export const convertMiroBoard = (
         // Linked below, once every node has an id to point at: a child can
         // appear before its parent in the export.
         el.mindmap = {};
+        relativeCentres.set(el.id, {
+          x: num(item.position?.x, 0),
+          y: num(item.position?.y, 0),
+        });
         break;
       }
       case 'divider': {
@@ -438,6 +447,47 @@ export const convertMiroBoard = (
     // its frame, and making a frame the tree parent would break every walk.
     if (scene[parentId]?.type === 'mindmap') {
       el.mindmap = { ...el.mindmap, parentId };
+    }
+  }
+
+  // Now that the tree exists, resolve the real positions. A root is already
+  // correct (its position is frame-relative); every descendant is placed from
+  // its parent's top-left corner, so the tree has to be walked top down.
+  const childrenOf = new Map<string, string[]>();
+  for (const el of Object.values(scene)) {
+    const parentId = el.type === 'mindmap' ? el.mindmap?.parentId : undefined;
+    if (parentId) {
+      const list = childrenOf.get(parentId) ?? [];
+      list.push(el.id);
+      childrenOf.set(parentId, list);
+    }
+  }
+  const placeChildren = (parentId: string, depth: number) => {
+    // A malformed export could describe a cycle; the depth cap keeps the walk
+    // finite rather than hanging the import.
+    if (depth > 100) {
+      return;
+    }
+    const parent = scene[parentId];
+    if (!parent) {
+      return;
+    }
+    for (const childId of childrenOf.get(parentId) ?? []) {
+      const child = scene[childId];
+      const rel = relativeCentres.get(childId);
+      if (!child || !rel) {
+        continue;
+      }
+      const centreX = parent.x + rel.x;
+      const centreY = parent.y + rel.y;
+      child.x = centreX - child.w / 2;
+      child.y = centreY - child.h / 2;
+      placeChildren(childId, depth + 1);
+    }
+  };
+  for (const el of Object.values(scene)) {
+    if (el.type === 'mindmap' && !el.mindmap?.parentId) {
+      placeChildren(el.id, 0);
     }
   }
 

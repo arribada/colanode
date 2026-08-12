@@ -254,3 +254,62 @@ describe('mind-map nodes', () => {
     expect(report.skipped).toEqual({});
   });
 });
+
+describe('mind-map positions', () => {
+  const node = (
+    id: string,
+    parent: string,
+    content: string,
+    x: number,
+    y: number,
+    isRoot = false
+  ): MiroItem => ({
+    id,
+    type: 'mindmap_node',
+    data: { isRoot, nodeView: { data: { content: `<p>${content}</p>` } } },
+    geometry: { width: 200, height: 100 },
+    position: { x, y },
+    parent: { id: parent },
+  });
+
+  it('places a child beside its parent, not at the frame origin', () => {
+    // The real failure: on the reference board the root sat at x=2280 and its
+    // children reported x≈300 — relative to the PARENT, not the frame. Read
+    // as frame-relative they landed 2000px away and every edge stretched back
+    // across the whole canvas.
+    const items = [
+      node('root', 'frame1', 'Firmware', 2280, 1162, true),
+      node('child', 'root', 'Behaviors', 300, 100),
+    ];
+    const { scene } = convertMiroBoard(items);
+    const root = Object.values(scene).find((e) => e.text === 'Firmware')!;
+    const child = Object.values(scene).find((e) => e.text === 'Behaviors')!;
+    expect(child.x).toBe(root.x + 300 - 100);
+    expect(child.y).toBe(root.y + 100 - 50);
+    // and therefore close to it, not thousands of pixels off
+    expect(Math.abs(child.x - root.x)).toBeLessThan(400);
+  });
+
+  it('carries the offset down a whole branch', () => {
+    const items = [
+      node('root', 'frame1', 'A', 1000, 1000, true),
+      node('b', 'root', 'B', 200, 0),
+      node('c', 'b', 'C', 200, 0),
+    ];
+    const { scene } = convertMiroBoard(items);
+    const a = Object.values(scene).find((e) => e.text === 'A')!;
+    const c = Object.values(scene).find((e) => e.text === 'C')!;
+    // Each hop moves the child's CENTRE 200 from its parent's top-left, and
+    // the stored x is that centre less half the width: +200-100 per hop.
+    expect(c.x).toBe(a.x + 200);
+  });
+
+  it('leaves the root where the frame puts it', () => {
+    const { scene } = convertMiroBoard([
+      node('root', 'frame1', 'A', 1000, 500, true),
+    ]);
+    const root = Object.values(scene)[0]!;
+    expect(root.x).toBe(900);
+    expect(root.y).toBe(450);
+  });
+});
