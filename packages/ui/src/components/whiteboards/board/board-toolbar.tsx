@@ -19,6 +19,7 @@ import {
   Lock,
   LockOpen,
   MessageSquare,
+  MoreHorizontal,
   MousePointer2,
   Network,
   Pencil,
@@ -61,6 +62,19 @@ interface ToolDef {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }
+
+// Once-a-session actions, in the order they are reached for.
+const BOARD_ACTIONS: {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: 'present', label: 'Present the frames', icon: Play },
+  { id: 'import', label: 'Import a Miro board', icon: Upload },
+  { id: 'png', label: 'Export PNG', icon: Download },
+  { id: 'svg', label: 'Export SVG', icon: FileCode },
+  { id: 'pdf', label: 'Print / PDF', icon: Printer },
+];
 
 const MINDMAP_DIRECTIONS: {
   value: 'right' | 'left' | 'down' | 'up';
@@ -285,6 +299,25 @@ export const BoardToolbar = ({
   onShapePick,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
+  // Once-a-session actions live behind one button so the drawing tools, which
+  // are what anyone actually reaches for, stay in the hot path.
+  const [boardMenu, setBoardMenu] = useState(false);
+  const boardMenuWrapRef = useRef<HTMLDivElement>(null);
+  const [boardMenuPos, setBoardMenuPos] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+
+  const toggleBoardMenu = () => {
+    if (!boardMenu) {
+      const r = boardMenuWrapRef.current?.getBoundingClientRect();
+      if (r) {
+        setBoardMenuPos({ left: r.left, top: r.bottom + 6 });
+      }
+    }
+    setBoardMenu((open) => !open);
+  };
+
   const [templateMenu, setTemplateMenu] = useState(false);
   const templateWrapRef = useRef<HTMLDivElement>(null);
   // Fixed (viewport) coords of the template dropdown, captured from the trigger
@@ -339,40 +372,92 @@ export const BoardToolbar = ({
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
       <div className="pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
-        <ToolbarButton
-          title={
-            privateMode
-              ? 'Private mode is ON — new elements are hidden from others until you reveal them'
-              : 'Private mode: hide what you add from others until you reveal it'
-          }
-          active={privateMode}
-          onClick={onPrivateMode}
-        >
-          {privateMode ? (
-            <EyeOff className="size-4" />
-          ) : (
-            <Eye className="size-4" />
-          )}
-        </ToolbarButton>
+        <div className="relative" ref={boardMenuWrapRef}>
+          <ToolbarButton
+            title="Board actions"
+            active={boardMenu}
+            onClick={toggleBoardMenu}
+          >
+            <MoreHorizontal className="size-4" />
+          </ToolbarButton>
+          {boardMenu &&
+            boardMenuPos &&
+            createPortal(
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-[60] cursor-default"
+                  onClick={() => setBoardMenu(false)}
+                />
+                <div
+                  className="fixed z-[61] w-64 rounded-lg border border-border bg-background p-1 shadow-xl"
+                  style={{ left: boardMenuPos.left, top: boardMenuPos.top }}
+                >
+                  {BOARD_ACTIONS.map((action) => {
+                    const handlers: Record<string, () => void> = {
+                      present: onPresent,
+                      import: onMiroImport,
+                      png: onExport,
+                      svg: onExportSvg,
+                      pdf: onExportPdf,
+                    };
+                    return (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => {
+                          setBoardMenu(false);
+                          handlers[action.id]?.();
+                        }}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                      >
+                        <action.icon className="size-4 text-muted-foreground" />
+                        {action.label}
+                      </button>
+                    );
+                  })}
+
+                  <div className="my-1 h-px bg-border" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBoardMenu(false);
+                      onPrivateMode();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  >
+                    {privateMode ? (
+                      <EyeOff className="size-4 text-primary" />
+                    ) : (
+                      <Eye className="size-4 text-muted-foreground" />
+                    )}
+                    <span className="flex-1">
+                      {privateMode ? 'Private mode is on' : 'Private mode'}
+                    </span>
+                  </button>
+                  <p className="px-2 pb-1.5 text-[11px] leading-tight text-muted-foreground">
+                    Hides what you add from other people until you reveal it.
+                    It is not a secret — the elements still reach their
+                    computers, which simply do not draw them.
+                  </p>
+                </div>
+              </>,
+              boardPortalTarget()
+            )}
+        </div>
 
         {privateCount > 0 && (
           <button
             type="button"
             title="Make your hidden elements visible to everyone"
             onClick={onRevealPrivate}
-            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-accent"
+            className="shrink-0 rounded-md px-2 py-1 text-xs text-primary hover:bg-accent"
           >
             Reveal {privateCount}
           </button>
         )}
-
-        <ToolbarButton title="Present the frames" onClick={onPresent}>
-          <Play className="size-4" />
-        </ToolbarButton>
-
-        <ToolbarButton title="Import a Miro board" onClick={onMiroImport}>
-          <Upload className="size-4" />
-        </ToolbarButton>
 
         <ToolbarButton
           title={collapsed ? 'Show tools' : 'Hide tools'}
@@ -449,16 +534,6 @@ export const BoardToolbar = ({
                 <LockOpen className="size-4" />
               )}
             </ToolbarButton>
-            <ToolbarButton title="Export PNG" onClick={onExport}>
-              <Download className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton title="Export SVG" onClick={onExportSvg}>
-              <FileCode className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton title="Print / PDF" onClick={onExportPdf}>
-              <Printer className="size-4" />
-            </ToolbarButton>
-
             <div className="relative" ref={templateWrapRef}>
               <ToolbarButton
                 title="Insert template"
@@ -471,8 +546,10 @@ export const BoardToolbar = ({
                 templatePos &&
                 createPortal(
                   <>
-                    <div
-                      className="fixed inset-0 z-[60]"
+                    <button
+                      type="button"
+                      aria-label="Close menu"
+                      className="fixed inset-0 z-[60] cursor-default"
                       onClick={() => setTemplateMenu(false)}
                     />
                     <div
