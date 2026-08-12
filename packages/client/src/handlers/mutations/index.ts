@@ -84,6 +84,7 @@ import { NodeFavoriteRemoveMutationHandler } from './nodes/node-favorite-remove'
 import { NodeFavoriteListMutationHandler } from './nodes/node-favorite-list';
 import { NodeViewRecordMutationHandler } from './nodes/node-view-record';
 import { NodeViewListMutationHandler } from './nodes/node-view-list';
+import { PlaneSyncRunMutationHandler } from './plane/plane-sync-run';
 import { UnsplashDownloadMutationHandler } from './unsplash/unsplash-download';
 
 export type MutationHandlerMap = {
@@ -184,6 +185,7 @@ export const buildMutationHandlerMap = (
     'page.template.create': new PageTemplateCreateMutationHandler(app),
     'presence.update': new PresenceUpdateMutationHandler(app),
     'presence.leave': new PresenceLeaveMutationHandler(app),
+    'plane.sync.run': new PlaneSyncRunMutationHandler(app),
     'unsplash.download': new UnsplashDownloadMutationHandler(app),
   };
 };

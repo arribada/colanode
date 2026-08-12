@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 
+import { DatabasePlaneSync } from '@colanode/ui/components/databases/database-plane-sync';
 import { ViewCreateButton } from '@colanode/ui/components/databases/view-create-button';
 import { ViewIcon } from '@colanode/ui/components/databases/view-icon';
 import { ViewTab } from '@colanode/ui/components/databases/view-tab';
@@ -90,6 +91,7 @@ export const ViewTabs = () => {
         />
       ))}
       {canCreate && <ViewCreateButton />}
+      <DatabasePlaneSync />
     </div>
   );
 };
