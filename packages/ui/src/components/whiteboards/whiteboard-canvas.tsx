@@ -2427,6 +2427,42 @@ export const WhiteboardCanvas = ({
   // ----- connector routing (line shape) ------------------------------------
   // Routing lives on `el.connector`, NOT `el.style`, so it has its own updater
   // instead of overloading `onStyleChange`. Applies to every selected connector.
+  // Arrowheads of the first selected connector, so the toolbar can show which
+  // ends are currently on.
+  const connectorArrows = (() => {
+    const id = manipulableIds(selectionRef.current).find(
+      (i) => sceneRef.current[i]?.type === 'connector'
+    );
+    const c = id ? sceneRef.current[id]?.connector : undefined;
+    return { start: c?.arrowStart ?? false, end: c?.arrowEnd ?? true };
+  })();
+
+  const onConnectorArrows = (arrows: { start: boolean; end: boolean }) => {
+    const ids = manipulableIds(selectionRef.current).filter(
+      (id) => sceneRef.current[id]?.type === 'connector'
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = {
+        ...el,
+        connector: {
+          ...el.connector,
+          arrowStart: arrows.start,
+          arrowEnd: arrows.end,
+        },
+      };
+    }
+    commit(before, next, ids);
+  };
+
   const onConnectorRouting = (routing: ConnectorRouting) => {
     const ids = manipulableIds(selectionRef.current).filter(
       (id) => sceneRef.current[id]?.type === 'connector'
@@ -3662,6 +3698,8 @@ export const WhiteboardCanvas = ({
         connectorContext={connectorContext}
         connectorRouting={connectorRouting}
         onConnectorRouting={onConnectorRouting}
+        connectorArrows={connectorArrows}
+        onConnectorArrows={onConnectorArrows}
         onComment={() => {
           const id = selection[0];
           if (id) {

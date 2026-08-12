@@ -186,6 +186,11 @@ interface BoardToolbarProps {
   connectorContext: boolean;
   connectorRouting: ConnectorRouting;
   onConnectorRouting: (routing: ConnectorRouting) => void;
+  // Arrowheads of the first selected connector; the setter writes both ends on
+  // every selected connector. `reverse` swaps them, which is the common case
+  // when a line was drawn the wrong way round.
+  connectorArrows: { start: boolean; end: boolean };
+  onConnectorArrows: (arrows: { start: boolean; end: boolean }) => void;
 }
 
 export const BoardToolbar = ({
@@ -217,6 +222,8 @@ export const BoardToolbar = ({
   connectorContext,
   connectorRouting,
   onConnectorRouting,
+  connectorArrows,
+  onConnectorArrows,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -414,6 +421,58 @@ export const BoardToolbar = ({
                     {r}
                   </button>
                 ))}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Arrow</span>
+                <button
+                  type="button"
+                  aria-label="Arrowhead at start"
+                  title="Arrowhead at start"
+                  onClick={() =>
+                    onConnectorArrows({
+                      start: !connectorArrows.start,
+                      end: connectorArrows.end,
+                    })
+                  }
+                  className={cn(
+                    'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                    connectorArrows.start && 'bg-primary/10 text-primary'
+                  )}
+                >
+                  &larr;
+                </button>
+                <button
+                  type="button"
+                  aria-label="Arrowhead at end"
+                  title="Arrowhead at end"
+                  onClick={() =>
+                    onConnectorArrows({
+                      start: connectorArrows.start,
+                      end: !connectorArrows.end,
+                    })
+                  }
+                  className={cn(
+                    'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                    connectorArrows.end && 'bg-primary/10 text-primary'
+                  )}
+                >
+                  &rarr;
+                </button>
+                <button
+                  type="button"
+                  aria-label="Reverse direction"
+                  title="Reverse direction"
+                  onClick={() =>
+                    onConnectorArrows({
+                      start: connectorArrows.end,
+                      end: connectorArrows.start,
+                    })
+                  }
+                  className="rounded-md px-2 py-1 text-xs hover:bg-accent"
+                >
+                  &#8646;
+                </button>
               </div>
 
               <div className="h-6 w-px bg-border" />
