@@ -286,6 +286,40 @@ export const FRAME_PRESETS: FramePreset[] = [
   { id: 'phone', label: 'Phone', w: 390, h: 844 },
 ];
 
+/**
+ * Frames in reading order: left to right within a row, rows top to bottom.
+ *
+ * Sorting by y then x is the obvious approach and it is wrong — two frames
+ * placed side by side are never aligned to the pixel, so a few pixels of
+ * difference in y would order them vertically instead of horizontally. Frames
+ * are banded into rows first: two frames share a row when they overlap
+ * vertically by more than half the shorter one.
+ */
+export const frameOrder = (scene: BoardScene): BoardElement[] => {
+  const frames = Object.values(scene)
+    .filter((el) => el.type === 'frame')
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+
+  const rows: BoardElement[][] = [];
+  for (const frame of frames) {
+    const row = rows.find((r) =>
+      r.some((other) => {
+        const overlap =
+          Math.min(other.y + other.h, frame.y + frame.h) -
+          Math.max(other.y, frame.y);
+        return overlap > Math.min(other.h, frame.h) / 2;
+      })
+    );
+    if (row) {
+      row.push(frame);
+    } else {
+      rows.push([frame]);
+    }
+  }
+
+  return rows.flatMap((row) => row.sort((a, b) => a.x - b.x));
+};
+
 /** Ids of elements that belong to a frame (explicit frameId or contained). */
 export const frameChildIds = (
   scene: BoardScene,

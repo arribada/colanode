@@ -71,6 +71,7 @@ import {
   defaultForType,
   elementRect,
   frameChildIds,
+  frameOrder,
   resolveConnectorEndpoints,
   sortedElements,
   topZ,
@@ -2171,6 +2172,35 @@ export const WhiteboardCanvas = ({
       // Ctrl/Cmd+A selects every board element (not the page text). Works for
       // viewers too; the INPUT/TEXTAREA/contentEditable guard above already lets
       // a real text field keep the native select-all.
+      // Presentation owns the arrow keys and Escape while it is running, so
+      // it is handled before anything else can claim them.
+      if (slideRef.current !== null) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          stopPresenting();
+          return;
+        }
+        if (
+          e.key === 'ArrowRight' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'PageDown' ||
+          e.code === 'Space'
+        ) {
+          e.preventDefault();
+          goToSlide(slideRef.current + 1);
+          return;
+        }
+        if (
+          e.key === 'ArrowLeft' ||
+          e.key === 'ArrowUp' ||
+          e.key === 'PageUp'
+        ) {
+          e.preventDefault();
+          goToSlide(slideRef.current - 1);
+          return;
+        }
+      }
+
       // "?" and the view keys work read-only: nothing they do changes the
       // board, and a viewer needs them most.
       if (e.key === '?') {
@@ -2760,6 +2790,11 @@ export const WhiteboardCanvas = ({
   };
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Presentation: which frame is on screen, or null when not presenting.
+  const [slide, setSlide] = useState<number | null>(null);
+  const slideRef = useRef<number | null>(null);
+  const presenting = slide !== null;
   const [miroImportOpen, setMiroImportOpen] = useState(false);
 
   // Outline for the NEXT shape drawn. Kept in a ref as well, because the
@@ -4147,7 +4182,8 @@ export const WhiteboardCanvas = ({
         </div>
       )}
 
-      <BoardToolbar
+      {/* The toolbar is the one thing an audience must not see. */}
+      {!presenting && <BoardToolbar
         tool={tool}
         onToolChange={setTool}
         style={style}
@@ -4182,6 +4218,7 @@ export const WhiteboardCanvas = ({
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}
         onMiroImport={() => setMiroImportOpen(true)}
+        onPresent={startPresenting}
         shapeName={shapeName}
         onShapePick={onShapePick}
         selectionIsShapes={selectionIsShapes}
@@ -4192,7 +4229,7 @@ export const WhiteboardCanvas = ({
           }
         }}
         commentEnabled={canComment && selection.length === 1}
-      />
+      />}
 
       {commentElementId && scene[commentElementId] && (
         <BoardCommentsPanel
@@ -4478,6 +4515,51 @@ export const WhiteboardCanvas = ({
         )}
       </div>
 
+      {presenting &&
+        (() => {
+          const frames = frameOrder(scene);
+          const current = frames[slide];
+          return (
+            <div className="pointer-events-auto absolute bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-border bg-background/95 px-4 py-2 shadow-xl backdrop-blur">
+              <button
+                type="button"
+                aria-label="Previous frame"
+                disabled={slide === 0}
+                onClick={() => goToSlide(slide - 1)}
+                className="rounded-md px-2 py-1 text-sm hover:bg-accent disabled:opacity-40"
+              >
+                &lsaquo;
+              </button>
+              <span className="min-w-24 text-center text-sm">
+                <span className="font-medium">{slide + 1}</span>
+                <span className="text-muted-foreground"> / {frames.length}</span>
+                {current?.text && (
+                  <span className="ml-2 text-muted-foreground">
+                    {current.text}
+                  </span>
+                )}
+              </span>
+              <button
+                type="button"
+                aria-label="Next frame"
+                disabled={slide >= frames.length - 1}
+                onClick={() => goToSlide(slide + 1)}
+                className="rounded-md px-2 py-1 text-sm hover:bg-accent disabled:opacity-40"
+              >
+                &rsaquo;
+              </button>
+              <div className="h-5 w-px bg-border" />
+              <button
+                type="button"
+                onClick={stopPresenting}
+                className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                Exit (Esc)
+              </button>
+            </div>
+          );
+        })()}
+
       <BoardShortcutsDialog
         open={shortcutsOpen}
         onOpenChange={setShortcutsOpen}
@@ -4505,6 +4587,56 @@ export const WhiteboardCanvas = ({
     const sx = (cw / 2 - vp.x) / vp.zoom;
     const sy = (ch / 2 - vp.y) / vp.zoom;
     setViewport({ x: cw / 2 - sx * zoom, y: ch / 2 - sy * zoom, zoom });
+  }
+
+  // Fit one rectangle to the viewport, with a margin so a frame's own border
+  // does not sit against the edge of the screen.
+  function fitToRect(b: Rect, margin = 80) {
+    cancelFollow();
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const zoom = Math.min(
+      MAX_ZOOM,
+      Math.max(
+        MIN_ZOOM,
+        Math.min(cw / (b.w + margin), ch / (b.h + margin))
+      )
+    );
+    setViewport({
+      x: cw / 2 - (b.x + b.w / 2) * zoom,
+      y: ch / 2 - (b.y + b.h / 2) * zoom,
+      zoom,
+    });
+  }
+
+  function goToSlide(index: number) {
+    const frames = frameOrder(sceneRef.current);
+    if (frames.length === 0) {
+      return;
+    }
+    // Clamped, not wrapped: running off the end of a deck should stop at the
+    // last slide, not silently start over.
+    const i = Math.max(0, Math.min(frames.length - 1, index));
+    const frame = frames[i]!;
+    slideRef.current = i;
+    setSlide(i);
+    setSelection([]);
+    fitToRect(elementRect(frame));
+  }
+
+  function startPresenting() {
+    const frames = frameOrder(sceneRef.current);
+    if (frames.length === 0) {
+      toast.info('Add a frame first — frames are the slides.');
+      return;
+    }
+    setTool('select');
+    goToSlide(0);
+  }
+
+  function stopPresenting() {
+    slideRef.current = null;
+    setSlide(null);
   }
 
   function fitToContent() {

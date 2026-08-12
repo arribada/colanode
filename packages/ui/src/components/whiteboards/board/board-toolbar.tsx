@@ -20,6 +20,7 @@ import {
   MousePointer2,
   Network,
   Pencil,
+  Play,
   Printer,
   Redo2,
   Spline,
@@ -224,6 +225,7 @@ interface BoardToolbarProps {
   // Drops a correctly proportioned frame in the middle of the view.
   onFramePreset: (preset: { w: number; h: number; label: string }) => void;
   onMiroImport: () => void;
+  onPresent: () => void;
   // Named outline for the selection, or for the next shape drawn when nothing
   // is selected. null clears it back to the plain rectangle.
   shapeName: string | null;
@@ -268,6 +270,7 @@ export const BoardToolbar = ({
   onMindmapDirection,
   onFramePreset,
   onMiroImport,
+  onPresent,
   shapeName,
   onShapePick,
 }: BoardToolbarProps) => {
@@ -326,6 +329,10 @@ export const BoardToolbar = ({
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
       <div className="pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+        <ToolbarButton title="Present the frames" onClick={onPresent}>
+          <Play className="size-4" />
+        </ToolbarButton>
+
         <ToolbarButton title="Import a Miro board" onClick={onMiroImport}>
           <Upload className="size-4" />
         </ToolbarButton>

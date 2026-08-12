@@ -79,6 +79,14 @@ export const BOARD_SHORTCUTS: BoardShortcutGroup[] = [
     ],
   },
   {
+    title: 'Presentation',
+    items: [
+      { combos: [['Space'], ['→'], ['PgDn']], label: 'Next frame' },
+      { combos: [['←'], ['PgUp']], label: 'Previous frame' },
+      { combos: [['Esc']], label: 'Leave the presentation' },
+    ],
+  },
+  {
     title: 'View',
     items: [
       { combos: [['Ctrl', '0']], label: 'Zoom to 100%' },
