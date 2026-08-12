@@ -25,6 +25,9 @@ export interface BoardStyleState {
   strokeWidth: number;
   strokeStyle: NonNullable<BoardElementStyle['strokeStyle']>;
   stickyColor: string;
+  // Colour of the element's own text. Separate from `stroke`, which had been
+  // doing double duty as a text colour for text elements only.
+  textColor: string;
   opacity: number;
 }
 
@@ -35,4 +38,5 @@ export const DEFAULT_BOARD_STYLE: BoardStyleState = {
   strokeStyle: 'solid',
   stickyColor: '#fff7ae',
   opacity: 1,
+  textColor: '#1f2937',
 };

@@ -1184,10 +1184,16 @@ export const WhiteboardCanvas = ({
 
   const styleForType = (type: BoardTool): Partial<BoardElementStyle> => {
     if (type === 'sticky') {
-      return { fill: style.stickyColor, color: '#1f2937', opacity: style.opacity };
+      return {
+        fill: style.stickyColor,
+        color: style.textColor,
+        opacity: style.opacity,
+      };
     }
     if (type === 'text') {
-      return { color: style.stroke, opacity: style.opacity };
+      // Was `style.stroke`: a text element has no outline, so the stroke
+      // swatch was standing in for a text colour. Now it uses the real one.
+      return { color: style.textColor, opacity: style.opacity };
     }
     if (type === 'highlighter') {
       // Wide and translucent, so it reads as marker over the top of things
@@ -1212,6 +1218,7 @@ export const WhiteboardCanvas = ({
       stroke: style.stroke,
       strokeWidth: style.strokeWidth,
       strokeStyle: style.strokeStyle,
+      color: style.textColor,
       opacity: style.opacity,
     };
   };
@@ -2763,6 +2770,9 @@ export const WhiteboardCanvas = ({
       if (patch.strokeStyle !== undefined) {
         nextStyle.strokeStyle = patch.strokeStyle;
       }
+      if (patch.textColor !== undefined) {
+        nextStyle.color = patch.textColor;
+      }
       if (patch.opacity !== undefined) {
         nextStyle.opacity = patch.opacity;
       }
@@ -3486,38 +3496,40 @@ export const WhiteboardCanvas = ({
         onContextMenu={(e) => e.preventDefault()}
       >
         <defs>
+          {/* Screen space, NOT board space. The cell is the grid step times
+              the zoom and the pattern is shifted by the pan, so the dots stay
+              the same size on screen however far you zoom while still landing
+              on the board's own grid. Inside the scaled group a dot was 0.18px
+              at 15% zoom — invisible — and a blob at 400%. */}
           <pattern
             id={`board-grid-${node.id}`}
-            width={gridSize}
-            height={gridSize}
+            width={gridSize * viewport.zoom}
+            height={gridSize * viewport.zoom}
             patternUnits="userSpaceOnUse"
+            patternTransform={`translate(${viewport.x % (gridSize * viewport.zoom)} ${
+              viewport.y % (gridSize * viewport.zoom)
+            })`}
           >
-            {/* Sized and weighted to read on WHITE. The old quarter-opacity
-                dot was chosen against the grey surface the board used to
-                have, and disappeared entirely when that went white. */}
-            <circle cx={1} cy={1} r={1.2} fill="currentColor" opacity={0.75} />
+            <circle cx={1} cy={1} r={1.1} fill="currentColor" opacity={0.9} />
           </pattern>
         </defs>
+
+        {/* Outside the scene group on purpose — see the pattern above. */}
+        <rect
+          // Fixed grey, not a theme token: the dots have to read against the
+          // white surface, whatever theme the app is in.
+          className="board-no-export text-slate-400"
+          x={0}
+          y={0}
+          width="100%"
+          height="100%"
+          fill={`url(#board-grid-${node.id})`}
+        />
 
         <g
           ref={sceneGroupRef}
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
         >
-          <rect
-            // Fixed grey, not a theme token: the dots have to read against
-            // the white surface above, whatever theme the app is in.
-            className="board-no-export text-slate-500"
-            x={-viewport.x / viewport.zoom - 2000}
-            y={-viewport.y / viewport.zoom - 2000}
-            width={
-              (svgRef.current?.clientWidth ?? 2000) / viewport.zoom + 4000
-            }
-            height={
-              (svgRef.current?.clientHeight ?? 2000) / viewport.zoom + 4000
-            }
-            fill={`url(#board-grid-${node.id})`}
-          />
-
           {/* mind-map parent -> child edges (behind the nodes) */}
           <g style={{ pointerEvents: 'none' }}>
             {mindEdges.map((edge) => (

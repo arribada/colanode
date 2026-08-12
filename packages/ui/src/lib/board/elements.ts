@@ -40,6 +40,19 @@ export const SHAPE_FILLS = [
   '#e2e8f0',
 ];
 
+// Text needs a different range from strokes: mostly dark, readable on the pale
+// fills the board uses, plus white for a dark shape.
+export const TEXT_COLORS = [
+  '#1f2937',
+  '#475569',
+  '#1d4ed8',
+  '#15803d',
+  '#b91c1c',
+  '#7e22ce',
+  '#b45309',
+  '#ffffff',
+];
+
 export const STROKE_COLORS = [
   '#0f172a',
   '#334155',

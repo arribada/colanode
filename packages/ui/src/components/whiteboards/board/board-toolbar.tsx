@@ -47,6 +47,7 @@ import {
 import {
   FRAME_PRESETS,
   SHAPE_FILLS,
+  TEXT_COLORS,
   STICKY_COLORS,
   STROKE_COLORS,
 } from '@colanode/ui/lib/board/elements';
@@ -172,6 +173,65 @@ const ColorInput = ({
     onChange={(e) => onChange(e.target.value)}
     className="size-6 cursor-pointer rounded-full border border-black/10 bg-transparent p-0"
   />
+);
+
+interface StyleGroupProps {
+  id: string;
+  label: string;
+  /** Shown next to the label — the value this category is currently set to. */
+  value?: string;
+  /** Shown instead of `value` when the setting IS a colour. */
+  swatch?: string;
+  open: string | null;
+  onOpenChange: (id: string | null) => void;
+  children: React.ReactNode;
+}
+
+/**
+ * One category of the style panel: a chip that says what it is set to, and
+ * opens its controls on click.
+ *
+ * Only one category is open at a time — two popovers side by side cover the
+ * board and each other.
+ */
+const StyleGroup = ({
+  id,
+  label,
+  value,
+  swatch,
+  open,
+  onOpenChange,
+  children,
+}: StyleGroupProps) => (
+  <Popover
+    open={open === id}
+    onOpenChange={(o) => onOpenChange(o ? id : null)}
+  >
+    <PopoverTrigger asChild>
+      <button
+        type="button"
+        title={label}
+        className={cn(
+          'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs hover:bg-accent',
+          open === id && 'bg-accent'
+        )}
+      >
+        <span className="text-muted-foreground">{label}</span>
+        {swatch ? (
+          <span
+            className="size-4 rounded-full border border-border"
+            style={{ backgroundColor: swatch }}
+          />
+        ) : value ? (
+          <span className="capitalize">{value}</span>
+        ) : null}
+        <ChevronDown className="size-3 text-muted-foreground" />
+      </button>
+    </PopoverTrigger>
+    <PopoverContent className="w-auto p-2" align="start">
+      {children}
+    </PopoverContent>
+  </Popover>
 );
 
 interface ToolbarButtonProps {
@@ -347,6 +407,9 @@ export const BoardToolbar = ({
   // Once-a-session actions live behind one button so the drawing tools, which
   // are what anyone actually reaches for, stay in the hot path.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [openStyleGroup, setOpenStyleGroup] = useState<string | null>(
+    null
+  );
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [boardMenu, setBoardMenu] = useState(false);
   const boardMenuWrapRef = useRef<HTMLDivElement>(null);
@@ -717,102 +780,122 @@ export const BoardToolbar = ({
       </div>
 
       {showStylePanel && !collapsed && (
-        <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/95 px-3 py-2 shadow-lg backdrop-blur">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border border-border bg-background/95 px-2 py-1.5 shadow-lg backdrop-blur">
+          {/* Every category is a chip that says what it is currently set to,
+              and opens its choices on click. The panel used to lay all of them
+              out at once — three rows of swatches and buttons across the whole
+              screen, most of them irrelevant to what was selected. */}
+
           {connectorContext && (
-            <>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Line</span>
-                {(['straight', 'elbow', 'curved'] as const).map((r) => (
+            <StyleGroup
+              id="line"
+              label="Line"
+              value={connectorRouting}
+              open={openStyleGroup}
+              onOpenChange={setOpenStyleGroup}
+            >
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1">
+                  {(['straight', 'elbow', 'curved'] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      aria-label={`${r} connector`}
+                      title={`${r} connector`}
+                      onClick={() => onConnectorRouting(r)}
+                      className={cn(
+                        'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
+                        connectorRouting === r && 'bg-primary/10 text-primary'
+                      )}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="pr-1 text-xs text-muted-foreground">
+                    Arrows
+                  </span>
                   <button
-                    key={r}
                     type="button"
-                    aria-label={`${r} connector`}
-                    title={`${r} connector`}
-                    onClick={() => onConnectorRouting(r)}
+                    aria-label="Arrowhead at start"
+                    title="Arrowhead at start"
+                    onClick={() =>
+                      onConnectorArrows({
+                        start: !connectorArrows.start,
+                        end: connectorArrows.end,
+                      })
+                    }
                     className={cn(
-                      'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
-                      connectorRouting === r && 'bg-primary/10 text-primary'
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      connectorArrows.start && 'bg-primary/10 text-primary'
                     )}
                   >
-                    {r}
+                    &larr;
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    aria-label="Arrowhead at end"
+                    title="Arrowhead at end"
+                    onClick={() =>
+                      onConnectorArrows({
+                        start: connectorArrows.start,
+                        end: !connectorArrows.end,
+                      })
+                    }
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      connectorArrows.end && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    &rarr;
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Reverse direction"
+                    title="Reverse direction"
+                    onClick={() =>
+                      onConnectorArrows({
+                        start: connectorArrows.end,
+                        end: connectorArrows.start,
+                      })
+                    }
+                    className="rounded-md px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    &#8646;
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Line jumps"
+                    title="Hop over crossing lines"
+                    onClick={() => onConnectorJumps(!connectorJumps)}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      connectorJumps && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    &#8901;&#8255;&#8901;
+                  </button>
+                </div>
               </div>
-
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Arrow</span>
-                <button
-                  type="button"
-                  aria-label="Arrowhead at start"
-                  title="Arrowhead at start"
-                  onClick={() =>
-                    onConnectorArrows({
-                      start: !connectorArrows.start,
-                      end: connectorArrows.end,
-                    })
-                  }
-                  className={cn(
-                    'rounded-md px-2 py-1 text-xs hover:bg-accent',
-                    connectorArrows.start && 'bg-primary/10 text-primary'
-                  )}
-                >
-                  &larr;
-                </button>
-                <button
-                  type="button"
-                  aria-label="Arrowhead at end"
-                  title="Arrowhead at end"
-                  onClick={() =>
-                    onConnectorArrows({
-                      start: connectorArrows.start,
-                      end: !connectorArrows.end,
-                    })
-                  }
-                  className={cn(
-                    'rounded-md px-2 py-1 text-xs hover:bg-accent',
-                    connectorArrows.end && 'bg-primary/10 text-primary'
-                  )}
-                >
-                  &rarr;
-                </button>
-                <button
-                  type="button"
-                  aria-label="Reverse direction"
-                  title="Reverse direction"
-                  onClick={() =>
-                    onConnectorArrows({
-                      start: connectorArrows.end,
-                      end: connectorArrows.start,
-                    })
-                  }
-                  className="rounded-md px-2 py-1 text-xs hover:bg-accent"
-                >
-                  &#8646;
-                </button>
-                <button
-                  type="button"
-                  aria-label="Line jumps"
-                  title="Hop over crossing lines"
-                  onClick={() => onConnectorJumps(!connectorJumps)}
-                  className={cn(
-                    'rounded-md px-2 py-1 text-xs hover:bg-accent',
-                    connectorJumps && 'bg-primary/10 text-primary'
-                  )}
-                >
-                  &#8901;&#8255;&#8901;
-                </button>
-              </div>
-
-              <div className="h-6 w-px bg-border" />
-            </>
+            </StyleGroup>
           )}
 
           {shapeContextVisible && (
-            <>
-              <div className="flex max-w-[280px] flex-wrap items-center gap-0.5">
-                <span className="pr-1 text-xs text-muted-foreground">
-                  Shape
-                </span>
+            <StyleGroup
+              id="shape"
+              label="Shape"
+              value={
+                shapeName
+                  ? (BOARD_SHAPES.find((d) => d.id === shapeName)?.label ??
+                    shapeName)
+                  : 'Plain'
+              }
+              open={openStyleGroup}
+              onOpenChange={setOpenStyleGroup}
+            >
+              <div className="grid max-w-[280px] grid-cols-8 gap-0.5">
                 <button
                   type="button"
                   title="Plain"
@@ -846,8 +929,6 @@ export const BoardToolbar = ({
                       shapeName === def.id && 'bg-primary/10 text-primary'
                     )}
                   >
-                    {/* the real path, drawn in a 24x24 box — the button shows
-                        exactly what the board will draw */}
                     <svg viewBox="0 0 24 24" className="size-4">
                       <path
                         d={def.path({ x: 3, y: 4, w: 18, h: 16 })}
@@ -860,39 +941,47 @@ export const BoardToolbar = ({
                   </button>
                 ))}
               </div>
-
-              <div className="h-6 w-px bg-border" />
-            </>
+            </StyleGroup>
           )}
 
           {isFrameContext && (
-            <>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Frame</span>
+            <StyleGroup
+              id="frame"
+              label="Frame"
+              value="size"
+              open={openStyleGroup}
+              onOpenChange={setOpenStyleGroup}
+            >
+              <div className="flex flex-col gap-1">
                 {FRAME_PRESETS.map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
-                    title={`${preset.label} — ${preset.w}x${preset.h}`}
                     onClick={() => onFramePreset(preset)}
-                    className="rounded-md px-2 py-1 text-xs hover:bg-accent"
+                    className="flex items-center justify-between gap-4 rounded-md px-2 py-1 text-xs hover:bg-accent"
                   >
-                    {preset.label}
+                    <span>{preset.label}</span>
+                    <span className="text-muted-foreground">
+                      {preset.w}&times;{preset.h}
+                    </span>
                   </button>
                 ))}
-                <span className="pl-1 text-[10px] text-muted-foreground">
-                  or drag one out
-                </span>
+                <p className="px-2 pt-1 text-[10px] text-muted-foreground">
+                  or drag one out on the board
+                </p>
               </div>
-
-              <div className="h-6 w-px bg-border" />
-            </>
+            </StyleGroup>
           )}
 
           {mindmapDirection && (
-            <>
+            <StyleGroup
+              id="grow"
+              label="Grow"
+              value={mindmapDirection}
+              open={openStyleGroup}
+              onOpenChange={setOpenStyleGroup}
+            >
               <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Grow</span>
                 {MINDMAP_DIRECTIONS.map((d) => (
                   <button
                     key={d.value}
@@ -901,7 +990,7 @@ export const BoardToolbar = ({
                     title={d.label}
                     onClick={() => onMindmapDirection(d.value)}
                     className={cn(
-                      'rounded-md p-1 hover:bg-accent',
+                      'rounded-md p-1.5 hover:bg-accent',
                       mindmapDirection === d.value &&
                         'bg-primary/10 text-primary'
                     )}
@@ -910,171 +999,198 @@ export const BoardToolbar = ({
                   </button>
                 ))}
               </div>
-
-              <div className="h-6 w-px bg-border" />
-            </>
+            </StyleGroup>
           )}
 
-          {fontControlsVisible && (
-            <>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Text</span>
-                <button
-                  type="button"
-                  aria-label="Decrease font size"
-                  title="Decrease font size"
-                  disabled={fontAuto}
-                  onClick={() => onFontDelta(-2)}
-                  className={cn(
-                    'flex size-7 items-center justify-center rounded-md hover:bg-accent',
-                    fontAuto && 'pointer-events-none opacity-40'
-                  )}
-                >
-                  <span className="text-xs font-semibold">A-</span>
-                </button>
-                <span className="min-w-6 text-center text-xs tabular-nums text-muted-foreground">
-                  {fontAuto ? 'Auto' : Math.round(fontSize)}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Increase font size"
-                  title="Increase font size"
-                  disabled={fontAuto}
-                  onClick={() => onFontDelta(2)}
-                  className={cn(
-                    'flex size-7 items-center justify-center rounded-md hover:bg-accent',
-                    fontAuto && 'pointer-events-none opacity-40'
-                  )}
-                >
-                  <span className="text-sm font-semibold">A+</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Auto-fit font size"
-                  title="Auto-fit font to shape"
-                  onClick={() => onFontAuto(!fontAuto)}
-                  className={cn(
-                    'ml-0.5 rounded-md px-2 py-1 text-xs hover:bg-accent',
-                    fontAuto && 'bg-primary/10 text-primary'
-                  )}
-                >
-                  Auto
-                </button>
-              </div>
-
-              <div className="h-6 w-px bg-border" />
-            </>
-          )}
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">
-              {isStickyContext ? 'Note' : 'Fill'}
-            </span>
-            {fills.map((color) => (
-              <Swatch
-                key={color}
-                color={color}
-                active={activeFill === color}
-                onClick={() =>
+          <StyleGroup
+            id="fill"
+            label={isStickyContext ? 'Note' : 'Fill'}
+            swatch={activeFill}
+            open={openStyleGroup}
+            onOpenChange={setOpenStyleGroup}
+          >
+            <div className="flex items-center gap-1.5">
+              {fills.map((color) => (
+                <Swatch
+                  key={color}
+                  color={color}
+                  active={activeFill === color}
+                  onClick={() =>
+                    onStyleChange(
+                      isStickyContext
+                        ? { stickyColor: color }
+                        : { fill: color }
+                    )
+                  }
+                />
+              ))}
+              <ColorInput
+                title={
+                  isStickyContext ? 'Custom note color' : 'Custom fill color'
+                }
+                value={asHexColor(activeFill, '#ffffff')}
+                onChange={(hex) =>
                   onStyleChange(
-                    isStickyContext
-                      ? { stickyColor: color }
-                      : { fill: color }
+                    isStickyContext ? { stickyColor: hex } : { fill: hex }
                   )
                 }
               />
-            ))}
-            <ColorInput
-              title={isStickyContext ? 'Custom note color' : 'Custom fill color'}
-              value={asHexColor(activeFill, '#ffffff')}
-              onChange={(hex) =>
-                onStyleChange(
-                  isStickyContext ? { stickyColor: hex } : { fill: hex }
-                )
-              }
-            />
-          </div>
+            </div>
+          </StyleGroup>
 
-          <div className="h-6 w-px bg-border" />
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Stroke</span>
-            {STROKE_COLORS.map((color) => (
-              <Swatch
-                key={color}
-                color={color}
-                active={style.stroke === color}
-                onClick={() => onStyleChange({ stroke: color })}
-              />
-            ))}
-            <ColorInput
-              title="Custom stroke color"
-              value={asHexColor(style.stroke, '#334155')}
-              onChange={(hex) => onStyleChange({ stroke: hex })}
-            />
-          </div>
-
-          <div className="h-6 w-px bg-border" />
-
-          <div className="flex items-center gap-1">
-            {STROKE_WIDTHS.map((w) => (
-              <button
-                key={w}
-                type="button"
-                aria-label={`stroke width ${w}`}
-                onClick={() => onStyleChange({ strokeWidth: w })}
-                className={cn(
-                  'flex size-7 items-center justify-center rounded-md hover:bg-accent',
-                  style.strokeWidth === w && 'bg-primary/10'
-                )}
-              >
-                <span
-                  className="rounded-full bg-foreground"
-                  style={{ width: 16, height: Math.min(w, 6) }}
+          <StyleGroup
+            id="text"
+            label="Text"
+            swatch={style.textColor}
+            open={openStyleGroup}
+            onOpenChange={setOpenStyleGroup}
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5">
+                {TEXT_COLORS.map((color) => (
+                  <Swatch
+                    key={color}
+                    color={color}
+                    active={style.textColor === color}
+                    onClick={() => onStyleChange({ textColor: color })}
+                  />
+                ))}
+                <ColorInput
+                  title="Custom text color"
+                  value={asHexColor(style.textColor, '#1f2937')}
+                  onChange={(hex) => onStyleChange({ textColor: hex })}
                 />
-              </button>
-            ))}
-          </div>
+              </div>
 
-          <div className="h-6 w-px bg-border" />
+              {fontControlsVisible && (
+                <div className="flex items-center gap-1">
+                  <span className="pr-1 text-xs text-muted-foreground">
+                    Size
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Decrease font size"
+                    title="Decrease font size"
+                    onClick={() => onFontDelta(-2)}
+                    className="rounded-md px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    A-
+                  </button>
+                  <span className="min-w-6 text-center text-xs tabular-nums text-muted-foreground">
+                    {fontSize}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Increase font size"
+                    title="Increase font size"
+                    onClick={() => onFontDelta(2)}
+                    className="rounded-md px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    A+
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Auto-fit font size"
+                    title="Fit the text to the shape"
+                    onClick={() => onFontAuto(!fontAuto)}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      fontAuto && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    Auto
+                  </button>
+                </div>
+              )}
+            </div>
+          </StyleGroup>
 
-          <div className="flex items-center gap-1">
-            {(['solid', 'dashed', 'dotted'] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => onStyleChange({ strokeStyle: s })}
-                className={cn(
-                  'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
-                  style.strokeStyle === s && 'bg-primary/10 text-primary'
-                )}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          <StyleGroup
+            id="stroke"
+            label="Stroke"
+            swatch={style.stroke}
+            open={openStyleGroup}
+            onOpenChange={setOpenStyleGroup}
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5">
+                {STROKE_COLORS.map((color) => (
+                  <Swatch
+                    key={color}
+                    color={color}
+                    active={style.stroke === color}
+                    onClick={() => onStyleChange({ stroke: color })}
+                  />
+                ))}
+                <ColorInput
+                  title="Custom stroke color"
+                  value={asHexColor(style.stroke, '#334155')}
+                  onChange={(hex) => onStyleChange({ stroke: hex })}
+                />
+              </div>
 
-          <div className="h-6 w-px bg-border" />
+              <div className="flex items-center gap-1">
+                {STROKE_WIDTHS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    aria-label={`stroke width ${w}`}
+                    onClick={() => onStyleChange({ strokeWidth: w })}
+                    className={cn(
+                      'flex size-7 items-center justify-center rounded-md hover:bg-accent',
+                      style.strokeWidth === w && 'bg-primary/10'
+                    )}
+                  >
+                    <span
+                      className="rounded-full bg-foreground"
+                      style={{ width: 16, height: Math.min(w, 6) }}
+                    />
+                  </button>
+                ))}
+                <div className="mx-1 h-5 w-px bg-border" />
+                {(['solid', 'dashed', 'dotted'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => onStyleChange({ strokeStyle: s })}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
+                      style.strokeStyle === s && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </StyleGroup>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Opacity</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={style.opacity}
-              aria-label="Opacity"
-              title="Opacity"
-              onChange={(e) =>
-                onStyleChange({ opacity: Number(e.target.value) })
-              }
-              className="h-1.5 w-24 cursor-pointer accent-primary"
-            />
-            <span className="min-w-8 text-right text-xs tabular-nums text-muted-foreground">
-              {Math.round(style.opacity * 100)}%
-            </span>
-          </div>
+          <StyleGroup
+            id="opacity"
+            label="Opacity"
+            value={`${Math.round(style.opacity * 100)}%`}
+            open={openStyleGroup}
+            onOpenChange={setOpenStyleGroup}
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={style.opacity}
+                aria-label="Opacity"
+                title="Opacity"
+                onChange={(e) =>
+                  onStyleChange({ opacity: Number(e.target.value) })
+                }
+                className="h-1.5 w-32 cursor-pointer accent-primary"
+              />
+              <span className="min-w-8 text-right text-xs tabular-nums text-muted-foreground">
+                {Math.round(style.opacity * 100)}%
+              </span>
+            </div>
+          </StyleGroup>
         </div>
       )}
     </div>

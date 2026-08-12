@@ -143,6 +143,10 @@ const ROUTING_MAP: Record<string, 'straight' | 'elbow' | 'curved'> = {
   curved: 'curved',
 };
 
+/** Miro sends opacity as a string; "0.0" means the fill or border is off. */
+const transparent = (opacity: string | undefined): boolean =>
+  opacity !== undefined && Number(opacity) === 0;
+
 const hasArrow = (cap: string | undefined): boolean =>
   !!cap && cap !== 'none';
 
@@ -264,12 +268,26 @@ export const convertMiroBoard = (
     danglingConnectors: 0,
   };
 
-  // Frames first so the elements landing inside them paint on top, and so a
-  // child's frameId can point at an element that already exists.
+  const area = (item: MiroItem): number =>
+    num(item.geometry?.width, 0) * num(item.geometry?.height, 0);
+
+  /**
+   * Paint order. Miro's REST API exposes no z-index whatsoever, and returns
+   * items in an order that puts the big container shapes a third of the way
+   * through — on top of the small shapes they contain.
+   *
+   * Frames first, then largest to smallest. A shape that contains others is
+   * bigger than them, so area descending reproduces the intended stacking
+   * without any z data. It is a heuristic, not the truth: two shapes of the
+   * same size keep the export's own order.
+   */
   const ordered = [...items].sort((a, b) => {
     const af = a.type === 'frame' ? 0 : 1;
     const bf = b.type === 'frame' ? 0 : 1;
-    return af - bf;
+    if (af !== bf) {
+      return af - bf;
+    }
+    return area(b) - area(a);
   });
 
   const zKeys = generateNKeysBetween(
@@ -344,11 +362,19 @@ export const convertMiroBoard = (
           h: box.h,
           z,
           style: {
-            // A Miro fill can be a hex or the word "transparent"; both are
-            // valid here, so it passes through untouched.
-            fill: item.style?.fillColor ?? '#ffffff',
-            stroke: item.style?.borderColor ?? '#334155',
+            // fillOpacity 0 is how Miro says "no fill", and it is what the
+            // big container boxes use. Imported as opaque white they hid
+            // everything they were drawn around.
+            fill: transparent(item.style?.fillOpacity)
+              ? 'transparent'
+              : (item.style?.fillColor ?? '#ffffff'),
+            stroke: transparent(item.style?.borderOpacity)
+              ? 'transparent'
+              : (item.style?.borderColor ?? '#334155'),
             strokeWidth: Number(item.style?.borderWidth ?? 2) || 2,
+            // Miro's `color` is the TEXT colour, which matters on the dark
+            // shapes: black text on a near-black fill is unreadable.
+            color: item.style?.color ?? '#1f2937',
           },
           text: miroTextToPlain(item.data?.content),
         });

@@ -313,3 +313,80 @@ describe('mind-map positions', () => {
     expect(root.y).toBe(450);
   });
 });
+
+describe('fills and stacking', () => {
+  const withStyle = (
+    id: string,
+    style: Record<string, string>,
+    w = 100,
+    h = 100
+  ): MiroItem => ({
+    id,
+    type: 'shape',
+    data: { content: '<p>x</p>', shape: 'rectangle' },
+    style,
+    geometry: { width: w, height: h },
+    position: { x: 0, y: 0 },
+  });
+
+  it('reads fillOpacity 0 as no fill, not as white', () => {
+    // The container boxes on the reference board are 2260x3186 with
+    // fillOpacity 0. Imported opaque they hid everything inside them.
+    const { scene } = convertMiroBoard([
+      withStyle('a', { fillColor: '#ffffff', fillOpacity: '0.0' }),
+    ]);
+    expect(Object.values(scene)[0]!.style.fill).toBe('transparent');
+  });
+
+  it('keeps a real fill', () => {
+    const { scene } = convertMiroBoard([
+      withStyle('a', { fillColor: '#e7e7e7', fillOpacity: '1.0' }),
+    ]);
+    expect(Object.values(scene)[0]!.style.fill).toBe('#e7e7e7');
+  });
+
+  it('turns the border off when its opacity is zero', () => {
+    const { scene } = convertMiroBoard([
+      withStyle('a', { borderColor: '#1a1a1a', borderOpacity: '0.0' }),
+    ]);
+    expect(Object.values(scene)[0]!.style.stroke).toBe('transparent');
+  });
+
+  it("carries Miro's text colour, which matters on a dark shape", () => {
+    const { scene } = convertMiroBoard([
+      withStyle('a', { fillColor: '#1a1a1a', color: '#ffffff' }),
+    ]);
+    expect(Object.values(scene)[0]!.style.color).toBe('#ffffff');
+  });
+
+  it('stacks big shapes behind small ones', () => {
+    // Miro gives no z-index and lists the big container AFTER the small
+    // shapes it contains, so import order alone put it on top of them.
+    const { scene } = convertMiroBoard([
+      withStyle('small', { fillColor: '#fff' }, 100, 100),
+      withStyle('big', { fillColor: '#fff' }, 2000, 3000),
+    ]);
+    const els = Object.values(scene);
+    const small = els.find((e) => e.w === 100)!;
+    const big = els.find((e) => e.w === 2000)!;
+    // z keys sort lexicographically, back to front
+    expect(big.z < small.z).toBe(true);
+  });
+
+  it('keeps frames behind everything, whatever their size', () => {
+    const items: MiroItem[] = [
+      withStyle('tiny', {}, 50, 50),
+      {
+        id: 'f',
+        type: 'frame',
+        data: { title: 'F' },
+        geometry: { width: 5000, height: 5000 },
+        position: { x: 0, y: 0 },
+      },
+    ];
+    const { scene } = convertMiroBoard(items);
+    const frame = Object.values(scene).find((e) => e.type === 'frame')!;
+    const tiny = Object.values(scene).find((e) => e.type === 'rect')!;
+    expect(frame.z < tiny.z).toBe(true);
+  });
+});
