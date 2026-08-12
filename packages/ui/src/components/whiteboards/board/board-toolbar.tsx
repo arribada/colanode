@@ -78,6 +78,22 @@ interface ToolDef {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// What a line means. Short labels: they are printed ON the line.
+const DEPENDENCY_KINDS: {
+  value: string | null;
+  label: string;
+  hint: string;
+}[] = [
+  { value: null, label: 'Plain', hint: 'Just a line' },
+  { value: 'blocks', label: 'Blocks', hint: 'This one blocks the other' },
+  {
+    value: 'dependsOn',
+    label: 'Depends',
+    hint: 'This one cannot start until the other is done',
+  },
+  { value: 'relatesTo', label: 'Relates', hint: 'Related, but not blocking' },
+];
+
 const ARROW_HEADS: { value: string; label: string; mark: string }[] = [
   { value: 'none', label: 'No head', mark: '—' },
   { value: 'arrow', label: 'Open arrow', mark: '\u2192' },
@@ -387,6 +403,10 @@ interface BoardToolbarProps {
   onConnectorJumps: (jumps: boolean) => void;
   connectorHeads: { start: string; end: string };
   onConnectorHeads: (heads: { start: string; end: string }) => void;
+  connectorKind: string | null;
+  onConnectorKind: (kind: string | null) => void;
+  badgeValue: string;
+  onBadgeChange: (value: string) => void;
   // Direction of the selected mind map, or null when none is selected.
   mindmapDirection: 'right' | 'left' | 'down' | 'up' | null;
   onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
@@ -445,6 +465,10 @@ export const BoardToolbar = ({
   onConnectorJumps,
   connectorHeads,
   onConnectorHeads,
+  connectorKind,
+  onConnectorKind,
+  badgeValue,
+  onBadgeChange,
   mindmapDirection,
   onMindmapDirection,
   onFramePreset,
@@ -967,6 +991,27 @@ export const BoardToolbar = ({
                 {/* Each end's head is chosen separately, so a line can be
                     plain at one end and pointed at the other, or pointed at
                     both. */}
+                <div className="flex items-center gap-1">
+                  <span className="w-10 text-xs text-muted-foreground">
+                    Means
+                  </span>
+                  {DEPENDENCY_KINDS.map((k) => (
+                    <button
+                      key={k.value ?? 'none'}
+                      type="button"
+                      title={k.hint}
+                      onClick={() => onConnectorKind(k.value)}
+                      className={cn(
+                        'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                        connectorKind === k.value &&
+                          'bg-primary/10 text-primary'
+                      )}
+                    >
+                      {k.label}
+                    </button>
+                  ))}
+                </div>
+
                 {(
                   [
                     ['start', 'Start'],
@@ -1418,6 +1463,32 @@ export const BoardToolbar = ({
               </div>
             </div>
           </StyleGroup>
+
+          {hasSelection && (
+            <StyleGroup
+              id="badge"
+              label="Badge"
+              value={badgeValue || undefined}
+              open={openStyleGroup}
+              onOpenChange={setOpenStyleGroup}
+            >
+              <div className="flex flex-col gap-1.5">
+                <input
+                  type="text"
+                  value={badgeValue}
+                  maxLength={8}
+                  placeholder="3, XL, REQ-14…"
+                  aria-label="Badge"
+                  onChange={(e) => onBadgeChange(e.target.value)}
+                  className="w-40 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+                />
+                <p className="max-w-40 text-[10px] leading-tight text-muted-foreground">
+                  A chip in the corner — a story point, an estimate, a
+                  reference. Clear it to remove it.
+                </p>
+              </div>
+            </StyleGroup>
+          )}
 
           <StyleGroup
             id="opacity"

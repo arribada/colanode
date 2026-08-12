@@ -26,6 +26,13 @@ import type { Point } from '@colanode/ui/lib/board/geometry';
 import { boardShapePath } from '@colanode/ui/lib/board/shapes';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
+// The word that goes on a typed line. Short on purpose: it sits ON the line.
+const DEPENDENCY_LABEL: Record<string, string> = {
+  blocks: 'blocks',
+  dependsOn: 'depends on',
+  relatesTo: 'relates to',
+};
+
 const SANS_FAMILY = 'Inter, system-ui, sans-serif';
 const MONO_FAMILY =
   'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
@@ -467,6 +474,36 @@ const ArrowHeadMark = ({
   return <polygon points={pointsToSvg(shape.points)} fill={color} />;
 };
 
+/** The chip in an element's top-right corner. */
+const BadgeChip = ({ element }: { element: BoardElement }) => {
+  const badge = element.badge?.trim();
+  if (!badge) {
+    return null;
+  }
+  const w = Math.max(22, badge.length * 7 + 10);
+  const h = 18;
+  // Overlapping the corner rather than sitting inside it, so it does not eat
+  // into the element's own text on a small card.
+  const x = element.x + element.w - w + 4;
+  const y = element.y - 6;
+  return (
+    <g style={{ userSelect: 'none' }} pointerEvents="none">
+      <rect x={x} y={y} width={w} height={h} rx={9} fill="#1f2937" />
+      <text
+        x={x + w / 2}
+        y={y + 13}
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={600}
+        fill="#ffffff"
+        fontFamily={SANS_FAMILY}
+      >
+        {badge}
+      </text>
+    </g>
+  );
+};
+
 export const BoardElementView = ({
   element,
   scene,
@@ -536,21 +573,27 @@ export const BoardElementView = ({
       c.arrowStartType ?? (c.arrowStart ? 'triangle' : 'none');
     const head = arrowHeadShape(endKind, end, headFrom, 13);
     const tail = arrowHeadShape(startKind, start, tailFrom, 13);
-    const labelWidth = c.label ? Math.max(24, c.label.length * 7 + 12) : 0;
+    // A named dependency labels itself, unless the user wrote their own text.
+    const lineLabel = c.label || (c.kind ? DEPENDENCY_LABEL[c.kind] : '');
+    const labelWidth = lineLabel ? Math.max(24, lineLabel.length * 7 + 12) : 0;
     return (
       <g opacity={opacity}>
         <path
           d={d}
           stroke={style.stroke ?? '#334155'}
           strokeWidth={style.strokeWidth ?? 2}
-          strokeDasharray={dash}
+          strokeDasharray={
+            // "relates to" is the soft one: dashed unless the user has
+            // already chosen a dash style of their own.
+            c.kind === 'relatesTo' && !style.strokeStyle ? '7 5' : dash
+          }
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         <ArrowHeadMark shape={head} color={style.stroke ?? '#334155'} />
         <ArrowHeadMark shape={tail} color={style.stroke ?? '#334155'} />
-        {c.label && (
+        {lineLabel && (
           <g style={{ userSelect: 'none' }}>
             <rect
               x={mid.x - labelWidth / 2}
@@ -571,7 +614,7 @@ export const BoardElementView = ({
               fill="#475569"
               fontFamily="Inter, system-ui, sans-serif"
             >
-              {c.label}
+              {lineLabel}
             </text>
           </g>
         )}
@@ -738,6 +781,7 @@ export const BoardElementView = ({
   return (
     <g transform={transform} opacity={opacity}>
       {shape}
+      <BadgeChip element={element} />
       {element.type === 'frame' && element.text && (
         <text
           x={element.x + 4}

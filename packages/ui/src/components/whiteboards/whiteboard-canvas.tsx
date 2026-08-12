@@ -3286,6 +3286,66 @@ export const WhiteboardCanvas = ({
     commit(before, next, ids);
   };
 
+  const connectorKind = (() => {
+    const id = manipulableIds(selectionRef.current).find(
+      (i) => sceneRef.current[i]?.type === 'connector'
+    );
+    return sceneRef.current[id ?? '']?.connector?.kind ?? null;
+  })();
+
+  const onConnectorKind = (kind: string | null) => {
+    const ids = manipulableIds(selectionRef.current).filter(
+      (id) => sceneRef.current[id]?.type === 'connector'
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = {
+        ...el,
+        connector: {
+          ...el.connector,
+          kind: (kind ?? undefined) as
+            | 'blocks'
+            | 'dependsOn'
+            | 'relatesTo'
+            | undefined,
+        },
+      };
+    }
+    commit(before, next, ids);
+  };
+
+  // The badge of the first selected element, and the setter for all of them.
+  const badgeValue = (() => {
+    const id = manipulableIds(selectionRef.current)[0];
+    return (id ? sceneRef.current[id]?.badge : '') ?? '';
+  })();
+
+  const onBadgeChange = (value: string) => {
+    const ids = manipulableIds(selectionRef.current);
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      // Emptied means removed, not stored as an empty chip.
+      next[id] = { ...el, badge: value.trim() ? value : undefined };
+    }
+    commit(before, next, ids);
+  };
+
   const onConnectorJumps = (jumps: boolean) => {
     const ids = manipulableIds(selectionRef.current).filter(
       (id) => sceneRef.current[id]?.type === 'connector'
@@ -4675,6 +4735,10 @@ export const WhiteboardCanvas = ({
         onConnectorJumps={onConnectorJumps}
         connectorHeads={connectorHeads}
         onConnectorHeads={onConnectorHeads}
+        connectorKind={connectorKind}
+        onConnectorKind={onConnectorKind}
+        badgeValue={badgeValue}
+        onBadgeChange={onBadgeChange}
         mindmapDirection={mindmapDirection}
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}

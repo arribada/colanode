@@ -140,7 +140,12 @@ export const boardConnectorSchema = z.object({
   // Hop over the lines this one crosses instead of drawing an ambiguous X.
   // Opt-in: a board of parallel lines does not want hops everywhere.
   jumps: z.boolean().optional(),
+  // What the line MEANS. Absent = a plain connector, which is what every
+  // existing line is.
+  kind: z.enum(['blocks', 'dependsOn', 'relatesTo']).optional(),
 });
+
+export const boardDependencyKind = boardConnectorSchema.shape.kind;
 
 export type BoardConnector = z.infer<typeof boardConnectorSchema>;
 
@@ -178,6 +183,11 @@ export const boardElementSchema = z.object({
   // Taken out of the way without being deleted. Still listed in the layers
   // panel — invisible and forgotten are different things.
   hidden: z.boolean().optional(),
+  // A short chip in the element's corner: a story point, an estimate, a
+  // reference. Free text rather than a number — "3", "XL" and "REQ-14" are
+  // the same feature, and a field that only takes digits sends people back to
+  // stacking a second sticky on top.
+  badge: z.string().optional(),
   // User id of whoever made this while private mode was on. Other clients
   // drop it on arrival instead of drawing it, until it is revealed.
   // This hides the element; it does not withhold it — the data still travels.
