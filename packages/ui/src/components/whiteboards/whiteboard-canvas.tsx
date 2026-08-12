@@ -58,6 +58,7 @@ import {
   ConnectorRouting,
   DEFAULT_BOARD_STYLE,
 } from '@colanode/ui/components/whiteboards/board/board-types';
+import { BoardShortcutsDialog } from '@colanode/ui/components/whiteboards/board/board-shortcuts';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   usePresences,
@@ -2091,6 +2092,28 @@ export const WhiteboardCanvas = ({
       // Ctrl/Cmd+A selects every board element (not the page text). Works for
       // viewers too; the INPUT/TEXTAREA/contentEditable guard above already lets
       // a real text field keep the native select-all.
+      // "?" and the view keys work read-only: nothing they do changes the
+      // board, and a viewer needs them most.
+      if (e.key === '?') {
+        e.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+      if (meta && (e.key === '0' || e.key === '1')) {
+        e.preventDefault();
+        if (e.key === '1') {
+          fitToContent();
+        } else {
+          cancelFollow();
+          setViewport({ ...viewportRef.current, zoom: 1 });
+        }
+        return;
+      }
+      if (meta && (e.key === '+' || e.key === '=' || e.key === '-')) {
+        e.preventDefault();
+        zoomBy(e.key === '-' ? 1 / 1.2 : 1.2);
+        return;
+      }
       if (meta && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         setSelection(Object.keys(sceneRef.current));
@@ -2139,15 +2162,33 @@ export const WhiteboardCanvas = ({
         nudgeSelection(dx, dy);
         return;
       }
+      if (meta && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          ungroupSelection();
+        } else {
+          groupSelection();
+        }
+        return;
+      }
+      if (meta && (e.key === ']' || e.key === '[')) {
+        e.preventDefault();
+        reorderSelection(e.key === ']');
+        return;
+      }
       const map: Record<string, BoardTool> = {
         v: 'select',
         h: 'hand',
         s: 'sticky',
+        // Miro's key for a sticky note; both are bound so muscle memory from
+        // either tool works.
+        n: 'sticky',
         r: 'rect',
         o: 'ellipse',
         d: 'diamond',
         t: 'text',
         c: 'connector',
+        l: 'connector',
         p: 'pen',
         f: 'frame',
         m: 'mindmap',
@@ -2575,6 +2616,8 @@ export const WhiteboardCanvas = ({
     }
     commit(before, next, ids);
   };
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // Node a dragged mind-map node would be re-parented onto. Kept in a ref as
   // well as state: the drag reads it on drop, the render only needs it to
@@ -4207,8 +4250,26 @@ export const WhiteboardCanvas = ({
           </button>
         )}
       </div>
+
+      <BoardShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+      />
     </div>
   );
+
+  // Zoom about the middle of the viewport, which is where the eye is when the
+  // gesture comes from the keyboard rather than the wheel.
+  function zoomBy(factor: number) {
+    cancelFollow();
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, vp.zoom * factor));
+    const sx = (cw / 2 - vp.x) / vp.zoom;
+    const sy = (ch / 2 - vp.y) / vp.zoom;
+    setViewport({ x: cw / 2 - sx * zoom, y: ch / 2 - sy * zoom, zoom });
+  }
 
   function fitToContent() {
     cancelFollow();
