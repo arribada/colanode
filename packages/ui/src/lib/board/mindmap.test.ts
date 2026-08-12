@@ -6,10 +6,13 @@ import {
   addMindmapSibling,
   hasMindmapChildren,
   mindmapChildren,
+  canReparentMindmap,
+  mindmapDescendantIds,
   mindmapEdgeGeometry,
   mindmapEdges,
   mindmapHiddenIds,
   mindmapRootOf,
+  reparentMindmap,
   relayoutMindmap,
   toggleMindmapCollapsed,
 } from '@colanode/ui/lib/board/mindmap';
@@ -170,5 +173,66 @@ describe('mindmapEdgeGeometry', () => {
     const g = mindmapEdgeGeometry(parent, { x: 0, y: -200, w: 100, h: 40 });
     expect(g.from).toEqual({ x: 50, y: 0 });
     expect(g.to).toEqual({ x: 50, y: -160 });
+  });
+});
+
+describe('reparenting', () => {
+  // root -> a -> a1, root -> b
+  const node = (id: string, parentId?: string, x = 0, y = 0): BoardElement =>
+    ({
+      id,
+      type: 'mindmap',
+      x,
+      y,
+      w: 160,
+      h: 48,
+      z: id,
+      style: {},
+      mindmap: parentId ? { parentId } : {},
+    }) as BoardElement;
+
+  const scene = (): BoardScene => ({
+    root: node('root'),
+    a: node('a', 'root', 240, 0),
+    a1: node('a1', 'a', 480, 0),
+    b: node('b', 'root', 240, 100),
+  });
+
+  it('lists descendants, not the node itself', () => {
+    expect([...mindmapDescendantIds(scene(), 'root')].sort()).toEqual([
+      'a',
+      'a1',
+      'b',
+    ]);
+    expect([...mindmapDescendantIds(scene(), 'a')]).toEqual(['a1']);
+    expect([...mindmapDescendantIds(scene(), 'a1')]).toEqual([]);
+  });
+
+  it('allows moving a branch to a sibling', () => {
+    expect(canReparentMindmap(scene(), 'a', 'b')).toBe(true);
+    const out = reparentMindmap(scene(), 'a', 'b');
+    expect(out.scene.a!.mindmap!.parentId).toBe('b');
+    // the subtree follows its parent
+    expect(out.scene.a1!.mindmap!.parentId).toBe('a');
+    expect(mindmapRootOf(out.scene, 'a1')).toBe('root');
+  });
+
+  it('refuses a drop onto its own descendant', () => {
+    expect(canReparentMindmap(scene(), 'a', 'a1')).toBe(false);
+    const out = reparentMindmap(scene(), 'a', 'a1');
+    expect(out.changedIds).toEqual([]);
+    expect(out.scene.a!.mindmap!.parentId).toBe('root');
+  });
+
+  it('refuses a drop onto itself, or onto the parent it already has', () => {
+    expect(canReparentMindmap(scene(), 'a', 'a')).toBe(false);
+    expect(canReparentMindmap(scene(), 'a', 'root')).toBe(false);
+  });
+
+  it('relayouts so the moved branch sits under its new parent', () => {
+    const out = reparentMindmap(scene(), 'a', 'b');
+    // 'a' now hangs off 'b', so it must be further right than 'b' is
+    expect(out.scene.a!.x).toBeGreaterThan(out.scene.b!.x);
+    expect(out.changedIds).toContain('a');
   });
 });

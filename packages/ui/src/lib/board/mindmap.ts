@@ -363,3 +363,75 @@ export const mindmapEdgePath = (parent: Box, child: Box): string => {
   const g = mindmapEdgeGeometry(parent, child);
   return `M ${g.from.x} ${g.from.y} C ${g.c1.x} ${g.c1.y}, ${g.c2.x} ${g.c2.y}, ${g.to.x} ${g.to.y}`;
 };
+
+/** Every id below `id` in its tree, `id` excluded. */
+export const mindmapDescendantIds = (
+  scene: BoardScene,
+  id: string
+): Set<string> => {
+  const out = new Set<string>();
+  const walk = (parentId: string) => {
+    for (const child of mindmapChildren(scene, parentId)) {
+      if (out.has(child.id)) {
+        continue;
+      }
+      out.add(child.id);
+      walk(child.id);
+    }
+  };
+  walk(id);
+  return out;
+};
+
+/**
+ * Whether `id` may become a child of `parentId`.
+ *
+ * Refused when the new parent is the node itself or one of its descendants:
+ * that would close the tree into a cycle, and every walk over it (layout,
+ * hidden ids, edges) would spin until its guard tripped.
+ */
+export const canReparentMindmap = (
+  scene: BoardScene,
+  id: string,
+  parentId: string
+): boolean => {
+  const node = scene[id];
+  const parent = scene[parentId];
+  if (!isMindmap(node) || !isMindmap(parent) || id === parentId) {
+    return false;
+  }
+  if (node.mindmap?.parentId === parentId) {
+    return false;
+  }
+  return !mindmapDescendantIds(scene, id).has(parentId);
+};
+
+/** Move `id` (and everything under it) under `parentId`, then relayout. */
+export const reparentMindmap = (
+  scene: BoardScene,
+  id: string,
+  parentId: string
+): MindmapEdit => {
+  if (!canReparentMindmap(scene, id, parentId)) {
+    return { scene, changedIds: [] };
+  }
+  const node = scene[id]!;
+  const oldRootId = mindmapRootOf(scene, id);
+  const withLink: BoardScene = {
+    ...scene,
+    [id]: { ...node, mindmap: { ...node.mindmap, parentId } },
+  };
+  // Both trees are relaid: the receiving one opens room, and the one left
+  // behind closes the gap. When the move stays inside one tree that is the
+  // same layout twice, so the second pass is skipped.
+  const grown = relayoutMindmap(withLink, parentId);
+  const newRootId = mindmapRootOf(grown.scene, id);
+  const shrunk =
+    oldRootId !== newRootId && grown.scene[oldRootId]
+      ? relayoutMindmap(grown.scene, oldRootId)
+      : { scene: grown.scene, changedIds: [] };
+  return {
+    scene: shrunk.scene,
+    changedIds: [...new Set([id, ...grown.changedIds, ...shrunk.changedIds])],
+  };
+};

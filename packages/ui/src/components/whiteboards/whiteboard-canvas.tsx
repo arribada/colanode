@@ -105,8 +105,10 @@ import {
   hasMindmapChildren,
   mindmapDirection as mindmapDirectionOf,
   mindmapEdgePath,
+  canReparentMindmap,
   mindmapEdges,
   mindmapHiddenIds,
+  reparentMindmap,
   setMindmapDirection,
   toggleMindmapCollapsed,
 } from '@colanode/ui/lib/board/mindmap';
@@ -1682,6 +1684,19 @@ export const WhiteboardCanvas = ({
         break;
       }
       case 'move': {
+        // One mind-map node dragged over another re-parents it on release.
+        const dragged = Object.keys(it.origin);
+        if (
+          dragged.length === 1 &&
+          sceneRef.current[dragged[0]!]?.type === 'mindmap'
+        ) {
+          const over = mindmapAt(p, new Set(dragged));
+          setMindmapDrop(
+            over && canReparentMindmap(sceneRef.current, dragged[0]!, over.id)
+              ? over.id
+              : null
+          );
+        }
         const rawDx = p.x - it.start.x;
         const rawDy = p.y - it.start.y;
         const movingIds = Object.keys(it.origin);
@@ -1972,6 +1987,24 @@ export const WhiteboardCanvas = ({
       it.mode === 'move'
         ? Object.keys(it.origin)
         : [(it as { id: string }).id];
+
+    // A mind-map node released over another one joins it. The relayout puts
+    // the node where the tree wants it, which overrides wherever the drag
+    // happened to leave it — so this commits from the relaid scene, not the
+    // dragged one.
+    const dropTarget = mindmapDropTargetRef.current;
+    setMindmapDrop(null);
+    if (it.mode === 'move' && dropTarget && ids.length === 1) {
+      const edit = reparentMindmap(sceneRef.current, ids[0]!, dropTarget);
+      if (edit.changedIds.length > 0) {
+        applyLocal(edit.scene);
+        commit(it.before, edit.scene, [
+          ...new Set([...ids, ...edit.changedIds]),
+        ]);
+        return;
+      }
+    }
+
     commit(it.before, sceneRef.current, ids);
   };
 
@@ -2541,6 +2574,36 @@ export const WhiteboardCanvas = ({
       };
     }
     commit(before, next, ids);
+  };
+
+  // Node a dragged mind-map node would be re-parented onto. Kept in a ref as
+  // well as state: the drag reads it on drop, the render only needs it to
+  // draw the halo.
+  const [mindmapDropTarget, setMindmapDropTarget] = useState<string | null>(
+    null
+  );
+  const mindmapDropTargetRef = useRef<string | null>(null);
+  const setMindmapDrop = (id: string | null) => {
+    if (mindmapDropTargetRef.current === id) {
+      return;
+    }
+    mindmapDropTargetRef.current = id;
+    setMindmapDropTarget(id);
+  };
+
+  /** Top-most mind-map node under `p`, ignoring the ones being dragged. */
+  const mindmapAt = (p: Point, exclude: Set<string>): BoardElement | null => {
+    const list = sortedElements(sceneRef.current);
+    for (let i = list.length - 1; i >= 0; i--) {
+      const el = list[i]!;
+      if (el.type !== 'mindmap' || exclude.has(el.id)) {
+        continue;
+      }
+      if (pointInRotatedRect(p, elementRect(el), el.rotation ?? 0)) {
+        return el;
+      }
+    }
+    return null;
   };
 
   // Direction of the selected mind map, or null when the selection is not one.
@@ -3306,6 +3369,29 @@ export const WhiteboardCanvas = ({
               </g>
             );
           })}
+
+          {/* the mind-map node a drag would attach to */}
+          {mindmapDropTarget &&
+            (() => {
+              const el = scene[mindmapDropTarget];
+              if (!el) {
+                return null;
+              }
+              const tl = sceneToClient({ x: el.x, y: el.y });
+              return (
+                <rect
+                  x={tl.x - 4}
+                  y={tl.y - 4}
+                  width={el.w * viewport.zoom + 8}
+                  height={el.h * viewport.zoom + 8}
+                  rx={8}
+                  fill="none"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
+              );
+            })()}
 
           {/* connector reshape handle: drag to move the elbow corner / curve
               control point (works for all three routings). */}
