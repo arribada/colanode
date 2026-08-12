@@ -31,6 +31,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import {
+  FRAME_PRESETS,
   SHAPE_FILLS,
   STICKY_COLORS,
   STROKE_COLORS,
@@ -211,6 +212,8 @@ interface BoardToolbarProps {
   // Direction of the selected mind map, or null when none is selected.
   mindmapDirection: 'right' | 'left' | 'down' | 'up' | null;
   onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
+  // Drops a correctly proportioned frame in the middle of the view.
+  onFramePreset: (preset: { w: number; h: number; label: string }) => void;
 }
 
 export const BoardToolbar = ({
@@ -248,6 +251,7 @@ export const BoardToolbar = ({
   onConnectorJumps,
   mindmapDirection,
   onMindmapDirection,
+  onFramePreset,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -279,6 +283,7 @@ export const BoardToolbar = ({
       ));
 
   const isStickyContext = tool === 'sticky';
+  const isFrameContext = tool === 'frame';
   const fills = isStickyContext ? STICKY_COLORS : SHAPE_FILLS;
   const activeFill = isStickyContext ? style.stickyColor : style.fill;
 
@@ -509,6 +514,30 @@ export const BoardToolbar = ({
                 >
                   &#8901;&#8255;&#8901;
                 </button>
+              </div>
+
+              <div className="h-6 w-px bg-border" />
+            </>
+          )}
+
+          {isFrameContext && (
+            <>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Frame</span>
+                {FRAME_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    title={`${preset.label} — ${preset.w}x${preset.h}`}
+                    onClick={() => onFramePreset(preset)}
+                    className="rounded-md px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <span className="pl-1 text-[10px] text-muted-foreground">
+                  or drag one out
+                </span>
               </div>
 
               <div className="h-6 w-px bg-border" />

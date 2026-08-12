@@ -2723,6 +2723,34 @@ export const WhiteboardCanvas = ({
     return id ? mindmapDirectionOf(sceneRef.current, id) : null;
   })();
 
+  const onFramePreset = (preset: { w: number; h: number; label: string }) => {
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    const center = {
+      x: (cw / 2 - vp.x) / vp.zoom,
+      y: (ch / 2 - vp.y) / vp.zoom,
+    };
+    const el = createElement({
+      type: 'frame',
+      x: maybeSnap(center.x - preset.w / 2),
+      y: maybeSnap(center.y - preset.h / 2),
+      w: preset.w,
+      h: preset.h,
+      z: topZ(sceneRef.current),
+      style: styleForType('frame'),
+      // The label names the ratio, which is what the frame is FOR; a frame
+      // called "Frame" tells the next reader nothing.
+      text: preset.label,
+    });
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current, [el.id]: el };
+    applyLocal(next);
+    setSelection([el.id]);
+    commit(before, next, [el.id]);
+    setTool('select');
+  };
+
   const onMindmapDirection = (direction: 'right' | 'left' | 'down' | 'up') => {
     const id = manipulableIds(selectionRef.current).find(
       (i) => sceneRef.current[i]?.type === 'mindmap'
@@ -4030,6 +4058,7 @@ export const WhiteboardCanvas = ({
         onConnectorJumps={onConnectorJumps}
         mindmapDirection={mindmapDirection}
         onMindmapDirection={onMindmapDirection}
+        onFramePreset={onFramePreset}
         onComment={() => {
           const id = selection[0];
           if (id) {

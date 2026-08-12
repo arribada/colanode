@@ -263,6 +263,29 @@ export const resolveConnectorEndpoints = (
   return { start, end };
 };
 
+export interface FramePreset {
+  id: string;
+  label: string;
+  w: number;
+  h: number;
+}
+
+/**
+ * Frame sizes worth having one click away. A frame is nearly always a slide, a
+ * sheet or a screen, and guessing those proportions by dragging is hopeless.
+ *
+ * Sizes are in board units, which are pixels at 100% zoom, so a 16:9 frame
+ * exported at 1x is exactly 1920x1080.
+ */
+export const FRAME_PRESETS: FramePreset[] = [
+  { id: 'ratio-16-9', label: '16:9', w: 1920, h: 1080 },
+  { id: 'ratio-4-3', label: '4:3', w: 1440, h: 1080 },
+  { id: 'ratio-1-1', label: '1:1', w: 1080, h: 1080 },
+  { id: 'a4-landscape', label: 'A4 landscape', w: 1123, h: 794 },
+  { id: 'a4-portrait', label: 'A4 portrait', w: 794, h: 1123 },
+  { id: 'phone', label: 'Phone', w: 390, h: 844 },
+];
+
 /** Ids of elements that belong to a frame (explicit frameId or contained). */
 export const frameChildIds = (
   scene: BoardScene,
