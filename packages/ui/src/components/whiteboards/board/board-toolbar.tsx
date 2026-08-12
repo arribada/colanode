@@ -10,6 +10,8 @@ import {
   Download,
   FileCode,
   Eraser,
+  Eye,
+  EyeOff,
   Frame,
   Hand,
   Highlighter,
@@ -226,6 +228,10 @@ interface BoardToolbarProps {
   onFramePreset: (preset: { w: number; h: number; label: string }) => void;
   onMiroImport: () => void;
   onPresent: () => void;
+  privateMode: boolean;
+  onPrivateMode: () => void;
+  privateCount: number;
+  onRevealPrivate: () => void;
   // Named outline for the selection, or for the next shape drawn when nothing
   // is selected. null clears it back to the plain rectangle.
   shapeName: string | null;
@@ -271,6 +277,10 @@ export const BoardToolbar = ({
   onFramePreset,
   onMiroImport,
   onPresent,
+  privateMode,
+  onPrivateMode,
+  privateCount,
+  onRevealPrivate,
   shapeName,
   onShapePick,
 }: BoardToolbarProps) => {
@@ -329,6 +339,33 @@ export const BoardToolbar = ({
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
       <div className="pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+        <ToolbarButton
+          title={
+            privateMode
+              ? 'Private mode is ON — new elements are hidden from others until you reveal them'
+              : 'Private mode: hide what you add from others until you reveal it'
+          }
+          active={privateMode}
+          onClick={onPrivateMode}
+        >
+          {privateMode ? (
+            <EyeOff className="size-4" />
+          ) : (
+            <Eye className="size-4" />
+          )}
+        </ToolbarButton>
+
+        {privateCount > 0 && (
+          <button
+            type="button"
+            title="Make your hidden elements visible to everyone"
+            onClick={onRevealPrivate}
+            className="rounded-md px-2 py-1 text-xs text-primary hover:bg-accent"
+          >
+            Reveal {privateCount}
+          </button>
+        )}
+
         <ToolbarButton title="Present the frames" onClick={onPresent}>
           <Play className="size-4" />
         </ToolbarButton>

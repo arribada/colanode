@@ -496,8 +496,29 @@ export const WhiteboardCanvas = ({
   // never a whole-scene stringify) so remote edits land LIVE even while the
   // local user drags — every element except the ones under the local gesture
   // is merged in immediately.
+  /**
+   * Someone else's private element: dropped as it arrives rather than filtered
+   * at render time, so it is not merely invisible — it is not in this client's
+   * scene at all, and cannot be selected, moved or exported by accident.
+   *
+   * Safe because persistence is per-element: `persistIds` starts from the
+   * server's current draft and writes only the ids it is given, so a client
+   * that never saw these cannot delete them.
+   */
+  const hiddenFromMe = useCallback(
+    (el: BoardElement | undefined): boolean =>
+      !!el?.privateBy && el.privateBy !== workspace.userId,
+    [workspace.userId]
+  );
+
   useEffect(() => {
-    const incoming = getSceneAttr(node, sceneField) ?? {};
+    const raw = getSceneAttr(node, sceneField) ?? {};
+    const incoming: BoardScene = {};
+    for (const [id, el] of Object.entries(raw)) {
+      if (!hiddenFromMe(el)) {
+        incoming[id] = el;
+      }
+    }
     const current = sceneRef.current;
     const locked = lockedElementIds();
 
@@ -1002,7 +1023,7 @@ export const WhiteboardCanvas = ({
       // Continue the grid after any cards already present so re-seeds append
       // beside/below existing cards rather than overlapping them.
       const slot = existingCards + i;
-      const el = createElement({
+      const el = newElement({
         type: 'nodeCard',
         x: ORIGIN_X + (slot % COLS) * COL_W,
         y: ORIGIN_Y + Math.floor(slot / COLS) * ROW_H,
@@ -1101,7 +1122,7 @@ export const WhiteboardCanvas = ({
       const newIds: string[] = [];
       const zKeys = generateNKeysBetween(topZ(base), null, edges.length);
       edges.forEach((edge, i) => {
-        const conn = createElement({
+        const conn = newElement({
           type: 'connector',
           x: 0,
           y: 0,
@@ -1459,7 +1480,7 @@ export const WhiteboardCanvas = ({
     if (t === 'connector') {
       const from = elementAt(p);
       const z = topZ(sceneRef.current);
-      const connector = createElement({
+      const connector = newElement({
         type: 'connector',
         x: 0,
         y: 0,
@@ -1486,7 +1507,7 @@ export const WhiteboardCanvas = ({
 
     if (t === 'pen' || t === 'highlighter') {
       const z = topZ(sceneRef.current);
-      const pen = createElement({
+      const pen = newElement({
         type: 'freehand',
         x: p.x,
         y: p.y,
@@ -1507,7 +1528,7 @@ export const WhiteboardCanvas = ({
 
     if (t === 'rect' || t === 'ellipse' || t === 'diamond' || t === 'frame') {
       const z = topZ(sceneRef.current);
-      const el = createElement({
+      const el = newElement({
         type: t,
         x: maybeSnap(p.x),
         y: maybeSnap(p.y),
@@ -1666,7 +1687,7 @@ export const WhiteboardCanvas = ({
     p: Point
   ) => {
     const z = topZ(sceneRef.current);
-    const el = createElement({
+    const el = newElement({
       type: t,
       x: maybeSnap(p.x - (t === 'text' ? 0 : 90)),
       y: maybeSnap(p.y - (t === 'text' ? 20 : 70)),
@@ -2003,7 +2024,7 @@ export const WhiteboardCanvas = ({
       const el = sceneRef.current[it.id];
       let next = sceneRef.current;
       if (el && (el.w < 8 || el.h < 8)) {
-        const def = createElement({ type: el.type, x: el.x, y: el.y, z: el.z });
+        const def = newElement({ type: el.type, x: el.x, y: el.y, z: el.z });
         next = {
           ...sceneRef.current,
           [it.id]: { ...el, w: def.w, h: def.h },
@@ -2364,7 +2385,7 @@ export const WhiteboardCanvas = ({
       if (!el) {
         continue;
       }
-      const clone = createElement({
+      const clone = newElement({
         type: el.type,
         x: el.x + GRID,
         y: el.y + GRID,
@@ -2508,7 +2529,7 @@ export const WhiteboardCanvas = ({
         break;
     }
     const before = cloneScene(sceneRef.current);
-    const newEl = createElement({
+    const newEl = newElement({
       type,
       x: maybeSnap(x),
       y: maybeSnap(y),
@@ -2517,7 +2538,7 @@ export const WhiteboardCanvas = ({
       text: '',
     });
     const withNew = { ...sceneRef.current, [newEl.id]: newEl };
-    const conn = createElement({
+    const conn = newElement({
       type: 'connector',
       x: 0,
       y: 0,
@@ -2791,6 +2812,49 @@ export const WhiteboardCanvas = ({
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
+  // Private mode. Kept in a ref too: the pointer handlers that build elements
+  // run from a stale closure and would otherwise never see it turned on.
+  const [privateMode, setPrivateMode] = useState(false);
+  const privateModeRef = useRef(false);
+
+  /**
+   * Every element this canvas creates goes through here, so private mode is
+   * applied in ONE place rather than threaded through a dozen creation sites
+   * (shapes, stickies, ink, connectors, frames, paste, import, templates).
+   */
+  const newElement = (input: Parameters<typeof createElement>[0]) => {
+    const el = createElement(input);
+    if (privateModeRef.current) {
+      el.privateBy = workspace.userId;
+    }
+    return el;
+  };
+
+  const togglePrivateMode = () => {
+    const next = !privateModeRef.current;
+    privateModeRef.current = next;
+    setPrivateMode(next);
+  };
+
+  /** Clears the private stamp on everything of yours, all at once. */
+  const revealPrivate = () => {
+    const ids = Object.values(sceneRef.current)
+      .filter((el) => el.privateBy === workspace.userId)
+      .map((el) => el.id);
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (el) {
+        next[id] = { ...el, privateBy: undefined };
+      }
+    }
+    commit(before, next, ids);
+  };
+
   // Presentation: which frame is on screen, or null when not presenting.
   const [slide, setSlide] = useState<number | null>(null);
   const slideRef = useRef<number | null>(null);
@@ -2835,6 +2899,10 @@ export const WhiteboardCanvas = ({
     }
     return null;
   };
+
+  const privateElementIds = Object.values(scene)
+    .filter((el) => el.privateBy === workspace.userId)
+    .map((el) => el.id);
 
   const selectionIsShapes =
     selectionRef.current.length > 0 &&
@@ -2883,7 +2951,7 @@ export const WhiteboardCanvas = ({
       x: (cw / 2 - vp.x) / vp.zoom,
       y: (ch / 2 - vp.y) / vp.zoom,
     };
-    const el = createElement({
+    const el = newElement({
       type: 'frame',
       x: maybeSnap(center.x - preset.w / 2),
       y: maybeSnap(center.y - preset.h / 2),
@@ -3012,7 +3080,7 @@ export const WhiteboardCanvas = ({
         toast.error('Could not attach image');
         continue;
       }
-      const el = createElement({
+      const el = newElement({
         type: 'image',
         x: maybeSnap(at.x - dims.w / 2 + offset),
         y: maybeSnap(at.y - dims.h / 2 + offset),
@@ -3670,6 +3738,31 @@ export const WhiteboardCanvas = ({
             );
           })}
 
+          {/* Your own private elements, ringed so it is obvious which ones
+              nobody else can see yet. */}
+          {privateElementIds.map((id) => {
+            const el = scene[id];
+            if (!el) {
+              return null;
+            }
+            const tl = sceneToClient({ x: el.x, y: el.y });
+            return (
+              <rect
+                key={`private-${id}`}
+                x={tl.x - 3}
+                y={tl.y - 3}
+                width={el.w * viewport.zoom + 6}
+                height={el.h * viewport.zoom + 6}
+                rx={6}
+                fill="none"
+                stroke="#a855f7"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                pointerEvents="none"
+              />
+            );
+          })}
+
           {/* the mind-map node a drag would attach to */}
           {mindmapDropTarget &&
             (() => {
@@ -4219,6 +4312,10 @@ export const WhiteboardCanvas = ({
         onFramePreset={onFramePreset}
         onMiroImport={() => setMiroImportOpen(true)}
         onPresent={startPresenting}
+        privateMode={privateMode}
+        onPrivateMode={togglePrivateMode}
+        privateCount={privateElementIds.length}
+        onRevealPrivate={revealPrivate}
         shapeName={shapeName}
         onShapePick={onShapePick}
         selectionIsShapes={selectionIsShapes}
