@@ -83,6 +83,7 @@ import {
   connectorBendPoints,
   connectorHandlePoint,
   connectorWaypoints,
+  moveConnectorSegment,
   nearestSegmentIndex,
   normalizeRect,
   pointInRotatedRect,
@@ -96,6 +97,7 @@ import {
   snap,
   unionBounds,
   fractionalAnchor,
+  anchorSide,
 } from '@colanode/ui/lib/board/geometry';
 import {
   addMindmapChild,
@@ -193,6 +195,17 @@ type Interaction =
       before: BoardScene;
     }
   | { mode: 'connector-bend'; id: string; index: number; before: BoardScene }
+  | {
+      mode: 'connector-segment';
+      id: string;
+      index: number;
+      start: Point;
+      // Waypoints captured when the segment was grabbed. The move is always
+      // recomputed from THIS polyline, so a wandering pointer cannot compound
+      // its own output drag after drag.
+      pts: Point[];
+      before: BoardScene;
+    }
   | { mode: 'pen'; id: string; before: BoardScene };
 
 interface WhiteboardCanvasProps {
@@ -458,6 +471,7 @@ export const WhiteboardCanvas = ({
         it.mode === 'create' ||
         it.mode === 'connector' ||
         it.mode === 'connector-bend' ||
+        it.mode === 'connector-segment' ||
         it.mode === 'pen'
       ) {
         locked.add(it.id);
@@ -1445,6 +1459,49 @@ export const WhiteboardCanvas = ({
       return;
     }
 
+    // Drag a whole SEGMENT of the already-selected connector. The bend
+    // handles above move a corner and skew both segments meeting there; Miro
+    // slides the segment along its normal instead, which is what keeps an
+    // elbow route orthogonal. Only offered where there are real segments to
+    // move — a plain straight line keeps its midpoint handle.
+    if (elEl && canEdit) {
+      const cid = elEl.getAttribute('data-el-id')!;
+      const cel = sceneRef.current[cid];
+      if (
+        cel &&
+        cel.type === 'connector' &&
+        !cel.locked &&
+        !isLockedForMe(cid) &&
+        selectionRef.current.length === 1 &&
+        selectionRef.current[0] === cid
+      ) {
+        const routing = cel.connector?.routing ?? 'straight';
+        const bends = connectorBendPoints(
+          cel.connector?.bends,
+          cel.connector?.bend
+        );
+        if (routing === 'elbow' || bends.length > 0) {
+          const { start, end } = resolveConnectorEndpoints(
+            cel,
+            sceneRef.current
+          );
+          const exitSide = cel.connector?.fromAnchor
+            ? anchorSide(cel.connector.fromAnchor)
+            : undefined;
+          const pts = connectorWaypoints(routing, start, end, bends, exitSide);
+          interactionRef.current = {
+            mode: 'connector-segment',
+            id: cid,
+            index: nearestSegmentIndex(pts, p),
+            start: p,
+            pts,
+            before: cloneScene(sceneRef.current),
+          };
+          return;
+        }
+      }
+    }
+
     // select tool
     if (elEl) {
       let id = elEl.getAttribute('data-el-id')!;
@@ -1781,6 +1838,26 @@ export const WhiteboardCanvas = ({
         } else {
           nextBends[it.index] = { x: p.x, y: p.y };
         }
+        const next = {
+          ...sceneRef.current,
+          [it.id]: {
+            ...el,
+            connector: { ...el.connector, bends: nextBends, bend: undefined },
+          },
+        };
+        applyLocal(next);
+        schedulePersist([it.id]);
+        break;
+      }
+      case 'connector-segment': {
+        const el = sceneRef.current[it.id];
+        if (!el) {
+          break;
+        }
+        const nextBends = moveConnectorSegment(it.pts, it.index, {
+          x: p.x - it.start.x,
+          y: p.y - it.start.y,
+        });
         const next = {
           ...sceneRef.current,
           [it.id]: {
@@ -4051,7 +4128,11 @@ const ElementHitArea = ({
           c.routing ?? 'straight',
           start,
           end,
-          connectorBendPoints(c.bends, c.bend)
+          connectorBendPoints(c.bends, c.bend),
+          // Same exit side as the drawn path, otherwise the invisible hit
+          // stroke runs somewhere else than the visible line and grabbing a
+          // segment picks the wrong one.
+          c.fromAnchor ? anchorSide(c.fromAnchor) : undefined
         )}
         fill="none"
         stroke="transparent"
