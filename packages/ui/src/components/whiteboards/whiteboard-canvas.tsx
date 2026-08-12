@@ -1620,6 +1620,7 @@ export const WhiteboardCanvas = ({
   };
 
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    pointerSceneRef.current = clientToScene(e.clientX, e.clientY);
     if (pointersRef.current.has(e.pointerId)) {
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     }
@@ -2139,6 +2140,19 @@ export const WhiteboardCanvas = ({
           return;
         }
       }
+      if (meta && e.key.toLowerCase() === 'c') {
+        if (copySelection()) {
+          e.preventDefault();
+        }
+        return;
+      }
+      if (meta && e.key.toLowerCase() === 'x') {
+        if (copySelection()) {
+          e.preventDefault();
+          deleteSelection();
+        }
+        return;
+      }
       if (meta && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateSelection();
@@ -2454,13 +2468,18 @@ export const WhiteboardCanvas = ({
   // ----- insert a template into the current board --------------------------
   // Reuse a BOARD_TEMPLATE but drop it at the viewport center with fresh ids
   // and top-of-stack z keys so it never collides with existing elements.
-  const insertTemplate = (templateId: string) => {
-    const tpl = getTemplate(templateId);
-    if (!tpl) {
-      return;
-    }
-    const built = tpl.build();
-    const elems = Object.values(built);
+  /**
+   * Drop a set of elements into the board with fresh ids, top-of-stack z keys
+   * and every internal reference rewritten to the new ids.
+   *
+   * That rewrite is the whole point: without it a pasted copy still points at
+   * the ORIGINAL elements, so the copied arrows snap back to the shapes they
+   * were copied from.
+   *
+   * `at` is where the group's centre lands; omitted, it lands in the middle of
+   * the viewport.
+   */
+  const insertElements = (elems: BoardElement[], at?: Point) => {
     if (elems.length === 0) {
       return;
     }
@@ -2473,7 +2492,7 @@ export const WhiteboardCanvas = ({
     const cw = svgRef.current?.clientWidth ?? 800;
     const ch = svgRef.current?.clientHeight ?? 600;
     const vp = viewportRef.current;
-    const center = {
+    const center = at ?? {
       x: (cw / 2 - vp.x) / vp.zoom,
       y: (ch / 2 - vp.y) / vp.zoom,
     };
@@ -2539,6 +2558,49 @@ export const WhiteboardCanvas = ({
     commit(before, next, newIds);
     setSelection(newIds);
     setTool('select');
+  };
+
+  const insertTemplate = (templateId: string) => {
+    const tpl = getTemplate(templateId);
+    if (!tpl) {
+      return;
+    }
+    insertElements(Object.values(tpl.build()));
+  };
+
+  // ----- clipboard ---------------------------------------------------------
+  // Board-local, not the system clipboard: elements carry structure (links to
+  // other elements, styles, mind-map parents) that no text/image flavour can
+  // hold. The OS paste handler further down still takes care of images.
+  const clipboardRef = useRef<BoardElement[]>([]);
+
+  const copySelection = (): boolean => {
+    const ids = selectionRef.current;
+    if (ids.length === 0) {
+      return false;
+    }
+    const picked = ids
+      .map((id) => sceneRef.current[id])
+      .filter((el): el is BoardElement => !!el)
+      .map((el) => cloneElement(el));
+    if (picked.length === 0) {
+      return false;
+    }
+    clipboardRef.current = picked;
+    return true;
+  };
+
+  const pasteClipboard = () => {
+    const items = clipboardRef.current;
+    if (items.length === 0) {
+      return;
+    }
+    // Paste under the pointer when it is over the board, which is where the
+    // eye already is; otherwise fall back to the middle of the viewport.
+    insertElements(
+      items.map((el) => cloneElement(el)),
+      pointerSceneRef.current ?? undefined
+    );
   };
 
   const onStyleChange = (patch: Partial<BoardStyleState>) => {
@@ -2618,6 +2680,10 @@ export const WhiteboardCanvas = ({
   };
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Last pointer position in scene coordinates, so a keyboard paste can land
+  // where the user is looking rather than always in the middle.
+  const pointerSceneRef = useRef<Point | null>(null);
 
   // Node a dragged mind-map node would be re-parented onto. Kept in a ref as
   // well as state: the drag reads it on drop, the render only needs it to
@@ -2799,6 +2865,12 @@ export const WhiteboardCanvas = ({
         f.type.startsWith('image/')
       );
       if (files.length === 0) {
+        // Nothing to attach: fall through to the board's own clipboard, so
+        // Ctrl+V pastes copied elements.
+        if (clipboardRef.current.length > 0) {
+          e.preventDefault();
+          pasteClipboard();
+        }
         return;
       }
       e.preventDefault();
@@ -4300,6 +4372,22 @@ export const WhiteboardCanvas = ({
     });
   }
 };
+
+// A copy that shares nothing with the original: the clipboard outlives the
+// scene it was taken from, so a shallow copy would let a later edit of the
+// source mutate what is about to be pasted.
+const cloneElement = (el: BoardElement): BoardElement => ({
+  ...el,
+  style: { ...el.style },
+  points: el.points?.map((pt) => [...pt]),
+  connector: el.connector
+    ? {
+        ...el.connector,
+        bends: el.connector.bends?.map((b) => ({ ...b })),
+      }
+    : undefined,
+  mindmap: el.mindmap ? { ...el.mindmap } : undefined,
+});
 
 // Transparent hit area so shapes (even unfilled) and thin connectors are
 // clickable across their whole bounds / stroke.
