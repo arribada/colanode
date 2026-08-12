@@ -3216,7 +3216,10 @@ export const WhiteboardCanvas = ({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-muted/30"
+      // The board surface is white in both themes: everything drawn on it —
+      // fills, strokes, text — is authored in light colours, so a dark canvas
+      // made an ordinary board look broken and did not match the export.
+      className="relative h-full w-full overflow-hidden bg-white"
       onDragOver={
         canEdit && !embedded ? (e) => e.preventDefault() : undefined
       }
@@ -3294,7 +3297,9 @@ export const WhiteboardCanvas = ({
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
         >
           <rect
-            className="board-no-export text-muted-foreground"
+            // Fixed grey, not a theme token: the dots have to read against
+            // the white surface above, whatever theme the app is in.
+            className="board-no-export text-slate-400"
             x={-viewport.x / viewport.zoom - 2000}
             y={-viewport.y / viewport.zoom - 2000}
             width={
