@@ -152,6 +152,12 @@ export const boardElementSchema = z.object({
   style: boardElementStyleSchema,
   text: z.string().optional(),
   points: z.array(z.array(z.number())).optional(),
+  // Named outline drawn over the element's box — 'hexagon', 'cylinder' and so
+  // on. A plain string, NOT an enum: a board written by a newer client can
+  // carry a shape this one has never heard of, and rejecting the element
+  // outright would lose it. An unknown name simply falls back to the base
+  // rectangle. Absent = the element's own default outline.
+  shape: z.string().optional(),
   connector: boardConnectorSchema.optional(),
   // Colanode file-node id backing an `image` element (the uploaded picture).
   // Optional + absent on non-image elements and legacy boards.

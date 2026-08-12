@@ -37,6 +37,7 @@ import {
   STICKY_COLORS,
   STROKE_COLORS,
 } from '@colanode/ui/lib/board/elements';
+import { BOARD_SHAPES } from '@colanode/ui/lib/board/shapes';
 import { BOARD_TEMPLATES } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -176,6 +177,9 @@ interface BoardToolbarProps {
   // True when every selected element is hard-locked (drives the lock/unlock
   // toggle icon + label).
   selectionLocked: boolean;
+  // True when every selected element is a drawn shape, so the outline picker
+  // only appears where it would do something.
+  selectionIsShapes: boolean;
   canUndo: boolean;
   canRedo: boolean;
   readOnly: boolean;
@@ -216,6 +220,10 @@ interface BoardToolbarProps {
   // Drops a correctly proportioned frame in the middle of the view.
   onFramePreset: (preset: { w: number; h: number; label: string }) => void;
   onMiroImport: () => void;
+  // Named outline for the selection, or for the next shape drawn when nothing
+  // is selected. null clears it back to the plain rectangle.
+  shapeName: string | null;
+  onShapePick: (shape: string | null) => void;
 }
 
 export const BoardToolbar = ({
@@ -225,6 +233,7 @@ export const BoardToolbar = ({
   onStyleChange,
   hasSelection,
   selectionLocked,
+  selectionIsShapes,
   canUndo,
   canRedo,
   readOnly,
@@ -255,6 +264,8 @@ export const BoardToolbar = ({
   onMindmapDirection,
   onFramePreset,
   onMiroImport,
+  shapeName,
+  onShapePick,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -287,6 +298,12 @@ export const BoardToolbar = ({
 
   const isStickyContext = tool === 'sticky';
   const isFrameContext = tool === 'frame';
+  // Shown while a drawing tool is armed, or when the selection is drawn
+  // shapes — the only elements a named outline applies to.
+  const shapeContextVisible =
+    ['rect', 'ellipse', 'diamond'].includes(tool) || shapeName !== null
+      ? true
+      : selectionIsShapes;
   const fills = isStickyContext ? STICKY_COLORS : SHAPE_FILLS;
   const activeFill = isStickyContext ? style.stickyColor : style.fill;
 
@@ -521,6 +538,64 @@ export const BoardToolbar = ({
                 >
                   &#8901;&#8255;&#8901;
                 </button>
+              </div>
+
+              <div className="h-6 w-px bg-border" />
+            </>
+          )}
+
+          {shapeContextVisible && (
+            <>
+              <div className="flex max-w-[280px] flex-wrap items-center gap-0.5">
+                <span className="pr-1 text-xs text-muted-foreground">
+                  Shape
+                </span>
+                <button
+                  type="button"
+                  title="Plain"
+                  onClick={() => onShapePick(null)}
+                  className={cn(
+                    'rounded-md p-1 hover:bg-accent',
+                    !shapeName && 'bg-primary/10 text-primary'
+                  )}
+                >
+                  <svg viewBox="0 0 24 24" className="size-4">
+                    <rect
+                      x="3"
+                      y="6"
+                      width="18"
+                      height="12"
+                      rx="2"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </button>
+                {BOARD_SHAPES.map((def) => (
+                  <button
+                    key={def.id}
+                    type="button"
+                    title={def.label}
+                    onClick={() => onShapePick(def.id)}
+                    className={cn(
+                      'rounded-md p-1 hover:bg-accent',
+                      shapeName === def.id && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {/* the real path, drawn in a 24x24 box — the button shows
+                        exactly what the board will draw */}
+                    <svg viewBox="0 0 24 24" className="size-4">
+                      <path
+                        d={def.path({ x: 3, y: 4, w: 18, h: 16 })}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                ))}
               </div>
 
               <div className="h-6 w-px bg-border" />

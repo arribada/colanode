@@ -1454,6 +1454,9 @@ export const WhiteboardCanvas = ({
         z,
         style: styleForType(t),
       });
+      if (t !== 'frame' && shapeNameRef.current) {
+        el.shape = shapeNameRef.current;
+      }
       const before = cloneScene(sceneRef.current);
       applyLocal({ ...sceneRef.current, [el.id]: el });
       setSelection([el.id]);
@@ -2683,6 +2686,11 @@ export const WhiteboardCanvas = ({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [miroImportOpen, setMiroImportOpen] = useState(false);
 
+  // Outline for the NEXT shape drawn. Kept in a ref as well, because the
+  // pointer handler that creates the element runs from a stale closure.
+  const [shapeName, setShapeName] = useState<string | null>(null);
+  const shapeNameRef = useRef<string | null>(null);
+
   // Last pointer position in scene coordinates, so a keyboard paste can land
   // where the user is looking rather than always in the middle.
   const pointerSceneRef = useRef<Point | null>(null);
@@ -2717,6 +2725,13 @@ export const WhiteboardCanvas = ({
     return null;
   };
 
+  const selectionIsShapes =
+    selectionRef.current.length > 0 &&
+    selectionRef.current.every((id) => {
+      const type = sceneRef.current[id]?.type;
+      return type === 'rect' || type === 'ellipse' || type === 'diamond';
+    });
+
   // Direction of the selected mind map, or null when the selection is not one.
   const mindmapDirection = (() => {
     const id = selectionRef.current.find(
@@ -2724,6 +2739,30 @@ export const WhiteboardCanvas = ({
     );
     return id ? mindmapDirectionOf(sceneRef.current, id) : null;
   })();
+
+  const onShapePick = (shape: string | null) => {
+    setShapeName(shape);
+    shapeNameRef.current = shape;
+    // Applies to the selection when there is one; otherwise it just arms the
+    // next shape drawn, the same way a fill colour does.
+    const ids = manipulableIds(selectionRef.current).filter((id) => {
+      const type = sceneRef.current[id]?.type;
+      return type === 'rect' || type === 'ellipse' || type === 'diamond';
+    });
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = { ...el, shape: shape ?? undefined };
+    }
+    commit(before, next, ids);
+  };
 
   const onFramePreset = (preset: { w: number; h: number; label: string }) => {
     const cw = svgRef.current?.clientWidth ?? 800;
@@ -4062,6 +4101,9 @@ export const WhiteboardCanvas = ({
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}
         onMiroImport={() => setMiroImportOpen(true)}
+        shapeName={shapeName}
+        onShapePick={onShapePick}
+        selectionIsShapes={selectionIsShapes}
         onComment={() => {
           const id = selection[0];
           if (id) {

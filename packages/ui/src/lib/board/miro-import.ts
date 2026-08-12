@@ -107,6 +107,32 @@ const SHAPE_MAP: Record<string, 'rect' | 'ellipse' | 'diamond'> = {
   diamond: 'diamond',
 };
 
+/**
+ * Miro shapes that now have a real outline here, rather than collapsing into
+ * a rectangle. The base type stays 'rect' — the name only picks the path — so
+ * an old client still renders something sensible.
+ */
+const MIRO_SHAPE_NAMES: Record<string, string> = {
+  round_rectangle: 'roundRect',
+  triangle: 'triangle',
+  parallelogram: 'parallelogram',
+  trapezoid: 'trapezoid',
+  pentagon: 'pentagon',
+  hexagon: 'hexagon',
+  octagon: 'octagon',
+  star: 'star',
+  cylinder: 'cylinder',
+  can: 'cylinder',
+  cloud: 'cloud',
+  right_arrow: 'arrowRight',
+  arrow_shape: 'arrowRight',
+  cross: 'cross',
+  flow_chart_predefined_process: 'process',
+  flow_chart_document: 'document',
+  flow_chart_terminator: 'stadium',
+  round: 'stadium',
+};
+
 const ROUTING_MAP: Record<string, 'straight' | 'elbow' | 'curved'> = {
   straight: 'straight',
   elbowed: 'elbow',
@@ -301,7 +327,8 @@ export const convertMiroBoard = (
         break;
       }
       case 'shape': {
-        const type = SHAPE_MAP[item.data?.shape ?? ''] ?? 'rect';
+        const miroShape = item.data?.shape ?? '';
+        const type = SHAPE_MAP[miroShape] ?? 'rect';
         el = createElement({
           type,
           x,
@@ -318,6 +345,10 @@ export const convertMiroBoard = (
           },
           text: miroTextToPlain(item.data?.content),
         });
+        const named = MIRO_SHAPE_NAMES[miroShape];
+        if (named) {
+          el.shape = named;
+        }
         break;
       }
       case 'divider': {

@@ -22,6 +22,7 @@ import {
   polylineCrossings,
 } from '@colanode/ui/lib/board/geometry';
 import type { Point } from '@colanode/ui/lib/board/geometry';
+import { boardShapePath } from '@colanode/ui/lib/board/shapes';
 
 // Rough monospace-ish average glyph width for greedy word wrapping. Exact
 // metrics are unnecessary — this only needs to look balanced on screen and
@@ -535,8 +536,35 @@ export const BoardElementView = ({
     ? `rotate(${rotation} ${center.x} ${center.y})`
     : undefined;
 
+  // A named outline replaces the element's default one. Only the three drawn
+  // shapes take part: a sticky, a frame or a mind-map node has a look that is
+  // part of what it IS, not a style choice.
+  const customPath =
+    element.type === 'rect' ||
+    element.type === 'ellipse' ||
+    element.type === 'diamond'
+      ? boardShapePath(element.shape, {
+          x: element.x,
+          y: element.y,
+          w: element.w,
+          h: element.h,
+        })
+      : null;
+
   let shape: React.ReactNode = null;
-  switch (element.type) {
+  if (customPath) {
+    shape = (
+      <path
+        d={customPath}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeDasharray={dash}
+        strokeLinejoin="round"
+      />
+    );
+  }
+  switch (customPath ? '__custom' : element.type) {
     case 'sticky':
       shape = (
         <>
@@ -626,6 +654,10 @@ export const BoardElementView = ({
       break;
     case 'nodeCard':
       shape = <BoardNodeCard element={element} canEdit={canEdit} />;
+      break;
+    case '__custom':
+      // Already drawn above. Without this it would fall to `default` and be
+      // thrown away — the switch ends by clearing the shape, not keeping it.
       break;
     case 'text':
     default:
