@@ -3336,6 +3336,17 @@ export const WhiteboardCanvas = ({
     .map((el) => ({ el, rect: elementRect(el) }));
 
   const gridSize = GRID;
+  // Screen size of one grid cell. Doubled until it is comfortably readable:
+  // at 15% zoom the raw 20-unit step is a 3px cell, and dots that close
+  // together are a grey haze rather than a grid. Powers of two keep every dot
+  // on the board's own grid.
+  const gridCell = (() => {
+    let cell = gridSize * viewport.zoom;
+    while (cell > 0 && cell < 18) {
+      cell *= 2;
+    }
+    return cell;
+  })();
   const cursor =
     tool === 'hand'
       ? 'grab'
@@ -3503,14 +3514,14 @@ export const WhiteboardCanvas = ({
               at 15% zoom — invisible — and a blob at 400%. */}
           <pattern
             id={`board-grid-${node.id}`}
-            width={gridSize * viewport.zoom}
-            height={gridSize * viewport.zoom}
+            width={gridCell}
+            height={gridCell}
             patternUnits="userSpaceOnUse"
-            patternTransform={`translate(${viewport.x % (gridSize * viewport.zoom)} ${
-              viewport.y % (gridSize * viewport.zoom)
+            patternTransform={`translate(${viewport.x % gridCell} ${
+              viewport.y % gridCell
             })`}
           >
-            <circle cx={1} cy={1} r={1.1} fill="currentColor" opacity={0.9} />
+            <circle cx={1} cy={1} r={1.4} fill="currentColor" />
           </pattern>
         </defs>
 
@@ -3518,7 +3529,7 @@ export const WhiteboardCanvas = ({
         <rect
           // Fixed grey, not a theme token: the dots have to read against the
           // white surface, whatever theme the app is in.
-          className="board-no-export text-slate-400"
+          className="board-no-export text-slate-500"
           x={0}
           y={0}
           width="100%"
