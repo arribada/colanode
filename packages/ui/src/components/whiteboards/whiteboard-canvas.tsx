@@ -95,6 +95,7 @@ import {
   RESIZE_HANDLES,
   snap,
   unionBounds,
+  fractionalAnchor,
 } from '@colanode/ui/lib/board/geometry';
 import {
   addMindmapChild,
@@ -1753,6 +1754,12 @@ export const WhiteboardCanvas = ({
             connector: {
               ...el.connector,
               toId: target?.id,
+              // Keep the exact drop position on the target border instead of
+              // rounding to one of four sides, which made the arrow jump to
+              // the middle of the edge on release.
+              toAnchor: target
+                ? fractionalAnchor(elementRect(target), p)
+                : undefined,
             },
           },
         };

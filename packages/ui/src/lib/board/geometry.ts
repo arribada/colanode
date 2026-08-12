@@ -14,9 +14,22 @@ export interface Rect {
   h: number;
 }
 
-export type Anchor = 'top' | 'right' | 'bottom' | 'left' | 'center';
+/** A point normalised inside an element's own box: {x:1,y:0.37} is 37 % down
+ *  the right edge. Lets a connector attach where it was actually dropped. */
+export interface FractionalAnchor {
+  x: number;
+  y: number;
+}
 
-export const ANCHORS: Anchor[] = ['top', 'right', 'bottom', 'left'];
+export type NamedAnchor = 'top' | 'right' | 'bottom' | 'left' | 'center';
+
+/** Named side (legacy + convenient default) or an exact normalised point. */
+export type Anchor = NamedAnchor | FractionalAnchor;
+
+export const ANCHORS: NamedAnchor[] = ['top', 'right', 'bottom', 'left'];
+
+export const isFractionalAnchor = (a: unknown): a is FractionalAnchor =>
+  typeof a === 'object' && a !== null && 'x' in a && 'y' in a;
 
 export const rectCenter = (r: Rect): Point => ({
   x: r.x + r.w / 2,
@@ -25,6 +38,9 @@ export const rectCenter = (r: Rect): Point => ({
 
 /** Point on a rect for a named anchor. */
 export const anchorPoint = (r: Rect, anchor: Anchor): Point => {
+  if (isFractionalAnchor(anchor)) {
+    return { x: r.x + r.w * anchor.x, y: r.y + r.h * anchor.y };
+  }
   switch (anchor) {
     case 'top':
       return { x: r.x + r.w / 2, y: r.y };
@@ -38,6 +54,39 @@ export const anchorPoint = (r: Rect, anchor: Anchor): Point => {
     default:
       return rectCenter(r);
   }
+};
+
+/**
+ * Exact anchor for a point dropped on an element — the fractional counterpart
+ * of `nearestAnchor`. Use this when the user releases a connector end on a
+ * border: rounding to the nearest of four sides is what makes an arrow jump to
+ * the middle of an edge instead of staying where it was put.
+ */
+export const fractionalAnchor = (r: Rect, target: Point): FractionalAnchor => {
+  const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  return {
+    x: clamp(r.w === 0 ? 0.5 : (target.x - r.x) / r.w),
+    y: clamp(r.h === 0 ? 0.5 : (target.y - r.y) / r.h),
+  };
+};
+
+/** Nearest named side for a fractional anchor — for UI that still needs a
+ *  side (quick-connect handles, elbow routing entry direction). */
+const NAMED: readonly string[] = ['top', 'right', 'bottom', 'left', 'center'];
+
+export const anchorSide = (a: string | FractionalAnchor): NamedAnchor => {
+  if (!isFractionalAnchor(a)) {
+    return NAMED.includes(a) ? (a as NamedAnchor) : 'center';
+  }
+  const dl = a.x;
+  const dr = 1 - a.x;
+  const dt = a.y;
+  const db = 1 - a.y;
+  const min = Math.min(dl, dr, dt, db);
+  if (min === dt) return 'top';
+  if (min === db) return 'bottom';
+  if (min === dl) return 'left';
+  return 'right';
 };
 
 export const distance = (a: Point, b: Point): number =>
@@ -323,8 +372,26 @@ const defaultCurveControl = (start: Point, end: Point): Point => {
  * dominant axis: a mostly-horizontal connector routes with a vertical middle
  * segment at x = bend.x (default: the mid-x); mostly-vertical mirrors that.
  */
-const elbowWaypoints = (start: Point, end: Point, bend?: Point): Point[] => {
-  const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+/** Axis the line should leave by. A side wins over the dx/dy guess: an arrow
+ *  anchored on a left/right edge must leave horizontally whatever the target's
+ *  relative position, otherwise the first segment cuts back across the shape. */
+const leavesHorizontally = (
+  start: Point,
+  end: Point,
+  exitSide?: NamedAnchor
+): boolean => {
+  if (exitSide === 'left' || exitSide === 'right') return true;
+  if (exitSide === 'top' || exitSide === 'bottom') return false;
+  return Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+};
+
+const elbowWaypoints = (
+  start: Point,
+  end: Point,
+  bend?: Point,
+  exitSide?: NamedAnchor
+): Point[] => {
+  const horizontal = leavesHorizontally(start, end, exitSide);
   if (horizontal) {
     const midX = bend ? bend.x : (start.x + end.x) / 2;
     return [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
@@ -381,17 +448,19 @@ const smoothPath = (pts: Point[]): string => {
 };
 
 export const connectorWaypoints = (
-  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[],
+  exitSide?: NamedAnchor
 ): Point[] => {
   const list = bends ?? [];
   if (list.length > 0) return [start, ...list, end];
   if (routing === 'curved') return [start, defaultCurveControl(start, end), end];
-  if (routing === 'elbow') return elbowWaypoints(start, end);
+  if (routing === 'elbow') return elbowWaypoints(start, end, undefined, exitSide);
   return [start, end];
 };
 
 export const buildConnectorPath = (
-  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[],
+  exitSide?: NamedAnchor
 ): string => {
   const list = bends ?? [];
   if (list.length > 0) {
@@ -404,7 +473,11 @@ export const buildConnectorPath = (
     const c = defaultCurveControl(start, end);
     return `M ${start.x} ${start.y} Q ${c.x} ${c.y} ${end.x} ${end.y}`;
   }
-  if (routing === 'elbow') return roundedPath(elbowWaypoints(start, end), ELBOW_RADIUS);
+  if (routing === 'elbow')
+    return roundedPath(
+      elbowWaypoints(start, end, undefined, exitSide),
+      ELBOW_RADIUS
+    );
   return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
 };
 

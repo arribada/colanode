@@ -18,6 +18,7 @@ import {
   cubicPoint,
   pointsToSvg,
   rectCenter,
+  anchorSide,
 } from '@colanode/ui/lib/board/geometry';
 import type { Point } from '@colanode/ui/lib/board/geometry';
 
@@ -396,8 +397,8 @@ export const BoardElementView = ({
       const { c1, c2 } = anchoredCurveControls(
         start,
         end,
-        c.fromAnchor,
-        c.toAnchor
+        c.fromAnchor ? anchorSide(c.fromAnchor) : undefined,
+        c.toAnchor ? anchorSide(c.toAnchor) : undefined
       );
       d =
         'M ' + start.x + ' ' + start.y + ' C ' + c1.x + ' ' + c1.y + ' ' +
@@ -406,8 +407,12 @@ export const BoardElementView = ({
       tailFrom = c1;
       mid = cubicPoint(start, c1, c2, end, 0.5);
     } else {
-      d = buildConnectorPath(routing, start, end, bends);
-      const wpts = connectorWaypoints(routing, start, end, bends);
+      // The anchored side decides which way the line leaves the shape, so an
+      // arrow attached low on a right edge goes out to the right instead of
+      // cutting back across the shape.
+      const exitSide = c.fromAnchor ? anchorSide(c.fromAnchor) : undefined;
+      d = buildConnectorPath(routing, start, end, bends, exitSide);
+      const wpts = connectorWaypoints(routing, start, end, bends, exitSide);
       headFrom = connectorArrowFrom(routing, start, end, bends);
       tailFrom = wpts[1] ?? end;
       mid = connectorHandlePoint(routing, start, end, bends);

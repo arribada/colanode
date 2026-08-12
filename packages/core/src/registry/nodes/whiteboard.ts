@@ -25,6 +25,67 @@ export const boardElementTypeSchema = z.enum([
 
 export type BoardElementType = z.infer<typeof boardElementTypeSchema>;
 
+// Where a connector attaches to an element. Either a named side — the legacy
+// form, still the convenient default — or a point normalised inside the
+// element's own bounding box, so { x: 1, y: 0.37 } is 37 % down the right
+// edge. The named form cannot express an arbitrary edge position, which is
+// what Miro stores and what users expect when they drop an arrow on a border.
+export const boardAnchorSchema = z.union([
+  z.string(),
+  z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+  }),
+]);
+
+export type BoardAnchor = z.infer<typeof boardAnchorSchema>;
+
+// Named anchors expressed in the same normalised space, so the resolver has a
+// single code path.
+const NAMED_ANCHORS: Record<string, { x: number; y: number }> = {
+  top: { x: 0.5, y: 0 },
+  right: { x: 1, y: 0.5 },
+  bottom: { x: 0.5, y: 1 },
+  left: { x: 0, y: 0.5 },
+  center: { x: 0.5, y: 0.5 },
+};
+
+/**
+ * Resolves an anchor against an element box to an absolute scene point.
+ * An unknown or absent anchor falls back to the element centre, which is what
+ * the canvas did before anchors existed.
+ */
+export const resolveBoardAnchor = (
+  anchor: BoardAnchor | undefined,
+  box: { x: number; y: number; w: number; h: number }
+): { x: number; y: number } => {
+  const unit =
+    typeof anchor === 'string'
+      ? (NAMED_ANCHORS[anchor] ?? NAMED_ANCHORS.center!)
+      : (anchor ?? NAMED_ANCHORS.center!);
+
+  return {
+    x: box.x + box.w * unit.x,
+    y: box.y + box.h * unit.y,
+  };
+};
+
+/**
+ * Converts an absolute scene point into a normalised anchor on an element,
+ * clamped to the box. Used when the user drops a connector end on a border:
+ * the exact position is kept instead of being rounded to the nearest side.
+ */
+export const pointToBoardAnchor = (
+  point: { x: number; y: number },
+  box: { x: number; y: number; w: number; h: number }
+): { x: number; y: number } => {
+  const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  return {
+    x: clamp(box.w === 0 ? 0.5 : (point.x - box.x) / box.w),
+    y: clamp(box.h === 0 ? 0.5 : (point.y - box.y) / box.h),
+  };
+};
+
 export const boardElementStyleSchema = z.object({
   fill: z.string().optional(),
   stroke: z.string().optional(),
@@ -44,8 +105,8 @@ export type BoardElementStyle = z.infer<typeof boardElementStyleSchema>;
 export const boardConnectorSchema = z.object({
   fromId: z.string().optional(),
   toId: z.string().optional(),
-  fromAnchor: z.string().optional(),
-  toAnchor: z.string().optional(),
+  fromAnchor: boardAnchorSchema.optional(),
+  toAnchor: boardAnchorSchema.optional(),
   arrowStart: z.boolean().optional(),
   arrowEnd: z.boolean().optional(),
   label: z.string().optional(),
