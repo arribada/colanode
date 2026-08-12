@@ -1,4 +1,7 @@
-// The extra shape catalogue: everything past rectangle / ellipse / diamond.
+// The extra shape catalogue: everything past rectangle / ellipse / diamond,
+// including the UI prototyping pieces (browser, phone, field, card…).
+// A composite piece earns its place by being one element instead of four
+// that then have to be kept aligned.
 //
 // A shape is a PATH over the element's own bounding box, not a new element
 // type. That way resize, rotation, text, connectors, hit testing and z-order
@@ -28,7 +31,15 @@ export type BoardShapeId =
   | 'arrowRight'
   | 'cross'
   | 'process'
-  | 'document';
+  | 'document'
+  | 'browser'
+  | 'phone'
+  | 'field'
+  | 'card'
+  | 'checkbox'
+  | 'toggle'
+  | 'dropdown'
+  | 'avatar';
 
 export interface BoardShapeDef {
   id: BoardShapeId;
@@ -249,6 +260,166 @@ export const BOARD_SHAPES: BoardShapeDef[] = [
         `M ${round(r.x)} ${round(r.y)} H ${round(r.x + r.w)} V ${round(r.y + r.h - wave)}` +
         ` Q ${round(r.x + r.w * 0.75)} ${round(r.y + r.h)} ${round(r.x + r.w / 2)} ${round(r.y + r.h - wave / 2)}` +
         ` Q ${round(r.x + r.w * 0.25)} ${round(r.y + r.h - wave)} ${round(r.x)} ${round(r.y + r.h - wave / 2)} Z`
+      );
+    },
+  },
+  {
+    id: 'browser',
+    label: 'Browser window',
+    path: (r) => {
+      const bar = Math.min(r.h / 5, 34);
+      const dot = Math.min(bar / 4, 5);
+      const cy = r.y + bar / 2;
+      let d =
+        `M ${round(r.x)} ${round(r.y)} H ${round(r.x + r.w)}` +
+        ` V ${round(r.y + r.h)} H ${round(r.x)} Z` +
+        ` M ${round(r.x)} ${round(r.y + bar)} H ${round(r.x + r.w)}`;
+      // Three dots, drawn as arcs so the whole thing stays one path.
+      for (let i = 0; i < 3; i++) {
+        const cx = r.x + bar * 0.5 + i * dot * 3;
+        d +=
+          ` M ${round(cx - dot)} ${round(cy)}` +
+          ` a ${round(dot)} ${round(dot)} 0 1 0 ${round(dot * 2)} 0` +
+          ` a ${round(dot)} ${round(dot)} 0 1 0 ${round(-dot * 2)} 0`;
+      }
+      return d;
+    },
+  },
+  {
+    id: 'phone',
+    label: 'Phone frame',
+    path: (r) => {
+      const rad = Math.min(r.w, r.h) / 8;
+      const notch = Math.min(r.w / 3, 60);
+      return (
+        `M ${round(r.x + rad)} ${round(r.y)} H ${round(r.x + r.w - rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + r.w)} ${round(r.y + rad)}` +
+        ` V ${round(r.y + r.h - rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + r.w - rad)} ${round(r.y + r.h)}` +
+        ` H ${round(r.x + rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x)} ${round(r.y + r.h - rad)}` +
+        ` V ${round(r.y + rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + rad)} ${round(r.y)} Z` +
+        // the notch
+        ` M ${round(r.x + r.w / 2 - notch / 2)} ${round(r.y)}` +
+        ` h ${round(notch)} v ${round(Math.min(r.h / 20, 10))}` +
+        ` h ${round(-notch)} Z`
+      );
+    },
+  },
+  {
+    id: 'field',
+    label: 'Input field',
+    path: (r) => {
+      const rad = Math.min(6, r.h / 4);
+      const pad = Math.min(r.w / 10, 14);
+      const mid = r.y + r.h / 2;
+      return (
+        `M ${round(r.x + rad)} ${round(r.y)} H ${round(r.x + r.w - rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + r.w)} ${round(r.y + rad)}` +
+        ` V ${round(r.y + r.h - rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + r.w - rad)} ${round(r.y + r.h)}` +
+        ` H ${round(r.x + rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x)} ${round(r.y + r.h - rad)}` +
+        ` V ${round(r.y + rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + rad)} ${round(r.y)} Z` +
+        // the placeholder line
+        ` M ${round(r.x + pad)} ${round(mid)} H ${round(r.x + r.w * 0.45)}`
+      );
+    },
+  },
+  {
+    id: 'card',
+    label: 'Card',
+    path: (r) => {
+      const img = r.y + r.h * 0.55;
+      const pad = Math.min(r.w / 12, 16);
+      const line = (y: number, w: number) =>
+        ` M ${round(r.x + pad)} ${round(y)} H ${round(r.x + pad + w)}`;
+      return (
+        `M ${round(r.x)} ${round(r.y)} H ${round(r.x + r.w)}` +
+        ` V ${round(r.y + r.h)} H ${round(r.x)} Z` +
+        ` M ${round(r.x)} ${round(img)} H ${round(r.x + r.w)}` +
+        line(img + (r.h - (img - r.y)) * 0.3, (r.w - pad * 2) * 0.8) +
+        line(img + (r.h - (img - r.y)) * 0.55, r.w - pad * 2)
+      );
+    },
+  },
+  {
+    id: 'checkbox',
+    label: 'Checkbox',
+    path: (r) => {
+      const side = Math.min(r.w, r.h);
+      const x = r.x;
+      const y = r.y + (r.h - side) / 2;
+      return (
+        `M ${round(x)} ${round(y)} h ${round(side)} v ${round(side)}` +
+        ` h ${round(-side)} Z` +
+        // the tick
+        ` M ${round(x + side * 0.22)} ${round(y + side * 0.52)}` +
+        ` L ${round(x + side * 0.42)} ${round(y + side * 0.72)}` +
+        ` L ${round(x + side * 0.78)} ${round(y + side * 0.28)}`
+      );
+    },
+  },
+  {
+    id: 'toggle',
+    label: 'Toggle',
+    path: (r) => {
+      const h = Math.min(r.h, r.w / 2);
+      const y = r.y + (r.h - h) / 2;
+      const rad = h / 2;
+      const w = Math.min(r.w, h * 2);
+      return (
+        `M ${round(r.x + rad)} ${round(y)} H ${round(r.x + w - rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + w - rad)} ${round(y + h)}` +
+        ` H ${round(r.x + rad)}` +
+        ` A ${round(rad)} ${round(rad)} 0 0 1 ${round(r.x + rad)} ${round(y)} Z` +
+        // the knob, sitting to the right: a toggle drawn off reads as a pill
+        ` M ${round(r.x + w - rad - rad * 0.6)} ${round(y + h / 2)}` +
+        ` a ${round(rad * 0.6)} ${round(rad * 0.6)} 0 1 0 ${round(rad * 1.2)} 0` +
+        ` a ${round(rad * 0.6)} ${round(rad * 0.6)} 0 1 0 ${round(-rad * 1.2)} 0`
+      );
+    },
+  },
+  {
+    id: 'dropdown',
+    label: 'Dropdown',
+    path: (r) => {
+      const pad = Math.min(r.w / 10, 14);
+      const mid = r.y + r.h / 2;
+      const car = Math.min(r.h / 4, 8);
+      return (
+        `M ${round(r.x)} ${round(r.y)} H ${round(r.x + r.w)}` +
+        ` V ${round(r.y + r.h)} H ${round(r.x)} Z` +
+        ` M ${round(r.x + pad)} ${round(mid)} H ${round(r.x + r.w * 0.5)}` +
+        // the caret
+        ` M ${round(r.x + r.w - pad - car)} ${round(mid - car / 2)}` +
+        ` L ${round(r.x + r.w - pad - car / 2)} ${round(mid + car / 2)}` +
+        ` L ${round(r.x + r.w - pad)} ${round(mid - car / 2)}`
+      );
+    },
+  },
+  {
+    id: 'avatar',
+    label: 'Avatar',
+    path: (r) => {
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      const rad = Math.min(r.w, r.h) / 2;
+      const head = rad * 0.34;
+      return (
+        `M ${round(cx - rad)} ${round(cy)}` +
+        ` a ${round(rad)} ${round(rad)} 0 1 0 ${round(rad * 2)} 0` +
+        ` a ${round(rad)} ${round(rad)} 0 1 0 ${round(-rad * 2)} 0 Z` +
+        // head
+        ` M ${round(cx - head)} ${round(cy - rad * 0.22)}` +
+        ` a ${round(head)} ${round(head)} 0 1 0 ${round(head * 2)} 0` +
+        ` a ${round(head)} ${round(head)} 0 1 0 ${round(-head * 2)} 0` +
+        // Shoulders, kept clear of the bottom: at 0.62 down with a 0.5
+        // radius the arc swung 7px OUTSIDE the element box.
+        ` M ${round(cx - rad * 0.5)} ${round(cy + rad * 0.45)}` +
+        ` a ${round(rad * 0.5)} ${round(rad * 0.3)} 0 0 1 ${round(rad)} 0`
       );
     },
   },

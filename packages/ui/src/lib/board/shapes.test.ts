@@ -78,19 +78,25 @@ const pathBounds = (d: string): Box => {
   const num = () => Number(tokens[i++]);
   while (i < tokens.length) {
     const cmd = tokens[i++]!;
-    switch (cmd) {
+    // Relative commands are the same geometry measured from where the pen is,
+    // so each one resolves to its absolute form and shares the code below.
+    const rel = cmd === cmd.toLowerCase() && cmd !== 'z';
+    const ox = rel ? x : 0;
+    const oy = rel ? y : 0;
+
+    switch (cmd.toUpperCase()) {
       case 'M':
       case 'L':
-        x = num();
-        y = num();
+        x = ox + num();
+        y = oy + num();
         include(box, x, y);
         break;
       case 'H':
-        x = num();
+        x = ox + num();
         include(box, x, y);
         break;
       case 'V':
-        y = num();
+        y = oy + num();
         include(box, x, y);
         break;
       case 'A': {
@@ -99,8 +105,8 @@ const pathBounds = (d: string): Box => {
         num(); // rotation, always 0 here
         const largeArc = num();
         const sweep = num();
-        const x2 = num();
-        const y2 = num();
+        const x2 = ox + num();
+        const y2 = oy + num();
         const { cx, cy } = arcCentre(x, y, rx, ry, largeArc, sweep, x2, y2);
         include(box, cx - rx, cy - ry);
         include(box, cx + rx, cy + ry);
@@ -110,17 +116,19 @@ const pathBounds = (d: string): Box => {
         break;
       }
       case 'Q': {
-        const cx = num();
-        const cy = num();
+        const cx = ox + num();
+        const cy = oy + num();
         include(box, cx, cy);
-        x = num();
-        y = num();
+        x = ox + num();
+        y = oy + num();
         include(box, x, y);
         break;
       }
       case 'Z':
         break;
       default:
+        // Still throws on anything it has not been taught: a parser that
+        // guesses would report a shape as fitting when nobody checked.
         throw new Error(`unhandled path command: ${cmd}`);
     }
   }
@@ -145,15 +153,47 @@ describe('board shapes', () => {
     }
   });
 
+  // Shapes that keep their proportions on purpose. A checkbox drawn 200 wide
+  // and 120 tall is not a checkbox, so these stay square (or nearly) and
+  // centre themselves — they cannot fill the long side, and should not.
+  // Named rather than detected: an exemption you have to type is one somebody
+  // has to justify, and a shape that quietly stops filling its box still
+  // fails.
+  const ASPECT_LOCKED = new Set(['checkbox', 'toggle', 'avatar']);
+
   it('every shape fills most of its box, rather than hiding in a corner', () => {
     for (const shape of BOARD_SHAPES) {
       const b = pathBounds(shape.path(rect));
+      const short = Math.min(rect.w, rect.h);
+      if (ASPECT_LOCKED.has(shape.id)) {
+        // Must still fill the SHORT side, so it is not a token mark in the
+        // middle of a large box.
+        expect(b.maxY - b.minY, `${shape.id} height`).toBeGreaterThan(
+          short * 0.6
+        );
+        expect(b.maxX - b.minX, `${shape.id} width`).toBeGreaterThan(
+          short * 0.5
+        );
+        continue;
+      }
       expect(b.maxX - b.minX, `${shape.id} width`).toBeGreaterThan(
         rect.w * 0.6
       );
       expect(b.maxY - b.minY, `${shape.id} height`).toBeGreaterThan(
         rect.h * 0.6
       );
+    }
+  });
+
+  it('an aspect-locked shape stays square whatever box it is given', () => {
+    // The property the exemption above rests on — asserted, not assumed.
+    for (const id of ASPECT_LOCKED) {
+      const shape = BOARD_SHAPES.find((s) => s.id === id)!;
+      const b = pathBounds(shape.path({ x: 0, y: 0, w: 600, h: 100 }));
+      const w = b.maxX - b.minX;
+      const h = b.maxY - b.minY;
+      // Within a factor of two of square, on a box six times wider than tall.
+      expect(w / h, `${id} aspect`).toBeLessThan(2.2);
     }
   });
 
