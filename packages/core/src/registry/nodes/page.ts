@@ -47,6 +47,22 @@ export const pageAttributesSchema = z.object({
   smallText: z.boolean().nullable().optional(),
   // Show an auto table of contents at the top of the page. Null/absent => off.
   showToc: z.boolean().nullable().optional(),
+  // Git-like version tag for the page, e.g. "v1.2.0" (normalized by
+  // @colanode/core/lib/versions). Set from the version control in the header.
+  version: z.string().nullable().optional(),
+  // Append-only log of cut versions so the header can show which tag was cut
+  // when (and by whom).
+  versionLog: z
+    .array(
+      z.object({
+        version: z.string(),
+        at: z.string(),
+        by: z.string(),
+        note: z.string().nullable().optional(),
+      })
+    )
+    .nullable()
+    .optional(),
   collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),

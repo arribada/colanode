@@ -15,6 +15,7 @@ import { NodeFavoriteButton } from '@colanode/ui/components/nodes/node-favorite-
 import { NodePresenceViewers } from '@colanode/ui/components/nodes/node-presence-viewers';
 import { NodeProvider } from '@colanode/ui/components/nodes/node-provider';
 import { NodeSettings } from '@colanode/ui/components/nodes/node-settings';
+import { PageVersionButton } from '@colanode/ui/components/nodes/page-version-button';
 import { PageContainer } from '@colanode/ui/components/pages/page-container';
 import { RecordContainer } from '@colanode/ui/components/records/record-container';
 import { SpaceContainer } from '@colanode/ui/components/spaces/space-container';
@@ -125,6 +126,9 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
               {(data.node.type === 'page' ||
                 data.node.type === 'record') && (
                 <NodeFavoriteButton nodeId={data.node.id} />
+              )}
+              {data.node.type === 'page' && (
+                <PageVersionButton page={data.node} />
               )}
             </>
           )}

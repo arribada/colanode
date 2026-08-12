@@ -2,6 +2,7 @@ export * from './lib/constants';
 export * from './lib/files';
 export * from './lib/id';
 export * from './lib/utils';
+export * from './lib/versions';
 export * from './registry/block';
 export * from './registry/nodes/channel';
 export * from './registry/nodes/chat';
