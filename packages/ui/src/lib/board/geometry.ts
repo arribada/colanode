@@ -699,6 +699,32 @@ export const moveConnectorSegment = (
   return out.slice(1, -1);
 };
 
+/**
+ * Whether `p` is within `tolerance` of a polyline.
+ *
+ * Measured against the SEGMENTS, not the vertices: a long straight stroke has
+ * two points metres apart, and testing only those would make most of it
+ * impossible to hit.
+ */
+export const polylineHitTest = (
+  pts: Point[],
+  p: Point,
+  tolerance: number
+): boolean => {
+  if (pts.length === 0) {
+    return false;
+  }
+  if (pts.length === 1) {
+    return distance(pts[0]!, p) <= tolerance;
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (distanceToSegment(p, pts[i]!, pts[i + 1]!) <= tolerance) {
+      return true;
+    }
+  }
+  return false;
+};
+
 export const nearestSegmentIndex = (pts: Point[], p: Point): number => {
   let best = 0, bestD = Infinity;
   for (let i = 0; i < pts.length - 1; i++) {

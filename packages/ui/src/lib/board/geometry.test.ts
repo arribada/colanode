@@ -13,6 +13,7 @@ import {
   normalizeRect,
   pointInRotatedRect,
   pointsBounds,
+  polylineHitTest,
   rectContainsRect,
   rectsIntersect,
   resizeRect,
@@ -323,5 +324,35 @@ describe('line jumps', () => {
       [{ x: 98, y: 0 }]
     );
     expect(d).not.toContain('A ');
+  });
+});
+
+describe('polylineHitTest', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 100 },
+  ];
+
+  it('hits the middle of a segment, not only its ends', () => {
+    // The whole point: a long stroke has two points far apart, and testing
+    // only the vertices would leave most of it unhittable.
+    expect(polylineHitTest(line, { x: 50, y: 3 }, 5)).toBe(true);
+    expect(polylineHitTest(line, { x: 100, y: 50 }, 5)).toBe(true);
+  });
+
+  it('misses beyond the tolerance', () => {
+    expect(polylineHitTest(line, { x: 50, y: 20 }, 5)).toBe(false);
+  });
+
+  it('handles a single-point stroke, which a tap produces', () => {
+    expect(polylineHitTest([{ x: 10, y: 10 }], { x: 12, y: 10 }, 5)).toBe(true);
+    expect(polylineHitTest([{ x: 10, y: 10 }], { x: 40, y: 10 }, 5)).toBe(
+      false
+    );
+  });
+
+  it('misses an empty stroke instead of throwing', () => {
+    expect(polylineHitTest([], { x: 0, y: 0 }, 5)).toBe(false);
   });
 });

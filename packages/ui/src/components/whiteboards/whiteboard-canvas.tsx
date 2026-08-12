@@ -90,6 +90,7 @@ import {
   normalizeRect,
   pointInRotatedRect,
   pointsBounds,
+  polylineHitTest,
   Rect,
   rectCenter,
   rectsIntersect,
@@ -213,7 +214,10 @@ type Interaction =
       pts: Point[];
       before: BoardScene;
     }
-  | { mode: 'pen'; id: string; before: BoardScene };
+  | { mode: 'pen'; id: string; before: BoardScene }
+  // One gesture, one undo step: every stroke rubbed out between press and
+  // release is removed together.
+  | { mode: 'erase'; before: BoardScene; removed: string[] };
 
 interface WhiteboardCanvasProps {
   node: LocalNode;
@@ -1116,12 +1120,62 @@ export const WhiteboardCanvas = ({
   }, [isContainerBoard, canEdit, folderChildrenQuery.data]);
 
   // ----- element helpers ---------------------------------------------------
+  /**
+   * Rubs out every ink stroke under the pointer.
+   *
+   * Whole strokes, not pieces of them: that is what a whiteboard eraser does,
+   * and splitting a stroke in two would leave the board holding fragments
+   * nobody can select back into one.
+   */
+  const eraseAt = (p: Point) => {
+    const it = interactionRef.current;
+    if (!it || it.mode !== 'erase') {
+      return;
+    }
+    const tolerance = 10 / viewportRef.current.zoom;
+    const hits: string[] = [];
+    for (const el of Object.values(sceneRef.current)) {
+      if (el.type !== 'freehand' || isLockedForMe(el.id) || el.locked) {
+        continue;
+      }
+      const pts = (el.points ?? []).map(([x, y]) => ({
+        x: x ?? 0,
+        y: y ?? 0,
+      }));
+      // Half the stroke's own width on top of the pointer tolerance, so a
+      // thick highlighter is as easy to catch as it looks.
+      const reach = tolerance + (el.style.strokeWidth ?? 3) / 2;
+      if (polylineHitTest(pts, p, reach)) {
+        hits.push(el.id);
+      }
+    }
+    if (hits.length === 0) {
+      return;
+    }
+    const next = { ...sceneRef.current };
+    for (const id of hits) {
+      delete next[id];
+    }
+    it.removed.push(...hits);
+    applyLocal(next);
+  };
+
   const styleForType = (type: BoardTool): Partial<BoardElementStyle> => {
     if (type === 'sticky') {
       return { fill: style.stickyColor, color: '#1f2937', opacity: style.opacity };
     }
     if (type === 'text') {
       return { color: style.stroke, opacity: style.opacity };
+    }
+    if (type === 'highlighter') {
+      // Wide and translucent, so it reads as marker over the top of things
+      // rather than as another pen line. Still a plain freehand element, so
+      // it moves, exports and erases like any other ink.
+      return {
+        stroke: style.stroke,
+        strokeWidth: Math.max(14, (style.strokeWidth ?? 3) * 5),
+        opacity: 0.35,
+      };
     }
     if (type === 'connector' || type === 'pen') {
       return {
@@ -1422,14 +1476,21 @@ export const WhiteboardCanvas = ({
       return;
     }
 
-    if (t === 'pen') {
+    if (t === 'eraser') {
+      const before = cloneScene(sceneRef.current);
+      interactionRef.current = { mode: 'erase', before, removed: [] };
+      eraseAt(p);
+      return;
+    }
+
+    if (t === 'pen' || t === 'highlighter') {
       const z = topZ(sceneRef.current);
       const pen = createElement({
         type: 'freehand',
         x: p.x,
         y: p.y,
         z,
-        style: styleForType('pen'),
+        style: styleForType(t),
         points: [[p.x, p.y]],
       });
       const before = cloneScene(sceneRef.current);
@@ -1893,6 +1954,9 @@ export const WhiteboardCanvas = ({
         schedulePersist([it.id]);
         break;
       }
+      case 'erase':
+        eraseAt(p);
+        break;
       case 'pen': {
         const el = sceneRef.current[it.id];
         if (!el) {
@@ -1966,6 +2030,16 @@ export const WhiteboardCanvas = ({
       }
       commit(it.before, sceneRef.current, [it.id]);
       setTool('select');
+      return;
+    }
+
+    if (it.mode === 'erase') {
+      if (it.removed.length > 0) {
+        // Persist through `commit` so the whole gesture is one undo step and
+        // the removals reach everyone else.
+        persistIds(it.removed, sceneRef.current);
+        commit(it.before, sceneRef.current, it.removed);
+      }
       return;
     }
 
@@ -2208,6 +2282,8 @@ export const WhiteboardCanvas = ({
         c: 'connector',
         l: 'connector',
         p: 'pen',
+        k: 'highlighter',
+        e: 'eraser',
         f: 'frame',
         m: 'mindmap',
       };

@@ -39,6 +39,8 @@ export const BOARD_SHORTCUTS: BoardShortcutGroup[] = [
       { combos: [['D']], label: 'Diamond' },
       { combos: [['C'], ['L']], label: 'Connector' },
       { combos: [['P']], label: 'Pen' },
+      { combos: [['K']], label: 'Highlighter' },
+      { combos: [['E']], label: 'Eraser — removes a whole stroke' },
       { combos: [['F']], label: 'Frame' },
       { combos: [['M']], label: 'Mind map' },
     ],

@@ -9,8 +9,10 @@ import {
   Diamond,
   Download,
   FileCode,
+  Eraser,
   Frame,
   Hand,
+  Highlighter,
   LayoutTemplate,
   Lock,
   LockOpen,
@@ -80,6 +82,8 @@ const TOOLS: ToolDef[] = [
   { tool: 'pen', label: 'Pen (P)', icon: Pencil },
   { tool: 'frame', label: 'Frame (F)', icon: Frame },
   { tool: 'mindmap', label: 'Mind map (M)', icon: Network },
+  { tool: 'highlighter', label: 'Highlighter (K)', icon: Highlighter },
+  { tool: 'eraser', label: 'Eraser (E)', icon: Eraser },
 ];
 
 const STROKE_WIDTHS = [1, 2, 4, 8];
@@ -292,9 +296,17 @@ export const BoardToolbar = ({
   const showStylePanel =
     !readOnly &&
     (hasSelection ||
-      ['sticky', 'rect', 'ellipse', 'diamond', 'text', 'connector', 'pen', 'mindmap'].includes(
-        tool
-      ));
+      [
+        'sticky',
+        'rect',
+        'ellipse',
+        'diamond',
+        'text',
+        'connector',
+        'pen',
+        'highlighter',
+        'mindmap',
+      ].includes(tool));
 
   const isStickyContext = tool === 'sticky';
   const isFrameContext = tool === 'frame';

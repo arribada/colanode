@@ -10,6 +10,8 @@ export type BoardTool =
   | 'text'
   | 'connector'
   | 'pen'
+  | 'highlighter'
+  | 'eraser'
   | 'frame'
   | 'mindmap';
 
