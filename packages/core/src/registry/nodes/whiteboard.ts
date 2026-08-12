@@ -120,6 +120,9 @@ export const boardConnectorSchema = z.object({
   // Multiple reshape waypoints in SCENE coordinates. When present these
   // supersede the legacy single `bend`. Absent = auto-routed / legacy.
   bends: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
+  // Hop over the lines this one crosses instead of drawing an ambiguous X.
+  // Opt-in: a board of parallel lines does not want hops everywhere.
+  jumps: z.boolean().optional(),
 });
 
 export type BoardConnector = z.infer<typeof boardConnectorSchema>;

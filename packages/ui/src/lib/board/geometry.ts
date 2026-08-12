@@ -401,11 +401,131 @@ const elbowWaypoints = (
 };
 
 /** SVG path over a polyline with small rounded (quadratic) corners. */
-const roundedPath = (pts: Point[], radius: number): string => {
+/**
+ * Where two segments cross, or null when they are parallel or miss each other.
+ * Touching at an endpoint counts — a route that ends ON another line still
+ * reads better with a hop.
+ */
+export const segmentIntersection = (
+  a1: Point,
+  a2: Point,
+  b1: Point,
+  b2: Point
+): Point | null => {
+  const r = { x: a2.x - a1.x, y: a2.y - a1.y };
+  const sv = { x: b2.x - b1.x, y: b2.y - b1.y };
+  const denom = r.x * sv.y - r.y * sv.x;
+  if (Math.abs(denom) < 1e-9) {
+    return null;
+  }
+  const q = { x: b1.x - a1.x, y: b1.y - a1.y };
+  const t = (q.x * sv.y - q.y * sv.x) / denom;
+  const u = (q.x * r.y - q.y * r.x) / denom;
+  if (t < 0 || t > 1 || u < 0 || u > 1) {
+    return null;
+  }
+  return { x: a1.x + t * r.x, y: a1.y + t * r.y };
+};
+
+/** Every point where `pts` crosses one of the `others` polylines. */
+export const polylineCrossings = (
+  pts: Point[],
+  others: Point[][]
+): Point[] => {
+  const out: Point[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    for (const other of others) {
+      for (let j = 0; j < other.length - 1; j++) {
+        const hit = segmentIntersection(
+          pts[i]!,
+          pts[i + 1]!,
+          other[j]!,
+          other[j + 1]!
+        );
+        if (hit) {
+          out.push(hit);
+        }
+      }
+    }
+  }
+  return out;
+};
+
+/** Radius of the half-circle a line hops with when it crosses another. */
+export const JUMP_RADIUS = 5;
+
+/**
+ * The `L`/`A` commands from `from` to `to`, hopping over any crossing that
+ * lies on that run.
+ *
+ * A crossing is skipped when it sits within a hop radius of either end: the
+ * arc would eat into the corner rounding (or the arrowhead) and read as a
+ * kink rather than a hop. Overlapping hops collapse to the first one for the
+ * same reason.
+ */
+const runTo = (
+  from: Point,
+  to: Point,
+  crossings: Point[] | undefined,
+  jr: number
+): string => {
+  const len = distance(from, to);
+  if (!crossings || crossings.length === 0 || len < 1e-6) {
+    return ` L ${to.x} ${to.y}`;
+  }
+  const ux = (to.x - from.x) / len;
+  const uy = (to.y - from.y) / len;
+  const along: number[] = [];
+  for (const c of crossings) {
+    const dx = c.x - from.x;
+    const dy = c.y - from.y;
+    // Distance along the run, and how far off it the crossing sits.
+    const d = dx * ux + dy * uy;
+    const off = Math.abs(dx * -uy + dy * ux);
+    if (off > 0.5 || d < jr || d > len - jr) {
+      continue;
+    }
+    along.push(d);
+  }
+  along.sort((a, b) => a - b);
+  let out = '';
+  let cursor = 0;
+  for (const d of along) {
+    if (d - jr < cursor) {
+      continue;
+    }
+    const a = { x: from.x + ux * (d - jr), y: from.y + uy * (d - jr) };
+    const b = { x: from.x + ux * (d + jr), y: from.y + uy * (d + jr) };
+    out += ` L ${a.x} ${a.y} A ${jr} ${jr} 0 0 1 ${b.x} ${b.y}`;
+    cursor = d + jr;
+  }
+  return out + ` L ${to.x} ${to.y}`;
+};
+
+/** Straight polyline through every point, with hops at `crossings`. */
+const polylinePath = (pts: Point[], crossings?: Point[]): string => {
   if (pts.length < 2) {
     return '';
   }
   let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+  for (let i = 1; i < pts.length; i++) {
+    d += runTo(pts[i - 1]!, pts[i]!, crossings, JUMP_RADIUS);
+  }
+  return d;
+};
+
+const roundedPath = (
+  pts: Point[],
+  radius: number,
+  crossings?: Point[]
+): string => {
+  if (pts.length < 2) {
+    return '';
+  }
+  let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+  // Where the pen currently is: the previous corner's exit point, so each
+  // straight run is measured from there and its hops land in the right place.
+  let cursor = pts[0]!;
   for (let i = 1; i < pts.length - 1; i++) {
     const prev = pts[i - 1]!;
     const curr = pts[i]!;
@@ -414,10 +534,12 @@ const roundedPath = (pts: Point[], radius: number): string => {
     const r2 = Math.min(radius, distance(curr, next) / 2);
     const p1 = pointToward(curr, prev, r1);
     const p2 = pointToward(curr, next, r2);
-    d += ` L ${p1.x} ${p1.y} Q ${curr.x} ${curr.y} ${p2.x} ${p2.y}`;
+    d += runTo(cursor, p1, crossings, JUMP_RADIUS);
+    d += ` Q ${curr.x} ${curr.y} ${p2.x} ${p2.y}`;
+    cursor = p2;
   }
   const last = pts[pts.length - 1]!;
-  d += ` L ${last.x} ${last.y}`;
+  d += runTo(cursor, last, crossings, JUMP_RADIUS);
   return d;
 };
 
@@ -460,14 +582,18 @@ export const connectorWaypoints = (
 
 export const buildConnectorPath = (
   routing: ConnectorRouting, start: Point, end: Point, bends?: Point[],
-  exitSide?: NamedAnchor
+  exitSide?: NamedAnchor,
+  // Points where this route crosses another one. Straight and elbow routes hop
+  // over them; a curve is left alone, since hopping on a bezier needs
+  // bezier/bezier intersection and a curve already reads clearly at a crossing.
+  crossings?: Point[]
 ): string => {
   const list = bends ?? [];
   if (list.length > 0) {
     const pts = [start, ...list, end];
     if (routing === 'curved') return smoothPath(pts);
-    if (routing === 'elbow') return roundedPath(pts, ELBOW_RADIUS);
-    return 'M ' + pts.map((p) => `${p.x} ${p.y}`).join(' L ');
+    if (routing === 'elbow') return roundedPath(pts, ELBOW_RADIUS, crossings);
+    return polylinePath(pts, crossings);
   }
   if (routing === 'curved') {
     const c = defaultCurveControl(start, end);
@@ -476,9 +602,10 @@ export const buildConnectorPath = (
   if (routing === 'elbow')
     return roundedPath(
       elbowWaypoints(start, end, undefined, exitSide),
-      ELBOW_RADIUS
+      ELBOW_RADIUS,
+      crossings
     );
-  return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+  return polylinePath([start, end], crossings);
 };
 
 /** Route midpoint for the label (and the add-first-bend handle when empty). */

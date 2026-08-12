@@ -2540,6 +2540,33 @@ export const WhiteboardCanvas = ({
     commit(before, next, ids);
   };
 
+  // Line jumps of the first selected connector, so the toggle shows its state.
+  const connectorJumps = (() => {
+    const id = manipulableIds(selectionRef.current).find(
+      (i) => sceneRef.current[i]?.type === 'connector'
+    );
+    return sceneRef.current[id ?? '']?.connector?.jumps ?? false;
+  })();
+
+  const onConnectorJumps = (jumps: boolean) => {
+    const ids = manipulableIds(selectionRef.current).filter(
+      (id) => sceneRef.current[id]?.type === 'connector'
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = { ...el, connector: { ...el.connector, jumps } };
+    }
+    commit(before, next, ids);
+  };
+
   const onConnectorRouting = (routing: ConnectorRouting) => {
     const ids = manipulableIds(selectionRef.current).filter(
       (id) => sceneRef.current[id]?.type === 'connector'
@@ -3777,6 +3804,8 @@ export const WhiteboardCanvas = ({
         onConnectorRouting={onConnectorRouting}
         connectorArrows={connectorArrows}
         onConnectorArrows={onConnectorArrows}
+        connectorJumps={connectorJumps}
+        onConnectorJumps={onConnectorJumps}
         onComment={() => {
           const id = selection[0];
           if (id) {

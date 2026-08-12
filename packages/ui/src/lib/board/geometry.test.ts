@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   anchorPoint,
   arrowHeadPoints,
+  buildConnectorPath,
   computeAlignmentSnap,
   distance,
   moveConnectorSegment,
+  polylineCrossings,
+  segmentIntersection,
   nearestAnchor,
   normalizeRect,
   pointInRotatedRect,
@@ -231,5 +234,94 @@ describe('moveConnectorSegment', () => {
       { x: 50, y: 0 },
       { x: 50, y: 100 },
     ]);
+  });
+});
+
+describe('line jumps', () => {
+  it('finds the crossing of two segments', () => {
+    const hit = segmentIntersection(
+      { x: 0, y: 50 },
+      { x: 100, y: 50 },
+      { x: 50, y: 0 },
+      { x: 50, y: 100 }
+    );
+    expect(hit).toEqual({ x: 50, y: 50 });
+  });
+
+  it('returns null for parallel segments', () => {
+    expect(
+      segmentIntersection(
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 0, y: 10 },
+        { x: 100, y: 10 }
+      )
+    ).toBeNull();
+  });
+
+  it('returns null when the lines would cross beyond the segments', () => {
+    expect(
+      segmentIntersection(
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 50, y: -50 },
+        { x: 50, y: 50 }
+      )
+    ).toBeNull();
+  });
+
+  it('collects every crossing along a polyline', () => {
+    const pts = [
+      { x: 0, y: 50 },
+      { x: 100, y: 50 },
+    ];
+    const others = [
+      [
+        { x: 25, y: 0 },
+        { x: 25, y: 100 },
+      ],
+      [
+        { x: 75, y: 0 },
+        { x: 75, y: 100 },
+      ],
+    ];
+    expect(polylineCrossings(pts, others)).toEqual([
+      { x: 25, y: 50 },
+      { x: 75, y: 50 },
+    ]);
+  });
+
+  it('draws an arc at a crossing and none without one', () => {
+    const straight = buildConnectorPath(
+      'straight',
+      { x: 0, y: 50 },
+      { x: 100, y: 50 }
+    );
+    expect(straight).not.toContain('A ');
+
+    const hopped = buildConnectorPath(
+      'straight',
+      { x: 0, y: 50 },
+      { x: 100, y: 50 },
+      undefined,
+      undefined,
+      [{ x: 50, y: 50 }]
+    );
+    expect(hopped).toContain('A 5 5 0 0 1');
+    // enters the hop before the crossing and leaves it after
+    expect(hopped).toContain('L 45 50');
+    expect(hopped).toContain('55 50');
+  });
+
+  it('ignores a crossing too close to the end to hop cleanly', () => {
+    const d = buildConnectorPath(
+      'straight',
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      undefined,
+      undefined,
+      [{ x: 98, y: 0 }]
+    );
+    expect(d).not.toContain('A ');
   });
 });

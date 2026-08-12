@@ -19,6 +19,7 @@ import {
   pointsToSvg,
   rectCenter,
   anchorSide,
+  polylineCrossings,
 } from '@colanode/ui/lib/board/geometry';
 import type { Point } from '@colanode/ui/lib/board/geometry';
 
@@ -365,6 +366,38 @@ interface BoardElementViewProps {
   canEdit: boolean;
 }
 
+/**
+ * Routes this connector is allowed to hop over.
+ *
+ * When both lines of a crossing have jumps on, only one may hop — two arcs at
+ * the same point cancel each other out visually. The element id breaks the
+ * tie: it is stable, and both sides reach the same verdict without sharing
+ * any state.
+ */
+const crossableRoutes = (self: BoardElement, scene: BoardScene): Point[][] => {
+  const routes: Point[][] = [];
+  for (const el of Object.values(scene)) {
+    if (el.id === self.id || el.type !== 'connector') {
+      continue;
+    }
+    const c = el.connector ?? {};
+    if (c.jumps && el.id < self.id) {
+      continue;
+    }
+    const { start, end } = resolveConnectorEndpoints(el, scene);
+    routes.push(
+      connectorWaypoints(
+        c.routing ?? 'straight',
+        start,
+        end,
+        connectorBendPoints(c.bends, c.bend),
+        c.fromAnchor ? anchorSide(c.fromAnchor) : undefined
+      )
+    );
+  }
+  return routes;
+};
+
 export const BoardElementView = ({
   element,
   scene,
@@ -411,8 +444,17 @@ export const BoardElementView = ({
       // arrow attached low on a right edge goes out to the right instead of
       // cutting back across the shape.
       const exitSide = c.fromAnchor ? anchorSide(c.fromAnchor) : undefined;
-      d = buildConnectorPath(routing, start, end, bends, exitSide);
       const wpts = connectorWaypoints(routing, start, end, bends, exitSide);
+      d = buildConnectorPath(
+        routing,
+        start,
+        end,
+        bends,
+        exitSide,
+        c.jumps
+          ? polylineCrossings(wpts, crossableRoutes(element, scene))
+          : undefined
+      );
       headFrom = connectorArrowFrom(routing, start, end, bends);
       tailFrom = wpts[1] ?? end;
       mid = connectorHandlePoint(routing, start, end, bends);

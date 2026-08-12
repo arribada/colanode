@@ -191,6 +191,8 @@ interface BoardToolbarProps {
   // when a line was drawn the wrong way round.
   connectorArrows: { start: boolean; end: boolean };
   onConnectorArrows: (arrows: { start: boolean; end: boolean }) => void;
+  connectorJumps: boolean;
+  onConnectorJumps: (jumps: boolean) => void;
 }
 
 export const BoardToolbar = ({
@@ -224,6 +226,8 @@ export const BoardToolbar = ({
   onConnectorRouting,
   connectorArrows,
   onConnectorArrows,
+  connectorJumps,
+  onConnectorJumps,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -472,6 +476,18 @@ export const BoardToolbar = ({
                   className="rounded-md px-2 py-1 text-xs hover:bg-accent"
                 >
                   &#8646;
+                </button>
+                <button
+                  type="button"
+                  aria-label="Line jumps"
+                  title="Hop over crossing lines"
+                  onClick={() => onConnectorJumps(!connectorJumps)}
+                  className={cn(
+                    'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                    connectorJumps && 'bg-primary/10 text-primary'
+                  )}
+                >
+                  &#8901;&#8255;&#8901;
                 </button>
               </div>
 
