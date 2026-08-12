@@ -390,3 +390,62 @@ describe('fills and stacking', () => {
     expect(frame.z < tiny.z).toBe(true);
   });
 });
+
+describe('text styling', () => {
+  const shaped = (style: Record<string, string>): MiroItem => ({
+    id: 'a',
+    type: 'shape',
+    data: { content: '<p>hello</p>', shape: 'rectangle' },
+    style,
+    geometry: { width: 200, height: 100 },
+    position: { x: 0, y: 0 },
+  });
+
+  it('keeps the font size', () => {
+    // 267 items on the reference board carry one, from 10 to 64, and every
+    // one of them was rendering at the default 15.
+    const { scene } = convertMiroBoard([shaped({ fontSize: '30' })]);
+    expect(Object.values(scene)[0]!.style.fontSize).toBe(30);
+  });
+
+  it('keeps both alignments', () => {
+    const { scene } = convertMiroBoard([
+      shaped({ textAlign: 'right', textAlignVertical: 'bottom' }),
+    ]);
+    const el = Object.values(scene)[0]!;
+    expect(el.style.textAlign).toBe('right');
+    expect(el.style.verticalAlign).toBe('bottom');
+  });
+
+  it('maps the border style, whose "normal" is our "solid"', () => {
+    const { scene } = convertMiroBoard([shaped({ borderStyle: 'normal' })]);
+    expect(Object.values(scene)[0]!.style.strokeStyle).toBe('solid');
+    const dashed = convertMiroBoard([shaped({ borderStyle: 'dashed' })]);
+    expect(Object.values(dashed.scene)[0]!.style.strokeStyle).toBe('dashed');
+  });
+
+  it('puts a partial fill opacity on the COLOUR, not the element', () => {
+    // Using the element's opacity would fade the outline and the writing too,
+    // so a 40% shape would arrive with unreadable text on it.
+    const { scene } = convertMiroBoard([
+      shaped({ fillColor: '#2d9bf0', fillOpacity: '0.4' }),
+    ]);
+    const el = Object.values(scene)[0]!;
+    expect(el.style.fill).toBe('rgba(45, 155, 240, 0.4)');
+    expect(el.style.opacity).toBeUndefined();
+  });
+
+  it('leaves a solid fill as a plain hex', () => {
+    const { scene } = convertMiroBoard([
+      shaped({ fillColor: '#2d9bf0', fillOpacity: '1.0' }),
+    ]);
+    expect(Object.values(scene)[0]!.style.fill).toBe('#2d9bf0');
+  });
+
+  it('ignores a font size that is not a number', () => {
+    // Omitted rather than passed through, so the element keeps its own
+    // default (15) instead of carrying a NaN into the board.
+    const { scene } = convertMiroBoard([shaped({ fontSize: 'large' })]);
+    expect(Object.values(scene)[0]!.style.fontSize).toBe(15);
+  });
+});

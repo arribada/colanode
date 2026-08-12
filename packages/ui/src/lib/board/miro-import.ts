@@ -147,6 +147,67 @@ const ROUTING_MAP: Record<string, 'straight' | 'elbow' | 'curved'> = {
 const transparent = (opacity: string | undefined): boolean =>
   opacity !== undefined && Number(opacity) === 0;
 
+/**
+ * A partly transparent fill, expressed on the COLOUR rather than on the
+ * element.
+ *
+ * Miro's fillOpacity applies to the fill alone. The board's `opacity` applies
+ * to the whole element, so using it would fade the outline and the text too —
+ * a 0.4 shape would come across with unreadable writing on it.
+ */
+const fillWithAlpha = (
+  color: string | undefined,
+  opacity: string | undefined
+): string => {
+  const hex = color ?? '#ffffff';
+  const alpha = opacity === undefined ? 1 : Number(opacity);
+  if (!Number.isFinite(alpha) || alpha >= 1) {
+    return hex;
+  }
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) {
+    return hex;
+  }
+  const n = Number.parseInt(m[1]!, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/** Miro's border styles, named as the board names them. */
+const BORDER_STYLE: Record<string, 'solid' | 'dashed' | 'dotted'> = {
+  normal: 'solid',
+  dashed: 'dashed',
+  dotted: 'dotted',
+};
+
+const ALIGN: Record<string, 'left' | 'center' | 'right'> = {
+  left: 'left',
+  center: 'center',
+  right: 'right',
+};
+
+const V_ALIGN: Record<string, 'top' | 'middle' | 'bottom'> = {
+  top: 'top',
+  middle: 'middle',
+  bottom: 'bottom',
+};
+
+/** Style properties every text-carrying element shares. */
+const textStyle = (style: Record<string, string> | undefined) => {
+  const size = Number(style?.fontSize);
+  return {
+    ...(Number.isFinite(size) && size > 0 ? { fontSize: size } : {}),
+    ...(style?.textAlign && ALIGN[style.textAlign]
+      ? { textAlign: ALIGN[style.textAlign] }
+      : {}),
+    ...(style?.textAlignVertical && V_ALIGN[style.textAlignVertical]
+      ? { verticalAlign: V_ALIGN[style.textAlignVertical] }
+      : {}),
+  };
+};
+
 const hasArrow = (cap: string | undefined): boolean =>
   !!cap && cap !== 'none';
 
@@ -332,7 +393,10 @@ export const convertMiroBoard = (
           w: box.w,
           h: box.h,
           z,
-          style: { fill: stickyFill(item.style?.fillColor) },
+          style: {
+            fill: stickyFill(item.style?.fillColor),
+            ...textStyle(item.style),
+          },
           text: miroTextToPlain(item.data?.content),
         });
         break;
@@ -346,7 +410,11 @@ export const convertMiroBoard = (
           // Miro omits the height of a text item; the board needs one.
           h: num(item.geometry?.height, 32),
           z,
-          style: { stroke: item.style?.color ?? '#1a1a1a' },
+          style: {
+            // A text element has no outline: its colour IS the text colour.
+            color: item.style?.color ?? '#1a1a1a',
+            ...textStyle(item.style),
+          },
           text: miroTextToPlain(item.data?.content),
         });
         break;
@@ -364,17 +432,23 @@ export const convertMiroBoard = (
           style: {
             // fillOpacity 0 is how Miro says "no fill", and it is what the
             // big container boxes use. Imported as opaque white they hid
-            // everything they were drawn around.
+            // everything they were drawn around. Anything between 0 and 1
+            // goes on the colour, not the element — see fillWithAlpha.
             fill: transparent(item.style?.fillOpacity)
               ? 'transparent'
-              : (item.style?.fillColor ?? '#ffffff'),
+              : fillWithAlpha(item.style?.fillColor, item.style?.fillOpacity),
             stroke: transparent(item.style?.borderOpacity)
               ? 'transparent'
               : (item.style?.borderColor ?? '#334155'),
             strokeWidth: Number(item.style?.borderWidth ?? 2) || 2,
+            ...(item.style?.borderStyle &&
+            BORDER_STYLE[item.style.borderStyle]
+              ? { strokeStyle: BORDER_STYLE[item.style.borderStyle] }
+              : {}),
             // Miro's `color` is the TEXT colour, which matters on the dark
             // shapes: black text on a near-black fill is unreadable.
             color: item.style?.color ?? '#1f2937',
+            ...textStyle(item.style),
           },
           text: miroTextToPlain(item.data?.content),
         });

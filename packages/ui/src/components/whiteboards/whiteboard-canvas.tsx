@@ -149,6 +149,9 @@ const OPPOSITE_SIDE: Record<QuickSide, QuickSide> = {
 };
 
 const GRID = 20;
+// Grid dot colour, fixed rather than themed: the board surface is white in
+// both themes, so the dots have one job and one background.
+const GRID_DOT = '#64748b';
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 6;
 
@@ -433,6 +436,9 @@ export const WhiteboardCanvas = ({
   // Set on a Ctrl/Cmd+right-click we handled ourselves (add/remove bend) so
   // the element's onContextMenu does not also open a comment popup.
   const suppressContextMenuRef = useRef(false);
+  // Where a right-button press started, so a release that has travelled can
+  // be told from a click that has not. A pan must not end with a menu.
+  const rightDragRef = useRef<{ x: number; y: number } | null>(null);
   const pointersRef = useRef<Map<number, Point>>(new Map());
   const pinchRef = useRef<{ dist: number; viewport: Viewport } | null>(null);
   const spaceRef = useRef(false);
@@ -1361,6 +1367,10 @@ export const WhiteboardCanvas = ({
       return;
     }
 
+    if (e.button === 2) {
+      rightDragRef.current = { x: e.clientX, y: e.clientY };
+    }
+
     const panIntent =
       spaceRef.current ||
       e.button === 1 ||
@@ -1740,6 +1750,20 @@ export const WhiteboardCanvas = ({
 
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     pointerSceneRef.current = clientToScene(e.clientX, e.clientY);
+
+    // Past a few pixels the gesture is a pan, not a click, so the menu that
+    // would otherwise open on release is cancelled. The threshold matters:
+    // a mouse always moves a pixel or two between press and release.
+    const rightStart = rightDragRef.current;
+    if (rightStart) {
+      const travelled = Math.hypot(
+        e.clientX - rightStart.x,
+        e.clientY - rightStart.y
+      );
+      if (travelled > 4) {
+        suppressContextMenuRef.current = true;
+      }
+    }
     if (pointersRef.current.has(e.pointerId)) {
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     }
@@ -2177,6 +2201,9 @@ export const WhiteboardCanvas = ({
   };
 
   const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.button === 2) {
+      rightDragRef.current = null;
+    }
     pointersRef.current.delete(e.pointerId);
     if (pointersRef.current.size < 2) {
       pinchRef.current = null;
@@ -3639,6 +3666,11 @@ export const WhiteboardCanvas = ({
         }}
         onContextMenu={(e) => {
           e.preventDefault();
+          // A right-drag that panned the board must not finish with a menu.
+          if (suppressContextMenuRef.current) {
+            suppressContextMenuRef.current = false;
+            return;
+          }
           // Only for the bare canvas: a right-click on an element is already
           // handled by that element's own menu.
           const target = e.target as Element;
@@ -3670,15 +3702,16 @@ export const WhiteboardCanvas = ({
               viewport.y % gridCell
             })`}
           >
-            <circle cx={1} cy={1} r={1.4} fill="currentColor" />
+            {/* Explicit, NOT currentColor: this circle lives in <defs>, so it
+                inherits from there and not from the rect that references the
+                pattern. A colour set on that rect never reached it. */}
+            <circle cx={1} cy={1} r={1.4} fill={GRID_DOT} />
           </pattern>
         </defs>
 
         {/* Outside the scene group on purpose — see the pattern above. */}
         <rect
-          // Fixed grey, not a theme token: the dots have to read against the
-          // white surface, whatever theme the app is in.
-          className="board-no-export text-slate-500"
+          className="board-no-export"
           x={0}
           y={0}
           width="100%"
