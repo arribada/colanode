@@ -26,6 +26,7 @@ import {
   Play,
   Printer,
   Redo2,
+  Smile,
   Spline,
   Square,
   StickyNote,
@@ -37,12 +38,19 @@ import {
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { EmojiPicker } from '@colanode/ui/components/emojis/emoji-picker';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@colanode/ui/components/ui/popover';
 import {
   FRAME_PRESETS,
   SHAPE_FILLS,
   STICKY_COLORS,
   STROKE_COLORS,
 } from '@colanode/ui/lib/board/elements';
+import { emojiFromUnified } from '@colanode/ui/lib/board/emoji';
 import { BOARD_SHAPES } from '@colanode/ui/lib/board/shapes';
 import { BOARD_TEMPLATES } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
@@ -242,6 +250,7 @@ interface BoardToolbarProps {
   onFramePreset: (preset: { w: number; h: number; label: string }) => void;
   onMiroImport: () => void;
   onPresent: () => void;
+  onEmoji: (character: string) => void;
   privateMode: boolean;
   onPrivateMode: () => void;
   privateCount: number;
@@ -291,6 +300,7 @@ export const BoardToolbar = ({
   onFramePreset,
   onMiroImport,
   onPresent,
+  onEmoji,
   privateMode,
   onPrivateMode,
   privateCount,
@@ -301,6 +311,7 @@ export const BoardToolbar = ({
   const [collapsed, setCollapsed] = useState(false);
   // Once-a-session actions live behind one button so the drawing tools, which
   // are what anyone actually reaches for, stay in the hot path.
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [boardMenu, setBoardMenu] = useState(false);
   const boardMenuWrapRef = useRef<HTMLDivElement>(null);
   const [boardMenuPos, setBoardMenuPos] = useState<{
@@ -372,6 +383,27 @@ export const BoardToolbar = ({
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
       <div className="pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+        <Popover open={emojiOpen} onOpenChange={setEmojiOpen} modal={true}>
+          <PopoverTrigger aria-label="Add an emoji" title="Add an emoji">
+            <span className="flex size-8 items-center justify-center rounded-md hover:bg-accent">
+              <Smile className="size-4" />
+            </span>
+          </PopoverTrigger>
+          <PopoverContent className="w-max p-0" align="start">
+            <EmojiPicker
+              onPick={(emoji, skinTone) => {
+                const unified =
+                  emoji.skins[skinTone]?.unified ?? emoji.skins[0]?.unified;
+                if (!unified) {
+                  return;
+                }
+                onEmoji(emojiFromUnified(unified));
+                setEmojiOpen(false);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+
         <div className="relative" ref={boardMenuWrapRef}>
           <ToolbarButton
             title="Board actions"

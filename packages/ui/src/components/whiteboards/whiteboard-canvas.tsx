@@ -1,3 +1,5 @@
+import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
+import { useNavigate } from '@tanstack/react-router';
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -33,8 +35,6 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
-import { useNavigate } from '@tanstack/react-router';
 
 import { LocalNode } from '@colanode/client/types';
 import {
@@ -48,9 +48,11 @@ import {
   PresencePayload,
 } from '@colanode/core';
 import { PresenceAvatars } from '@colanode/ui/components/presence/presence-avatars';
-import { BoardElementView } from '@colanode/ui/components/whiteboards/board/board-element';
-import { BoardPresenceLayer } from '@colanode/ui/components/whiteboards/board/board-presence-layer';
 import { BoardCommentsPanel } from '@colanode/ui/components/whiteboards/board/board-comments-panel';
+import { BoardElementView } from '@colanode/ui/components/whiteboards/board/board-element';
+import { BoardMiroImportDialog } from '@colanode/ui/components/whiteboards/board/board-miro-import';
+import { BoardPresenceLayer } from '@colanode/ui/components/whiteboards/board/board-presence-layer';
+import { BoardShortcutsDialog } from '@colanode/ui/components/whiteboards/board/board-shortcuts';
 import { BoardToolbar } from '@colanode/ui/components/whiteboards/board/board-toolbar';
 import {
   BoardStyleState,
@@ -58,8 +60,6 @@ import {
   ConnectorRouting,
   DEFAULT_BOARD_STYLE,
 } from '@colanode/ui/components/whiteboards/board/board-types';
-import { BoardMiroImportDialog } from '@colanode/ui/components/whiteboards/board/board-miro-import';
-import { BoardShortcutsDialog } from '@colanode/ui/components/whiteboards/board/board-shortcuts';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
   usePresences,
@@ -122,9 +122,9 @@ import {
   exportScenePng,
   exportSceneSvg,
 } from '@colanode/ui/lib/board/png';
-import { printHtmlDocument } from '@colanode/ui/lib/print';
 import { getTemplate } from '@colanode/ui/lib/board/templates';
 import { presenceColor } from '@colanode/ui/lib/presence';
+import { printHtmlDocument } from '@colanode/ui/lib/print';
 import { cn } from '@colanode/ui/lib/utils';
 
 // Shape types whose label the per-element text-size controls apply to.
@@ -2943,6 +2943,31 @@ export const WhiteboardCanvas = ({
     commit(before, next, ids);
   };
 
+  const onEmoji = (character: string) => {
+    if (!character) {
+      return;
+    }
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    const size = 72;
+    const el = newElement({
+      type: 'text',
+      x: (cw / 2 - vp.x) / vp.zoom - size / 2,
+      y: (ch / 2 - vp.y) / vp.zoom - size / 2,
+      w: size,
+      h: size,
+      z: topZ(sceneRef.current),
+      style: { fontSize: size, color: '#111827' },
+      text: character,
+    });
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current, [el.id]: el };
+    applyLocal(next);
+    setSelection([el.id]);
+    commit(before, next, [el.id]);
+  };
+
   const onFramePreset = (preset: { w: number; h: number; label: string }) => {
     const cw = svgRef.current?.clientWidth ?? 800;
     const ch = svgRef.current?.clientHeight ?? 600;
@@ -4312,6 +4337,7 @@ export const WhiteboardCanvas = ({
         onFramePreset={onFramePreset}
         onMiroImport={() => setMiroImportOpen(true)}
         onPresent={startPresenting}
+        onEmoji={onEmoji}
         privateMode={privateMode}
         onPrivateMode={togglePrivateMode}
         privateCount={privateElementIds.length}
