@@ -130,6 +130,10 @@ export type BoardConnector = z.infer<typeof boardConnectorSchema>;
 export const boardMindmapSchema = z.object({
   parentId: z.string().optional(),
   collapsed: z.boolean().optional(),
+  // Which way the tree grows away from its root. Read off the ROOT only — a
+  // child pointing elsewhere would tear the layout in half. Absent = 'right',
+  // which is how every existing map was laid out.
+  direction: z.enum(['right', 'left', 'down', 'up']).optional(),
 });
 
 export type BoardMindmap = z.infer<typeof boardMindmapSchema>;

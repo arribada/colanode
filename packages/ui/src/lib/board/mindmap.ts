@@ -6,7 +6,14 @@
 
 import { BoardElement, BoardScene } from '@colanode/core';
 import { createElement, topZ } from '@colanode/ui/lib/board/elements';
-import { layoutTidyTree, TidyNode } from '@colanode/ui/lib/board/tidy-tree';
+import { Point } from '@colanode/ui/lib/board/geometry';
+import {
+  layoutTidyTree,
+  TidyDirection,
+  TidyNode,
+} from '@colanode/ui/lib/board/tidy-tree';
+
+export type MindmapDirection = TidyDirection;
 
 export const MINDMAP_H_GAP = 80;
 export const MINDMAP_V_GAP = 24;
@@ -69,6 +76,15 @@ export const buildMindmapTree = (
   return buildTidyNode(scene, root);
 };
 
+/** Which way the tree containing `anyId` grows. Defaults to rightward. */
+export const mindmapDirection = (
+  scene: BoardScene,
+  anyId: string
+): MindmapDirection => {
+  const root = scene[mindmapRootOf(scene, anyId)];
+  return root?.mindmap?.direction ?? 'right';
+};
+
 export interface MindmapEdit {
   scene: BoardScene;
   changedIds: string[];
@@ -94,6 +110,9 @@ export const relayoutMindmap = (
     vGap: MINDMAP_V_GAP,
     startX: root.x,
     startY: root.y,
+    // The direction belongs to the tree, so it is read off the root — a child
+    // pointing a different way would tear the layout in half.
+    direction: mindmapDirection(scene, rootId),
   });
   const laidRoot = pos[rootId];
   if (!laidRoot) {
@@ -267,3 +286,80 @@ export const mindmapEdges = (scene: BoardScene): MindmapEdge[] => {
 /** True when the node has at least one mindmap child (collapse target). */
 export const hasMindmapChildren = (scene: BoardScene, id: string): boolean =>
   mindmapChildren(scene, id).length > 0;
+
+/** Point the whole tree containing `anyId` in a new direction and relayout. */
+export const setMindmapDirection = (
+  scene: BoardScene,
+  anyId: string,
+  direction: MindmapDirection
+): MindmapEdit => {
+  const rootId = mindmapRootOf(scene, anyId);
+  const root = scene[rootId];
+  if (!isMindmap(root)) {
+    return { scene, changedIds: [] };
+  }
+  const next: BoardScene = {
+    ...scene,
+    [rootId]: { ...root, mindmap: { ...root.mindmap, direction } },
+  };
+  const relaid = relayoutMindmap(next, rootId);
+  return {
+    scene: relaid.scene,
+    changedIds: [...new Set([rootId, ...relaid.changedIds])],
+  };
+};
+
+export interface MindmapEdgeGeometry {
+  from: Point;
+  to: Point;
+  c1: Point;
+  c2: Point;
+}
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Where a parent→child edge leaves and lands, plus its bezier controls.
+ *
+ * Derived from the boxes' relative position rather than the tree's declared
+ * direction: that way the edge stays attached to the right sides after a node
+ * is dragged off the tidy layout by hand, which the declared direction cannot
+ * know about.
+ */
+export const mindmapEdgeGeometry = (
+  parent: Box,
+  child: Box
+): MindmapEdgeGeometry => {
+  const pc = { x: parent.x + parent.w / 2, y: parent.y + parent.h / 2 };
+  const cc = { x: child.x + child.w / 2, y: child.y + child.h / 2 };
+  const dx = cc.x - pc.x;
+  const dy = cc.y - pc.y;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const rightward = dx >= 0;
+    const from = {
+      x: rightward ? parent.x + parent.w : parent.x,
+      y: pc.y,
+    };
+    const to = { x: rightward ? child.x : child.x + child.w, y: cc.y };
+    const midX = (from.x + to.x) / 2;
+    return { from, to, c1: { x: midX, y: from.y }, c2: { x: midX, y: to.y } };
+  }
+
+  const downward = dy >= 0;
+  const from = { x: pc.x, y: downward ? parent.y + parent.h : parent.y };
+  const to = { x: cc.x, y: downward ? child.y : child.y + child.h };
+  const midY = (from.y + to.y) / 2;
+  return { from, to, c1: { x: from.x, y: midY }, c2: { x: to.x, y: midY } };
+};
+
+/** SVG path for a parent→child edge. */
+export const mindmapEdgePath = (parent: Box, child: Box): string => {
+  const g = mindmapEdgeGeometry(parent, child);
+  return `M ${g.from.x} ${g.from.y} C ${g.c1.x} ${g.c1.y}, ${g.c2.x} ${g.c2.y}, ${g.to.x} ${g.to.y}`;
+};

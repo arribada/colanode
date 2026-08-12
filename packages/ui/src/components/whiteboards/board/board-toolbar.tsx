@@ -1,4 +1,8 @@
 import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   ChevronDown,
   Circle,
   Copy,
@@ -49,6 +53,17 @@ interface ToolDef {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }
+
+const MINDMAP_DIRECTIONS: {
+  value: 'right' | 'left' | 'down' | 'up';
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { value: 'right', label: 'Grow right', icon: ArrowRight },
+  { value: 'left', label: 'Grow left', icon: ArrowLeft },
+  { value: 'down', label: 'Grow down', icon: ArrowDown },
+  { value: 'up', label: 'Grow up', icon: ArrowUp },
+];
 
 const TOOLS: ToolDef[] = [
   { tool: 'select', label: 'Select (V)', icon: MousePointer2 },
@@ -193,6 +208,9 @@ interface BoardToolbarProps {
   onConnectorArrows: (arrows: { start: boolean; end: boolean }) => void;
   connectorJumps: boolean;
   onConnectorJumps: (jumps: boolean) => void;
+  // Direction of the selected mind map, or null when none is selected.
+  mindmapDirection: 'right' | 'left' | 'down' | 'up' | null;
+  onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
 }
 
 export const BoardToolbar = ({
@@ -228,6 +246,8 @@ export const BoardToolbar = ({
   onConnectorArrows,
   connectorJumps,
   onConnectorJumps,
+  mindmapDirection,
+  onMindmapDirection,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -489,6 +509,32 @@ export const BoardToolbar = ({
                 >
                   &#8901;&#8255;&#8901;
                 </button>
+              </div>
+
+              <div className="h-6 w-px bg-border" />
+            </>
+          )}
+
+          {mindmapDirection && (
+            <>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Grow</span>
+                {MINDMAP_DIRECTIONS.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    aria-label={d.label}
+                    title={d.label}
+                    onClick={() => onMindmapDirection(d.value)}
+                    className={cn(
+                      'rounded-md p-1 hover:bg-accent',
+                      mindmapDirection === d.value &&
+                        'bg-primary/10 text-primary'
+                    )}
+                  >
+                    <d.icon className="size-4" />
+                  </button>
+                ))}
               </div>
 
               <div className="h-6 w-px bg-border" />

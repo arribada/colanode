@@ -103,8 +103,11 @@ import {
   addMindmapChild,
   addMindmapSibling,
   hasMindmapChildren,
+  mindmapDirection as mindmapDirectionOf,
+  mindmapEdgePath,
   mindmapEdges,
   mindmapHiddenIds,
+  setMindmapDirection,
   toggleMindmapCollapsed,
 } from '@colanode/ui/lib/board/mindmap';
 import {
@@ -2540,6 +2543,29 @@ export const WhiteboardCanvas = ({
     commit(before, next, ids);
   };
 
+  // Direction of the selected mind map, or null when the selection is not one.
+  const mindmapDirection = (() => {
+    const id = selectionRef.current.find(
+      (i) => sceneRef.current[i]?.type === 'mindmap'
+    );
+    return id ? mindmapDirectionOf(sceneRef.current, id) : null;
+  })();
+
+  const onMindmapDirection = (direction: 'right' | 'left' | 'down' | 'up') => {
+    const id = manipulableIds(selectionRef.current).find(
+      (i) => sceneRef.current[i]?.type === 'mindmap'
+    );
+    if (!id) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const edit = setMindmapDirection(sceneRef.current, id, direction);
+    if (edit.changedIds.length === 0) {
+      return;
+    }
+    commit(before, edit.scene, edit.changedIds);
+  };
+
   // Line jumps of the first selected connector, so the toggle shows its state.
   const connectorJumps = (() => {
     const id = manipulableIds(selectionRef.current).find(
@@ -3035,23 +3061,18 @@ export const WhiteboardCanvas = ({
 
           {/* mind-map parent -> child edges (behind the nodes) */}
           <g style={{ pointerEvents: 'none' }}>
-            {mindEdges.map((edge) => {
-              const from = {
-                x: edge.from.x + edge.from.w,
-                y: edge.from.y + edge.from.h / 2,
-              };
-              const to = { x: edge.to.x, y: edge.to.y + edge.to.h / 2 };
-              const midX = (from.x + to.x) / 2;
-              return (
-                <path
-                  key={edge.id}
-                  d={`M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`}
-                  fill="none"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                />
-              );
-            })}
+            {mindEdges.map((edge) => (
+              // The link leaves whichever side actually faces the child, so a
+              // map growing down or left keeps its edges outside the boxes
+              // instead of doubling back across them.
+              <path
+                key={edge.id}
+                d={mindmapEdgePath(edge.from, edge.to)}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth={2}
+              />
+            ))}
           </g>
 
           {ordered.map((el) => (
@@ -3806,6 +3827,8 @@ export const WhiteboardCanvas = ({
         onConnectorArrows={onConnectorArrows}
         connectorJumps={connectorJumps}
         onConnectorJumps={onConnectorJumps}
+        mindmapDirection={mindmapDirection}
+        onMindmapDirection={onMindmapDirection}
         onComment={() => {
           const id = selection[0];
           if (id) {

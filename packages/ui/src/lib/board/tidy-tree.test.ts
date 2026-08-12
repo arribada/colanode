@@ -79,3 +79,58 @@ describe('layoutTidyTree', () => {
     expect(pos.hidden).toBeUndefined();
   });
 });
+
+describe('layout direction', () => {
+  // one root, two children, fixed sizes so the numbers are checkable by hand
+  const tree = {
+    id: 'root',
+    w: 100,
+    h: 40,
+    children: [
+      { id: 'a', w: 100, h: 40, children: [] },
+      { id: 'b', w: 100, h: 40, children: [] },
+    ],
+  };
+  const opts = { nodeW: 100, nodeH: 40, hGap: 50, vGap: 10 };
+
+  it('grows rightward by default', () => {
+    const laid = layoutTidyTree(tree, opts);
+    expect(laid.a!.x).toBeGreaterThan(laid.root!.x);
+    expect(laid.b!.x).toBe(laid.a!.x);
+    expect(laid.b!.y).toBeGreaterThan(laid.a!.y);
+  });
+
+  it('mirrors leftward around the root, leaving the root in place', () => {
+    const right = layoutTidyTree(tree, opts);
+    const left = layoutTidyTree(tree, { ...opts, direction: 'left' });
+    expect(left.root).toEqual(right.root);
+    expect(left.a!.x).toBeLessThan(left.root!.x);
+    // same distance out, opposite side
+    expect(right.a!.x - right.root!.x).toBe(left.root!.x - left.a!.x);
+    // vertical stacking is untouched by the mirror
+    expect(left.a!.y).toBe(right.a!.y);
+  });
+
+  it('stacks levels downward and siblings across', () => {
+    const laid = layoutTidyTree(tree, { ...opts, direction: 'down' });
+    expect(laid.a!.y).toBeGreaterThan(laid.root!.y);
+    expect(laid.b!.y).toBe(laid.a!.y);
+    expect(laid.b!.x).toBeGreaterThan(laid.a!.x);
+    // boxes keep their real size through the rotation
+    expect(laid.a!.w).toBe(100);
+    expect(laid.a!.h).toBe(40);
+  });
+
+  it('siblings do not overlap in a downward tree', () => {
+    const laid = layoutTidyTree(tree, { ...opts, direction: 'down' });
+    expect(laid.b!.x).toBeGreaterThanOrEqual(laid.a!.x + laid.a!.w);
+  });
+
+  it('mirrors upward around the root, leaving the root in place', () => {
+    const down = layoutTidyTree(tree, { ...opts, direction: 'down' });
+    const up = layoutTidyTree(tree, { ...opts, direction: 'up' });
+    expect(up.root).toEqual(down.root);
+    expect(up.a!.y).toBeLessThan(up.root!.y);
+    expect(down.a!.y - down.root!.y).toBe(up.root!.y - up.a!.y);
+  });
+});

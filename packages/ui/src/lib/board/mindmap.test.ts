@@ -6,6 +6,7 @@ import {
   addMindmapSibling,
   hasMindmapChildren,
   mindmapChildren,
+  mindmapEdgeGeometry,
   mindmapEdges,
   mindmapHiddenIds,
   mindmapRootOf,
@@ -135,5 +136,39 @@ describe('relayoutMindmap', () => {
     // all children share the same column (x) to the right of the root
     expect(next.a!.x).toBe(next.b!.x);
     expect(next.a!.x).toBeGreaterThan(next.r!.x);
+  });
+});
+
+describe('mindmapEdgeGeometry', () => {
+  const parent = { x: 0, y: 0, w: 100, h: 40 };
+
+  it('leaves the right side for a child to the right', () => {
+    const g = mindmapEdgeGeometry(parent, { x: 200, y: 0, w: 100, h: 40 });
+    expect(g.from).toEqual({ x: 100, y: 20 });
+    expect(g.to).toEqual({ x: 200, y: 20 });
+    // controls bow horizontally
+    expect(g.c1.y).toBe(g.from.y);
+    expect(g.c2.y).toBe(g.to.y);
+  });
+
+  it('leaves the left side for a child to the left', () => {
+    const g = mindmapEdgeGeometry(parent, { x: -200, y: 0, w: 100, h: 40 });
+    expect(g.from).toEqual({ x: 0, y: 20 });
+    expect(g.to).toEqual({ x: -100, y: 20 });
+  });
+
+  it('leaves the bottom for a child below', () => {
+    const g = mindmapEdgeGeometry(parent, { x: 0, y: 200, w: 100, h: 40 });
+    expect(g.from).toEqual({ x: 50, y: 40 });
+    expect(g.to).toEqual({ x: 50, y: 200 });
+    // controls bow vertically
+    expect(g.c1.x).toBe(g.from.x);
+    expect(g.c2.x).toBe(g.to.x);
+  });
+
+  it('leaves the top for a child above', () => {
+    const g = mindmapEdgeGeometry(parent, { x: 0, y: -200, w: 100, h: 40 });
+    expect(g.from).toEqual({ x: 50, y: 0 });
+    expect(g.to).toEqual({ x: 50, y: -160 });
   });
 });
