@@ -23,6 +23,7 @@ import {
   polylineCrossings,
 } from '@colanode/ui/lib/board/geometry';
 import type { Point } from '@colanode/ui/lib/board/geometry';
+import { tallyPoll } from '@colanode/ui/lib/board/poll';
 import { boardShapePath } from '@colanode/ui/lib/board/shapes';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
@@ -400,6 +401,8 @@ const BoardNodeCard = ({
 };
 
 interface BoardElementViewProps {
+  /** Who is looking — a poll highlights that person's own choices. */
+  currentUserId?: string;
   element: BoardElement;
   scene: BoardScene;
   editing?: boolean;
@@ -504,11 +507,133 @@ const BadgeChip = ({ element }: { element: BoardElement }) => {
   );
 };
 
+const POLL_ROW_H = 30;
+const POLL_HEAD_H = 34;
+
+/**
+ * A poll: the question, then a row per option.
+ *
+ * Each row carries `data-poll-option`, which the board's pointer handler
+ * looks for BEFORE it starts a drag — otherwise voting would be impossible,
+ * since a click on an element is how you begin to move it.
+ */
+const BoardPollView = ({
+  element,
+  opacity,
+  currentUserId,
+}: {
+  element: BoardElement;
+  opacity: number;
+  currentUserId?: string;
+}) => {
+  const poll = element.poll;
+  const options = poll?.options ?? [];
+  const { counts, voters, max } = tallyPoll(element);
+  const mine = currentUserId ? (poll?.votes?.[currentUserId] ?? []) : [];
+  const revealed = poll?.revealed ?? false;
+
+  return (
+    <g opacity={opacity} style={{ userSelect: 'none' }}>
+      <rect
+        x={element.x}
+        y={element.y}
+        width={element.w}
+        height={element.h}
+        rx={10}
+        fill={element.style.fill ?? '#ffffff'}
+        stroke={element.style.stroke ?? '#334155'}
+        strokeWidth={element.style.strokeWidth ?? 2}
+      />
+
+      <text
+        x={element.x + 12}
+        y={element.y + 22}
+        fontSize={14}
+        fontWeight={600}
+        fill={element.style.color ?? '#1f2937'}
+        fontFamily={SANS_FAMILY}
+      >
+        {element.text || 'Question?'}
+      </text>
+
+      {options.map((option, i) => {
+        const y = element.y + POLL_HEAD_H + i * POLL_ROW_H;
+        const count = counts[i] ?? 0;
+        const chosen = mine.includes(i);
+        const barW = revealed
+          ? Math.max(0, (element.w - 24) * (count / max))
+          : 0;
+        return (
+          <g key={i} data-poll-option={i} style={{ cursor: 'pointer' }}>
+            {/* The bar sits UNDER the label so a long option stays readable
+                against it. */}
+            <rect
+              x={element.x + 12}
+              y={y}
+              width={element.w - 24}
+              height={POLL_ROW_H - 6}
+              rx={6}
+              fill={chosen ? '#dbeafe' : '#f1f5f9'}
+              stroke={chosen ? '#3b82f6' : 'transparent'}
+              strokeWidth={1.5}
+            />
+            {revealed && barW > 0 && (
+              <rect
+                x={element.x + 12}
+                y={y}
+                width={barW}
+                height={POLL_ROW_H - 6}
+                rx={6}
+                fill="#bfdbfe"
+              />
+            )}
+            <text
+              x={element.x + 20}
+              y={y + 16}
+              fontSize={12}
+              fill="#1f2937"
+              fontFamily={SANS_FAMILY}
+            >
+              {option}
+            </text>
+            {revealed && (
+              <text
+                x={element.x + element.w - 20}
+                y={y + 16}
+                textAnchor="end"
+                fontSize={12}
+                fontWeight={600}
+                fill="#475569"
+                fontFamily={SANS_FAMILY}
+              >
+                {count}
+              </text>
+            )}
+          </g>
+        );
+      })}
+
+      <text
+        x={element.x + 12}
+        y={element.y + element.h - 8}
+        fontSize={11}
+        fill="#64748b"
+        fontFamily={SANS_FAMILY}
+      >
+        {revealed
+          ? `${voters} ${voters === 1 ? 'vote' : 'votes'}`
+          : `${voters} in — hidden until revealed`}
+      </text>
+    </g>
+  );
+};
+
 export const BoardElementView = ({
   element,
   scene,
   editing = false,
   canEdit,
+  currentUserId,
 }: BoardElementViewProps) => {
   const { style } = element;
   const stroke = style.stroke ?? 'none';
@@ -619,6 +744,16 @@ export const BoardElementView = ({
           </g>
         )}
       </g>
+    );
+  }
+
+  if (element.type === 'poll') {
+    return (
+      <BoardPollView
+        element={element}
+        opacity={opacity}
+        currentUserId={currentUserId}
+      />
     );
   }
 

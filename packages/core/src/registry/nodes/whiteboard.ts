@@ -21,6 +21,7 @@ export const boardElementTypeSchema = z.enum([
   'mindmap',
   'image',
   'nodeCard',
+  'poll',
 ]);
 
 export type BoardElementType = z.infer<typeof boardElementTypeSchema>;
@@ -149,6 +150,21 @@ export const boardDependencyKind = boardConnectorSchema.shape.kind;
 
 export type BoardConnector = z.infer<typeof boardConnectorSchema>;
 
+export const boardPollSchema = z.object({
+  options: z.array(z.string()).default([]),
+  // userId -> the option indexes that person chose. A map rather than a
+  // count, so a vote can be changed and withdrawn, and so the same person
+  // voting twice is impossible by construction rather than by checking.
+  votes: z.record(z.string(), z.array(z.number())).default({}),
+  // More than one choice each.
+  multiple: z.boolean().optional(),
+  // Counts stay hidden until the facilitator reveals them: a room shown a
+  // running tally converges on whoever voted first.
+  revealed: z.boolean().optional(),
+});
+
+export type BoardPoll = z.infer<typeof boardPollSchema>;
+
 export const boardMindmapSchema = z.object({
   parentId: z.string().optional(),
   collapsed: z.boolean().optional(),
@@ -193,6 +209,7 @@ export const boardElementSchema = z.object({
   // This hides the element; it does not withhold it — the data still travels.
   privateBy: z.string().optional(),
   connector: boardConnectorSchema.optional(),
+  poll: boardPollSchema.optional(),
   // Colanode file-node id backing an `image` element (the uploaded picture).
   // Optional + absent on non-image elements and legacy boards.
   fileId: z.string().optional(),

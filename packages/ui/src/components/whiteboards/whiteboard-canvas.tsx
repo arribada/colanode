@@ -125,6 +125,7 @@ import {
   exportScenePng,
   exportSceneSvg,
 } from '@colanode/ui/lib/board/png';
+import { togglePollVote } from '@colanode/ui/lib/board/poll';
 import { getTemplate } from '@colanode/ui/lib/board/templates';
 import { presenceColor } from '@colanode/ui/lib/presence';
 import { printHtmlDocument } from '@colanode/ui/lib/print';
@@ -1479,6 +1480,39 @@ export const WhiteboardCanvas = ({
             before: cloneScene(sceneRef.current),
           };
         }
+        return;
+      }
+    }
+
+    // A click on a poll row is a VOTE, and has to be caught before the drag
+    // that a click on any element would otherwise start.
+    const pollRow = target.closest('[data-poll-option]');
+    if (pollRow && canEdit) {
+      const host = pollRow.closest('[data-el-id]');
+      const pollId = host?.getAttribute('data-el-id');
+      const el = pollId ? sceneRef.current[pollId] : undefined;
+      if (el && el.type === 'poll' && !isLockedForMe(el.id)) {
+        const index = Number(pollRow.getAttribute('data-poll-option'));
+        const before = cloneScene(sceneRef.current);
+        const next = {
+          ...sceneRef.current,
+          [el.id]: {
+            ...el,
+            poll: {
+              ...el.poll,
+              options: el.poll?.options ?? [],
+              votes: {
+                ...(el.poll?.votes ?? {}),
+                [workspace.userId]: togglePollVote(
+                  el,
+                  workspace.userId,
+                  index
+                ),
+              },
+            },
+          },
+        };
+        commit(before, next, [el.id]);
         return;
       }
     }
@@ -3167,6 +3201,70 @@ export const WhiteboardCanvas = ({
     commit(before, next, ids);
   };
 
+  // The poll under the selection, so the panel can edit it.
+  const selectedPoll = (() => {
+    const id = manipulableIds(selectionRef.current).find(
+      (i) => sceneRef.current[i]?.type === 'poll'
+    );
+    const el = id ? sceneRef.current[id] : undefined;
+    return el?.poll
+      ? { id: el.id, options: el.poll.options ?? [], multiple: !!el.poll.multiple, revealed: !!el.poll.revealed }
+      : null;
+  })();
+
+  const onPollChange = (patch: {
+    options?: string[];
+    multiple?: boolean;
+    revealed?: boolean;
+  }) => {
+    const id = selectedPoll?.id;
+    const el = id ? sceneRef.current[id] : undefined;
+    if (!el) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const options = patch.options ?? el.poll?.options ?? [];
+    const next = {
+      ...sceneRef.current,
+      [id!]: {
+        ...el,
+        // Grows with its options rather than hiding them below the bottom
+        // edge, which is what a fixed height would do on the fourth one.
+        h: 34 + options.length * 30 + 20,
+        poll: {
+          options,
+          votes: el.poll?.votes ?? {},
+          multiple: patch.multiple ?? el.poll?.multiple,
+          revealed: patch.revealed ?? el.poll?.revealed,
+        },
+      },
+    };
+    commit(before, next, [id!]);
+  };
+
+  /** Drops a poll with three empty options, ready to be filled in. */
+  const addPoll = (at: Point) => {
+    const el = newElement({
+      type: 'poll',
+      x: at.x,
+      y: at.y,
+      z: topZ(sceneRef.current),
+      text: 'Question?',
+    });
+    el.poll = {
+      options: ['Option A', 'Option B', 'Option C'],
+      votes: {},
+      // Hidden by default: a room shown a running tally follows whoever
+      // voted first.
+      revealed: false,
+    };
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current, [el.id]: el };
+    applyLocal(next);
+    setSelection([el.id]);
+    commit(before, next, [el.id]);
+  };
+
   const onEmoji = (character: string) => {
     if (!character) {
       return;
@@ -3808,7 +3906,7 @@ export const WhiteboardCanvas = ({
           // to shape creation — the pointer-down already handled those.
           if (
             target.closest(
-              '[data-quick],[data-handle],[data-mindadd],[data-collapse],[data-lock-toggle]'
+              '[data-quick],[data-handle],[data-mindadd],[data-collapse],[data-lock-toggle],[data-poll-option]'
             )
           ) {
             return;
@@ -3928,6 +4026,7 @@ export const WhiteboardCanvas = ({
               }}
             >
               <BoardElementView
+                currentUserId={workspace.userId}
                 element={el}
                 scene={scene}
                 editing={editing?.id === el.id}
@@ -4739,6 +4838,8 @@ export const WhiteboardCanvas = ({
         onConnectorKind={onConnectorKind}
         badgeValue={badgeValue}
         onBadgeChange={onBadgeChange}
+        poll={selectedPoll}
+        onPollChange={onPollChange}
         mindmapDirection={mindmapDirection}
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}
@@ -5123,6 +5224,7 @@ export const WhiteboardCanvas = ({
                 label: 'Mind map',
                 run: () => placeClickElement('mindmap', canvasMenu.scene),
               },
+              { label: 'Poll', run: () => addPoll(canvasMenu.scene) },
             ].map((item) => (
               <button
                 key={item.label}

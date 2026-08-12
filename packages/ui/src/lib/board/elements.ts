@@ -153,6 +153,13 @@ const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
     h: 180,
     style: {},
   },
+  // Head, three rows and the footer line — the size a poll is born at, so it
+  // does not need resizing before the first question fits.
+  poll: {
+    w: 260,
+    h: 34 + 3 * 30 + 20,
+    style: { fill: '#ffffff', stroke: '#334155', strokeWidth: 2 },
+  },
   nodeCard: {
     w: 300,
     h: 260,

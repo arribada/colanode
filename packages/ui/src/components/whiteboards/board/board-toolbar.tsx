@@ -407,6 +407,17 @@ interface BoardToolbarProps {
   onConnectorKind: (kind: string | null) => void;
   badgeValue: string;
   onBadgeChange: (value: string) => void;
+  poll: {
+    id: string;
+    options: string[];
+    multiple: boolean;
+    revealed: boolean;
+  } | null;
+  onPollChange: (patch: {
+    options?: string[];
+    multiple?: boolean;
+    revealed?: boolean;
+  }) => void;
   // Direction of the selected mind map, or null when none is selected.
   mindmapDirection: 'right' | 'left' | 'down' | 'up' | null;
   onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
@@ -469,6 +480,8 @@ export const BoardToolbar = ({
   onConnectorKind,
   badgeValue,
   onBadgeChange,
+  poll,
+  onPollChange,
   mindmapDirection,
   onMindmapDirection,
   onFramePreset,
@@ -1463,6 +1476,89 @@ export const BoardToolbar = ({
               </div>
             </div>
           </StyleGroup>
+
+          {poll && (
+            <StyleGroup
+              id="poll"
+              label="Poll"
+              value={poll.revealed ? 'revealed' : 'hidden'}
+              open={openStyleGroup}
+              onOpenChange={setOpenStyleGroup}
+            >
+              <div className="flex w-56 flex-col gap-2">
+                {poll.options.map((option, i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={option}
+                      aria-label={`Option ${i + 1}`}
+                      onChange={(e) => {
+                        const options = [...poll.options];
+                        options[i] = e.target.value;
+                        onPollChange({ options });
+                      }}
+                      className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Remove option"
+                      title="Remove"
+                      onClick={() =>
+                        onPollChange({
+                          options: poll.options.filter((_, j) => j !== i),
+                        })
+                      }
+                      className="rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onPollChange({
+                      options: [
+                        ...poll.options,
+                        `Option ${String.fromCharCode(65 + poll.options.length)}`,
+                      ],
+                    })
+                  }
+                  className="rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+                >
+                  + Option
+                </button>
+
+                <div className="flex items-center gap-1 border-t border-border pt-2">
+                  <button
+                    type="button"
+                    onClick={() => onPollChange({ multiple: !poll.multiple })}
+                    className={cn(
+                      'flex-1 rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      poll.multiple && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {poll.multiple ? 'Several answers' : 'One answer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onPollChange({ revealed: !poll.revealed })}
+                    className={cn(
+                      'flex-1 rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      poll.revealed && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {poll.revealed ? 'Counts shown' : 'Reveal counts'}
+                  </button>
+                </div>
+                <p className="text-[10px] leading-tight text-muted-foreground">
+                  Counts stay hidden while people vote — a room shown a
+                  running tally follows whoever answered first.
+                </p>
+              </div>
+            </StyleGroup>
+          )}
 
           {hasSelection && (
             <StyleGroup
