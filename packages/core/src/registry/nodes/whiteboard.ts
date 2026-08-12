@@ -97,6 +97,10 @@ export const boardElementStyleSchema = z.object({
   fontAuto: z.boolean().optional(),
   color: z.string().optional(),
   fontWeight: z.string().optional(),
+  // Where the label sits in the element's box. Absent keeps the old
+  // behaviour, which was centred for shapes and top-left for sticky notes.
+  textAlign: z.enum(['left', 'center', 'right']).optional(),
+  verticalAlign: z.enum(['top', 'middle', 'bottom']).optional(),
   opacity: z.number().optional(),
 });
 
@@ -107,8 +111,18 @@ export const boardConnectorSchema = z.object({
   toId: z.string().optional(),
   fromAnchor: boardAnchorSchema.optional(),
   toAnchor: boardAnchorSchema.optional(),
+  // Kept: they are what every existing connector uses, and a head type of
+  // undefined falls back to reading them.
   arrowStart: z.boolean().optional(),
   arrowEnd: z.boolean().optional(),
+  // Shape of each head, chosen independently. 'none' is an explicit "no head"
+  // that outranks the boolean above.
+  arrowStartType: z
+    .enum(['none', 'arrow', 'triangle', 'circle', 'diamond'])
+    .optional(),
+  arrowEndType: z
+    .enum(['none', 'arrow', 'triangle', 'circle', 'diamond'])
+    .optional(),
   label: z.string().optional(),
   // Line shape: straight segment (default), an orthogonal rounded elbow, or a
   // quadratic curve. Optional + backward-compatible — absent reads as

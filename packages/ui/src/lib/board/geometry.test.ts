@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   anchorPoint,
   arrowHeadPoints,
+  arrowHeadShape,
   buildConnectorPath,
   computeAlignmentSnap,
   distance,
@@ -354,5 +355,43 @@ describe('polylineHitTest', () => {
 
   it('misses an empty stroke instead of throwing', () => {
     expect(polylineHitTest([], { x: 0, y: 0 }, 5)).toBe(false);
+  });
+});
+
+describe('arrowHeadShape', () => {
+  const tip = { x: 100, y: 0 };
+  const from = { x: 0, y: 0 };
+
+  it('draws nothing for none', () => {
+    expect(arrowHeadShape('none', tip, from)).toBeNull();
+  });
+
+  it('points every head at the tip', () => {
+    for (const kind of ['arrow', 'triangle', 'diamond'] as const) {
+      const shape = arrowHeadShape(kind, tip, from)!;
+      const hasTip = shape.points.some(
+        (p) => Math.abs(p.x - tip.x) < 0.01 && Math.abs(p.y - tip.y) < 0.01
+      );
+      expect(hasTip, kind).toBe(true);
+    }
+  });
+
+  it('leaves an open arrow unfilled and a triangle filled', () => {
+    expect(arrowHeadShape('arrow', tip, from)!.filled).toBe(false);
+    expect(arrowHeadShape('triangle', tip, from)!.filled).toBe(true);
+  });
+
+  it('puts the circle head behind the tip, not centred on it', () => {
+    // Centred on the tip, half the disc would stick out past the line end.
+    const shape = arrowHeadShape('circle', tip, from)!;
+    expect(shape.circle!.c.x).toBeLessThan(tip.x);
+    expect(shape.circle!.c.x + shape.circle!.r).toBeCloseTo(tip.x, 5);
+  });
+
+  it('builds the head around the line direction, not the axes', () => {
+    // A head on a diagonal line must lean with it.
+    const diagonal = arrowHeadShape('triangle', { x: 50, y: 50 }, { x: 0, y: 0 })!;
+    const flat = arrowHeadShape('triangle', tip, from)!;
+    expect(diagonal.points[0]!.y).not.toBeCloseTo(flat.points[0]!.y, 1);
   });
 });

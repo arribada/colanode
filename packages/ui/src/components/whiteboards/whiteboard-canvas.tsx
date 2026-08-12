@@ -65,6 +65,7 @@ import {
   usePresences,
   usePresencePublisher,
 } from '@colanode/ui/hooks/use-presence';
+import { readCustomColors } from '@colanode/ui/lib/board/custom-colors';
 import {
   createElement,
   createElementId,
@@ -204,6 +205,13 @@ type Interaction =
       before: BoardScene;
     }
   | { mode: 'connector-bend'; id: string; index: number; before: BoardScene }
+  // Dragging one END of an existing connector to re-attach it.
+  | {
+      mode: 'connector-endpoint';
+      id: string;
+      end: 'from' | 'to';
+      before: BoardScene;
+    }
   | {
       mode: 'connector-segment';
       id: string;
@@ -483,6 +491,7 @@ export const WhiteboardCanvas = ({
         it.mode === 'create' ||
         it.mode === 'connector' ||
         it.mode === 'connector-bend' ||
+        it.mode === 'connector-endpoint' ||
         it.mode === 'connector-segment' ||
         it.mode === 'pen'
       ) {
@@ -1462,6 +1471,22 @@ export const WhiteboardCanvas = ({
       }
     }
 
+    // connector END handle: drag either end onto another shape to re-attach.
+    const endHandleEl = target.closest('[data-connector-end]');
+    if (endHandleEl && selectionRef.current.length === 1) {
+      const id = selectionRef.current[0]!;
+      const el = sceneRef.current[id];
+      if (el && el.type === 'connector' && !isLockedForMe(id)) {
+        interactionRef.current = {
+          mode: 'connector-endpoint',
+          id,
+          end: endHandleEl.getAttribute('data-connector-end') as 'from' | 'to',
+          before: cloneScene(sceneRef.current),
+        };
+        return;
+      }
+    }
+
     // connector reshape handle: drag the elbow corner / curve control point.
     const bendHandleEl = target.closest('[data-connector-handle]');
     if (bendHandleEl && selectionRef.current.length === 1) {
@@ -1937,6 +1962,40 @@ export const WhiteboardCanvas = ({
         applyLocal(next);
         break;
       }
+      case 'connector-endpoint': {
+        const el = sceneRef.current[it.id];
+        if (!el) {
+          break;
+        }
+        const target = elementAt(p, { shapesOnly: true });
+        // Re-attaching keeps the exact drop position on the border, the same
+        // as drawing a new connector does.
+        const anchor = target
+          ? fractionalAnchor(elementRect(target), p)
+          : undefined;
+        const points = (el.points ?? [[0, 0], [0, 0]]).map((pt) => [...pt]);
+        if (it.end === 'from') {
+          points[0] = [p.x, p.y];
+        } else {
+          points[points.length - 1] = [p.x, p.y];
+        }
+        const next = {
+          ...sceneRef.current,
+          [it.id]: {
+            ...el,
+            points,
+            connector: {
+              ...el.connector,
+              ...(it.end === 'from'
+                ? { fromId: target?.id, fromAnchor: anchor }
+                : { toId: target?.id, toAnchor: anchor }),
+            },
+          },
+        };
+        applyLocal(next);
+        schedulePersist([it.id]);
+        break;
+      }
       case 'connector-bend': {
         const el = sceneRef.current[it.id];
         if (!el) {
@@ -2321,9 +2380,25 @@ export const WhiteboardCanvas = ({
         }
         return;
       }
+      if (meta && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        toggleLockSelection();
+        return;
+      }
       if (meta && (e.key === ']' || e.key === '[')) {
         e.preventDefault();
         reorderSelection(e.key === ']');
+        return;
+      }
+      // 1-8 apply your own saved colours: plain for the fill, Shift for the
+      // stroke. Bare digits are free — the view shortcuts all take Ctrl.
+      if (!meta && /^[1-8]$/.test(e.key)) {
+        const palette = readCustomColors();
+        const color = palette[Number(e.key) - 1];
+        if (color) {
+          e.preventDefault();
+          onStyleChange(e.shiftKey ? { stroke: color } : { fill: color });
+        }
         return;
       }
       const map: Record<string, BoardTool> = {
@@ -2773,6 +2848,12 @@ export const WhiteboardCanvas = ({
       if (patch.textColor !== undefined) {
         nextStyle.color = patch.textColor;
       }
+      if (patch.textAlign !== undefined) {
+        nextStyle.textAlign = patch.textAlign;
+      }
+      if (patch.verticalAlign !== undefined) {
+        nextStyle.verticalAlign = patch.verticalAlign;
+      }
       if (patch.opacity !== undefined) {
         nextStyle.opacity = patch.opacity;
       }
@@ -2870,6 +2951,15 @@ export const WhiteboardCanvas = ({
   const slideRef = useRef<number | null>(null);
   const presenting = slide !== null;
   const [miroImportOpen, setMiroImportOpen] = useState(false);
+
+  // Right-click on empty canvas. Holds the SCENE point as well as the screen
+  // one, so "paste here" and "add here" land where the click was, not in the
+  // middle of the view.
+  const [canvasMenu, setCanvasMenu] = useState<{
+    x: number;
+    y: number;
+    scene: Point;
+  } | null>(null);
 
   // Outline for the NEXT shape drawn. Kept in a ref as well, because the
   // pointer handler that creates the element runs from a stale closure.
@@ -3028,6 +3118,49 @@ export const WhiteboardCanvas = ({
     );
     return sceneRef.current[id ?? '']?.connector?.jumps ?? false;
   })();
+
+  // Head shapes of the first selected connector, read through the same
+  // fallback the renderer uses so the toolbar shows what is actually drawn.
+  const connectorHeads = (() => {
+    const id = manipulableIds(selectionRef.current).find(
+      (i) => sceneRef.current[i]?.type === 'connector'
+    );
+    const c = id ? sceneRef.current[id]?.connector : undefined;
+    return {
+      start: c?.arrowStartType ?? (c?.arrowStart ? 'triangle' : 'none'),
+      end: c?.arrowEndType ?? (c?.arrowEnd === false ? 'none' : 'triangle'),
+    };
+  })();
+
+  const onConnectorHeads = (heads: { start: string; end: string }) => {
+    const ids = manipulableIds(selectionRef.current).filter(
+      (id) => sceneRef.current[id]?.type === 'connector'
+    );
+    if (ids.length === 0) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current };
+    for (const id of ids) {
+      const el = next[id];
+      if (!el) {
+        continue;
+      }
+      next[id] = {
+        ...el,
+        connector: {
+          ...el.connector,
+          arrowStartType: heads.start as 'none' | 'arrow' | 'triangle' | 'circle' | 'diamond',
+          arrowEndType: heads.end as 'none' | 'arrow' | 'triangle' | 'circle' | 'diamond',
+          // Keep the booleans in step so an older client still draws
+          // something sensible.
+          arrowStart: heads.start !== 'none',
+          arrowEnd: heads.end !== 'none',
+        },
+      };
+    }
+    commit(before, next, ids);
+  };
 
   const onConnectorJumps = (jumps: boolean) => {
     const ids = manipulableIds(selectionRef.current).filter(
@@ -3504,7 +3637,23 @@ export const WhiteboardCanvas = ({
             placeClickElement('text', p);
           }
         }}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // Only for the bare canvas: a right-click on an element is already
+          // handled by that element's own menu.
+          const target = e.target as Element;
+          if (target.closest('[data-el-id]')) {
+            return;
+          }
+          if (!canEdit) {
+            return;
+          }
+          setCanvasMenu({
+            x: e.clientX,
+            y: e.clientY,
+            scene: clientToScene(e.clientX, e.clientY),
+          });
+        }}
       >
         <defs>
           {/* Screen space, NOT board space. The cell is the grid step times
@@ -3835,6 +3984,32 @@ export const WhiteboardCanvas = ({
                   strokeDasharray="6 4"
                 />
               );
+            })()}
+
+          {/* The two ENDS of the selected connector. Without these an arrow
+              attached to the wrong shape had to be deleted and drawn again. */}
+          {singleConnector &&
+            (() => {
+              const { start, end } = resolveConnectorEndpoints(
+                singleConnector,
+                scene
+              );
+              return (['from', 'to'] as const).map((which) => {
+                const sp = sceneToClient(which === 'from' ? start : end);
+                return (
+                  <circle
+                    key={which}
+                    data-connector-end={which}
+                    cx={sp.x}
+                    cy={sp.y}
+                    r={6}
+                    fill="#fff"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    style={{ cursor: 'crosshair' }}
+                  />
+                );
+              });
             })()}
 
           {/* connector reshape handle: drag to move the elbow corner / curve
@@ -4358,6 +4533,8 @@ export const WhiteboardCanvas = ({
         onConnectorArrows={onConnectorArrows}
         connectorJumps={connectorJumps}
         onConnectorJumps={onConnectorJumps}
+        connectorHeads={connectorHeads}
+        onConnectorHeads={onConnectorHeads}
         mindmapDirection={mindmapDirection}
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}
@@ -4708,6 +4885,111 @@ export const WhiteboardCanvas = ({
             </div>
           );
         })()}
+
+      {canvasMenu && (
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 z-[60] cursor-default"
+            onClick={() => setCanvasMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setCanvasMenu(null);
+            }}
+          />
+          <div
+            className="fixed z-[61] w-56 rounded-lg border border-border bg-background p-1 shadow-xl"
+            style={{ left: canvasMenu.x, top: canvasMenu.y }}
+          >
+            {[
+              {
+                label: 'Sticky note',
+                run: () => placeClickElement('sticky', canvasMenu.scene),
+              },
+              {
+                label: 'Text',
+                run: () => placeClickElement('text', canvasMenu.scene),
+              },
+              {
+                label: 'Mind map',
+                run: () => placeClickElement('mindmap', canvasMenu.scene),
+              },
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  setCanvasMenu(null);
+                  item.run();
+                }}
+                className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+              >
+                {item.label}
+              </button>
+            ))}
+
+            <div className="my-1 h-px bg-border" />
+
+            <button
+              type="button"
+              disabled={clipboardRef.current.length === 0}
+              onClick={() => {
+                setCanvasMenu(null);
+                pointerSceneRef.current = canvasMenu.scene;
+                pasteClipboard();
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-40"
+            >
+              Paste here
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCanvasMenu(null);
+                setSelection(Object.keys(sceneRef.current));
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              Select everything
+            </button>
+
+            <div className="my-1 h-px bg-border" />
+
+            <button
+              type="button"
+              onClick={() => {
+                setCanvasMenu(null);
+                fitToContent();
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              Fit everything on screen
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCanvasMenu(null);
+                startPresenting();
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              Present the frames
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCanvasMenu(null);
+                setShortcutsOpen(true);
+              }}
+              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              Keyboard shortcuts
+              <span className="text-xs text-muted-foreground">?</span>
+            </button>
+          </div>
+        </>
+      )}
 
       <BoardShortcutsDialog
         open={shortcutsOpen}

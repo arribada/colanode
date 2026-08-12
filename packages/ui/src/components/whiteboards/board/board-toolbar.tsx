@@ -45,6 +45,10 @@ import {
   PopoverTrigger,
 } from '@colanode/ui/components/ui/popover';
 import {
+  readCustomColors,
+  rememberCustomColor,
+} from '@colanode/ui/lib/board/custom-colors';
+import {
   FRAME_PRESETS,
   SHAPE_FILLS,
   TEXT_COLORS,
@@ -71,6 +75,14 @@ interface ToolDef {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }
+
+const ARROW_HEADS: { value: string; label: string; mark: string }[] = [
+  { value: 'none', label: 'No head', mark: '—' },
+  { value: 'arrow', label: 'Open arrow', mark: '\u2192' },
+  { value: 'triangle', label: 'Filled triangle', mark: '\u25b6' },
+  { value: 'circle', label: 'Disc', mark: '\u25cf' },
+  { value: 'diamond', label: 'Diamond', mark: '\u25c6' },
+];
 
 // Once-a-session actions, in the order they are reached for.
 const BOARD_ACTIONS: {
@@ -174,6 +186,39 @@ const ColorInput = ({
     className="size-6 cursor-pointer rounded-full border border-black/10 bg-transparent p-0"
   />
 );
+
+/** The colours the user mixed, offered in every picker. */
+const CustomPalette = ({
+  colors,
+  active,
+  hint,
+  onPick,
+}: {
+  colors: string[];
+  active?: string;
+  hint?: string;
+  onPick: (hex: string) => void;
+}) => {
+  if (colors.length === 0) {
+    return null;
+  }
+  return (
+    <div className="flex items-center gap-1.5 border-t border-border pt-2">
+      <span className="text-xs text-muted-foreground">Yours</span>
+      {colors.map((color) => (
+        <Swatch
+          key={color}
+          color={color}
+          active={active === color}
+          onClick={() => onPick(color)}
+        />
+      ))}
+      {hint && (
+        <span className="pl-1 text-[10px] text-muted-foreground">{hint}</span>
+      )}
+    </div>
+  );
+};
 
 interface StyleGroupProps {
   id: string;
@@ -338,6 +383,8 @@ interface BoardToolbarProps {
   onConnectorArrows: (arrows: { start: boolean; end: boolean }) => void;
   connectorJumps: boolean;
   onConnectorJumps: (jumps: boolean) => void;
+  connectorHeads: { start: string; end: string };
+  onConnectorHeads: (heads: { start: string; end: string }) => void;
   // Direction of the selected mind map, or null when none is selected.
   mindmapDirection: 'right' | 'left' | 'down' | 'up' | null;
   onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
@@ -390,6 +437,8 @@ export const BoardToolbar = ({
   onConnectorArrows,
   connectorJumps,
   onConnectorJumps,
+  connectorHeads,
+  onConnectorHeads,
   mindmapDirection,
   onMindmapDirection,
   onFramePreset,
@@ -410,6 +459,12 @@ export const BoardToolbar = ({
   const [openStyleGroup, setOpenStyleGroup] = useState<string | null>(
     null
   );
+  // The user's own colours, shown in every colour picker. Read once and kept
+  // in state so picking one updates all three pickers at the same time.
+  const [customColors, setCustomColors] = useState<string[]>(() =>
+    readCustomColors()
+  );
+  const keepColor = (hex: string) => setCustomColors(rememberCustomColor(hex));
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [boardMenu, setBoardMenu] = useState(false);
   const boardMenuWrapRef = useRef<HTMLDivElement>(null);
@@ -878,6 +933,42 @@ export const BoardToolbar = ({
                     &#8901;&#8255;&#8901;
                   </button>
                 </div>
+
+                {/* Each end's head is chosen separately, so a line can be
+                    plain at one end and pointed at the other, or pointed at
+                    both. */}
+                {(
+                  [
+                    ['start', 'Start'],
+                    ['end', 'End'],
+                  ] as const
+                ).map(([which, label]) => (
+                  <div key={which} className="flex items-center gap-1">
+                    <span className="w-10 text-xs text-muted-foreground">
+                      {label}
+                    </span>
+                    {ARROW_HEADS.map((head) => (
+                      <button
+                        key={head.value}
+                        type="button"
+                        title={head.label}
+                        onClick={() =>
+                          onConnectorHeads({
+                            ...connectorHeads,
+                            [which]: head.value,
+                          })
+                        }
+                        className={cn(
+                          'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                          connectorHeads[which] === head.value &&
+                            'bg-primary/10 text-primary'
+                        )}
+                      >
+                        {head.mark}
+                      </button>
+                    ))}
+                  </div>
+                ))}
               </div>
             </StyleGroup>
           )}
@@ -1029,13 +1120,25 @@ export const BoardToolbar = ({
                   isStickyContext ? 'Custom note color' : 'Custom fill color'
                 }
                 value={asHexColor(activeFill, '#ffffff')}
-                onChange={(hex) =>
+                onChange={(hex) => {
+                  keepColor(hex);
                   onStyleChange(
                     isStickyContext ? { stickyColor: hex } : { fill: hex }
-                  )
-                }
+                  );
+                }}
               />
             </div>
+
+            <CustomPalette
+              colors={customColors}
+              active={activeFill}
+              hint="1 – 8"
+              onPick={(hex) =>
+                onStyleChange(
+                  isStickyContext ? { stickyColor: hex } : { fill: hex }
+                )
+              }
+            />
           </StyleGroup>
 
           <StyleGroup
@@ -1058,8 +1161,70 @@ export const BoardToolbar = ({
                 <ColorInput
                   title="Custom text color"
                   value={asHexColor(style.textColor, '#1f2937')}
-                  onChange={(hex) => onStyleChange({ textColor: hex })}
+                  onChange={(hex) => {
+                    keepColor(hex);
+                    onStyleChange({ textColor: hex });
+                  }}
                 />
+              </div>
+
+              <CustomPalette
+                colors={customColors}
+                active={style.textColor}
+                onPick={(hex) => onStyleChange({ textColor: hex })}
+              />
+
+              <div className="flex items-center gap-1">
+                <span className="pr-1 text-xs text-muted-foreground">
+                  Align
+                </span>
+                {(
+                  [
+                    ['left', 'Left'],
+                    ['center', 'Centre'],
+                    ['right', 'Right'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    title={label}
+                    onClick={() => onStyleChange({ textAlign: value })}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      style.textAlign === value && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <span className="pr-1 text-xs text-muted-foreground">
+                  Vertical
+                </span>
+                {(
+                  [
+                    ['top', 'Top'],
+                    ['middle', 'Middle'],
+                    ['bottom', 'Bottom'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    title={label}
+                    onClick={() => onStyleChange({ verticalAlign: value })}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      style.verticalAlign === value &&
+                        'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
               {fontControlsVisible && (
@@ -1125,9 +1290,19 @@ export const BoardToolbar = ({
                 <ColorInput
                   title="Custom stroke color"
                   value={asHexColor(style.stroke, '#334155')}
-                  onChange={(hex) => onStyleChange({ stroke: hex })}
+                  onChange={(hex) => {
+                    keepColor(hex);
+                    onStyleChange({ stroke: hex });
+                  }}
                 />
               </div>
+
+              <CustomPalette
+                colors={customColors}
+                active={style.stroke}
+                hint="Shift + 1 – 8"
+                onPick={(hex) => onStyleChange({ stroke: hex })}
+              />
 
               <div className="flex items-center gap-1">
                 {STROKE_WIDTHS.map((w) => (
@@ -1161,6 +1336,27 @@ export const BoardToolbar = ({
                     {s}
                   </button>
                 ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* The four presets cover most lines; this is for the ones
+                    they do not. */}
+                <span className="text-xs text-muted-foreground">Exact</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={40}
+                  step={1}
+                  value={style.strokeWidth}
+                  aria-label="Stroke width"
+                  onChange={(e) =>
+                    onStyleChange({ strokeWidth: Number(e.target.value) })
+                  }
+                  className="h-1.5 w-32 cursor-pointer accent-primary"
+                />
+                <span className="min-w-8 text-right text-xs tabular-nums text-muted-foreground">
+                  {style.strokeWidth}px
+                </span>
               </div>
             </div>
           </StyleGroup>

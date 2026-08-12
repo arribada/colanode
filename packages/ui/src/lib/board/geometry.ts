@@ -734,6 +734,79 @@ export const nearestSegmentIndex = (pts: Point[], p: Point): number => {
   return best;
 };
 
+export type ArrowHead = 'none' | 'arrow' | 'triangle' | 'circle' | 'diamond';
+
+export interface ArrowHeadShape {
+  /** Polygon or polyline points, empty for a circle. */
+  points: Point[];
+  /** Set for a circle head: centre and radius. */
+  circle?: { c: Point; r: number };
+  /** An open 'arrow' is two strokes, not a filled shape. */
+  filled: boolean;
+}
+
+/**
+ * Geometry for one arrowhead.
+ *
+ * Every head is built around the same axis — the direction from `from` to
+ * `tip` — so a head sits correctly on a straight, elbowed or curved line
+ * without the caller knowing which.
+ */
+export const arrowHeadShape = (
+  kind: ArrowHead,
+  tip: Point,
+  from: Point,
+  size = 13
+): ArrowHeadShape | null => {
+  if (kind === 'none') {
+    return null;
+  }
+  const dx = tip.x - from.x;
+  const dy = tip.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  // Perpendicular, for the width of the head.
+  const px = -uy;
+  const py = ux;
+  const back = { x: tip.x - ux * size, y: tip.y - uy * size };
+  const half = size * 0.42;
+
+  if (kind === 'circle') {
+    const r = size * 0.38;
+    return {
+      points: [],
+      circle: { c: { x: tip.x - ux * r, y: tip.y - uy * r }, r },
+      filled: true,
+    };
+  }
+
+  if (kind === 'diamond') {
+    const mid = { x: tip.x - ux * (size / 2), y: tip.y - uy * (size / 2) };
+    return {
+      points: [
+        tip,
+        { x: mid.x + px * half, y: mid.y + py * half },
+        back,
+        { x: mid.x - px * half, y: mid.y - py * half },
+      ],
+      filled: true,
+    };
+  }
+
+  const wings = [
+    { x: back.x + px * half, y: back.y + py * half },
+    { x: back.x - px * half, y: back.y - py * half },
+  ];
+
+  if (kind === 'arrow') {
+    // Open head: the two wings drawn back from the tip, not a filled shape.
+    return { points: [wings[0]!, tip, wings[1]!], filled: false };
+  }
+
+  return { points: [wings[0]!, tip, wings[1]!], filled: true };
+};
+
 /**
  * Arrowhead as a triangle polygon at `tip`, pointing away from `from`.
  * Returns the three polygon points.

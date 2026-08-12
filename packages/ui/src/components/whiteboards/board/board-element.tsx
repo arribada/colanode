@@ -9,7 +9,9 @@ import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import {
   anchoredCurveControls,
-  arrowHeadPoints,
+  ArrowHead,
+  arrowHeadShape,
+  ArrowHeadShape,
   buildConnectorPath,
   connectorArrowFrom,
   connectorBendPoints,
@@ -123,13 +125,28 @@ const Label = ({ element, align = 'center', padding = 10 }: LabelProps) => {
   const lines = wrapText(text, maxWidth, fontSize);
   const lineHeight = fontSize * 1.25;
   const totalHeight = lines.length * lineHeight;
-  const centerY = element.y + element.h / 2;
+
+  // `align` is the element type's default; an explicit choice overrides it.
+  const h = element.style.textAlign ?? (align === 'center' ? 'center' : 'left');
+  const v =
+    element.style.verticalAlign ?? (align === 'center' ? 'middle' : 'top');
+
   const startY =
-    align === 'center'
-      ? centerY - totalHeight / 2 + fontSize
-      : element.y + padding + fontSize;
+    v === 'middle'
+      ? element.y + element.h / 2 - totalHeight / 2 + fontSize
+      : v === 'bottom'
+        ? element.y + element.h - padding - totalHeight + fontSize
+        : element.y + padding + fontSize;
+
   const anchorX =
-    align === 'center' ? element.x + element.w / 2 : element.x + padding;
+    h === 'center'
+      ? element.x + element.w / 2
+      : h === 'right'
+        ? element.x + element.w - padding
+        : element.x + padding;
+
+  const textAnchor =
+    h === 'center' ? 'middle' : h === 'right' ? 'end' : 'start';
 
   return (
     <text
@@ -138,7 +155,7 @@ const Label = ({ element, align = 'center', padding = 10 }: LabelProps) => {
       fill={color}
       fontSize={fontSize}
       fontWeight={fontWeight}
-      textAnchor={align === 'center' ? 'middle' : 'start'}
+      textAnchor={textAnchor}
       fontFamily="Inter, system-ui, sans-serif"
       style={{ userSelect: 'none' }}
     >
@@ -399,6 +416,42 @@ const crossableRoutes = (self: BoardElement, scene: BoardScene): Point[][] => {
   return routes;
 };
 
+/** One arrowhead: a disc, a filled shape, or two open strokes. */
+const ArrowHeadMark = ({
+  shape,
+  color,
+}: {
+  shape: ArrowHeadShape | null;
+  color: string;
+}) => {
+  if (!shape) {
+    return null;
+  }
+  if (shape.circle) {
+    return (
+      <circle
+        cx={shape.circle.c.x}
+        cy={shape.circle.c.y}
+        r={shape.circle.r}
+        fill={color}
+      />
+    );
+  }
+  if (!shape.filled) {
+    return (
+      <polyline
+        points={pointsToSvg(shape.points)}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    );
+  }
+  return <polygon points={pointsToSvg(shape.points)} fill={color} />;
+};
+
 export const BoardElementView = ({
   element,
   scene,
@@ -460,8 +513,14 @@ export const BoardElementView = ({
       tailFrom = wpts[1] ?? end;
       mid = connectorHandlePoint(routing, start, end, bends);
     }
-    const head = arrowHeadPoints(end, headFrom, 13);
-    const tail = arrowHeadPoints(start, tailFrom, 13);
+    // A head type of undefined falls back to the old booleans, so every
+    // existing connector keeps exactly the head it had.
+    const endKind: ArrowHead =
+      c.arrowEndType ?? (c.arrowEnd === false ? 'none' : 'triangle');
+    const startKind: ArrowHead =
+      c.arrowStartType ?? (c.arrowStart ? 'triangle' : 'none');
+    const head = arrowHeadShape(endKind, end, headFrom, 13);
+    const tail = arrowHeadShape(startKind, start, tailFrom, 13);
     const labelWidth = c.label ? Math.max(24, c.label.length * 7 + 12) : 0;
     return (
       <g opacity={opacity}>
@@ -474,12 +533,8 @@ export const BoardElementView = ({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {c.arrowEnd !== false && (
-          <polygon points={pointsToSvg(head)} fill={style.stroke ?? '#334155'} />
-        )}
-        {c.arrowStart && (
-          <polygon points={pointsToSvg(tail)} fill={style.stroke ?? '#334155'} />
-        )}
+        <ArrowHeadMark shape={head} color={style.stroke ?? '#334155'} />
+        <ArrowHeadMark shape={tail} color={style.stroke ?? '#334155'} />
         {c.label && (
           <g style={{ userSelect: 'none' }}>
             <rect
