@@ -26,6 +26,7 @@ import {
   Trash2,
   Type,
   Undo2,
+  Upload,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -214,6 +215,7 @@ interface BoardToolbarProps {
   onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
   // Drops a correctly proportioned frame in the middle of the view.
   onFramePreset: (preset: { w: number; h: number; label: string }) => void;
+  onMiroImport: () => void;
 }
 
 export const BoardToolbar = ({
@@ -252,6 +254,7 @@ export const BoardToolbar = ({
   mindmapDirection,
   onMindmapDirection,
   onFramePreset,
+  onMiroImport,
 }: BoardToolbarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [templateMenu, setTemplateMenu] = useState(false);
@@ -294,6 +297,10 @@ export const BoardToolbar = ({
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
       <div className="pointer-events-auto flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+        <ToolbarButton title="Import a Miro board" onClick={onMiroImport}>
+          <Upload className="size-4" />
+        </ToolbarButton>
+
         <ToolbarButton
           title={collapsed ? 'Show tools' : 'Hide tools'}
           onClick={() => setCollapsed((c) => !c)}

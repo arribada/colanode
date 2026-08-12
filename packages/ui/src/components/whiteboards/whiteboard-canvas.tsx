@@ -58,6 +58,7 @@ import {
   ConnectorRouting,
   DEFAULT_BOARD_STYLE,
 } from '@colanode/ui/components/whiteboards/board/board-types';
+import { BoardMiroImportDialog } from '@colanode/ui/components/whiteboards/board/board-miro-import';
 import { BoardShortcutsDialog } from '@colanode/ui/components/whiteboards/board/board-shortcuts';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
@@ -2680,6 +2681,7 @@ export const WhiteboardCanvas = ({
   };
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [miroImportOpen, setMiroImportOpen] = useState(false);
 
   // Last pointer position in scene coordinates, so a keyboard paste can land
   // where the user is looking rather than always in the middle.
@@ -4059,6 +4061,7 @@ export const WhiteboardCanvas = ({
         mindmapDirection={mindmapDirection}
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}
+        onMiroImport={() => setMiroImportOpen(true)}
         onComment={() => {
           const id = selection[0];
           if (id) {
@@ -4355,6 +4358,15 @@ export const WhiteboardCanvas = ({
       <BoardShortcutsDialog
         open={shortcutsOpen}
         onOpenChange={setShortcutsOpen}
+      />
+
+      <BoardMiroImportDialog
+        open={miroImportOpen}
+        onOpenChange={setMiroImportOpen}
+        // The converted elements already carry fresh ids and correct internal
+        // links, so they go in through the same path as a template: dropped at
+        // the viewport centre, selected, one undo step.
+        onImport={(elements) => insertElements(elements)}
       />
     </div>
   );
