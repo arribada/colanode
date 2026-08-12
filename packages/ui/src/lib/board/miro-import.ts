@@ -13,6 +13,10 @@ export interface MiroItem {
     content?: string;
     shape?: string;
     title?: string;
+    // Mind-map nodes keep their text one level down, and only on the
+    // experimental endpoint — /items returns them with no content at all.
+    isRoot?: boolean;
+    nodeView?: { data?: { content?: string } };
   };
   style?: Record<string, string>;
   geometry?: { width?: number; height?: number; rotation?: number };
@@ -351,6 +355,23 @@ export const convertMiroBoard = (
         }
         break;
       }
+      case 'mindmap_node': {
+        el = createElement({
+          type: 'mindmap',
+          x,
+          y,
+          w: box.w,
+          h: box.h,
+          z,
+          text: miroTextToPlain(
+            item.data?.nodeView?.data?.content ?? item.data?.content
+          ),
+        });
+        // Linked below, once every node has an id to point at: a child can
+        // appear before its parent in the export.
+        el.mindmap = {};
+        break;
+      }
       case 'divider': {
         // A rule, not a link: kept as a plain two-point line so the layout
         // still reads, but with no endpoints to attach to.
@@ -397,6 +418,27 @@ export const convertMiroBoard = (
     idMap[item.id] = el.id;
     scene[el.id] = el;
     bump(report.created, el.type);
+  }
+
+  // Mind-map parents, wired after the fact. A non-root node's `parent.id` is
+  // its mind-map parent (a root's is the frame it sits in), and children can
+  // appear before their parents, so the links can only be made once every
+  // node has an id.
+  for (const item of ordered) {
+    if (item.type !== 'mindmap_node') {
+      continue;
+    }
+    const selfId = idMap[item.id];
+    const parentId = item.parent?.id ? idMap[item.parent.id] : undefined;
+    const el = selfId ? scene[selfId] : undefined;
+    if (!el || !parentId) {
+      continue;
+    }
+    // Only when the parent really is another mind-map node: a root points at
+    // its frame, and making a frame the tree parent would break every walk.
+    if (scene[parentId]?.type === 'mindmap') {
+      el.mindmap = { ...el.mindmap, parentId };
+    }
   }
 
   for (const c of connectors) {

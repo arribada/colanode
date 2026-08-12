@@ -191,3 +191,66 @@ describe('parseMiroExport', () => {
     expect(() => parseMiroExport('{"nothing":true}')).toThrow(/No Miro items/);
   });
 });
+
+describe('mind-map nodes', () => {
+  const node = (
+    id: string,
+    parent: string,
+    content: string,
+    isRoot = false
+  ): MiroItem => ({
+    id,
+    type: 'mindmap_node',
+    data: { isRoot, nodeView: { data: { content: `<p>${content}</p>` } } },
+    geometry: { width: 180, height: 60 },
+    position: { x: 500, y: 300 },
+    parent: { id: parent },
+  });
+
+  it('takes the text from nodeView, where the experimental endpoint puts it', () => {
+    const { scene } = convertMiroBoard([node('n1', 'frame1', 'Hardware', true)]);
+    const el = Object.values(scene)[0]!;
+    expect(el.type).toBe('mindmap');
+    expect(el.text).toBe('Hardware');
+  });
+
+  it('rebuilds the tree, even when a child comes before its parent', () => {
+    const items = [
+      node('child', 'root', 'Linkit V4'),
+      node('root', 'frame1', 'Hardware', true),
+    ];
+    const { scene } = convertMiroBoard(items);
+    const els = Object.values(scene);
+    const root = els.find((e) => e.text === 'Hardware')!;
+    const child = els.find((e) => e.text === 'Linkit V4')!;
+    expect(child.mindmap?.parentId).toBe(root.id);
+    expect(root.mindmap?.parentId).toBeUndefined();
+  });
+
+  it('never makes a frame the tree parent', () => {
+    // A root's parent is the FRAME it sits in. Pointing the tree at a frame
+    // would break every walk over it — layout, hidden ids, edges.
+    const items: MiroItem[] = [
+      {
+        id: 'frame1',
+        type: 'frame',
+        data: { title: 'Hardware list' },
+        geometry: { width: 900, height: 600 },
+        position: { x: 450, y: 300 },
+      },
+      node('root', 'frame1', 'Hardware', true),
+    ];
+    const { scene } = convertMiroBoard(items);
+    const root = Object.values(scene).find((e) => e.type === 'mindmap')!;
+    expect(root.mindmap?.parentId).toBeUndefined();
+    // it still belongs to the frame, just not as a tree parent
+    const frame = Object.values(scene).find((e) => e.type === 'frame')!;
+    expect(root.frameId).toBe(frame.id);
+  });
+
+  it('counts mind-map nodes as created, not skipped', () => {
+    const { report } = convertMiroBoard([node('n1', 'f', 'A', true)]);
+    expect(report.created.mindmap).toBe(1);
+    expect(report.skipped).toEqual({});
+  });
+});
