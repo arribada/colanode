@@ -97,6 +97,9 @@ export const boardElementStyleSchema = z.object({
   fontAuto: z.boolean().optional(),
   color: z.string().optional(),
   fontWeight: z.string().optional(),
+  // 'mono' renders the label in a monospace face with its spacing kept, which
+  // is what makes pasted code readable. Absent = the board's normal face.
+  fontFamily: z.enum(['sans', 'mono']).optional(),
   // Where the label sits in the element's box. Absent keeps the old
   // behaviour, which was centred for shapes and top-left for sticky notes.
   textAlign: z.enum(['left', 'center', 'right']).optional(),

@@ -1594,6 +1594,17 @@ export const WhiteboardCanvas = ({
       return;
     }
 
+    // The format painter consumes the click: with a style on the brush, a
+    // click paints rather than selects.
+    if (elEl && styleBrushRef.current && canEdit) {
+      const id = elEl.getAttribute('data-el-id')!;
+      if (applyStyleBrush(id)) {
+        // Stays loaded, so a run of elements can be painted one after the
+        // other. Escape or the toolbar button puts it down.
+        return;
+      }
+    }
+
     // Drag a whole SEGMENT of the already-selected connector. The bend
     // handles above move a corner and skew both segments meeting there; Miro
     // slides the segment along its normal instead, which is what keeps an
@@ -2289,7 +2300,13 @@ export const WhiteboardCanvas = ({
       // Presentation owns the arrow keys and Escape while it is running, so
       // it is handled before anything else can claim them.
       if (slideRef.current !== null) {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && styleBrushRef.current) {
+        e.preventDefault();
+        styleBrushRef.current = null;
+        setStyleBrush(null);
+        return;
+      }
+      if (e.key === 'Escape') {
           e.preventDefault();
           stopPresenting();
           return;
@@ -2875,6 +2892,9 @@ export const WhiteboardCanvas = ({
       if (patch.textColor !== undefined) {
         nextStyle.color = patch.textColor;
       }
+      if (patch.fontFamily !== undefined) {
+        nextStyle.fontFamily = patch.fontFamily;
+      }
       if (patch.textAlign !== undefined) {
         nextStyle.textAlign = patch.textAlign;
       }
@@ -2929,6 +2949,51 @@ export const WhiteboardCanvas = ({
   };
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Format painter: the style lifted off one element, waiting to be dropped
+  // on others. Kept in a ref as well because the pointer handler that applies
+  // it runs from a stale closure.
+  const [styleBrush, setStyleBrush] = useState<BoardElementStyle | null>(null);
+  const styleBrushRef = useRef<BoardElementStyle | null>(null);
+
+  const pickUpStyle = () => {
+    const id = selectionRef.current[0];
+    const el = id ? sceneRef.current[id] : undefined;
+    if (!el) {
+      // Nothing selected: a second press puts the brush down again.
+      styleBrushRef.current = null;
+      setStyleBrush(null);
+      return;
+    }
+    // The whole look, not just the fill: copying a style by hand meant
+    // re-picking nine separate things.
+    const picked: BoardElementStyle = { ...el.style };
+    styleBrushRef.current = picked;
+    setStyleBrush(picked);
+  };
+
+  const applyStyleBrush = (id: string) => {
+    const brush = styleBrushRef.current;
+    const el = sceneRef.current[id];
+    if (!brush || !el || isLockedForMe(id) || el.locked) {
+      return false;
+    }
+    const before = cloneScene(sceneRef.current);
+    // A sticky keeps its own fill: a note painted with a shape's white would
+    // stop looking like a note at all.
+    const next = {
+      ...sceneRef.current,
+      [id]: {
+        ...el,
+        style: {
+          ...brush,
+          ...(el.type === 'sticky' ? { fill: el.style.fill } : {}),
+        },
+      },
+    };
+    commit(before, next, [id]);
+    return true;
+  };
 
   // Private mode. Kept in a ref too: the pointer handlers that build elements
   // run from a stale closure and would otherwise never see it turned on.
@@ -4574,6 +4639,8 @@ export const WhiteboardCanvas = ({
         onMiroImport={() => setMiroImportOpen(true)}
         onPresent={startPresenting}
         onEmoji={onEmoji}
+        styleBrushActive={styleBrush !== null}
+        onStyleBrush={pickUpStyle}
         privateMode={privateMode}
         onPrivateMode={togglePrivateMode}
         privateCount={privateElementIds.length}

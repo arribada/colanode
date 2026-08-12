@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   MousePointer2,
   Network,
+  Paintbrush,
   Pencil,
   Play,
   Printer,
@@ -393,6 +394,8 @@ interface BoardToolbarProps {
   onMiroImport: () => void;
   onPresent: () => void;
   onEmoji: (character: string) => void;
+  styleBrushActive: boolean;
+  onStyleBrush: () => void;
   privateMode: boolean;
   onPrivateMode: () => void;
   privateCount: number;
@@ -445,6 +448,8 @@ export const BoardToolbar = ({
   onMiroImport,
   onPresent,
   onEmoji,
+  styleBrushActive,
+  onStyleBrush,
   privateMode,
   onPrivateMode,
   privateCount,
@@ -782,6 +787,18 @@ export const BoardToolbar = ({
                 <LockOpen className="size-4" />
               )}
             </ToolbarButton>
+            <ToolbarButton
+              title={
+                styleBrushActive
+                  ? 'Style picked up — click elements to paint them (Esc to stop)'
+                  : 'Copy the style of the selected element'
+              }
+              active={styleBrushActive}
+              onClick={onStyleBrush}
+            >
+              <Paintbrush className="size-4" />
+            </ToolbarButton>
+
             <div className="relative" ref={templateWrapRef}>
               <ToolbarButton
                 title="Insert template"
@@ -1220,6 +1237,34 @@ export const BoardToolbar = ({
                       'rounded-md px-2 py-1 text-xs hover:bg-accent',
                       style.verticalAlign === value &&
                         'bg-primary/10 text-primary'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <span className="pr-1 text-xs text-muted-foreground">Face</span>
+                {(
+                  [
+                    ['sans', 'Normal'],
+                    ['mono', 'Code'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    title={
+                      value === 'mono'
+                        ? 'Monospace, with the spacing kept — for code'
+                        : 'The board\u2019s normal face'
+                    }
+                    onClick={() => onStyleChange({ fontFamily: value })}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-xs hover:bg-accent',
+                      style.fontFamily === value && 'bg-primary/10 text-primary',
+                      value === 'mono' && 'font-mono'
                     )}
                   >
                     {label}

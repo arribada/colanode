@@ -6,7 +6,6 @@ import { Document } from '@colanode/ui/components/documents/document';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
-import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import {
   anchoredCurveControls,
   ArrowHead,
@@ -25,6 +24,11 @@ import {
 } from '@colanode/ui/lib/board/geometry';
 import type { Point } from '@colanode/ui/lib/board/geometry';
 import { boardShapePath } from '@colanode/ui/lib/board/shapes';
+import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
+
+const SANS_FAMILY = 'Inter, system-ui, sans-serif';
+const MONO_FAMILY =
+  'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 // Rough monospace-ish average glyph width for greedy word wrapping. Exact
 // metrics are unnecessary — this only needs to look balanced on screen and
@@ -156,11 +160,22 @@ const Label = ({ element, align = 'center', padding = 10 }: LabelProps) => {
       fontSize={fontSize}
       fontWeight={fontWeight}
       textAnchor={textAnchor}
-      fontFamily="Inter, system-ui, sans-serif"
+      fontFamily={
+        element.style.fontFamily === 'mono' ? MONO_FAMILY : SANS_FAMILY
+      }
       style={{ userSelect: 'none' }}
     >
       {lines.map((line, i) => (
-        <tspan key={i} x={anchorX} dy={i === 0 ? 0 : lineHeight}>
+        <tspan
+          key={i}
+          x={anchorX}
+          dy={i === 0 ? 0 : lineHeight}
+          // Code lives on its leading spaces; SVG collapses them
+          // otherwise, and indentation is half of what makes it read.
+          xmlSpace={
+            element.style.fontFamily === 'mono' ? 'preserve' : undefined
+          }
+        >
           {line.length === 0 ? ' ' : line}
         </tspan>
       ))}

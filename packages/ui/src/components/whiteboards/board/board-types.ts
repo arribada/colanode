@@ -28,6 +28,7 @@ export interface BoardStyleState {
   // Colour of the element's own text. Separate from `stroke`, which had been
   // doing double duty as a text colour for text elements only.
   textColor: string;
+  fontFamily: 'sans' | 'mono';
   textAlign: 'left' | 'center' | 'right';
   verticalAlign: 'top' | 'middle' | 'bottom';
   opacity: number;
@@ -41,6 +42,7 @@ export const DEFAULT_BOARD_STYLE: BoardStyleState = {
   stickyColor: '#fff7ae',
   opacity: 1,
   textColor: '#1f2937',
+  fontFamily: 'sans',
   textAlign: 'center',
   verticalAlign: 'middle',
 };
