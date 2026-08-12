@@ -37,6 +37,7 @@ export const TableCellRenderer = ({
     >
       <div
         className={cn(
+          'h-full w-full',
           defaultClasses.tableCell,
           backgroundColor?.bgClass,
           align === 'left' && 'justify-start',

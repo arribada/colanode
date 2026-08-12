@@ -27,7 +27,7 @@ export const defaultClasses = {
   tableCellWrapper: 'border',
   tableCell: 'flex p-1 px-2 items-center',
   tableHeaderWrapper: 'border',
-  tableHeader: 'flex p-1 px-2 items-center font-semibold bg-muted',
+  tableHeader: 'flex p-1 px-2 items-center font-semibold',
   toggle: 'my-1 flex flex-row items-start gap-1',
   toggleButton:
     'mt-1.5 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent',

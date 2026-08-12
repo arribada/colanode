@@ -35,8 +35,9 @@ export const TableHeaderRenderer = ({
     >
       <div
         className={cn(
+          'h-full w-full',
           defaultClasses.tableHeader,
-          backgroundColor?.bgClass,
+          backgroundColor?.bgClass || 'bg-muted',
           align === 'left' && 'justify-start',
           align === 'center' && 'justify-center',
           align === 'right' && 'justify-end',

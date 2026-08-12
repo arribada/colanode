@@ -228,6 +228,17 @@ body.colanode-table-dragging * {
 
 /* Spreadsheet niceties for editor tables. */
 
+/* Give every cell a definite height (1px is always exceeded by real content) so
+   an inner element with height:100% stretches to the FULL row height -- which
+   grows to the tallest cell in the row. Without this the cell height is `auto`,
+   a percentage height collapses to the inner box's own text height, and a
+   per-cell background color leaves an uncolored strip when a sibling cell wraps
+   onto more lines. */
+.prose table td,
+.prose table th {
+  height: 1px;
+}
+
 /* Sticky header row: as a tall table scrolls past, its header cells stay pinned
    so column meaning is never lost. The header's inner cell keeps its bg-muted so
    body rows do not show through. Harmless for short tables (nothing scrolls). */

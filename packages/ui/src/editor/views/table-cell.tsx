@@ -106,7 +106,7 @@ export const TableCellNodeView = (props: NodeViewProps) => {
         <Resizable
           className={cn(
             defaultClasses.tableCell,
-            'relative',
+            'relative h-full',
             isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',
