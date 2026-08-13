@@ -59,6 +59,11 @@ const ListView = lazy(() =>
     (module) => ({ default: module.ListView })
   )
 );
+const TimelineView = lazy(() =>
+  import('@colanode/ui/components/databases/timelines/timeline-view').then(
+    (module) => ({ default: module.TimelineView })
+  )
+);
 const ChartView = lazy(() =>
   import('@colanode/ui/components/databases/charts/chart-view').then(
     (module) => ({ default: module.ChartView })
@@ -117,6 +122,7 @@ export const View = ({ view }: ViewProps) => {
         clearPersonal: scope.clearPersonal,
         groupBy: view.groupBy,
         chart: view.chart,
+        timeline: view.timeline,
         conditionalColors: view.conditionalColors ?? [],
         zebra: view.zebra ?? false,
         summaries: view.summaries ?? {},
@@ -331,6 +337,7 @@ export const View = ({ view }: ViewProps) => {
             .with('gallery', () => <GalleryView />)
             .with('list', () => <ListView />)
             .with('chart', () => <ChartView />)
+            .with('timeline', () => <TimelineView />)
             .exhaustive()}
         </Suspense>
       </div>

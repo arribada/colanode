@@ -17,6 +17,7 @@ describe('getDefaultViewFieldDisplay', () => {
       gallery: false,
       list: false,
       chart: false,
+      timeline: false,
     };
 
     for (const [layout, expected] of Object.entries(expectations)) {

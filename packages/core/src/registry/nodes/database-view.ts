@@ -116,10 +116,43 @@ export type DatabaseViewChartAttributes = z.infer<
   typeof databaseViewChartAttributesSchema
 >;
 
+// Timeline (Gantt) view config. Each record becomes a bar running from its
+// start date to its end date on a horizontal axis. Deliberately simpler than
+// Plane: no dependencies, no critical path, no resource levelling -- just
+// "when does each thing run, and what overlaps with what".
+export const databaseViewTimelineScaleSchema = z.enum(['day', 'week', 'month']);
+
+export type DatabaseViewTimelineScale = z.infer<
+  typeof databaseViewTimelineScaleSchema
+>;
+
+export const databaseViewTimelineAttributesSchema = z.object({
+  // Date field the bar starts at. Without it the view cannot draw anything
+  // and asks the user to pick one.
+  startFieldId: z.string().nullable().optional(),
+  // Date field the bar ends at. When absent, or empty on a given record, the
+  // bar is drawn as a single-day milestone at the start date.
+  endFieldId: z.string().nullable().optional(),
+  // Width of one column on the axis.
+  scale: databaseViewTimelineScaleSchema.optional().nullable(),
+});
+
+export type DatabaseViewTimelineAttributes = z.infer<
+  typeof databaseViewTimelineAttributesSchema
+>;
+
 export const databaseViewAttributesSchema = z.object({
   type: z.literal('database_view'),
   parentId: z.string(),
-  layout: z.enum(['table', 'board', 'calendar', 'gallery', 'list', 'chart']),
+  layout: z.enum([
+    'table',
+    'board',
+    'calendar',
+    'gallery',
+    'list',
+    'chart',
+    'timeline',
+  ]),
   name: z.string(),
   avatar: z.string().nullable().optional(),
   index: z.string(),
@@ -138,6 +171,7 @@ export const databaseViewAttributesSchema = z.object({
   groupBy: z.string().nullable().optional(),
   nameWidth: z.number().nullable().optional(),
   chart: databaseViewChartAttributesSchema.optional().nullable(),
+  timeline: databaseViewTimelineAttributesSchema.optional().nullable(),
   // OPTIONAL list of conditional-color rules. Absent on existing views.
   conditionalColors: z
     .array(databaseViewConditionalColorAttributesSchema)
@@ -155,7 +189,7 @@ export type DatabaseViewAttributes = z.infer<
   typeof databaseViewAttributesSchema
 >;
 export type DatabaseViewLayout =
-  'table' | 'board' | 'calendar' | 'gallery' | 'list' | 'chart';
+  'table' | 'board' | 'calendar' | 'gallery' | 'list' | 'chart' | 'timeline';
 
 export const databaseViewModel: NodeModel = {
   type: 'database_view',

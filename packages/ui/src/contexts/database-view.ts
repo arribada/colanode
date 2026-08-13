@@ -6,6 +6,7 @@ import {
   DatabaseViewSortAttributes,
   DatabaseViewLayout,
   DatabaseViewChartAttributes,
+  DatabaseViewTimelineAttributes,
   DatabaseViewConditionalColorAttributes,
   SortDirection,
 } from '@colanode/core';
@@ -23,6 +24,7 @@ interface DatabaseViewContext {
   clearPersonal: () => void;
   groupBy: string | null | undefined;
   chart: DatabaseViewChartAttributes | null | undefined;
+  timeline: DatabaseViewTimelineAttributes | null | undefined;
   conditionalColors: DatabaseViewConditionalColorAttributes[];
   nameWidth: number;
   zebra: boolean;

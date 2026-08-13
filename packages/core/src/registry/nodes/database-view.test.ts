@@ -21,6 +21,7 @@ describe('databaseViewAttributesSchema.layout', () => {
     'gallery',
     'list',
     'chart',
+    'timeline',
   ];
 
   it.each(layouts)('accepts %s layout', (layout) => {
@@ -35,8 +36,11 @@ describe('databaseViewAttributesSchema.layout', () => {
   });
 
   it('rejects unknown layouts', () => {
+    // Was 'timeline' until the timeline layout shipped, at which point this
+    // test was asserting that a real layout is rejected. Any string that is
+    // not a layout does the job; this one is not on the roadmap.
     expect(
-      databaseViewAttributesSchema.safeParse(buildAttributes('timeline'))
+      databaseViewAttributesSchema.safeParse(buildAttributes('spreadsheet'))
         .success
     ).toBe(false);
   });

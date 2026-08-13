@@ -2,6 +2,7 @@ import { useForm } from '@tanstack/react-form';
 import { useMutation } from '@tanstack/react-query';
 import {
   Calendar,
+  ChartGantt,
   ChartPie,
   Columns,
   LayoutGrid,
@@ -42,7 +43,15 @@ import { cn } from '@colanode/ui/lib/utils';
 
 const formSchema = z.object({
   name: z.string(),
-  type: z.enum(['table', 'board', 'calendar', 'gallery', 'list', 'chart']),
+  type: z.enum([
+    'table',
+    'board',
+    'calendar',
+    'gallery',
+    'list',
+    'chart',
+    'timeline',
+  ]),
 });
 
 type ViewCreateFormValues = z.infer<typeof formSchema>;
@@ -55,7 +64,8 @@ const defaultValues: ViewCreateFormValues = {
 interface ViewTypeOption {
   name: string;
   icon: FC;
-  type: 'table' | 'board' | 'calendar' | 'gallery' | 'list' | 'chart';
+  type:
+    'table' | 'board' | 'calendar' | 'gallery' | 'list' | 'chart' | 'timeline';
 }
 
 const viewTypes: ViewTypeOption[] = [
@@ -88,6 +98,11 @@ const viewTypes: ViewTypeOption[] = [
     name: 'Chart',
     icon: ChartPie,
     type: 'chart',
+  },
+  {
+    name: 'Timeline',
+    icon: ChartGantt,
+    type: 'timeline',
   },
 ];
 
