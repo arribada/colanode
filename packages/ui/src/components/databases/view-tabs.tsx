@@ -76,6 +76,7 @@ export const ViewTabs = () => {
           </DropdownMenuContent>
         </DropdownMenu>
         {canCreate && <ViewCreateButton />}
+        <DatabasePlaneSync />
       </div>
     );
   }
