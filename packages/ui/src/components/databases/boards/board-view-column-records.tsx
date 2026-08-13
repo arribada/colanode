@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { extractNodeRole } from '@colanode/core';
+import { BoardViewColumnSummary } from '@colanode/ui/components/databases/boards/board-view-column-summary';
 import { BoardViewRecordCard } from '@colanode/ui/components/databases/boards/board-view-record-card';
 import { BoardViewRecordCreateCard } from '@colanode/ui/components/databases/boards/board-view-record-create-card';
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
@@ -31,17 +32,21 @@ export const BoardViewColumnRecords = ({
   const records = data;
 
   return (
-    <div className="mt-3 flex flex-col gap-2">
-      {records.map((record) => {
-        const role = extractNodeRole(record, workspace.userId) ?? database.role;
+    <div className="flex flex-col">
+      <BoardViewColumnSummary records={records} />
+      <div className="mt-3 flex flex-col gap-2">
+        {records.map((record) => {
+          const role =
+            extractNodeRole(record, workspace.userId) ?? database.role;
 
-        return (
-          <RecordProvider key={record.id} record={record} role={role}>
-            <BoardViewRecordCard />
-          </RecordProvider>
-        );
-      })}
-      <BoardViewRecordCreateCard filters={filters} columnId={columnId} />
+          return (
+            <RecordProvider key={record.id} record={record} role={role}>
+              <BoardViewRecordCard />
+            </RecordProvider>
+          );
+        })}
+        <BoardViewRecordCreateCard filters={filters} columnId={columnId} />
+      </div>
     </div>
   );
 };

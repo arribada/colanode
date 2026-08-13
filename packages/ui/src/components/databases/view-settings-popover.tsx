@@ -1,12 +1,28 @@
-import { Check, Lock, LockOpen, Rows3, Trash2 } from 'lucide-react';
+import {
+  ArrowDownAz,
+  Check,
+  Filter,
+  Lock,
+  LockOpen,
+  Rows3,
+  Trash2,
+} from 'lucide-react';
 import { Fragment, ReactNode, useState } from 'react';
 
-import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
-import { ViewCsvActions } from '@colanode/ui/components/databases/view-csv-actions';
+import {
+  supportsAggregation,
+  ViewAggregationSettings,
+} from '@colanode/ui/components/databases/view-aggregation-settings';
 import { ViewAutomationsSettings } from '@colanode/ui/components/databases/view-automations-settings';
+import { ViewAvatarInput } from '@colanode/ui/components/databases/view-avatar-input';
 import { ViewConditionalColorSettings } from '@colanode/ui/components/databases/view-conditional-color-settings';
 import { ViewCopyLinkAction } from '@colanode/ui/components/databases/view-copy-link-action';
+import { ViewCsvActions } from '@colanode/ui/components/databases/view-csv-actions';
 import { ViewFieldSettings } from '@colanode/ui/components/databases/view-field-settings';
+import {
+  supportsGroupBy,
+  ViewGroupBySettings,
+} from '@colanode/ui/components/databases/view-group-by-settings';
 import { ViewRenameInput } from '@colanode/ui/components/databases/view-rename-input';
 import { ViewSettingsButton } from '@colanode/ui/components/databases/view-settings-button';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
@@ -17,8 +33,8 @@ import {
 } from '@colanode/ui/components/ui/popover';
 import { Separator } from '@colanode/ui/components/ui/separator';
 import { useDatabase } from '@colanode/ui/contexts/database';
-import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 interface ViewSettingsPopoverProps {
   // Layout-specific settings (e.g. the chart's type/group-by/aggregate config)
@@ -30,6 +46,53 @@ interface ViewSettingsPopoverProps {
   showConditionalColor?: boolean;
   showCsvActions?: boolean;
 }
+
+interface ViewSortFilterShortcutsProps {
+  onNavigate: () => void;
+}
+
+const ViewSortFilterShortcuts = ({
+  onNavigate,
+}: ViewSortFilterShortcutsProps) => {
+  const view = useDatabaseView();
+
+  const rows = [
+    {
+      key: 'sort',
+      icon: ArrowDownAz,
+      label: 'Sort',
+      count: view.sorts.length,
+    },
+    {
+      key: 'filter',
+      icon: Filter,
+      label: 'Filter',
+      count: view.filters.length,
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      {rows.map((row) => (
+        <button
+          key={row.key}
+          type="button"
+          className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"
+          onClick={() => {
+            view.openSearchBar();
+            onNavigate();
+          }}
+        >
+          <row.icon className="size-4" />
+          <span className="flex-1">{row.label}</span>
+          {row.count > 0 && (
+            <span className="text-xs text-muted-foreground">{row.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 export const ViewSettingsPopover = ({
   children,
@@ -69,6 +132,24 @@ export const ViewSettingsPopover = ({
             <Fragment>
               <Separator />
               {children}
+            </Fragment>
+          )}
+          {supportsGroupBy(view.layout) && (
+            <Fragment>
+              <Separator />
+              <ViewGroupBySettings />
+            </Fragment>
+          )}
+          {showFieldSettings && supportsAggregation(view.layout) && (
+            <Fragment>
+              <Separator />
+              <ViewAggregationSettings />
+            </Fragment>
+          )}
+          {showFieldSettings && (
+            <Fragment>
+              <Separator />
+              <ViewSortFilterShortcuts onNavigate={() => setOpen(false)} />
             </Fragment>
           )}
           {showFieldSettings && (
