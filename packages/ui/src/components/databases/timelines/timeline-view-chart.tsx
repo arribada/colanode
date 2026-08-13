@@ -1,11 +1,12 @@
 // ABOUTME: The timeline body -- a date axis across the top, one row per record,
 // ABOUTME: and a bar spanning each record's start and end dates.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { FieldAttributes, SelectOptionAttributes } from '@colanode/core';
 import {
+  barColorClass,
   barGeometry,
   buildTimelineBands,
   buildTimelineBars,
@@ -21,7 +22,6 @@ import { Link } from '@colanode/ui/components/ui/link';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useRecordsQuery } from '@colanode/ui/hooks/use-records-query';
-import { getSelectOptionLightColorClass } from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
 
 // The frozen left column holding record names.
@@ -40,7 +40,10 @@ interface TimelineRow {
 interface TimelineGroup {
   key: string;
   label: string;
-  colorClass: string | null;
+  // Always a real class. Nullable here once meant "no fill", which is how bars
+  // ended up invisible; the fallback belongs in barColorClass, not at the
+  // point of use where it is easy to forget one branch.
+  colorClass: string;
   rows: TimelineRow[];
 }
 
@@ -48,6 +51,17 @@ const formatDay = (date: Date): string =>
   `${String(date.getUTCDate()).padStart(2, '0')}/${String(
     date.getUTCMonth() + 1
   ).padStart(2, '0')}/${date.getUTCFullYear()}`;
+
+// Short form for drawing inside the bar, where the year is usually obvious
+// from the axis band directly above it.
+const formatShort = (date: Date): string =>
+  `${String(date.getUTCDate()).padStart(2, '0')}/${String(
+    date.getUTCMonth() + 1
+  ).padStart(2, '0')}`;
+
+// Below this the label would be clipped mid-digit, so the bar stays plain and
+// the dates live in its tooltip instead.
+const LABEL_MIN_WIDTH = 104;
 
 /** The select option a record sits under, for swimlanes. */
 const groupValueOf = (
@@ -135,7 +149,7 @@ export const TimelineViewChart = () => {
       .filter((row): row is TimelineRow => row !== null);
 
     if (!groupField) {
-      return [{ key: 'all', label: '', colorClass: null, rows }];
+      return [{ key: 'all', label: '', colorClass: barColorClass(null), rows }];
     }
 
     const options = optionsOf(groupField);
@@ -161,7 +175,7 @@ export const TimelineViewChart = () => {
       ordered.push({
         key: option.id,
         label: option.name,
-        colorClass: getSelectOptionLightColorClass(option.color ?? 'gray'),
+        colorClass: barColorClass(option.color),
         rows: bucketRows,
       });
       buckets.delete(option.id);
@@ -171,7 +185,12 @@ export const TimelineViewChart = () => {
       if (key === '__none') {
         continue;
       }
-      ordered.push({ key, label: key, colorClass: null, rows: bucketRows });
+      ordered.push({
+        key,
+        label: key,
+        colorClass: barColorClass(null),
+        rows: bucketRows,
+      });
     }
 
     const none = buckets.get('__none');
@@ -179,7 +198,7 @@ export const TimelineViewChart = () => {
       ordered.push({
         key: '__none',
         label: 'No value',
-        colorClass: getSelectOptionLightColorClass('gray'),
+        colorClass: barColorClass('gray'),
         rows: none,
       });
     }
@@ -189,6 +208,31 @@ export const TimelineViewChart = () => {
 
   const todayOffset = dayDiff(range.start, today) * pxPerDay;
   const todayVisible = todayOffset >= 0 && todayOffset <= chartWidth;
+
+  // Open on today rather than at scrollLeft 0. The range is padded out to
+  // whichever record starts earliest, so a database holding two years of work
+  // opens thousands of pixels away from anything current -- rows of names next
+  // to an empty grid, which reads as "the bars are missing".
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const centredOn = useRef<string | null>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || chartWidth === 0) {
+      return;
+    }
+
+    // Re-centre when the axis itself changes (scale, or new data extending the
+    // range) but never afterwards, so it does not yank back a user who scrolled.
+    const key = `${scale}:${range.start.toISOString()}:${chartWidth}`;
+    if (centredOn.current === key) {
+      return;
+    }
+    centredOn.current = key;
+
+    // A third in, so what just finished and what is coming are both on screen.
+    scroller.scrollLeft = Math.max(0, todayOffset - scroller.clientWidth / 3);
+  }, [scale, chartWidth, todayOffset, range.start]);
 
   if (bars.length === 0) {
     return (
@@ -204,7 +248,10 @@ export const TimelineViewChart = () => {
   }
 
   return (
-    <div className="mt-2 w-full min-w-full max-w-full overflow-auto pr-5">
+    <div
+      ref={scrollerRef}
+      className="mt-2 w-full min-w-full max-w-full overflow-auto pr-5"
+    >
       <div
         className="relative"
         style={{ width: NAME_WIDTH + chartWidth, minWidth: '100%' }}
@@ -279,7 +326,7 @@ export const TimelineViewChart = () => {
                     <span
                       className={cn(
                         'size-2 shrink-0 rounded-full',
-                        group.colorClass ?? 'bg-muted'
+                        group.colorClass
                       )}
                     />
                     <span className="truncate text-xs font-medium">
@@ -335,17 +382,32 @@ export const TimelineViewChart = () => {
                             : `${name} — ${formatDay(bar.start)} → ${formatDay(bar.end)}`
                         }
                         className={cn(
-                          'absolute top-1/2 z-10 flex -translate-y-1/2 items-center rounded-md border',
-                          'hover:brightness-95',
-                          group.colorClass ?? 'bg-blue-100 dark:bg-blue-900',
-                          bar.isMilestone && 'rotate-45 rounded-sm'
+                          'absolute top-1/2 z-10 flex -translate-y-1/2 items-center justify-between',
+                          'overflow-hidden rounded-md px-1.5 hover:brightness-110',
+                          group.colorClass,
+                          bar.isMilestone &&
+                            'rotate-45 rounded-sm px-0 ring-1 ring-background'
                         )}
                         style={{
                           left: geometry.left,
-                          width: bar.isMilestone ? 10 : geometry.width,
-                          height: bar.isMilestone ? 10 : 16,
+                          width: bar.isMilestone ? 12 : geometry.width,
+                          height: bar.isMilestone ? 12 : 18,
                         }}
-                      />
+                      >
+                        {/* The dates ride on the bar once there is room, so a
+                            start and an end can be read without hovering. */}
+                        {!bar.isMilestone &&
+                          geometry.width >= LABEL_MIN_WIDTH && (
+                            <>
+                              <span className="truncate text-[10px] font-medium text-white/90">
+                                {formatShort(bar.start)}
+                              </span>
+                              <span className="truncate text-[10px] font-medium text-white/90">
+                                {formatShort(bar.end)}
+                              </span>
+                            </>
+                          )}
+                      </Link>
                     </div>
                   </div>
                 );

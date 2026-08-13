@@ -28,6 +28,36 @@ const PAD_DAYS: Record<TimelineScale, number> = {
   month: 20,
 };
 
+// Bar fills, saturated on purpose.
+//
+// The obvious move was to reuse getSelectOptionLightColorClass, the helper the
+// board tints its columns with. That was wrong twice over. Its classes are
+// bg-*-50 washes, chosen to sit BEHIND a column at opacity-25 -- as a 16px bar
+// on a white row, bg-blue-50 is white on white. And it returns '' for any
+// colour outside its eight-value palette, which the workspace's own data
+// exceeds ('brown', 'default'), so those bars had no fill class at all.
+//
+// Written as whole literal class names because Tailwind scans source text: a
+// composed `bg-${color}-400` is never generated.
+const BAR_COLORS: Record<string, string> = {
+  gray: 'bg-gray-400 dark:bg-gray-500',
+  orange: 'bg-orange-400 dark:bg-orange-500',
+  yellow: 'bg-yellow-400 dark:bg-yellow-500',
+  green: 'bg-green-400 dark:bg-green-500',
+  blue: 'bg-blue-400 dark:bg-blue-500',
+  purple: 'bg-purple-400 dark:bg-purple-500',
+  pink: 'bg-pink-400 dark:bg-pink-500',
+  red: 'bg-red-400 dark:bg-red-500',
+  // Not in the select palette, but present in the data.
+  brown: 'bg-amber-600 dark:bg-amber-700',
+};
+
+const BAR_FALLBACK = 'bg-sky-500 dark:bg-sky-600';
+
+/** A visible fill for any colour, including ones the palette never had. */
+export const barColorClass = (color: string | null | undefined): string =>
+  (color ? BAR_COLORS[color] : undefined) ?? BAR_FALLBACK;
+
 export interface TimelineRange {
   start: Date;
   end: Date;

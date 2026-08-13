@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { LocalRecordNode } from '@colanode/client/types';
 
 import {
+  barColorClass,
   barGeometry,
   buildTimelineBands,
   buildTimelineBars,
@@ -28,6 +29,44 @@ const record = (
         .map(([key, value]) => [key, { type: 'date', value }])
     ),
   }) as unknown as LocalRecordNode;
+
+describe('barColorClass', () => {
+  it('gives every palette colour a real fill', () => {
+    for (const color of [
+      'gray',
+      'orange',
+      'yellow',
+      'green',
+      'blue',
+      'purple',
+      'pink',
+      'red',
+    ]) {
+      expect(barColorClass(color)).toMatch(/^bg-\w+-\d00 dark:bg-\w+-\d00$/);
+    }
+  });
+
+  it('never returns an empty class, whatever it is handed', () => {
+    // 'brown' and 'default' both occur in the workspace's own select options
+    // and are outside the eight-colour palette. An empty class here is a bar
+    // with no fill -- invisible, which is the bug this guards.
+    for (const color of [
+      'brown',
+      'default',
+      'chartreuse',
+      '',
+      null,
+      undefined,
+    ]) {
+      expect(barColorClass(color).length).toBeGreaterThan(0);
+      expect(barColorClass(color)).toContain('bg-');
+    }
+  });
+
+  it('does not fall back for a colour it knows', () => {
+    expect(barColorClass('green')).not.toBe(barColorClass('unknown-colour'));
+  });
+});
 
 describe('parseTimelineDate', () => {
   it('reads a bare date as UTC midnight of that same day', () => {
