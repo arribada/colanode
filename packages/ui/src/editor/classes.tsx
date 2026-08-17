@@ -30,7 +30,7 @@ export const defaultClasses = {
   tableHeader: 'flex p-1 px-2 items-center font-semibold',
   toggle: 'my-1 flex flex-row items-start gap-1',
   toggleButton:
-    'mt-1.5 ml-2 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent',
+    'mt-1.5 ml-4 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent',
   toggleInner: 'min-w-0 flex-1',
   toggleSummary: 'py-1 font-medium',
   toggleContent: 'pb-0.5',
