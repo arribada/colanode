@@ -1,11 +1,11 @@
+import { eq, useLiveQuery } from '@tanstack/react-db';
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
-import { eq, useLiveQuery } from '@tanstack/react-db';
 
 import { LocalFileNode } from '@colanode/client/types';
 import { FileBlock } from '@colanode/ui/components/files/file-block';
-import { EditorImageBlock } from '@colanode/ui/editor/views/editor-image-block';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { EditorImageBlock } from '@colanode/ui/editor/views/editor-image-block';
 
 export const FileNodeView = (props: NodeViewProps) => {
   const id = props.node.attrs.id;
@@ -14,7 +14,12 @@ export const FileNodeView = (props: NodeViewProps) => {
   }
 
   return (
-    <NodeViewWrapper>
+    // data-drag-handle wires the block for ProseMirror node dragging: the file
+    // node spec is draggable, but tiptap only initiates a node drag (and sets
+    // view.dragging, which the columns-drag plugin needs) when an element in the
+    // view carries this attribute. Without it, grabbing an image started no drag
+    // at all, so images could never be dropped into a column.
+    <NodeViewWrapper data-drag-handle>
       <FileNodeInner {...props} id={id} />
     </NodeViewWrapper>
   );
