@@ -29,6 +29,54 @@ interface DropTarget {
   rect: DOMRect;
 }
 
+// While dragging a block, ProseMirror's default drop has no edge-scroll, so a
+// drag that needs to travel past the current viewport is stuck. Scroll the
+// nearest scrollable ancestor when the pointer nears its top/bottom edge.
+const SCROLL_EDGE = 64;
+const SCROLL_MAX = 18;
+
+const scrollableAncestor = (el: HTMLElement): HTMLElement | null => {
+  let node: HTMLElement | null = el;
+  while (node && node !== document.body) {
+    const oy = getComputedStyle(node).overflowY;
+    if (
+      (oy === 'auto' || oy === 'scroll') &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? null;
+};
+
+const autoScrollOnDrag = (view: EditorView, clientY: number): void => {
+  const scroller = scrollableAncestor(view.dom as HTMLElement);
+  if (!scroller) {
+    return;
+  }
+  const usesWindow =
+    scroller === document.scrollingElement ||
+    scroller === document.documentElement ||
+    scroller === document.body;
+  const rect = scroller.getBoundingClientRect();
+  const top = usesWindow ? 0 : rect.top;
+  const bottom = usesWindow ? window.innerHeight : rect.bottom;
+  let delta = 0;
+  if (clientY < top + SCROLL_EDGE) {
+    delta = -Math.ceil(
+      SCROLL_MAX * Math.min(1, (top + SCROLL_EDGE - clientY) / SCROLL_EDGE)
+    );
+  } else if (clientY > bottom - SCROLL_EDGE) {
+    delta = Math.ceil(
+      SCROLL_MAX * Math.min(1, (clientY - (bottom - SCROLL_EDGE)) / SCROLL_EDGE)
+    );
+  }
+  if (delta !== 0) {
+    scroller.scrollBy(0, delta);
+  }
+};
+
 const key = new PluginKey('columnsDrag');
 
 const topLevelBlockAt = (view: EditorView, x: number, y: number) => {
@@ -107,6 +155,10 @@ export const ColumnsDragExtension = Extension.create({
         props: {
           handleDOMEvents: {
             dragover: (view, event) => {
+              // Edge auto-scroll runs for every drag over the editor, before
+              // the column-specific early-outs below.
+              autoScrollOnDrag(view, event.clientY);
+
               // Only meaningful while an internal block is being dragged.
               if (!view.dragging) {
                 hide();
