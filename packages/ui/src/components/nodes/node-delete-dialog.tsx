@@ -90,6 +90,11 @@ export const NodeDeleteDialog = ({
       const trashed = workspace.collections.nodes.get(id);
       const name =
         trashed && 'name' in trashed ? (trashed.name ?? 'Unnamed') : 'Unnamed';
+      // Drop it from the sidebar/tree at once: node.trash only emits the
+      // node.updated(trashed) event after a server round-trip, so without this
+      // the deleted item lingers in the navbar until sync catches up. Undone in
+      // onError if the trash actually fails.
+      workspace.collections.nodes.delete(id);
       mutate({
         input: {
           type: 'node.trash',
@@ -136,8 +141,13 @@ export const NodeDeleteDialog = ({
           const code = (error as { code?: string } | null)?.code;
           if (code === MutationErrorCode.NodeNotFound) {
             workspace.collections.nodes.delete(id);
-            toast(`Removed \"${title}\"`);
+            toast(`Removed "${title}"`);
             return;
+          }
+          // Undo the optimistic removal: the node is still there, the trash
+          // just failed.
+          if (trashed) {
+            workspace.collections.nodes.insert(trashed);
           }
           toast.error(error.message);
         },
