@@ -107,6 +107,24 @@ export const PrintExportDialog = ({
   );
   const subCount = tree.length - 1;
 
+  // Cover metadata: the page's cut version tag, and the person who cut the
+  // most recent version (resolved to a display name).
+  const pageAsPage = page as LocalPageNode;
+  const coverVersion = pageAsPage.version ?? '';
+  const versionLog = pageAsPage.versionLog ?? [];
+  const lastVersionBy =
+    versionLog.length > 0 ? (versionLog[versionLog.length - 1]?.by ?? null) : null;
+  const authorQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ users: workspace.collections.users })
+        .where(({ users }) => eq(users.id, lastVersionBy ?? ''))
+        .select(({ users }) => ({ id: users.id, name: users.name }))
+        .findOne(),
+    [workspace.userId, lastVersionBy]
+  );
+  const coverAuthor = lastVersionBy ? (authorQuery.data?.name ?? '') : '';
+
   const busy = phase !== 'idle';
 
   const start = () => {
@@ -124,7 +142,8 @@ export const PrintExportDialog = ({
     const body = assemblePrintHtml({
       documentTitle: page.name || 'Document',
       date: new Date().toLocaleDateString(),
-      author: '',
+      author: coverAuthor,
+      version: coverVersion,
       chapters: chaptersRef.current,
       appendix: appendixChapters,
       options: { subpages, appendix, toc, cover },

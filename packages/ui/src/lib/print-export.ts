@@ -23,6 +23,18 @@ const escapeHtml = (value: string): string =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+// Strip editor-only controls that must never appear on paper — notably the
+// toggle chevron button, which is inert once printed — and force every toggle
+// open so its content prints instead of staying collapsed.
+const sanitizeForExport = (html: string): string => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('[data-toggle-button]').forEach((el) => el.remove());
+  doc
+    .querySelectorAll('[data-type="toggle"]')
+    .forEach((el) => el.setAttribute('data-open', 'true'));
+  return doc.body.innerHTML;
+};
+
 // Depth-first list of a page and its page descendants, in sidebar order
 // (by node id, matching how children are ordered elsewhere).
 export const collectPageTree = (
@@ -123,11 +135,13 @@ export const assemblePrintHtml = (params: {
   documentTitle: string;
   date: string;
   author: string;
+  version: string;
   chapters: PrintChapter[];
   appendix: PrintChapter[];
   options: PrintOptions;
 }): string => {
-  const { documentTitle, date, author, chapters, appendix, options } = params;
+  const { documentTitle, date, author, version, chapters, appendix, options } =
+    params;
 
   // Single page: inject heading ids so the TOC can anchor to them.
   let singleHeadings: { id: string; text: string; level: number }[] = [];
@@ -146,6 +160,9 @@ export const assemblePrintHtml = (params: {
     parts.push(
       `<section class="cover"><div class="cover-inner">` +
         `<h1 class="cover-title">${escapeHtml(documentTitle)}</h1>` +
+        (version
+          ? `<p class="cover-meta cover-version">${escapeHtml(version)}</p>`
+          : '') +
         (date ? `<p class="cover-meta">${escapeHtml(date)}</p>` : '') +
         (author ? `<p class="cover-meta">${escapeHtml(author)}</p>` : '') +
         `</div></section>`
@@ -166,7 +183,7 @@ export const assemblePrintHtml = (params: {
       : `<h1 class="doc-title">${escapeHtml(c.title)}</h1>`;
     const cls = i === 0 ? 'chapter chapter-first' : 'chapter';
     parts.push(
-      `<section class="${cls}" id="chap-${c.id}">${heading}${c.html}</section>`
+      `<section class="${cls}" id="chap-${c.id}">${heading}${sanitizeForExport(c.html)}</section>`
     );
   });
 
@@ -174,7 +191,7 @@ export const assemblePrintHtml = (params: {
     const inner = appendix
       .map(
         (a, i) =>
-          `<section class="appendix-item" id="app-${a.id}"><h2 class="appendix-title">${String.fromCharCode(65 + i)}. ${escapeHtml(a.title)}</h2>${a.html}</section>`
+          `<section class="appendix-item" id="app-${a.id}"><h2 class="appendix-title">${String.fromCharCode(65 + i)}. ${escapeHtml(a.title)}</h2>${sanitizeForExport(a.html)}</section>`
       )
       .join('');
     parts.push(
