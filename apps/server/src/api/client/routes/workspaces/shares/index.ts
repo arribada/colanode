@@ -329,5 +329,65 @@ export const shareRoutes: FastifyPluginCallbackZod = (instance, _, done) => {
     },
   });
 
+  // Rotate (or clear) a share link's password without changing its token, so a
+  // lost password can be reset from the Active links list. The old password is
+  // never recoverable (only its hash is stored), which is the whole point.
+  instance.route({
+    method: 'PATCH',
+    url: '/:shareId/password',
+    schema: {
+      params: z.object({
+        workspaceId: z.string(),
+        shareId: z.string(),
+      }),
+      body: z.object({ password: z.string().nullable() }),
+    },
+    handler: async (request, reply) => {
+      const userId = request.workspace.user.id;
+
+      const share = await database
+        .selectFrom('node_shares')
+        .selectAll()
+        .where('id', '=', request.params.shareId)
+        .where('workspace_id', '=', request.workspace.id)
+        .executeTakeFirst();
+
+      if (!share) {
+        return reply
+          .code(404)
+          .send({ code: 'not_found', message: 'Share not found.' });
+      }
+
+      // Same gate as revoke: the share creator, or an editor of its node.
+      if (share.created_by !== userId) {
+        const tree = await fetchNodeTree(share.node_id);
+        const treeNodes = tree.map((node) => mapNode(node));
+        const role = extractNodeRole(treeNodes, userId);
+        if (!role || !hasNodeRole(role, 'editor')) {
+          return reply.code(403).send({
+            code: 'forbidden',
+            message:
+              'You must be the share creator or an editor of this page to change its password.',
+          });
+        }
+      }
+
+      const { password } = request.body;
+      const passwordHash =
+        password && password.length > 0
+          ? await generatePasswordHash(password)
+          : null;
+
+      await database
+        .updateTable('node_shares')
+        .set({ password_hash: passwordHash })
+        .where('id', '=', request.params.shareId)
+        .where('workspace_id', '=', request.workspace.id)
+        .execute();
+
+      return { success: true, hasPassword: passwordHash !== null };
+    },
+  });
+
   done();
 };

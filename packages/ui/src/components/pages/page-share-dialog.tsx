@@ -1,6 +1,6 @@
 // ABOUTME: Share dialog for a page — create a public read-only link (password /
 // ABOUTME: expiry / sub-pages), copy it, and revoke existing links.
-import { Copy, Link2, Trash2, Wand2 } from 'lucide-react';
+import { Copy, KeyRound, Link2, Trash2, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -48,6 +48,20 @@ const EXPIRY_OPTIONS: { label: string; days: number | null }[] = [
 const shareUrl = (token: string) =>
   `${window.location.origin}/share/${token}`;
 
+// Strong random password; skips ambiguous glyphs (O/0, l/1) so it stays
+// readable when shared out of band.
+const makeStrongPassword = (): string => {
+  const charset =
+    'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
+  const values = new Uint32Array(16);
+  crypto.getRandomValues(values);
+  let out = '';
+  for (let i = 0; i < values.length; i++) {
+    out += charset[(values[i] ?? 0) % charset.length];
+  }
+  return out;
+};
+
 export const PageShareDialog = ({
   page,
   open,
@@ -93,18 +107,30 @@ export const PageShareDialog = ({
     usePassword && password.length > 0 && password.length < 8;
   const passwordMissing = usePassword && password.length === 0;
 
-  // Strong random password; skips ambiguous glyphs (O/0, l/1) so it stays
-  // readable when shared out of band.
   const generatePassword = () => {
-    const charset =
-      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
-    const values = new Uint32Array(16);
-    crypto.getRandomValues(values);
-    let out = '';
-    for (let i = 0; i < values.length; i++) {
-      out += charset[(values[i] ?? 0) % charset.length];
+    setPassword(makeStrongPassword());
+  };
+
+  // Rotate an existing link's password to a fresh strong one and copy it. The
+  // old password is never shown (only its hash is stored server-side), so
+  // "regenerate + copy" is how you recover access to a locked link.
+  const regeneratePassword = async (shareId: string) => {
+    const password = makeStrongPassword();
+    try {
+      await window.colanode.executeMutation({
+        type: 'node.share.update.password',
+        userId: workspace.userId,
+        shareId,
+        password,
+      });
+      setShares((prev) =>
+        prev.map((s) => (s.id === shareId ? { ...s, hasPassword: true } : s))
+      );
+      await navigator.clipboard?.writeText(password);
+      toast.success(`New password copied: ${password}`);
+    } catch {
+      toast.error('Could not update the password');
     }
-    setPassword(out);
   };
 
   const create = async () => {
@@ -365,6 +391,15 @@ export const PageShareDialog = ({
                     exp. {new Date(s.expiresAt).toLocaleDateString()}
                   </span>
                 )}
+                <button
+                  type="button"
+                  aria-label="Set a new password"
+                  title="Set a new password and copy it"
+                  onClick={() => regeneratePassword(s.id)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <KeyRound className="size-4" />
+                </button>
                 <button
                   type="button"
                   aria-label="Copy link"

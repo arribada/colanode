@@ -28,11 +28,11 @@ import { OidcLoginMutationHandler } from './auth/oidc-login';
 import { AvatarUploadMutationHandler } from './avatars/avatar-upload';
 import { ChatCreateMutationHandler } from './chats/chat-create';
 import { DocumentRestoreMutationHandler } from './documents/document-restore';
-import { DocumentUpdateMutationHandler } from './documents/document-update';
 import { DocumentSuggestionCreateMutationHandler } from './documents/document-suggestion-create';
 import { DocumentSuggestionListMutationHandler } from './documents/document-suggestion-list';
-import { DocumentSuggestionWorkspaceListMutationHandler } from './documents/document-suggestion-workspace-list';
 import { DocumentSuggestionResolveMutationHandler } from './documents/document-suggestion-resolve';
+import { DocumentSuggestionWorkspaceListMutationHandler } from './documents/document-suggestion-workspace-list';
+import { DocumentUpdateMutationHandler } from './documents/document-update';
 import { FileCreateMutationHandler } from './files/file-create';
 import { FileDownloadMutationHandler } from './files/file-download';
 import { TempFileCreateMutationHandler } from './files/temp-file-create';
@@ -43,20 +43,33 @@ import { NodeCollaboratorDeleteMutationHandler } from './nodes/node-collaborator
 import { NodeCollaboratorUpdateMutationHandler } from './nodes/node-collaborator-update';
 import { NodeCreateMutationHandler } from './nodes/node-create';
 import { NodeDeleteMutationHandler } from './nodes/node-delete';
+import { NodeFavoriteAddMutationHandler } from './nodes/node-favorite-add';
+import { NodeFavoriteListMutationHandler } from './nodes/node-favorite-list';
+import { NodeFavoriteRemoveMutationHandler } from './nodes/node-favorite-remove';
 import { NodeInteractionOpenedMutationHandler } from './nodes/node-interaction-opened';
 import { NodeInteractionSeenMutationHandler } from './nodes/node-interaction-seen';
 import { NodeReactionCreateMutationHandler } from './nodes/node-reaction-create';
 import { NodeReactionDeleteMutationHandler } from './nodes/node-reaction-delete';
 import { NodeRestoreMutationHandler } from './nodes/node-restore';
+import { NodeShareCreateMutationHandler } from './nodes/node-share-create';
+import { NodeShareListMutationHandler } from './nodes/node-share-list';
+import { NodeShareRevokeMutationHandler } from './nodes/node-share-revoke';
+import { NodeShareSuggestionResolveMutationHandler } from './nodes/node-share-suggestion-resolve';
+import { NodeShareSuggestionsListMutationHandler } from './nodes/node-share-suggestions-list';
+import { NodeShareUpdatePasswordMutationHandler } from './nodes/node-share-update-password';
+import { NodeShareWorkspaceListMutationHandler } from './nodes/node-share-workspace-list';
 import { NodeTrashMutationHandler } from './nodes/node-trash';
 import { NodeUpdateMutationHandler } from './nodes/node-update';
+import { NodeViewListMutationHandler } from './nodes/node-view-list';
+import { NodeViewRecordMutationHandler } from './nodes/node-view-record';
 import { MuteSetMutationHandler } from './notifications/mute-set';
 import { NotificationReadMutationHandler } from './notifications/notification-read';
 import { NotificationReadAllMutationHandler } from './notifications/notification-read-all';
 import { PageDuplicateMutationHandler } from './pages/page-duplicate';
-import { PageTransferMutationHandler } from './pages/page-transfer';
 import { PageTemplateCreateMutationHandler } from './pages/page-template-create';
 import { PageTemplateSaveMutationHandler } from './pages/page-template-save';
+import { PageTransferMutationHandler } from './pages/page-transfer';
+import { PlaneSyncRunMutationHandler } from './plane/plane-sync-run';
 import { PresenceLeaveMutationHandler } from './presence/presence-leave';
 import { PresenceUpdateMutationHandler } from './presence/presence-update';
 import { PushSubscriptionCreateMutationHandler } from './push-subscriptions/push-subscription-create';
@@ -67,25 +80,13 @@ import { ServerCreateMutationHandler } from './servers/server-create';
 import { ServerDeleteMutationHandler } from './servers/server-delete';
 import { ServerSyncMutationHandler } from './servers/server-sync';
 import { SpaceChildReorderMutationHandler } from './spaces/space-child-reorder';
+import { UnsplashDownloadMutationHandler } from './unsplash/unsplash-download';
 import { UserRoleUpdateMutationHandler } from './users/user-role-update';
 import { UserStorageUpdateMutationHandler } from './users/user-storage-update';
 import { UsersCreateMutationHandler } from './users/users-create';
 import { WorkspaceCreateMutationHandler } from './workspaces/workspace-create';
 import { WorkspaceDeleteMutationHandler } from './workspaces/workspace-delete';
 import { WorkspaceUpdateMutationHandler } from './workspaces/workspace-update';
-import { NodeShareCreateMutationHandler } from './nodes/node-share-create';
-import { NodeShareListMutationHandler } from './nodes/node-share-list';
-import { NodeShareRevokeMutationHandler } from './nodes/node-share-revoke';
-import { NodeShareSuggestionsListMutationHandler } from './nodes/node-share-suggestions-list';
-import { NodeShareSuggestionResolveMutationHandler } from './nodes/node-share-suggestion-resolve';
-import { NodeShareWorkspaceListMutationHandler } from './nodes/node-share-workspace-list';
-import { NodeFavoriteAddMutationHandler } from './nodes/node-favorite-add';
-import { NodeFavoriteRemoveMutationHandler } from './nodes/node-favorite-remove';
-import { NodeFavoriteListMutationHandler } from './nodes/node-favorite-list';
-import { NodeViewRecordMutationHandler } from './nodes/node-view-record';
-import { NodeViewListMutationHandler } from './nodes/node-view-list';
-import { PlaneSyncRunMutationHandler } from './plane/plane-sync-run';
-import { UnsplashDownloadMutationHandler } from './unsplash/unsplash-download';
 
 export type MutationHandlerMap = {
   [K in keyof MutationMap]: MutationHandler<MutationMap[K]['input']>;
@@ -136,6 +137,9 @@ export const buildMutationHandlerMap = (
     'node.share.create': new NodeShareCreateMutationHandler(app),
     'node.share.list': new NodeShareListMutationHandler(app),
     'node.share.revoke': new NodeShareRevokeMutationHandler(app),
+    'node.share.update.password': new NodeShareUpdatePasswordMutationHandler(
+      app
+    ),
     'node.share.suggestions.list': new NodeShareSuggestionsListMutationHandler(app),
     'node.share.suggestion.resolve': new NodeShareSuggestionResolveMutationHandler(app),
     'node.share.workspace.list': new NodeShareWorkspaceListMutationHandler(app),
