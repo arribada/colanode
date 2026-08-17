@@ -1,10 +1,44 @@
 import { TableCell } from '@tiptap/extension-table/cell';
+import { TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableCellNodeView } from '@colanode/ui/editor/views';
 
 export const TableCellNode = TableCell.extend({
+  // Ctrl/Cmd+A inside a cell selects only that cell's text; pressing it again
+  // (the whole cell already covered) falls through to the editor's select-all.
+  addKeyboardShortcuts() {
+    return {
+      'Mod-a': () => {
+        const { state, view } = this.editor;
+        const { $from, $to } = state.selection;
+        let depth = $from.depth;
+        while (
+          depth > 0 &&
+          $from.node(depth).type.name !== 'tableCell' &&
+          $from.node(depth).type.name !== 'tableHeader'
+        ) {
+          depth--;
+        }
+        if (depth === 0) {
+          return false;
+        }
+        const cell = $from.node(depth);
+        const cellStart = $from.start(depth);
+        const cellEnd = cellStart + cell.content.size;
+        if ($from.pos <= cellStart && $to.pos >= cellEnd) {
+          return false;
+        }
+        view.dispatch(
+          state.tr
+            .setSelection(TextSelection.create(state.doc, cellStart, cellEnd))
+            .scrollIntoView()
+        );
+        return true;
+      },
+    };
+  },
   addNodeView() {
     return ReactNodeViewRenderer(TableCellNodeView, {
       as: 'td',
