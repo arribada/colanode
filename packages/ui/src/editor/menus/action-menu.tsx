@@ -134,7 +134,10 @@ export const ActionMenu = ({
 
   const { refs, floatingStyles } = useFloating({
     placement: 'left',
-    middleware: [offset(-4), shift()],
+    // mainAxis:false stops the handle being pushed horizontally onto the block
+    // content when the left gutter is narrow (small window / a split pane), which
+    // made it overlap a toggle chevron. It keeps its gutter position instead.
+    middleware: [offset(-4), shift({ mainAxis: false })],
   });
 
   useEffect(() => {
