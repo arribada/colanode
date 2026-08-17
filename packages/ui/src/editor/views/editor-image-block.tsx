@@ -87,11 +87,12 @@ export const EditorImageBlock = ({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <figure
-          className="my-2 flex w-fit flex-col gap-1"
+          className="my-2 flex w-fit max-w-full flex-col gap-1"
           contentEditable={false}
         >
           <Resizable
             size={{ width }}
+            style={{ maxWidth: '100%' }}
             minWidth={MIN_WIDTH}
             maxWidth={MAX_WIDTH}
             enable={editable ? { right: true } : {}}
@@ -120,7 +121,7 @@ export const EditorImageBlock = ({
           {hasCaption && (
             <figcaption
               className="text-sm text-muted-foreground"
-              style={{ width }}
+              style={{ width, maxWidth: '100%' }}
             >
               <span className="font-medium text-foreground">
                 Figure {figureNumber ?? '?'}
