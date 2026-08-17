@@ -9,8 +9,11 @@ import {
   IdType,
 } from '@colanode/core';
 import { collections } from '@colanode/ui/collections';
+import { SplitView } from '@colanode/ui/components/layouts/split/split-view';
+import { SplitViewProvider } from '@colanode/ui/components/layouts/split/split-view-provider';
 import { TabsContent } from '@colanode/ui/components/layouts/tabs/tabs-content';
 import { TabsHeader } from '@colanode/ui/components/layouts/tabs/tabs-header';
+import { useSplitView } from '@colanode/ui/contexts/split-view';
 import { TabManagerContext } from '@colanode/ui/contexts/tab-manager';
 import { router, routeTree } from '@colanode/ui/routes';
 
@@ -98,10 +101,20 @@ export const LayoutDesktop = () => {
         getRouter: handleTabGetRouter,
       }}
     >
-      <div className="flex flex-col h-full">
-        <TabsHeader />
-        <TabsContent />
-      </div>
+      <SplitViewProvider>
+        <div className="flex flex-col h-full">
+          <TabsHeader />
+          <LayoutBody />
+        </div>
+      </SplitViewProvider>
     </TabManagerContext.Provider>
   );
+};
+
+// Show the split view when a split is active; otherwise the normal tabbed
+// content. The two are mutually exclusive so a pane router and a tab router for
+// the same route are never mounted at the same time.
+const LayoutBody = () => {
+  const { tree } = useSplitView();
+  return tree ? <SplitView /> : <TabsContent />;
 };

@@ -2,11 +2,13 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   ArrowRightLeft,
   ChevronRight,
+  Columns2,
   Copy,
   FolderInput,
   MoreHorizontal,
   Pencil,
   Plus,
+  Rows2,
   Trash2,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -44,6 +46,7 @@ import {
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useSidebarTree } from '@colanode/ui/contexts/sidebar-tree';
+import { useSplitView } from '@colanode/ui/contexts/split-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 import { useSidebarNodeDnd } from '@colanode/ui/hooks/use-sidebar-node-dnd';
@@ -61,6 +64,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const workspace = useWorkspace();
   const tree = useSidebarTree();
   const navigate = useNavigate({ from: '/workspace/$userId' });
+  const splitView = useSplitView();
   const { mutate: duplicatePage, isPending: isDuplicating } = useMutation();
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -323,6 +327,28 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
           >
             <Copy className="size-4" />
             Duplicate
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() =>
+              splitView.openInSplit(
+                `/workspace/${workspace.userId}/${page.id}`,
+                'horizontal'
+              )
+            }
+          >
+            <Columns2 className="size-4" />
+            Open in split (right)
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() =>
+              splitView.openInSplit(
+                `/workspace/${workspace.userId}/${page.id}`,
+                'vertical'
+              )
+            }
+          >
+            <Rows2 className="size-4" />
+            Open in split (down)
           </ContextMenuItem>
           {/* Dragging needs a mouse — this is the same move, reachable by touch. */}
           <ContextMenuItem onClick={() => setMoveOpen(true)}>
