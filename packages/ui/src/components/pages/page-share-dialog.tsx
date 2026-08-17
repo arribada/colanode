@@ -280,6 +280,20 @@ export const PageShareDialog = ({
                     <Wand2 className="size-4" />
                     Generate
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={password.length === 0}
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(password);
+                      toast.success('Password copied');
+                    }}
+                    className="shrink-0"
+                    title="Copy password"
+                  >
+                    <Copy className="size-4" />
+                  </Button>
                 </div>
                 {passwordTooShort && (
                   <p className="text-xs text-red-600">
