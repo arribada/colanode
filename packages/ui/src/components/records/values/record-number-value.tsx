@@ -65,7 +65,15 @@ export const RecordNumberValue = ({
       ? formatNumber(Number(localValue), field.format)
       : localValue;
 
-  return (
+  // A percent field also draws a thin progress bar along the bottom of the cell
+  // (clamped 0-100), so a column of percentages reads at a glance. Hidden while
+  // editing so it never fights the caret.
+  const percentBar =
+    field.format === 'percent' && isNumericValue && !editing
+      ? Math.max(0, Math.min(100, Number(localValue)))
+      : null;
+
+  const input = (
     <Input
       aria-label={field.name}
       value={displayValue}
@@ -78,5 +86,21 @@ export const RecordNumberValue = ({
       onBlur={handleBlur}
       className="flex h-full w-full cursor-pointer flex-row items-center gap-1 border-none p-0 text-sm focus-visible:cursor-text shadow-none"
     />
+  );
+
+  if (percentBar === null) {
+    return input;
+  }
+
+  return (
+    <div className="relative flex h-full w-full items-center">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0.5 h-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary/70"
+          style={{ width: `${percentBar}%` }}
+        />
+      </div>
+      {input}
+    </div>
   );
 };
