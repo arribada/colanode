@@ -1,4 +1,4 @@
-import { CircleDashed } from 'lucide-react';
+import { CircleDashed, EyeOff } from 'lucide-react';
 
 import {
   DatabaseViewFilterAttributes,
@@ -34,6 +34,21 @@ export const BoardViewColumnsSelect = ({
   });
 
   const selectOptions = Object.values(field.options ?? {});
+  // Options hidden via the column "hide" button: an is_not_in filter on this
+  // field. Skipping them removes the whole column while the (editable) filter
+  // keeps the records out.
+  const hideFilter = (view.filters ?? []).find(
+    (f) =>
+      f.type === 'field' && f.fieldId === field.id && f.operator === 'is_not_in'
+  );
+  const hiddenIds = new Set<string>(
+    hideFilter && hideFilter.type === 'field' && Array.isArray(hideFilter.value)
+      ? (hideFilter.value as string[])
+      : []
+  );
+  const visibleOptions = selectOptions.filter(
+    (option) => !hiddenIds.has(option.id)
+  );
   const noValueFilter: DatabaseViewFilterAttributes = {
     id: '1',
     type: 'field',
@@ -48,7 +63,7 @@ export const BoardViewColumnsSelect = ({
 
   return (
     <>
-      {selectOptions.map((option) => {
+      {visibleOptions.map((option) => {
         const filter: DatabaseViewFilterAttributes = {
           id: '1',
           type: 'field',
@@ -85,6 +100,7 @@ export const BoardViewColumnsSelect = ({
                   field={field}
                   option={option}
                   count={count}
+                  onHide={() => view.hideColumnValue(field.id, option.id)}
                 />
               ),
               canDrag: (record) => record.canEdit,
@@ -166,19 +182,21 @@ interface BoardViewColumnSelectHeaderProps {
   field: SelectFieldAttributes;
   option: SelectOptionAttributes | null;
   count: number;
+  onHide?: () => void;
 }
 
 const BoardViewColumnSelectHeader = ({
   field,
   option,
   count,
+  onHide,
 }: BoardViewColumnSelectHeaderProps) => {
   if (!option) {
     return (
-      <div className="flex flex-row gap-2 items-center">
-        <CircleDashed className="size-5" />
-        <p className="text-muted-foreground">No {field.name}</p>
-        <p className="text-muted-foreground text-sm ml-1">
+      <div className="group/col flex min-w-0 w-full flex-row items-center gap-2">
+        <CircleDashed className="size-5 shrink-0" />
+        <p className="truncate text-muted-foreground">No {field.name}</p>
+        <p className="ml-1 shrink-0 text-sm text-muted-foreground">
           {count.toLocaleString()}
         </p>
       </div>
@@ -186,11 +204,26 @@ const BoardViewColumnSelectHeader = ({
   }
 
   return (
-    <div className="flex flex-row gap-2 items-center">
-      <SelectOptionBadge name={option?.name} color={option?.color} />
-      <p className="text-muted-foreground text-sm ml-1">
+    <div className="group/col flex min-w-0 w-full flex-row items-center gap-2">
+      <SelectOptionBadge
+        name={option.name}
+        color={option.color}
+        className="max-w-full"
+      />
+      <p className="ml-1 shrink-0 text-sm text-muted-foreground">
         {count.toLocaleString()}
       </p>
+      {onHide && (
+        <button
+          type="button"
+          title="Hide this column"
+          aria-label="Hide column"
+          onClick={onHide}
+          className="ml-auto hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground group-hover/col:block"
+        >
+          <EyeOff className="size-4" />
+        </button>
+      )}
     </div>
   );
 };

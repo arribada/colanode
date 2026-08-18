@@ -55,7 +55,7 @@ export const BoardViewColumn = () => {
           columnClass
         )}
       />
-      <div className="flex flex-row items-center gap-2 px-1 py-0.5">
+      <div className="flex min-w-0 flex-row items-center gap-2 px-1 py-0.5">
         {boardView.header}
       </div>
       <BoardViewColumnRecords columnId={columnId} />

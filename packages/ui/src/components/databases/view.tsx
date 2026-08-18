@@ -191,6 +191,46 @@ export const View = ({ view }: ViewProps) => {
             setOpenedFieldFilters((prev) => [...prev, fieldId]);
           });
         },
+        hideColumnValue: (fieldId: string, optionId: string) => {
+          const nextFilter = (
+            existing: DatabaseViewFilterAttributes | undefined
+          ): DatabaseViewFilterAttributes => {
+            const current =
+              existing &&
+              existing.type === 'field' &&
+              existing.operator === 'is_not_in' &&
+              Array.isArray(existing.value)
+                ? (existing.value as string[])
+                : [];
+            const value = current.includes(optionId)
+              ? current
+              : [...current, optionId];
+            return {
+              id: fieldId,
+              fieldId,
+              type: 'field',
+              operator: 'is_not_in',
+              value,
+            };
+          };
+
+          if (scope.mode === 'personal') {
+            scope.setFilter(fieldId, nextFilter(scope.state.filters?.[fieldId]));
+          } else {
+            workspace.collections.nodes.update(view.id, (draft) => {
+              if (draft.type !== 'database_view') return;
+              draft.filters = {
+                ...draft.filters,
+                [fieldId]: nextFilter(draft.filters?.[fieldId]),
+              };
+            });
+          }
+
+          // Reveal the filter bar so the just-added rule is visible + editable.
+          setOpenedFieldFilters((prev) =>
+            prev.includes(fieldId) ? prev : [...prev, fieldId]
+          );
+        },
         initFieldSort: async (fieldId: string, direction: SortDirection) => {
           if (scope.mode === 'personal') {
             const existing = scope.state.sorts?.[fieldId];

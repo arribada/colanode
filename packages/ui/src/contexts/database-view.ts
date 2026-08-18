@@ -43,6 +43,9 @@ interface DatabaseViewContext {
   openFieldFilter: (fieldId: string) => void;
   closeFieldFilter: (fieldId: string) => void;
   createRecord: (filters?: DatabaseViewFilterAttributes[]) => void;
+  // Hide a group value (e.g. a Kanban column) by appending it to an
+  // is_not_in filter on the field; the filter is then editable in the bar.
+  hideColumnValue: (fieldId: string, optionId: string) => void;
 }
 
 export const DatabaseViewContext = createContext<DatabaseViewContext>(
