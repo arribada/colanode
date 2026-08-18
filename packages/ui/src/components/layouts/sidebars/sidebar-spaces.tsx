@@ -33,7 +33,7 @@ const SidebarSpacesContent = () => {
       >
         <Search className="size-4 shrink-0" />
         <span className="grow text-left">Search</span>
-        <kbd className="pointer-events-none rounded border border-sidebar-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <kbd className="pointer-events-none hidden rounded border border-sidebar-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground md:inline-block">
           {isMac ? '⌘K' : 'Ctrl K'}
         </kbd>
       </button>
