@@ -1,6 +1,8 @@
 import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
+import { Home, Settings, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+
 
 import { NodeSearchResult } from '@colanode/client/queries';
 import { NodeType } from '@colanode/core';
@@ -149,6 +151,47 @@ export const SearchDialog = () => {
     });
   };
 
+  // Quick actions turn the search box into a command palette: navigate to the
+  // main workspace destinations without hunting through menus. Filtered by the
+  // typed query so "trash" surfaces the Trash action.
+  const actions = [
+    {
+      id: 'action-home',
+      label: 'Go to Home',
+      icon: Home,
+      run: () =>
+        navigate({
+          to: '/workspace/$userId/home',
+          params: { userId: workspace.userId },
+        }),
+    },
+    {
+      id: 'action-settings',
+      label: 'Open Settings',
+      icon: Settings,
+      run: () =>
+        navigate({
+          to: '/workspace/$userId/settings',
+          params: { userId: workspace.userId },
+        }),
+    },
+    {
+      id: 'action-trash',
+      label: 'Open Trash',
+      icon: Trash2,
+      run: () =>
+        navigate({
+          to: '/workspace/$userId/trash',
+          params: { userId: workspace.userId },
+        }),
+    },
+  ];
+  const actionQuery = searchQuery.trim().toLowerCase();
+  const visibleActions =
+    actionQuery === ''
+      ? actions
+      : actions.filter((a) => a.label.toLowerCase().includes(actionQuery));
+
   return (
     <CommandDialog
       open={open}
@@ -166,6 +209,25 @@ export const SearchDialog = () => {
         <CommandEmpty>
           {isSearching ? 'No results found.' : 'Nothing recent yet.'}
         </CommandEmpty>
+        {visibleActions.length > 0 && (
+          <CommandGroup heading="Actions">
+            {visibleActions.map((action) => (
+              <CommandItem
+                key={action.id}
+                value={action.id}
+                onSelect={() => {
+                  handleOpenChange(false);
+                  action.run();
+                }}
+              >
+                <div className="flex w-full flex-row items-center gap-2">
+                  <action.icon className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="text-sm">{action.label}</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
         {!isSearching && recentNodes.length > 0 && (
           <CommandGroup heading="Recent">
             {recentNodes.map((node) => {
