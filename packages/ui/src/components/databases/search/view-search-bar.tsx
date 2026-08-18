@@ -14,7 +14,7 @@ export const ViewSearchBar = () => {
   }
 
   return (
-    <div className="mt-3 flex flex-row items-center gap-2">
+    <div className="sticky left-0 z-20 mt-3 flex w-fit flex-row items-center gap-2 bg-background">
       <div className="flex flex-row items-center rounded-md border border-dashed p-0.5 text-xs">
         {(['shared', 'personal'] as const).map((m) => (
           <button
