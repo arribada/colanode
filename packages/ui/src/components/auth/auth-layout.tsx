@@ -13,8 +13,8 @@ export const AuthLayout = () => {
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center">
       <AuthCancel />
-      <div className="w-full flex lg:flex-row flex-col items-center justify-center lg:gap-40 gap-20">
-        <div className="flex flex-col items-center justify-center bg-background px-6 py-12">
+      <div className="w-full flex lg:flex-row flex-col items-center justify-center lg:gap-40 gap-8">
+        <div className="flex flex-col items-center justify-center bg-background px-6 py-6 lg:py-12">
           <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
             <ArribadaWordmark className="w-72 lg:w-96 max-w-full" />
             <p className="font-satoshi text-xl lg:text-2xl tracking-tight text-muted-foreground">
