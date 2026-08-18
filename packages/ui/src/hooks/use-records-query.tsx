@@ -220,6 +220,31 @@ const createSortDefinition = (
     };
   }
 
+  if (field.type === 'select') {
+    const options = field.options ?? {};
+    // Sort by the option's position in the field, not its opaque id, so the
+    // order matches how the options are arranged in the UI.
+    return {
+      direction: sort.direction,
+      selector: (record) => {
+        const value = record.fields[field.id]?.value;
+        return typeof value === 'string' ? (options[value]?.index ?? '') : '';
+      },
+    };
+  }
+
+  if (field.type === 'multi_select') {
+    const options = field.options ?? {};
+    return {
+      direction: sort.direction,
+      selector: (record) => {
+        const value = record.fields[field.id]?.value;
+        const first = Array.isArray(value) ? value[0] : undefined;
+        return typeof first === 'string' ? (options[first]?.index ?? '') : '';
+      },
+    };
+  }
+
   return {
     direction: sort.direction,
     selector: (record) => record.fields[field.id]?.value,
