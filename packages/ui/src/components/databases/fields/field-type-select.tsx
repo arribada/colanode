@@ -83,6 +83,10 @@ const fieldTypes: FieldTypeOption[] = [
     type: 'rating',
   },
   {
+    name: 'Autonumber',
+    type: 'autonumber',
+  },
+  {
     name: 'Select',
     type: 'select',
   },

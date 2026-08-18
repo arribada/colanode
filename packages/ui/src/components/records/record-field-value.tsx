@@ -1,4 +1,5 @@
 import { FieldAttributes } from '@colanode/core';
+import { RecordAutonumberValue } from '@colanode/ui/components/records/values/record-autonumber-value';
 import { RecordBooleanValue } from '@colanode/ui/components/records/values/record-boolean-value';
 import { RecordCollaboratorValue } from '@colanode/ui/components/records/values/record-collaborator-value';
 import { RecordCreatedAtValue } from '@colanode/ui/components/records/values/record-created-at-value';
@@ -55,6 +56,8 @@ export const RecordFieldValue = ({
       return <RecordRollupValue field={field} />;
     case 'rating':
       return <RecordRatingValue field={field} readOnly={readOnly} />;
+    case 'autonumber':
+      return <RecordAutonumberValue field={field} />;
     case 'select':
       return <RecordSelectValue field={field} readOnly={readOnly} />;
     case 'relation':

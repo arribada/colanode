@@ -6,6 +6,7 @@ import {
   Hash,
   Link,
   ListCheck,
+  ListOrdered,
   ListChecks,
   Mail,
   ShieldQuestion,
@@ -56,6 +57,8 @@ export const FieldIcon = ({ type, className }: FieldIconProps) => {
       return <Sigma className={className} />;
     case 'rating':
       return <Star className={className} />;
+    case 'autonumber':
+      return <ListOrdered className={className} />;
     case 'text':
       return <Text className={className} />;
     case 'url':

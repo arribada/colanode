@@ -249,6 +249,17 @@ export const ratingFieldAttributesSchema = z.object({
 
 export type RatingFieldAttributes = z.infer<typeof ratingFieldAttributesSchema>;
 
+export const autonumberFieldAttributesSchema = z.object({
+  id: z.string(),
+  type: z.literal('autonumber'),
+  name: z.string(),
+  index: z.string(),
+});
+
+export type AutonumberFieldAttributes = z.infer<
+  typeof autonumberFieldAttributesSchema
+>;
+
 export const fieldAttributesSchema = z.discriminatedUnion('type', [
   booleanFieldAttributesSchema,
   collaboratorFieldAttributesSchema,
@@ -264,6 +275,7 @@ export const fieldAttributesSchema = z.discriminatedUnion('type', [
   relationFieldAttributesSchema,
   rollupFieldAttributesSchema,
   ratingFieldAttributesSchema,
+  autonumberFieldAttributesSchema,
   selectFieldAttributesSchema,
   textFieldAttributesSchema,
   urlFieldAttributesSchema,
