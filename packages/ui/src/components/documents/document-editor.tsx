@@ -1,19 +1,16 @@
 import '@colanode/ui/styles/editor.css';
 
-import { Lock } from 'lucide-react';
 
-import { cn } from '@colanode/ui/lib/utils';
-import { DocumentToc } from '@colanode/ui/components/documents/document-toc';
-import { DocumentReadingProgress } from '@colanode/ui/components/documents/document-reading-progress';
 
+import { useRouter } from '@tanstack/react-router';
 import {
   EditorContent,
   FocusPosition,
   JSONContent,
   useEditor,
 } from '@tiptap/react';
-import { useRouter } from '@tanstack/react-router';
 import { debounce, isEqual } from 'lodash-es';
+import { Lock } from 'lucide-react';
 import {
   Fragment,
   useCallback,
@@ -37,12 +34,13 @@ import {
 } from '@colanode/client/types';
 import { RichTextContent, richTextContentSchema } from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
-import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
+import { DocumentReadingProgress } from '@colanode/ui/components/documents/document-reading-progress';
+import { DocumentToc } from '@colanode/ui/components/documents/document-toc';
+import { useLayout } from '@colanode/ui/contexts/layout';
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
-import { useLayout } from '@colanode/ui/contexts/layout';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
-import { useRecordNodeView } from '@colanode/ui/hooks/use-node-views';
+import { AiSlashPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 import {
   AiCommand,
   BlockquoteCommand,
@@ -64,6 +62,8 @@ import {
   Heading3Command,
   NumberHeadingsCommand,
   CreateAdrCommand,
+  MeetingNotesCommand,
+  SpecCommand,
   MathBlockCommand,
   MathInlineCommand,
   MermaidCommand,
@@ -147,11 +147,13 @@ import {
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions';
 import { ToolbarMenu, ActionMenu } from '@colanode/ui/editor/menus';
-import { AiSlashPrompt } from '@colanode/ui/editor/ai/ai-prompt';
+import { useRecordNodeView } from '@colanode/ui/hooks/use-node-views';
 import {
   usePresences,
   usePresencePublisher,
 } from '@colanode/ui/hooks/use-presence';
+import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface DocumentEditorProps {
   node: LocalNode;
@@ -634,6 +636,8 @@ export const DocumentEditor = ({
             Heading3Command,
             NumberHeadingsCommand,
             CreateAdrCommand,
+  MeetingNotesCommand,
+  SpecCommand,
             BulletListCommand,
             CodeBlockCommand,
             OrderedListCommand,
