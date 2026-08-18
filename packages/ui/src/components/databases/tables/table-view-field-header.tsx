@@ -5,6 +5,7 @@ import { Fragment, useCallback, useRef, useState } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 
 import { LocalNode, ViewField } from '@colanode/client/types';
+import { FieldDateRange } from '@colanode/ui/components/databases/fields/field-date-range';
 import { FieldDeleteDialog } from '@colanode/ui/components/databases/fields/field-delete-dialog';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
 import { FieldNumberFormat } from '@colanode/ui/components/databases/fields/field-number-format';
@@ -231,6 +232,12 @@ export const TableViewFieldHeader = ({
             {viewField.field.type === 'number' && (
               <Fragment>
                 <FieldNumberFormat field={viewField.field} />
+                <Separator />
+              </Fragment>
+            )}
+            {viewField.field.type === 'date' && (
+              <Fragment>
+                <FieldDateRange field={viewField.field} />
                 <Separator />
               </Fragment>
             )}

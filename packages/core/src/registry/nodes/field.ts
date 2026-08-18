@@ -60,6 +60,9 @@ export const dateFieldAttributesSchema = z.object({
   type: z.literal('date'),
   name: z.string(),
   index: z.string(),
+  // Optional: another date field treated as this field's range end, so the
+  // picker sets a start + due range that writes both fields.
+  endFieldId: z.string().nullable().optional(),
 });
 
 export type DateFieldAttributes = z.infer<typeof dateFieldAttributesSchema>;
