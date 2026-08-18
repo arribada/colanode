@@ -749,6 +749,46 @@ const alignmentScale: BoardTemplate = {
   },
 };
 
+const roadmap: BoardTemplate = {
+  id: 'roadmap',
+  name: 'Roadmap',
+  description: 'Now / Next / Later planning lanes.',
+  build: () => {
+    const cols = [
+      { label: 'Now', fill: '#dcfce7' },
+      { label: 'Next', fill: '#dbeafe' },
+      { label: 'Later', fill: '#e2e8f0' },
+    ];
+    const specs: Array<Omit<CreateElementInput, 'z'>> = [
+      {
+        type: 'text',
+        x: 80,
+        y: 40,
+        w: 600,
+        h: 48,
+        text: 'Roadmap',
+        style: { fontSize: 32, fontWeight: 'bold' },
+      },
+    ];
+    cols.forEach((col, i) => {
+      const x = 80 + i * 300;
+      specs.push({ type: 'frame', x, y: 110, w: 270, h: 560, text: col.label });
+      for (let r = 0; r < 3; r++) {
+        specs.push({
+          type: 'sticky',
+          x: x + 18,
+          y: 160 + r * 140,
+          w: 234,
+          h: 120,
+          style: { fill: col.fill },
+          text: '',
+        });
+      }
+    });
+    return buildScene(specs);
+  },
+};
+
 export const BOARD_TEMPLATES: BoardTemplate[] = [
   blank,
   brainstorm,
@@ -756,6 +796,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   orgchart,
   flowchart,
   kanban,
+  roadmap,
   timeline,
   retro,
   swot,
