@@ -9,6 +9,7 @@ import {
   ListChecks,
   Mail,
   ShieldQuestion,
+  Star,
   Sigma,
   Smartphone,
   SquareCheck,
@@ -53,6 +54,8 @@ export const FieldIcon = ({ type, className }: FieldIconProps) => {
       return <Cable className={className} />;
     case 'rollup':
       return <Sigma className={className} />;
+    case 'rating':
+      return <Star className={className} />;
     case 'text':
       return <Text className={className} />;
     case 'url':

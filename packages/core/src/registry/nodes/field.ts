@@ -237,6 +237,18 @@ export type UpdatedByFieldAttributes = z.infer<
   typeof updatedByFieldAttributesSchema
 >;
 
+export const ratingFieldAttributesSchema = z.object({
+  id: z.string(),
+  type: z.literal('rating'),
+  name: z.string(),
+  index: z.string(),
+  // Number of stars (default 5). The value itself is stored as a plain number
+  // field value, clamped to [0, max] by the UI.
+  max: z.number().int().min(1).max(10).optional().nullable(),
+});
+
+export type RatingFieldAttributes = z.infer<typeof ratingFieldAttributesSchema>;
+
 export const fieldAttributesSchema = z.discriminatedUnion('type', [
   booleanFieldAttributesSchema,
   collaboratorFieldAttributesSchema,
@@ -251,6 +263,7 @@ export const fieldAttributesSchema = z.discriminatedUnion('type', [
   phoneFieldAttributesSchema,
   relationFieldAttributesSchema,
   rollupFieldAttributesSchema,
+  ratingFieldAttributesSchema,
   selectFieldAttributesSchema,
   textFieldAttributesSchema,
   urlFieldAttributesSchema,

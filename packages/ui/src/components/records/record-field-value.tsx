@@ -10,6 +10,7 @@ import { RecordFormulaValue } from '@colanode/ui/components/records/values/recor
 import { RecordMultiSelectValue } from '@colanode/ui/components/records/values/record-multi-select-value';
 import { RecordNumberValue } from '@colanode/ui/components/records/values/record-number-value';
 import { RecordPhoneValue } from '@colanode/ui/components/records/values/record-phone-value';
+import { RecordRatingValue } from '@colanode/ui/components/records/values/record-rating-value';
 import { RecordRelationValue } from '@colanode/ui/components/records/values/record-relation-value';
 import { RecordRollupValue } from '@colanode/ui/components/records/values/record-rollup-value';
 import { RecordSelectValue } from '@colanode/ui/components/records/values/record-select-value';
@@ -52,6 +53,8 @@ export const RecordFieldValue = ({
       return <RecordPhoneValue field={field} readOnly={readOnly} />;
     case 'rollup':
       return <RecordRollupValue field={field} />;
+    case 'rating':
+      return <RecordRatingValue field={field} readOnly={readOnly} />;
     case 'select':
       return <RecordSelectValue field={field} readOnly={readOnly} />;
     case 'relation':

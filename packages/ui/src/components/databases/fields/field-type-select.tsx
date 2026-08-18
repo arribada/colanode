@@ -79,6 +79,10 @@ const fieldTypes: FieldTypeOption[] = [
     type: 'rollup',
   },
   {
+    name: 'Rating',
+    type: 'rating',
+  },
+  {
     name: 'Select',
     type: 'select',
   },
