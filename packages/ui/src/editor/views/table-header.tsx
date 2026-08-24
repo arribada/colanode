@@ -10,7 +10,6 @@ import { updateColumnWidth } from '@colanode/client/lib';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableCellContextMenu } from '@colanode/ui/editor/menus/table-cell-context-menu';
 import { TableCellDropdownMenu } from '@colanode/ui/editor/menus/table-cell-dropdown-menu';
-import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const TableHeaderNodeView = (props: NodeViewProps) => {
@@ -37,13 +36,9 @@ export const TableHeaderNodeView = (props: NodeViewProps) => {
       ? colwidthAttr
       : 100;
   const align = props.node.attrs.align;
-  const backgroundColor = editorColors.find(
-    (color) => color.color === props.node.attrs.backgroundColor
-  );
-
   return (
     <NodeViewWrapper
-      className={cn('h-full w-full', backgroundColor?.bgClass || 'bg-muted')}
+      className="h-full w-full"
     >
       <TableCellContextMenu {...props}>
         <Resizable

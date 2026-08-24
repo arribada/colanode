@@ -1,25 +1,24 @@
 import { type NodeViewProps } from '@tiptap/core';
-import { useEffect, useRef } from 'react';
 import {
   NodeViewContent,
   NodeViewWrapper,
   useEditorState,
 } from '@tiptap/react';
 import { Resizable } from 're-resizable';
+import { useEffect, useRef } from 'react';
 
 import { updateColumnWidth } from '@colanode/client/lib';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableCellContextMenu } from '@colanode/ui/editor/menus/table-cell-context-menu';
 import { TableCellDropdownMenu } from '@colanode/ui/editor/menus/table-cell-dropdown-menu';
-import { applyFillFromDrag } from '@colanode/ui/editor/views/table-fill-handle';
 import {
   type AggregateKind,
   computeColumnAggregate,
   formatAggregate,
 } from '@colanode/ui/editor/views/table-aggregate';
+import { applyFillFromDrag } from '@colanode/ui/editor/views/table-fill-handle';
 import { parseNumberLoose } from '@colanode/ui/editor/views/table-sort';
 import { formatNumber, isNumericFormat } from '@colanode/ui/lib/number-format';
-import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
 export const TableCellNodeView = (props: NodeViewProps) => {
@@ -94,13 +93,9 @@ export const TableCellNodeView = (props: NodeViewProps) => {
   // column's fixed width is exactly what made merges render misaligned.
   const isMerged = colspan > 1 || rowspan > 1;
   const cellWidth = isMerged ? '100%' : `${colWidth}px`;
-  const backgroundColor = editorColors.find(
-    (color) => color.color === props.node.attrs.backgroundColor
-  );
-
   return (
     <NodeViewWrapper
-      className={cn('h-full w-full', backgroundColor?.bgClass)}
+      className="h-full w-full"
     >
       <TableCellContextMenu {...props}>
         <Resizable
