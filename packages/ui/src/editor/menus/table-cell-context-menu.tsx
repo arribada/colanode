@@ -15,6 +15,8 @@ import {
   Palette,
   Combine,
   Split,
+  Paintbrush,
+  ClipboardPaste,
 } from 'lucide-react';
 
 import {
@@ -28,6 +30,10 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@colanode/ui/components/ui/context-menu';
+import {
+  copyCellStyle,
+  getCopiedCellStyle,
+} from '@colanode/ui/editor/menus/table-cell-style';
 import { editorBorderStyles, editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -63,6 +69,42 @@ export const TableCellContextMenu = ({
         >
           <Split className="size-4" />
           Split cell
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          data-testid="editor-table-cell-copy-style"
+          onSelect={() =>
+            copyCellStyle({
+              backgroundColor: (node.attrs.backgroundColor as string) ?? null,
+              borderColor: (node.attrs.borderColor as string) ?? null,
+              borderStyle: (node.attrs.borderStyle as string) ?? null,
+              align: (node.attrs.align as string) ?? null,
+              valign: (node.attrs.valign as string) ?? null,
+            })
+          }
+        >
+          <Paintbrush className="size-4" />
+          Copy style
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="editor-table-cell-paste-style"
+          disabled={!getCopiedCellStyle()}
+          onSelect={() => {
+            const style = getCopiedCellStyle();
+            if (!style) return;
+            editor
+              .chain()
+              .focus()
+              .setCellAttribute('backgroundColor', style.backgroundColor)
+              .setCellAttribute('borderColor', style.borderColor)
+              .setCellAttribute('borderStyle', style.borderStyle)
+              .setCellAttribute('align', style.align)
+              .setCellAttribute('valign', style.valign)
+              .run();
+          }}
+        >
+          <ClipboardPaste className="size-4" />
+          Paste style
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuSub>
