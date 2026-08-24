@@ -25,6 +25,23 @@ export const recordAttributesSchema = z.object({
   // menus. Saving a record as a template deep-copies its fields + document
   // into a new record with this flag set; the source record is untouched.
   isTemplate: z.boolean().nullable().optional(),
+  // Lock + version, mirrored from pages so a database record page has the same
+  // controls. lockMode gates document edits (canUpdateDocument); version /
+  // versionLog are a git-like tag + append-only log shown in the header.
+  lockMode: z.enum(['open', 'suggest', 'locked']).nullable().optional(),
+  lockedBy: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  versionLog: z
+    .array(
+      z.object({
+        version: z.string(),
+        at: z.string(),
+        by: z.string(),
+        note: z.string().nullable().optional(),
+      })
+    )
+    .nullable()
+    .optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });
@@ -61,6 +78,21 @@ export const recordModel: NodeModel = {
       return true;
     }
 
+    // Changing the lock is privileged: a plain editor must not flip
+    // suggest/locked back to open to bypass it (the creator returned
+    // above; here that leaves admins).
+    const beforeLock =
+      context.node.type === 'record'
+        ? (context.node.lockMode ?? 'open')
+        : 'open';
+    const afterLock =
+      context.attributes.type === 'record'
+        ? (context.attributes.lockMode ?? 'open')
+        : 'open';
+    if (beforeLock !== afterLock) {
+      return hasNodeRole(role, 'admin');
+    }
+
     return hasNodeRole(role, 'editor');
   },
   canUpdateDocument: (context) => {
@@ -75,6 +107,19 @@ export const recordModel: NodeModel = {
 
     if (context.node.createdBy === context.user.id) {
       return true;
+    }
+
+    // Lock enforcement (server-side gate; the client mirrors it). In
+    // locked/suggest a non-creator edits the document only as an admin;
+    // others are read-only and suggest instead. Open/absent = unrestricted.
+    if (context.node.type === 'record') {
+      const lockMode = context.node.lockMode ?? 'open';
+      if (
+        (lockMode === 'locked' || lockMode === 'suggest') &&
+        !hasNodeRole(role, 'admin')
+      ) {
+        return false;
+      }
     }
 
     return hasNodeRole(role, 'editor');

@@ -5,6 +5,7 @@ import { Tag } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { LocalPageNode, LocalRecordNode } from '@colanode/client/types';
 import {
   VersionBump,
   compareVersions,
@@ -12,7 +13,6 @@ import {
   normalizeVersion,
   proposeNextVersion,
 } from '@colanode/core';
-import { LocalPageNode } from '@colanode/client/types';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
 import {
@@ -35,7 +35,11 @@ const BUMPS: { key: VersionBump; label: string }[] = [
   { key: 'major', label: 'Major' },
 ];
 
-export const PageVersionButton = ({ page }: { page: LocalPageNode }) => {
+export const PageVersionButton = ({
+  page,
+}: {
+  page: LocalPageNode | LocalRecordNode;
+}) => {
   const workspace = useWorkspace();
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState('');
@@ -58,7 +62,7 @@ export const PageVersionButton = ({ page }: { page: LocalPageNode }) => {
       return;
     }
     nodes.update(page.id, (draft) => {
-      if (draft.type !== 'page') {
+      if (draft.type !== 'page' && draft.type !== 'record') {
         return;
       }
       const entry: PageVersionEntry = {

@@ -360,24 +360,26 @@ export const DocumentEditor = ({
   // Inline comments only make sense on page documents (comments are `message`
   // nodes parented to the page). Record documents opt out.
   const isPage = node.type === 'page';
+  // Lock applies to page AND record documents (comments stay page-only above).
+  const supportsLock = node.type === 'page' || node.type === 'record';
   // Page-only reading options (font / small text / TOC) and lock state. All
   // null/absent => the historical default, so existing pages are unaffected.
   const pageNode = node.type === 'page' ? node : null;
   const font = pageNode?.font ?? 'default';
   const smallText = pageNode?.smallText ?? false;
   const showToc = pageNode?.showToc ?? false;
-  const canSuggestEdits = (canSuggest ?? false) && isPage;
-  const effectiveLockMode = (isPage ? lockMode : null) ?? 'open';
+  const canSuggestEdits = (canSuggest ?? false) && supportsLock;
+  const effectiveLockMode = (supportsLock ? lockMode : null) ?? 'open';
   const lockBannerText =
-    !isPage || effectiveLockMode === 'open'
+    !supportsLock || effectiveLockMode === 'open'
       ? null
       : canEdit
         ? effectiveLockMode === 'suggest'
           ? 'Locked — others can only suggest edits.'
           : 'Locked — only the owner and workspace admins can edit.'
         : canSuggestEdits
-          ? 'This page is locked. You can suggest edits, but not edit directly.'
-          : 'This page is read-only.';
+          ? 'This document is locked. You can suggest edits, but not edit directly.'
+          : 'This document is read-only.';
 
   const presences = usePresences(node.id);
   // Record ONE historical view of this page/record on open (throttled inside

@@ -21,15 +21,15 @@ import { RecordContainer } from '@colanode/ui/components/records/record-containe
 import { SpaceContainer } from '@colanode/ui/components/spaces/space-container';
 import { PageSuggestionsButton } from '@colanode/ui/components/suggestions/page-suggestions-button';
 import { Button } from '@colanode/ui/components/ui/button';
-import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
-import { ContainerType } from '@colanode/ui/contexts/container';
-import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
+import { ContainerType } from '@colanode/ui/contexts/container';
 import { useNode } from '@colanode/ui/contexts/node';
+import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { useNodeRadar } from '@colanode/ui/hooks/use-node-radar';
 
 interface NodeContainerProps {
@@ -127,7 +127,8 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
                 data.node.type === 'record') && (
                 <NodeFavoriteButton nodeId={data.node.id} />
               )}
-              {data.node.type === 'page' && (
+              {(data.node.type === 'page' ||
+                data.node.type === 'record') && (
                 <PageVersionButton page={data.node} />
               )}
             </>

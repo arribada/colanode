@@ -19,6 +19,15 @@ export const RecordContainer = ({ record, role }: RecordContainerProps) => {
 
   const canEdit =
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
+
+  // Same lock model as pages: privileged (creator/admin) always edit; others
+  // are read-only in 'suggest'/'locked' (and may propose edits in 'suggest').
+  const lockMode = record.lockMode ?? 'open';
+  const isPrivileged =
+    record.createdBy === workspace.userId || hasNodeRole(role, 'admin');
+  const canEditDocument = canEdit && (isPrivileged || lockMode === 'open');
+  const canSuggest = canEdit && !canEditDocument && lockMode === 'suggest';
+
   return (
     <div className="group/cover">
       <NodeCoverBanner
@@ -44,7 +53,12 @@ export const RecordContainer = ({ record, role }: RecordContainerProps) => {
           <RecordAttributes />
         </RecordProvider>
         <Separator className="my-4 w-full" />
-        <Document node={record} canEdit={canEdit} />
+        <Document
+          node={record}
+          canEdit={canEditDocument}
+          canSuggest={canSuggest}
+          lockMode={lockMode}
+        />
         <DocumentBacklinks nodeId={record.id} />
       </RecordDatabase>
     </div>

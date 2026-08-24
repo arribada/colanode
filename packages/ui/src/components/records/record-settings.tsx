@@ -1,20 +1,33 @@
-import { Copy, FileStack, Printer, Settings, Share2, Trash2 } from 'lucide-react';
+import {
+  Copy,
+  FileStack,
+  Lock,
+  Printer,
+  Settings,
+  Share2,
+  Trash2,
+} from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
+import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
-import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -36,6 +49,26 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
   const canSaveAsTemplate =
     hasNodeRole(role, 'collaborator') && !record.isTemplate;
+
+  // Lock: only the record creator or a node admin may change it (re-checked
+  // server-side in record.canUpdateAttributes), mirroring pages.
+  const isPrivileged =
+    record.createdBy === workspace.userId || hasNodeRole(role, 'admin');
+  const lockMode = record.lockMode ?? 'open';
+  const setRecordAttrs = (
+    changes: Partial<Pick<LocalRecordNode, 'lockMode' | 'lockedBy'>>
+  ) => {
+    const nodes = workspace.collections.nodes;
+    if (!nodes.has(record.id)) {
+      return;
+    }
+    nodes.update(record.id, (draft) => {
+      if (draft.type !== 'record') {
+        return;
+      }
+      Object.assign(draft, changes);
+    });
+  };
 
   return (
     <Fragment>
@@ -67,6 +100,44 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
             <Printer className="size-4" />
             Print / PDF
           </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!isPrivileged} className="gap-2">
+              <Lock className="size-4" />
+              <span>Lock</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {lockMode === 'open'
+                  ? 'Off'
+                  : lockMode === 'suggest'
+                    ? 'Suggestions'
+                    : 'Locked'}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={lockMode}
+                onValueChange={(value) => {
+                  if (!isPrivileged) {
+                    return;
+                  }
+                  const mode = value as 'open' | 'suggest' | 'locked';
+                  setRecordAttrs({
+                    lockMode: mode,
+                    lockedBy: mode === 'open' ? null : workspace.userId,
+                  });
+                }}
+              >
+                <DropdownMenuRadioItem value="open">
+                  Unlocked — anyone can edit
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="suggest">
+                  Suggestions only — others propose edits
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="locked">
+                  Locked — only owner &amp; admins
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuItem className="flex items-center gap-2" disabled>
             <Copy className="size-4" />
             Duplicate
