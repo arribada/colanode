@@ -115,7 +115,11 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
       onMouseLeave={handleMouseLeave}
     >
       <div className="relative" ref={relativeRef}>
-        <TableSelectionToolbar editor={editor} getPos={getPos} />
+        <TableSelectionToolbar
+          editor={editor}
+          getPos={getPos}
+          containerRef={relativeRef}
+        />
         <div className="max-md:overflow-x-auto">
           <NodeViewContent<'table'> as="table" className={defaultClasses.table} />
         </div>
