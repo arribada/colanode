@@ -5,7 +5,8 @@ import { useEditorState } from '@tiptap/react';
 import { Captions, CaptionsOff } from 'lucide-react';
 import { Resizable } from 're-resizable';
 
-import { LocalFileNode } from '@colanode/client/types';
+import { DownloadStatus, LocalFileNode } from '@colanode/client/types';
+import { FileStatus } from '@colanode/core';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -112,6 +113,20 @@ export const EditorImageBlock = ({
                 draggable={false}
                 className="block h-auto w-full select-none"
               />
+            ) : file.status === FileStatus.Pending ? (
+              <div className="flex h-40 w-full flex-col items-center justify-center gap-1 bg-muted px-3 text-center text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Upload didn't finish
+                </span>
+                <span>
+                  This image never reached the server. Delete the block and
+                  re-upload it.
+                </span>
+              </div>
+            ) : localFileQuery.data?.downloadStatus === DownloadStatus.Failed ? (
+              <div className="flex h-40 w-full items-center justify-center bg-muted px-3 text-center text-xs text-muted-foreground">
+                Couldn't load this image.
+              </div>
             ) : (
               <div className="flex h-40 w-full items-center justify-center bg-muted text-xs text-muted-foreground">
                 Loading image…
