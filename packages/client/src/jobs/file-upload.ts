@@ -138,6 +138,11 @@ export class FileUploadJobHandler implements JobHandler<FileUploadInput> {
         const tusUpload = new Upload(fileStream, {
           endpoint: `${account.server.httpBaseUrl}/v1/workspaces/${workspace.workspaceId}/files/${file.id}/tus`,
           chunkSize: FILE_UPLOAD_PART_SIZE,
+          // This job runs in the dedicated web worker, where localStorage (tus'
+          // default URL storage for resuming) does not exist. Leaving resumption
+          // on made findPreviousUploads() hang, so the upload never even started
+          // and files were stuck Pending with the blob never reaching the server.
+          storeFingerprintForResuming: false,
           retryDelays: [
             0,
             ms('3 seconds'),
@@ -183,14 +188,9 @@ export class FileUploadJobHandler implements JobHandler<FileUploadInput> {
           },
         });
 
-        tusUpload.findPreviousUploads().then((previousUploads) => {
-          const previousUpload = previousUploads[0];
-          if (previousUpload) {
-            tusUpload.resumeFromPreviousUpload(previousUpload);
-          } else {
-            tusUpload.start();
-          }
-        });
+        // Start fresh (resumption is off): no findPreviousUploads(), which would
+        // touch the missing localStorage and hang the upload in the worker.
+        tusUpload.start();
       });
 
       await this.updateUpload(workspace, upload.file_id, {
