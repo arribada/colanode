@@ -5,17 +5,24 @@ import { TableViewFieldHeader } from '@colanode/ui/components/databases/tables/t
 import { TableViewNameHeader } from '@colanode/ui/components/databases/tables/table-view-name-header';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useTableSelection } from '@colanode/ui/contexts/table-selection';
+import { cn } from '@colanode/ui/lib/utils';
 
 export const TableViewHeader = () => {
   const database = useDatabase();
   const view = useDatabaseView();
+  const { inline } = useDatabaseViews();
+  const frozen = !inline;
   const selection = useTableSelection();
 
   return (
     <div className="flex flex-row items-center gap-0.5">
       <div
-        className="flex items-center justify-center"
+        className={cn(
+          'flex items-center justify-center',
+          frozen && 'sticky left-0 z-10 bg-background'
+        )}
         style={{ width: '30px', minWidth: '30px' }}
       >
         {selection && selection.loadedIds.length > 0 && (
@@ -28,7 +35,9 @@ export const TableViewHeader = () => {
           />
         )}
       </div>
-      <TableViewNameHeader />
+      <div className={cn(frozen && 'sticky left-[30px] z-10 bg-background')}>
+        <TableViewNameHeader />
+      </div>
       {view.fields.map((field) => {
         return <TableViewFieldHeader viewField={field} key={field.field.id} />;
       })}

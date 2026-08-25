@@ -24,9 +24,10 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { Link } from '@colanode/ui/components/ui/link';
-import { useTableCellRange } from '@colanode/ui/contexts/table-cell-range';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
+import { useTableCellRange } from '@colanode/ui/contexts/table-cell-range';
 import { useTableFill } from '@colanode/ui/contexts/table-fill';
 import { useTableSelection } from '@colanode/ui/contexts/table-selection';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -47,6 +48,10 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
+  // Freeze the row-number + name columns on the full-screen (non-inline)
+  // table view so they stay put while the field columns scroll horizontally.
+  const { inline } = useDatabaseViews();
+  const frozen = !inline;
   const selection = useTableSelection();
   const selected = selection?.isSelected(record.id) ?? false;
   const fill = useTableFill();
@@ -118,7 +123,11 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
             )}
           >
             <span
-              className="flex items-center justify-center gap-0.5 text-sm text-muted-foreground"
+              className={cn(
+                'flex items-center justify-center gap-0.5 text-sm text-muted-foreground',
+                frozen && 'sticky left-0 z-10 bg-background',
+                frozen && selected && 'bg-accent'
+              )}
               style={{ width: '30px', minWidth: '30px' }}
             >
               <span
@@ -199,7 +208,11 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
               />
             </span>
             <div
-              className="h-8 border-r overflow-hidden"
+              className={cn(
+                'h-8 border-r overflow-hidden',
+                frozen && 'sticky left-[30px] z-10 bg-background',
+                frozen && selected && 'bg-accent'
+              )}
               style={{ width: `${view.nameWidth}px`, minWidth: '300px' }}
             >
               <TableViewNameCell record={record} />
