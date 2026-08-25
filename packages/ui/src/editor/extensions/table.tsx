@@ -4,6 +4,10 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 
 import { TableNodeView } from '@colanode/ui/editor/views/table';
 import {
+  parseColorRules,
+  tableConditionalColorsPlugin,
+} from '@colanode/ui/editor/views/table-conditional-colors';
+import {
   parseClipboardGrid,
   pasteGridAtSelection,
   tableFromSelection,
@@ -13,6 +17,24 @@ export const TableNode = Table.configure({
   allowTableNodeSelection: true,
   cellMinWidth: 100,
 }).extend({
+  addAttributes() {
+    return {
+      ...(this.parent?.() ?? {}),
+      // Value-driven cell colouring rules (see table-conditional-colors.ts).
+      colorRules: {
+        default: [],
+        parseHTML: (element: HTMLElement) =>
+          parseColorRules(element.getAttribute('data-color-rules')),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const rules = attributes.colorRules;
+          if (!Array.isArray(rules) || rules.length === 0) {
+            return {};
+          }
+          return { 'data-color-rules': JSON.stringify(rules) };
+        },
+      },
+    };
+  },
   addNodeView() {
     return ReactNodeViewRenderer(TableNodeView, {
       contentDOMElementTag: 'tbody',
@@ -23,6 +45,7 @@ export const TableNode = Table.configure({
       // Keep the base table plugins (tableEditing: cell selection, arrow
       // nav, column resizing) -- then add spreadsheet paste on top.
       ...(this.parent?.() ?? []),
+      tableConditionalColorsPlugin(),
       new Plugin({
         props: {
           handlePaste: (view, event) => {

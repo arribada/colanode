@@ -17,7 +17,9 @@ import {
   Split,
   Paintbrush,
   ClipboardPaste,
+  Wand2,
 } from 'lucide-react';
+import { useState } from 'react';
 
 import {
   ContextMenu,
@@ -34,6 +36,11 @@ import {
   copyCellStyle,
   getCopiedCellStyle,
 } from '@colanode/ui/editor/menus/table-cell-style';
+import { TableConditionalColorsDialog } from '@colanode/ui/editor/menus/table-conditional-colors-dialog';
+import {
+  type ConditionalColorRule,
+  parseColorRules,
+} from '@colanode/ui/editor/views/table-conditional-colors';
 import { editorBorderStyles, editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -44,6 +51,7 @@ interface TableCellContextMenuProps extends NodeViewProps {
 export const TableCellContextMenu = ({
   editor,
   node,
+  getPos,
   children,
 }: TableCellContextMenuProps) => {
   const textAlign = node.attrs.align ?? 'left';
@@ -51,8 +59,42 @@ export const TableCellContextMenu = ({
   const borderStyle = node.attrs.borderStyle ?? 'default';
   const borderColor = node.attrs.borderColor ?? 'default';
 
+  const [condOpen, setCondOpen] = useState(false);
+  const [tableInfo, setTableInfo] = useState<{
+    pos: number;
+    columns: string[];
+    rules: ConditionalColorRule[];
+  } | null>(null);
+
+  const openConditionalColors = () => {
+    const pos = typeof getPos === 'function' ? getPos() : undefined;
+    if (pos == null) {
+      return;
+    }
+    try {
+      const resolved = editor.state.doc.resolve(pos + 1);
+      const table = resolved.node(1);
+      if (table?.type.name !== 'table') {
+        return;
+      }
+      const columns: string[] = [];
+      table.firstChild?.forEach((cell, _offset, index) => {
+        columns.push(cell.textContent.trim() || `Column ${index + 1}`);
+      });
+      setTableInfo({
+        pos: resolved.before(1),
+        columns,
+        rules: parseColorRules(table.attrs.colorRules),
+      });
+      setCondOpen(true);
+    } catch {
+      // not inside a resolvable table -- ignore
+    }
+  };
+
   return (
-    <ContextMenu>
+    <>
+      <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-52">
         <ContextMenuLabel>Cell Actions</ContextMenuLabel>
@@ -105,6 +147,13 @@ export const TableCellContextMenu = ({
         >
           <ClipboardPaste className="size-4" />
           Paste style
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="editor-table-conditional-colors"
+          onSelect={() => openConditionalColors()}
+        >
+          <Wand2 className="size-4" />
+          Conditional colours…
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuSub>
@@ -317,6 +366,17 @@ export const TableCellContextMenu = ({
           Delete row
         </ContextMenuItem>
       </ContextMenuContent>
-    </ContextMenu>
+      </ContextMenu>
+      {tableInfo && (
+        <TableConditionalColorsDialog
+          editor={editor}
+          tablePos={tableInfo.pos}
+          columns={tableInfo.columns}
+          initialRules={tableInfo.rules}
+          open={condOpen}
+          onOpenChange={setCondOpen}
+        />
+      )}
+    </>
   );
 };
