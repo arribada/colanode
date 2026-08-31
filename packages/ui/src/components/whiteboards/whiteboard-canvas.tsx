@@ -83,6 +83,7 @@ import { generateNKeysBetween } from '@colanode/ui/lib/board/fractional-index';
 import {
   AlignGuide,
   Anchor,
+  NamedAnchor,
   anchorPoint,
   buildConnectorPath,
   computeAlignmentSnap,
@@ -103,7 +104,7 @@ import {
   RESIZE_HANDLES,
   snap,
   unionBounds,
-  fractionalAnchor,
+  snapAnchor,
   anchorSide,
 } from '@colanode/ui/lib/board/geometry';
 import {
@@ -167,6 +168,9 @@ const LASER_TTL = 1200;
 // Screen-space distance (px) at which a dragged element snaps to another
 // element's edge/center. Divided by zoom to get the scene-unit threshold.
 const ALIGN_SNAP_PX = 6;
+// Screen-space distance at which a connector end snaps to a named anchor
+// (top/right/bottom/left) instead of attaching at the exact border point.
+const ANCHOR_SNAP_PX = 16;
 
 interface Viewport {
   x: number;
@@ -372,6 +376,10 @@ export const WhiteboardCanvas = ({
   // Element currently under the pointer while linking with the connector tool;
   // drives the anchor-dot hover feedback so users see where a link will snap.
   const [linkHoverId, setLinkHoverId] = useState<string | null>(null);
+  // Named side the connector end will snap to on release (highlights its dot).
+  const [linkHoverAnchor, setLinkHoverAnchor] = useState<NamedAnchor | null>(
+    null
+  );
   // Open quick-connect picker: which shape + side triggered it and where (in
   // container-relative screen coords) to float the shape-type menu.
   const [quickConnect, setQuickConnect] = useState<{
@@ -2012,6 +2020,16 @@ export const WhiteboardCanvas = ({
         }
         const target = elementAt(p, { shapesOnly: true });
         setLinkHoverId(target?.id ?? null);
+        // Snap to a named side when the pointer is near its dot, otherwise
+        // attach at the exact border point.
+        const drawAnchor = target
+          ? snapAnchor(
+              elementRect(target),
+              p,
+              ANCHOR_SNAP_PX / viewportRef.current.zoom
+            )
+          : undefined;
+        setLinkHoverAnchor(typeof drawAnchor === 'string' ? drawAnchor : null);
         const points = [el.points?.[0] ?? [p.x, p.y], [p.x, p.y]];
         const next = {
           ...sceneRef.current,
@@ -2021,12 +2039,7 @@ export const WhiteboardCanvas = ({
             connector: {
               ...el.connector,
               toId: target?.id,
-              // Keep the exact drop position on the target border instead of
-              // rounding to one of four sides, which made the arrow jump to
-              // the middle of the edge on release.
-              toAnchor: target
-                ? fractionalAnchor(elementRect(target), p)
-                : undefined,
+              toAnchor: drawAnchor,
             },
           },
         };
@@ -2039,11 +2052,17 @@ export const WhiteboardCanvas = ({
           break;
         }
         const target = elementAt(p, { shapesOnly: true });
-        // Re-attaching keeps the exact drop position on the border, the same
-        // as drawing a new connector does.
+        // Show the anchor dots on the shape being re-attached to, and snap to a
+        // named side when the pointer is near one (else keep the exact point).
+        setLinkHoverId(target?.id ?? null);
         const anchor = target
-          ? fractionalAnchor(elementRect(target), p)
+          ? snapAnchor(
+              elementRect(target),
+              p,
+              ANCHOR_SNAP_PX / viewportRef.current.zoom
+            )
           : undefined;
+        setLinkHoverAnchor(typeof anchor === 'string' ? anchor : null);
         const points = (el.points ?? [[0, 0], [0, 0]]).map((pt) => [...pt]);
         if (it.end === 'from') {
           points[0] = [p.x, p.y];
@@ -2133,6 +2152,7 @@ export const WhiteboardCanvas = ({
     const it = interactionRef.current;
     interactionRef.current = null;
     setLinkHoverId(null);
+    setLinkHoverAnchor(null);
     setAlignGuides([]);
     if (!it) {
       return;
@@ -4473,15 +4493,16 @@ export const WhiteboardCanvas = ({
             (['top', 'right', 'bottom', 'left'] as Anchor[]).map((an) => {
               const pt = anchorPoint(elementRect(scene[linkHoverId]!), an);
               const sp = sceneToClient(pt);
+              const active = linkHoverAnchor === an;
               return (
                 <circle
                   key={`anchor-${an}`}
                   cx={sp.x}
                   cy={sp.y}
-                  r={5}
-                  fill="#fff"
+                  r={active ? 7 : 5}
+                  fill={active ? '#3b82f6' : '#fff'}
                   stroke="#3b82f6"
-                  strokeWidth={1.5}
+                  strokeWidth={active ? 2 : 1.5}
                   pointerEvents="none"
                 />
               );

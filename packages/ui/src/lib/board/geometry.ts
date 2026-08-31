@@ -106,6 +106,29 @@ export const nearestAnchor = (r: Rect, target: Point): Anchor => {
   return best;
 };
 
+/**
+ * Named side (top/right/bottom/left) when `target` is within `threshold` scene
+ * units of that side's midpoint on `r`, otherwise the exact fractional anchor.
+ * Lets a connector end snap cleanly to a side when released near it, while
+ * still attaching anywhere else on the border.
+ */
+export const snapAnchor = (
+  r: Rect,
+  target: Point,
+  threshold: number
+): Anchor => {
+  let best: NamedAnchor | null = null;
+  let bestDist = threshold;
+  for (const a of ANCHORS) {
+    const d = distance(anchorPoint(r, a), target);
+    if (d <= bestDist) {
+      bestDist = d;
+      best = a;
+    }
+  }
+  return best ?? fractionalAnchor(r, target);
+};
+
 /** Rotate `p` by `angleRad` around `center`. */
 export const rotatePoint = (
   p: Point,
