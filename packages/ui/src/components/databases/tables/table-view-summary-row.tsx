@@ -7,10 +7,8 @@ import { SummaryKind } from '@colanode/ui/components/databases/tables/table-view
 import { TableViewSummaryCell } from '@colanode/ui/components/databases/tables/table-view-summary-cell';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
-import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useRecordsQuery } from '@colanode/ui/hooks/use-records-query';
-import { cn } from '@colanode/ui/lib/utils';
 
 // Cap the eager pagination so a very large database can't freeze the client
 // loading every record just to aggregate a column; past this the value is
@@ -21,8 +19,6 @@ export const TableViewSummaryRow = () => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
-  const { inline } = useDatabaseViews();
-  const frozen = !inline;
 
   const canEdit = database.canEdit && !database.isLocked;
   const summaries = view.summaries ?? {};
@@ -75,17 +71,11 @@ export const TableViewSummaryRow = () => {
   return (
     <div className="group/summary animate-fade-in flex flex-row items-center gap-0.5 border-t bg-muted/20">
       <span
-        className={cn(
-          'flex items-center justify-center',
-          frozen && 'sticky left-0 z-10 bg-muted'
-        )}
+        className="flex items-center justify-center"
         style={{ width: '30px', minWidth: '30px' }}
       />
       <div
-        className={cn(
-          'h-8 border-r overflow-hidden',
-          frozen && 'sticky left-[30px] z-10 bg-muted'
-        )}
+        className="h-8 border-r overflow-hidden"
         style={{ width: `${view.nameWidth}px`, minWidth: '300px' }}
       >
         <TableViewSummaryCell
