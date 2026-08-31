@@ -55,6 +55,16 @@ const DatabaseNodeViewContent = ({
         // on the handle element itself, so moving the whole embed still works.
         // NOTE: no onDragOver here — swallowing it blocked ProseMirror from
         // computing a drop position, which is why the embed could not be moved.
+        // Grabbing a column-resize handle must NOT start a drag of this
+        // draggable atom (that is what killed in-embed column resizing). Cancel
+        // the native drag as early as possible when it begins on a handle.
+        onDragStartCapture={(e: React.DragEvent<HTMLDivElement>) => {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest?.('.cn-col-resize-handle')) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
           e.stopPropagation();
         }}

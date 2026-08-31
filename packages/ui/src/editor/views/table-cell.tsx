@@ -133,8 +133,8 @@ export const TableCellNodeView = (props: NodeViewProps) => {
           }}
           handleStyles={{
             right: {
-              width: '3px',
-              right: '-3px',
+              width: '8px',
+              right: '-4px',
             },
           }}
           onResizeStop={(_e, _direction, ref) => {

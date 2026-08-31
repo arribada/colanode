@@ -33,6 +33,13 @@ export const DatabaseNode = Node.create({
   addNodeView() {
     return ReactNodeViewRenderer(DatabaseNodeView, {
       as: 'database',
+      // A column-resize handle inside the embedded table must not be hijacked by
+      // this draggable atom: tell ProseMirror to ignore pointer events that start
+      // on a resize handle so re-resizable can drive the resize itself.
+      stopEvent: ({ event }) => {
+        const target = event.target as HTMLElement | null;
+        return Boolean(target?.closest?.('.cn-col-resize-handle'));
+      },
     });
   },
 });

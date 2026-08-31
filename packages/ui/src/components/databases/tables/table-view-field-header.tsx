@@ -198,12 +198,13 @@ export const TableViewFieldHeader = ({
           topRight: false,
         }}
         handleClasses={{
-          right: 'opacity-0 hover:opacity-100 bg-blue-300 dark:bg-blue-900',
+          right:
+          'cn-col-resize-handle opacity-0 hover:opacity-100 bg-blue-300 dark:bg-blue-900',
         }}
         handleStyles={{
           right: {
-            width: '3px',
-            right: '-3px',
+            width: '8px',
+            right: '-4px',
           },
         }}
         onResize={(_e, _direction, ref) => {
