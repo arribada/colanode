@@ -20,6 +20,14 @@ export const FileNodeView = (props: NodeViewProps) => {
   // could never be dropped into a column. (data-drag-handle alone did not
   // reliably initiate the drag for this node view.)
   const handleDragStart = (event: DragEvent) => {
+    // Grabbing the image resize handle must resize the image, not start a node
+    // drag -- this node is a draggable atom, so the drag would otherwise hijack
+    // the resize. Cancel the drag when it begins on the handle.
+    const target = event.target as HTMLElement | null;
+    if (target?.closest?.('.cn-img-resize-handle')) {
+      event.preventDefault();
+      return;
+    }
     const pos = typeof getPos === 'function' ? getPos() : null;
     if (pos == null) {
       return;

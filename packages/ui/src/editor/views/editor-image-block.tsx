@@ -99,7 +99,7 @@ export const EditorImageBlock = ({
             enable={editable ? { right: true } : {}}
             handleClasses={{
               right:
-                'opacity-0 hover:opacity-100 transition-opacity bg-primary/50 rounded',
+                'cn-img-resize-handle opacity-0 hover:opacity-100 transition-opacity bg-primary/50 rounded',
             }}
             className="relative overflow-hidden rounded-md border border-border"
             onResizeStop={(_event, _direction, ref) => {
