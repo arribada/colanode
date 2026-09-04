@@ -201,6 +201,9 @@ export const TableCellNodeView = (props: NodeViewProps) => {
           <NodeViewContent
             className={cn(
               'z-0 h-full w-full',
+              align === 'left' && 'text-left',
+              align === 'center' && 'text-center',
+              align === 'right' && 'text-right',
               (isAggregate || showFormatted) && 'invisible'
             )}
           />

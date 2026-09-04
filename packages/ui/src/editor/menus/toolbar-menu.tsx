@@ -1,7 +1,18 @@
 import { EditorState } from '@tiptap/pm/state';
 import { Editor, isNodeSelection, useEditorState } from '@tiptap/react';
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus';
-import { Bold, Code, Italic, Quote, Strikethrough, Underline } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Code,
+  Italic,
+  Quote,
+  Strikethrough,
+  Underline,
+} from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AiButton } from '@colanode/ui/editor/menus/ai-button';
@@ -49,6 +60,13 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
         isStrikeActive: editor.isActive('strike'),
         isCodeActive: editor.isActive('code'),
         isBlockquoteActive: editor.isActive('blockquote'),
+        textAlign: editor.isActive({ textAlign: 'center' })
+          ? 'center'
+          : editor.isActive({ textAlign: 'right' })
+            ? 'right'
+            : editor.isActive({ textAlign: 'justify' })
+              ? 'justify'
+              : 'left',
       };
     },
   });
@@ -188,6 +206,30 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
         label="Quote"
         testId="editor-toolbar-quote"
       />
+      {(() => {
+        // One button cycling left -> center -> right -> justify; the icon shows
+        // the current alignment. Works in normal text and inside table cells.
+        const order = ['left', 'center', 'right', 'justify'] as const;
+        const icons = {
+          left: AlignLeft,
+          center: AlignCenter,
+          right: AlignRight,
+          justify: AlignJustify,
+        } as const;
+        const current = (state?.textAlign ?? 'left') as keyof typeof icons;
+        const next = order[(order.indexOf(current) + 1) % order.length]!;
+        return (
+          <MarkButton
+            isActive={current !== 'left'}
+            onClick={() =>
+              props.editor?.chain().focus().setTextAlign(next).run()
+            }
+            icon={icons[current]}
+            label={`Align (${current}) — click to change`}
+            testId="editor-toolbar-align"
+          />
+        );
+      })()}
       <ColorButton
         editor={props.editor}
         isOpen={isColorButtonOpen}

@@ -7,35 +7,33 @@ import UnderlineMark from '@tiptap/extension-underline';
 
 import { AutoJoiner } from '@colanode/ui/editor/extensions/auto-joiner';
 import { BlockquoteNode } from '@colanode/ui/editor/extensions/blockquote';
-import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
 import { BookmarkNode } from '@colanode/ui/editor/extensions/bookmark';
-import { EmbedNode } from '@colanode/ui/editor/extensions/embed';
-import { PlaneEmbedNode } from '@colanode/ui/editor/extensions/plane-embed';
-import { WhiteboardEmbedNode } from '@colanode/ui/editor/extensions/whiteboard-embed';
+import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
 import { CalloutNode } from '@colanode/ui/editor/extensions/callout';
+import { ChartNode } from '@colanode/ui/editor/extensions/chart';
+import { CodeMark } from '@colanode/ui/editor/extensions/code';
+import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
+import { ColorMark } from '@colanode/ui/editor/extensions/color';
 import {
   ColumnNode,
   ColumnsNode,
 } from '@colanode/ui/editor/extensions/columns';
 import { ColumnsDragExtension } from '@colanode/ui/editor/extensions/columns-drag';
 import { ColumnsResizeExtension } from '@colanode/ui/editor/extensions/columns-resize';
-import { ChartNode } from '@colanode/ui/editor/extensions/chart';
-import { CodeMark } from '@colanode/ui/editor/extensions/code';
-import { CodeBlockNode } from '@colanode/ui/editor/extensions/code-block';
-import { ColorMark } from '@colanode/ui/editor/extensions/color';
-import { CommentMark } from '@colanode/ui/editor/extensions/comment';
 import { CommanderExtension } from '@colanode/ui/editor/extensions/commander';
+import { CommentMark } from '@colanode/ui/editor/extensions/comment';
 import { DatabaseNode } from '@colanode/ui/editor/extensions/database';
 import { DeleteControlExtension } from '@colanode/ui/editor/extensions/delete-control';
 import { DividerNode } from '@colanode/ui/editor/extensions/divider';
 import { DropcursorExtension } from '@colanode/ui/editor/extensions/dropcursor';
+import { EmbedNode } from '@colanode/ui/editor/extensions/embed';
 import { FileNode } from '@colanode/ui/editor/extensions/file';
 import { FolderNode } from '@colanode/ui/editor/extensions/folder';
 import { HardBreakNode } from '@colanode/ui/editor/extensions/hard-break';
+import { HeadingEnhancementsExtension } from '@colanode/ui/editor/extensions/heading-enhancements';
 import { Heading1Node } from '@colanode/ui/editor/extensions/heading1';
 import { Heading2Node } from '@colanode/ui/editor/extensions/heading2';
 import { Heading3Node } from '@colanode/ui/editor/extensions/heading3';
-import { HeadingEnhancementsExtension } from '@colanode/ui/editor/extensions/heading-enhancements';
 import { HighlightMark } from '@colanode/ui/editor/extensions/highlight';
 import { IdExtension } from '@colanode/ui/editor/extensions/id';
 import { LinkMark } from '@colanode/ui/editor/extensions/link';
@@ -46,14 +44,15 @@ import {
   MathBlockNode,
   MathInlineNode,
 } from '@colanode/ui/editor/extensions/math';
-import { MermaidNode } from '@colanode/ui/editor/extensions/mermaid';
 import { MentionExtension } from '@colanode/ui/editor/extensions/mention';
+import { MermaidNode } from '@colanode/ui/editor/extensions/mermaid';
 import { MessageNode } from '@colanode/ui/editor/extensions/message';
 import { OrderedListNode } from '@colanode/ui/editor/extensions/ordered-list';
 import { PageNode } from '@colanode/ui/editor/extensions/page';
 import { ParagraphNode } from '@colanode/ui/editor/extensions/paragraph';
 import { ParserExtension } from '@colanode/ui/editor/extensions/parser';
 import { PlaceholderExtension } from '@colanode/ui/editor/extensions/placeholder';
+import { PlaneEmbedNode } from '@colanode/ui/editor/extensions/plane-embed';
 import { PlaneIssueLinkExtension } from '@colanode/ui/editor/extensions/plane-issue-link';
 import {
   PresenceExtension,
@@ -61,20 +60,22 @@ import {
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions/presence';
 import { TabKeymapExtension } from '@colanode/ui/editor/extensions/tab-keymap';
-import { TableOfContentsNode } from '@colanode/ui/editor/extensions/table-of-contents';
 import { TableNode } from '@colanode/ui/editor/extensions/table';
 import { TableCellNode } from '@colanode/ui/editor/extensions/table-cell';
 import { TableHeaderNode } from '@colanode/ui/editor/extensions/table-header';
+import { TableOfContentsNode } from '@colanode/ui/editor/extensions/table-of-contents';
 import { TableRowNode } from '@colanode/ui/editor/extensions/table-row';
 import { TaskItemNode } from '@colanode/ui/editor/extensions/task-item';
 import { TaskListNode } from '@colanode/ui/editor/extensions/task-list';
 import { TempFileNode } from '@colanode/ui/editor/extensions/temp-file';
+import { TextAlignExtension } from '@colanode/ui/editor/extensions/text-align';
 import {
   ToggleContentNode,
   ToggleNode,
   ToggleSummaryNode,
 } from '@colanode/ui/editor/extensions/toggle';
 import { TrailingNode } from '@colanode/ui/editor/extensions/trailing-node';
+import { WhiteboardEmbedNode } from '@colanode/ui/editor/extensions/whiteboard-embed';
 
 export {
   BlockquoteNode,
@@ -138,6 +139,7 @@ export {
   DatabaseNode,
   AutoJoiner,
   MentionExtension,
+  TextAlignExtension,
   PlaneIssueLinkExtension,
   HardBreakNode,
   ParserExtension,
