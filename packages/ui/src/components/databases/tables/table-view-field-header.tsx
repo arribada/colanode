@@ -3,13 +3,16 @@ import { ArrowDownAz, ArrowDownZa, EyeOff, Filter, Trash2 } from 'lucide-react';
 import { Resizable } from 're-resizable';
 import { Fragment, useCallback, useRef, useState } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
+import { toast } from 'sonner';
 
 import { LocalNode, ViewField } from '@colanode/client/types';
+import { FieldAttributes, FieldType } from '@colanode/core';
 import { FieldDateRange } from '@colanode/ui/components/databases/fields/field-date-range';
 import { FieldDeleteDialog } from '@colanode/ui/components/databases/fields/field-delete-dialog';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
 import { FieldNumberFormat } from '@colanode/ui/components/databases/fields/field-number-format';
 import { FieldRenameInput } from '@colanode/ui/components/databases/fields/field-rename-input';
+import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
 import {
   Popover,
   PopoverContent,
@@ -27,6 +30,25 @@ import {
 import { applyNodeTransaction } from '@colanode/ui/lib/nodes';
 import { cn } from '@colanode/ui/lib/utils';
 
+// Types safe to switch an EXISTING field to from the header: plain value types
+// whose base {id,name,index,type} shape is valid and that need no extra config
+// the header can't collect. Computed/system types (formula, rollup, autonumber,
+// created/updated_at/by) and relation (needs a target db) are set at creation.
+const CHANGEABLE_FIELD_TYPES = new Set<FieldType>([
+  'text',
+  'number',
+  'date',
+  'boolean',
+  'url',
+  'email',
+  'phone',
+  'rating',
+  'select',
+  'multi_select',
+  'collaborator',
+  'file',
+]);
+
 interface TableViewFieldHeaderProps {
   viewField: ViewField;
 }
@@ -37,6 +59,35 @@ export const TableViewFieldHeader = ({
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
+
+  const changeFieldType = (newType: FieldType) => {
+    if (newType === viewField.field.type) {
+      return;
+    }
+    if (!CHANGEABLE_FIELD_TYPES.has(newType)) {
+      toast.error('This field type can only be set when the field is created.');
+      return;
+    }
+    // Rewrite the field to the new type's base shape (dropping any type-specific
+    // config). Existing record values are left in place -- the new renderer
+    // reinterprets or ignores incompatible ones, and re-editing a cell fixes it.
+    workspace.collections.nodes.update(database.id, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      const current = draft.fields[viewField.field.id];
+      if (!current) {
+        return;
+      }
+      draft.fields[viewField.field.id] = {
+        id: current.id,
+        name: current.name,
+        index: current.index,
+        type: newType,
+      } as FieldAttributes;
+    });
+    setOpenPopover(false);
+  };
 
   const [openPopover, setOpenPopover] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -229,6 +280,14 @@ export const TableViewFieldHeader = ({
           </PopoverTrigger>
           <PopoverContent className="ml-1 flex w-72 flex-col gap-1 p-2 text-sm">
             <FieldRenameInput field={viewField.field} />
+            {database.canEdit && !database.isLocked && (
+              <div className="p-1">
+                <FieldTypeSelect
+                  value={viewField.field.type}
+                  onChange={changeFieldType}
+                />
+              </div>
+            )}
             <Separator />
             {viewField.field.type === 'number' && (
               <Fragment>
