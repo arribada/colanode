@@ -27,8 +27,14 @@ export const DatabaseNode = Node.create({
       },
     };
   },
+  parseHTML() {
+    return [{ tag: 'div[data-type="database"]' }];
+  },
   renderHTML({ HTMLAttributes }) {
-    return ['page', mergeAttributes(HTMLAttributes)];
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, { 'data-type': 'database' }),
+    ];
   },
   addNodeView() {
     return ReactNodeViewRenderer(DatabaseNodeView, {

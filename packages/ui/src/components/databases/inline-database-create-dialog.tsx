@@ -63,6 +63,19 @@ export const InlineDatabaseCreateDialog = ({
   const [properties, setProperties] = useState<InlineDatabaseProperty[]>([
     { name: 'Comment', type: 'text' },
   ]);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  const reorder = (from: number, to: number) => {
+    setProperties((prev) => {
+      if (from === to || from < 0 || to < 0 || from >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved!);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (open) {
@@ -128,8 +141,23 @@ export const InlineDatabaseCreateDialog = ({
                 <div
                   key={index}
                   className="flex items-center gap-1.5 rounded-md border border-border p-1.5"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => {
+                    if (dragIndex != null) {
+                      reorder(dragIndex, index);
+                    }
+                    setDragIndex(null);
+                  }}
                 >
-                  <GripVertical className="size-4 shrink-0 text-muted-foreground" />
+                  <span
+                    draggable
+                    onDragStart={() => setDragIndex(index)}
+                    onDragEnd={() => setDragIndex(null)}
+                    className="cursor-grab active:cursor-grabbing"
+                    aria-label="Drag to reorder"
+                  >
+                    <GripVertical className="size-4 shrink-0 text-muted-foreground" />
+                  </span>
                   <Input
                     className="h-8 flex-1"
                     value={property.name}
