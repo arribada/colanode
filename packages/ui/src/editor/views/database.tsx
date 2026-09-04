@@ -12,6 +12,10 @@ import { NodeProvider } from '@colanode/ui/components/nodes/node-provider';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useNode } from '@colanode/ui/contexts/node';
 
+// Inner content only -- the single NodeViewWrapper lives in DatabaseNodeView so
+// that ProseMirror always gets a wrapper root even while NodeProvider renders a
+// loading skeleton or an unavailable state (returning those bare used to throw
+// tiptap's "Please use the NodeViewWrapper" and kill the whole embed).
 const DatabaseNodeViewContent = ({
   id,
   inline,
@@ -46,29 +50,7 @@ const DatabaseNodeViewContent = ({
         : undefined;
 
     return (
-      <NodeViewWrapper
-        data-id={id}
-        className="my-4 w-full min-w-0"
-        contentEditable={false}
-        // Isolate drags that start INSIDE the embedded database (e.g. field
-        // headers) from the page editor. The block drag-handle starts its drag
-        // on the handle element itself, so moving the whole embed still works.
-        // NOTE: no onDragOver here — swallowing it blocked ProseMirror from
-        // computing a drop position, which is why the embed could not be moved.
-        // Grabbing a column-resize handle must NOT start a drag of this
-        // draggable atom (that is what killed in-embed column resizing). Cancel
-        // the native drag as early as possible when it begins on a handle.
-        onDragStartCapture={(e: React.DragEvent<HTMLDivElement>) => {
-          const target = e.target as HTMLElement | null;
-          if (target?.closest?.('.cn-col-resize-handle')) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-        onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
-          e.stopPropagation();
-        }}
-      >
+      <>
         {filterOptionName ? (
           <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <Filter className="size-3 shrink-0" />
@@ -83,7 +65,7 @@ const DatabaseNodeViewContent = ({
         <Database database={database} role={role}>
           <DatabaseViews inline extraFilters={extraFilters} />
         </Database>
-      </NodeViewWrapper>
+      </>
     );
   }
 
@@ -91,16 +73,14 @@ const DatabaseNodeViewContent = ({
   const avatar = database.avatar;
 
   return (
-    <NodeViewWrapper data-id={id}>
-      <Link from="/workspace/$userId" to="$nodeId" params={{ nodeId: id }}>
-        <div className="my-0.5 flex h-10 w-full cursor-pointer flex-row items-center gap-1 rounded-md p-1 hover:bg-accent">
-          <Avatar size="small" id={id} name={name} avatar={avatar} />
-          <div role="presentation" className="grow">
-            {name}
-          </div>
+    <Link from="/workspace/$userId" to="$nodeId" params={{ nodeId: id }}>
+      <div className="my-0.5 flex h-10 w-full cursor-pointer flex-row items-center gap-1 rounded-md p-1 hover:bg-accent">
+        <Avatar size="small" id={id} name={name} avatar={avatar} />
+        <div role="presentation" className="grow">
+          {name}
         </div>
-      </Link>
-    </NodeViewWrapper>
+      </div>
+    </Link>
   );
 };
 
@@ -112,22 +92,20 @@ const DatabaseNodeViewPicker = ({
   onPick: (databaseId: string) => void;
 }) => {
   return (
-    <NodeViewWrapper className="my-4 w-full min-w-0" contentEditable={false}>
-      <div className="flex w-full flex-row items-center gap-2 rounded-md border border-dashed border-border p-2">
-        <span className="whitespace-nowrap text-sm text-muted-foreground">
-          Linked database
+    <div className="flex w-full flex-row items-center gap-2 rounded-md border border-dashed border-border p-2">
+      <span className="whitespace-nowrap text-sm text-muted-foreground">
+        Linked database
+      </span>
+      {editable ? (
+        <div className="grow">
+          <DatabaseSelect id={null} onChange={onPick} />
+        </div>
+      ) : (
+        <span className="text-sm text-muted-foreground">
+          No database selected
         </span>
-        {editable ? (
-          <div className="grow">
-            <DatabaseSelect id={null} onChange={onPick} />
-          </div>
-        ) : (
-          <span className="text-sm text-muted-foreground">
-            No database selected
-          </span>
-        )}
-      </div>
-    </NodeViewWrapper>
+      )}
+    </div>
   );
 };
 
@@ -152,26 +130,46 @@ export const DatabaseNodeView = ({
         ]
       : [];
 
-  if (!id) {
-    return (
-      <DatabaseNodeViewPicker
-        editable={editor.isEditable}
-        onPick={(databaseId) => {
-          updateAttributes({ id: databaseId });
-        }}
-      />
-    );
-  }
-
+  // A SINGLE wrapper is the node view root in every state (picker, loading,
+  // unavailable, inline table, link row) so ProseMirror never sees a render
+  // without a NodeViewWrapper.
   return (
-    <NodeProvider nodeId={id}>
-      <DatabaseNodeViewContent
-        id={id}
-        inline={node.attrs.inline}
-        extraFilters={extraFilters}
-        filterFieldId={filterFieldId}
-        filterValue={filterValue}
-      />
-    </NodeProvider>
+    <NodeViewWrapper
+      data-id={id ?? undefined}
+      className="my-4 w-full min-w-0"
+      contentEditable={false}
+      // Isolate drags that start INSIDE the embed (field headers) from the page
+      // editor; and never let grabbing a column-resize handle start a drag of
+      // this draggable atom (that killed in-embed column resizing).
+      onDragStartCapture={(e: React.DragEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.('.cn-col-resize-handle')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+      onDragStart={(e: React.DragEvent<HTMLDivElement>) => {
+        e.stopPropagation();
+      }}
+    >
+      {!id ? (
+        <DatabaseNodeViewPicker
+          editable={editor.isEditable}
+          onPick={(databaseId) => {
+            updateAttributes({ id: databaseId });
+          }}
+        />
+      ) : (
+        <NodeProvider nodeId={id}>
+          <DatabaseNodeViewContent
+            id={id}
+            inline={node.attrs.inline}
+            extraFilters={extraFilters}
+            filterFieldId={filterFieldId}
+            filterValue={filterValue}
+          />
+        </NodeProvider>
+      )}
+    </NodeViewWrapper>
   );
 };

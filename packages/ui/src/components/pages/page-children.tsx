@@ -164,6 +164,55 @@ export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => 
                   )}
                   data-testid={`page-child-${child.id}`}
                 >
+                  {canEdit && !isRenaming ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          data-testid={`page-child-menu-${child.id}`}
+                          className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-background hover:text-foreground group-hover/child:opacity-100 data-[state=open]:opacity-100"
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem asChild>
+                          <Link
+                            from="/workspace/$userId"
+                            to="$nodeId"
+                            params={{ nodeId: child.id }}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <SquareArrowOutUpRight className="size-4" />
+                            Open
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => startRename(child.id, name)}
+                        >
+                          <Pencil className="size-4" />
+                          Rename
+                        </DropdownMenuItem>
+                        <CopyLinkAction
+                          nodeId={child.id}
+                          item={DropdownMenuItem}
+                        />
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() =>
+                            setDeleteTarget({ id: child.id, label })
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <span className="size-5 shrink-0" />
+                  )}
                   <Avatar
                     size="small"
                     id={child.id}
@@ -199,53 +248,6 @@ export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => 
                     </Link>
                   )}
                   <span className="text-xs text-muted-foreground">{label}</span>
-                  {canEdit && !isRenaming && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label="Actions"
-                          data-testid={`page-child-menu-${child.id}`}
-                          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-background hover:text-foreground group-hover/child:opacity-100 data-[state=open]:opacity-100"
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link
-                            from="/workspace/$userId"
-                            to="$nodeId"
-                            params={{ nodeId: child.id }}
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <SquareArrowOutUpRight className="size-4" />
-                            Open
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => startRename(child.id, name)}
-                        >
-                          <Pencil className="size-4" />
-                          Rename
-                        </DropdownMenuItem>
-                        <CopyLinkAction
-                          nodeId={child.id}
-                          item={DropdownMenuItem}
-                        />
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() =>
-                            setDeleteTarget({ id: child.id, label })
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
                 </div>
               );
             })}
