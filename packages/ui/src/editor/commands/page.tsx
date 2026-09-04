@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react';
 import { EditorCommand, LocalPageNode } from '@colanode/client/types';
 import { generateId, IdType } from '@colanode/core';
 import { collections } from '@colanode/ui/collections';
+import { markPagePendingRename } from '@colanode/ui/editor/views/page-pending-rename';
 
 export const PageCommand: EditorCommand = {
   key: 'page',
@@ -24,7 +25,7 @@ export const PageCommand: EditorCommand = {
     const page: LocalPageNode = {
       id: pageId,
       type: 'page',
-      name: 'Untitled',
+      name: '',
       avatar: null,
       parentId: documentId,
       rootId: rootId,
@@ -37,11 +38,12 @@ export const PageCommand: EditorCommand = {
     };
 
     nodes.insert(page);
+    markPagePendingRename(page.id);
 
+    editor.chain().focus().deleteRange(range).run();
     editor
       .chain()
       .focus()
-      .deleteRange(range)
       .insertContent({
         type: 'page',
         attrs: {
