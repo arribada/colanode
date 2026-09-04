@@ -507,6 +507,53 @@ const buildUpdatedByFilterExpression = (
   return filter.operator === 'is_in' ? combined : not(combined);
 };
 
+// The relative date operators (Is Today / This Week / This Month) carry no
+// stored value -- they resolve against the current local calendar. Bounds are
+// inclusive and span the whole first/last day so a stored full-ISO timestamp
+// falls inside the range.
+const startOfLocalDay = (date: Date): string => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+
+const endOfLocalDay = (date: Date): string => {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+};
+
+const relativeDateRange = (
+  operator: string
+): { start: string; end: string } | null => {
+  if (
+    operator !== 'is_today' &&
+    operator !== 'is_this_week' &&
+    operator !== 'is_this_month'
+  ) {
+    return null;
+  }
+
+  const now = new Date();
+  if (operator === 'is_today') {
+    return { start: startOfLocalDay(now), end: endOfLocalDay(now) };
+  }
+
+  if (operator === 'is_this_week') {
+    // Monday-based week.
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return { start: startOfLocalDay(weekStart), end: endOfLocalDay(weekEnd) };
+  }
+
+  // is_this_month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { start: startOfLocalDay(monthStart), end: endOfLocalDay(monthEnd) };
+};
+
 const buildDateComparisonExpression = (
   filter: DatabaseViewFieldFilterAttributes,
   valueRef: StringValueExpression,
@@ -520,6 +567,32 @@ const buildDateComparisonExpression = (
     if (filter.operator === 'is_not_empty') {
       return isValuePresent(valueRef);
     }
+  }
+
+  // Relative operators resolve against "now" and need no stored value.
+  const relativeRange = relativeDateRange(filter.operator);
+  if (relativeRange) {
+    return combineWithAnd([
+      gte(valueRef, relativeRange.start),
+      lte(valueRef, relativeRange.end),
+    ]);
+  }
+
+  // Between stores a [start, end] ISO pair; either bound may be blank.
+  if (filter.operator === 'is_between') {
+    const range = Array.isArray(filter.value) ? filter.value : [];
+    const startRaw = typeof range[0] === 'string' ? range[0] : '';
+    const endRaw = typeof range[1] === 'string' ? range[1] : '';
+    const startDate = startRaw ? new Date(startRaw) : null;
+    const endDate = endRaw ? new Date(endRaw) : null;
+    const bounds: BooleanExpression[] = [];
+    if (startDate && !Number.isNaN(startDate.getTime())) {
+      bounds.push(gte(valueRef, startOfLocalDay(startDate)));
+    }
+    if (endDate && !Number.isNaN(endDate.getTime())) {
+      bounds.push(lte(valueRef, endOfLocalDay(endDate)));
+    }
+    return combineWithAnd(bounds);
   }
 
   const value = normalizeDateValue(filter.value);
@@ -557,6 +630,21 @@ const buildNumberFilterExpression = (
 
   if (filter.operator === 'is_not_empty') {
     return isValuePresent(fieldValue);
+  }
+
+  // Between stores a [min, max] string pair; either bound may be blank.
+  if (filter.operator === 'is_between') {
+    const range = Array.isArray(filter.value) ? filter.value : [];
+    const min = parseFloat(String(range[0] ?? ''));
+    const max = parseFloat(String(range[1] ?? ''));
+    const bounds: BooleanExpression[] = [];
+    if (!Number.isNaN(min)) {
+      bounds.push(gte(fieldValue, min));
+    }
+    if (!Number.isNaN(max)) {
+      bounds.push(lte(fieldValue, max));
+    }
+    return combineWithAnd(bounds);
   }
 
   if (typeof filter.value !== 'number' || Number.isNaN(filter.value)) {

@@ -1,13 +1,23 @@
 import {
   ArrowDownAz,
+  Calendar,
+  ChartGantt,
+  ChartPie,
   Check,
+  Columns,
   Filter,
+  LayoutGrid,
+  List,
   Lock,
   LockOpen,
+  type LucideIcon,
   Rows3,
+  Table,
   Trash2,
 } from 'lucide-react';
 import { Fragment, ReactNode, useState } from 'react';
+
+import { LocalDatabaseViewNode } from '@colanode/client/types';
 
 import {
   supportsAggregation,
@@ -35,6 +45,21 @@ import { Separator } from '@colanode/ui/components/ui/separator';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { cn } from '@colanode/ui/lib/utils';
+
+const LAYOUT_OPTIONS: {
+  type: LocalDatabaseViewNode['layout'];
+  name: string;
+  icon: LucideIcon;
+}[] = [
+  { type: 'table', name: 'Table', icon: Table },
+  { type: 'board', name: 'Board', icon: Columns },
+  { type: 'calendar', name: 'Calendar', icon: Calendar },
+  { type: 'gallery', name: 'Gallery', icon: LayoutGrid },
+  { type: 'list', name: 'List', icon: List },
+  { type: 'chart', name: 'Chart', icon: ChartPie },
+  { type: 'timeline', name: 'Timeline', icon: ChartGantt },
+];
 
 interface ViewSettingsPopoverProps {
   // Layout-specific settings (e.g. the chart's type/group-by/aggregate config)
@@ -107,6 +132,19 @@ export const ViewSettingsPopover = ({
   const [open, setOpen] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
 
+  const changeLayout = (layout: LocalDatabaseViewNode['layout']) => {
+    const nodes = workspace.collections.nodes;
+    if (!nodes.has(view.id)) {
+      return;
+    }
+    nodes.update(view.id, (draft) => {
+      if (draft.type !== 'database_view') {
+        return;
+      }
+      draft.layout = layout;
+    });
+  };
+
   return (
     <Fragment>
       <Popover open={open} onOpenChange={setOpen}>
@@ -128,6 +166,31 @@ export const ViewSettingsPopover = ({
               readOnly={!database.canEdit || database.isLocked}
             />
           </div>
+          {database.canEdit && !database.isLocked && (
+            <Fragment>
+              <Separator />
+              <div className="flex flex-col gap-1 text-sm">
+                <p className="my-1 font-semibold">Layout</p>
+                <div className="grid grid-cols-4 gap-1">
+                  {LAYOUT_OPTIONS.map((option) => (
+                    <button
+                      key={option.type}
+                      type="button"
+                      className={cn(
+                        'flex cursor-pointer flex-col items-center gap-1 rounded-md border p-2 text-xs text-muted-foreground hover:bg-accent',
+                        view.layout === option.type &&
+                          'border-foreground text-foreground'
+                      )}
+                      onClick={() => changeLayout(option.type)}
+                    >
+                      <option.icon className="size-4" />
+                      <span>{option.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Fragment>
+          )}
           {children && (
             <Fragment>
               <Separator />

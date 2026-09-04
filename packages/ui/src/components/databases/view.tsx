@@ -27,6 +27,8 @@ import {
   getDefaultFieldWidth,
   getDefaultNameWidth,
   getDefaultViewFieldDisplay,
+  getFieldFilterOperators,
+  nameFieldFilterOperators,
 } from '@colanode/ui/lib/databases';
 
 // Each of the 5 view layouts is dynamic-imported so a database that only
@@ -132,6 +134,23 @@ export const View = ({ view }: ViewProps) => {
         isFieldFilterOpened: (fieldId: string) =>
           openedFieldFilters.includes(fieldId),
         initFieldFilter: (fieldId: string) => {
+          // A fresh filter must be born with a VALID operator for its field
+          // type -- seeding a literal 'equals' left the row query unable to
+          // interpret it, so the filter silently did nothing even after a value
+          // was typed. The popover only shows operators[0] as a fallback but
+          // never re-stored it.
+          const filterField =
+            fieldId === SpecialId.Name
+              ? null
+              : database.fields.find((f) => f.id === fieldId);
+          const filterOperators =
+            fieldId === SpecialId.Name
+              ? nameFieldFilterOperators
+              : filterField
+                ? getFieldFilterOperators(filterField.type)
+                : [];
+          const defaultFilterOperator = (filterOperators[0]?.value ??
+            'contains') as DatabaseViewFilterAttributes['operator'];
           if (scope.mode === 'personal') {
             const existing = scope.state.filters?.[fieldId];
             if (existing) {
@@ -150,7 +169,7 @@ export const View = ({ view }: ViewProps) => {
               id: fieldId,
               fieldId,
               type: 'field',
-              operator: 'equals',
+              operator: defaultFilterOperator,
               value: '',
             });
             setOpenedFieldFilters((prev) => [...prev, fieldId]);
@@ -179,7 +198,7 @@ export const View = ({ view }: ViewProps) => {
               id: fieldId,
               fieldId,
               type: 'field',
-              operator: 'equals',
+              operator: defaultFilterOperator,
               value: '',
             };
 

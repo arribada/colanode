@@ -17,7 +17,7 @@ export const Database = ({ database, role, children }: DatabaseProps) => {
 
   const canEdit = hasNodeRole(role, 'editor');
   const isLocked = database.locked ?? false;
-  const canCreateRecord = hasNodeRole(role, 'editor');
+  const canCreateRecord = hasNodeRole(role, 'editor') && !isLocked;
 
   // Backfill materialised formula values for records created before the
   // feature shipped, so they sort/filter correctly too (once, per client).

@@ -57,6 +57,8 @@ const formSchema = z.object({
     z.literal('updated_at'),
     z.literal('updated_by'),
     z.literal('url'),
+    z.literal('rating'),
+    z.literal('autonumber'),
   ]),
   relationDatabaseId: z.string().optional().nullable(),
   expression: z.string().optional(),

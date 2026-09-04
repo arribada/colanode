@@ -13,6 +13,17 @@ import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
 import { FieldNumberFormat } from '@colanode/ui/components/databases/fields/field-number-format';
 import { FieldRenameInput } from '@colanode/ui/components/databases/fields/field-rename-input';
 import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
+import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@colanode/ui/components/ui/alert-dialog';
 import {
   Popover,
   PopoverContent,
@@ -60,7 +71,9 @@ export const TableViewFieldHeader = ({
   const database = useDatabase();
   const view = useDatabaseView();
 
-  const changeFieldType = (newType: FieldType) => {
+  // Ask before switching type -- it is destructive (drops type-specific config
+  // and can orphan existing values), so it goes through a confirmation dialog.
+  const requestChangeFieldType = (newType: FieldType) => {
     if (newType === viewField.field.type) {
       return;
     }
@@ -68,6 +81,10 @@ export const TableViewFieldHeader = ({
       toast.error('This field type can only be set when the field is created.');
       return;
     }
+    setPendingType(newType);
+  };
+
+  const applyChangeFieldType = (newType: FieldType) => {
     // Rewrite the field to the new type's base shape (dropping any type-specific
     // config). Existing record values are left in place -- the new renderer
     // reinterprets or ignores incompatible ones, and re-editing a cell fixes it.
@@ -86,11 +103,26 @@ export const TableViewFieldHeader = ({
         type: newType,
       } as FieldAttributes;
     });
+    setPendingType(null);
     setOpenPopover(false);
+  };
+
+  const changeRelationTarget = (databaseId: string) => {
+    workspace.collections.nodes.update(database.id, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      const current = draft.fields[viewField.field.id];
+      if (!current || current.type !== 'relation') {
+        return;
+      }
+      current.databaseId = databaseId;
+    });
   };
 
   const [openPopover, setOpenPopover] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [pendingType, setPendingType] = useState<FieldType | null>(null);
 
   const resize = usePacedMutations<number, LocalNode>({
     onMutate: (value) => {
@@ -284,7 +316,7 @@ export const TableViewFieldHeader = ({
               <div className="p-1">
                 <FieldTypeSelect
                   value={viewField.field.type}
-                  onChange={changeFieldType}
+                  onChange={requestChangeFieldType}
                 />
               </div>
             )}
@@ -301,6 +333,22 @@ export const TableViewFieldHeader = ({
                 <Separator />
               </Fragment>
             )}
+            {viewField.field.type === 'relation' &&
+              database.canEdit &&
+              !database.isLocked && (
+                <Fragment>
+                  <div className="flex flex-col gap-1 p-1">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Related database
+                    </span>
+                    <DatabaseSelect
+                      id={viewField.field.databaseId ?? null}
+                      onChange={changeRelationTarget}
+                    />
+                  </div>
+                  <Separator />
+                </Fragment>
+              )}
             {canSort && (
               <Fragment>
                 <button
@@ -373,6 +421,35 @@ export const TableViewFieldHeader = ({
           open={showDeleteDialog}
           onOpenChange={setShowDeleteDialog}
         />
+      )}
+      {pendingType && (
+        <AlertDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) {
+              setPendingType(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Change field type?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Type-specific settings (such as select options or the number
+                format) will be removed, and existing values in this column may
+                not display correctly until they are re-entered.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => applyChangeFieldType(pendingType)}
+              >
+                Change type
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </Fragment>
   );

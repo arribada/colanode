@@ -98,7 +98,19 @@ export const InlineDatabaseCreateDialog = ({
     );
   };
 
+  // A relation column with no target database would create a dead, unusable
+  // column -- block creation until every relation property points somewhere.
+  const hasIncompleteRelation = properties.some(
+    (property) =>
+      property.name.trim().length > 0 &&
+      property.type === 'relation' &&
+      !property.relationDatabaseId
+  );
+
   const create = () => {
+    if (hasIncompleteRelation) {
+      return;
+    }
     const values: InlineDatabaseValues = {
       name: name.trim() || 'Untitled',
       properties: properties
@@ -222,8 +234,17 @@ export const InlineDatabaseCreateDialog = ({
                           update(index, { relationDatabaseId: databaseId })
                         }
                       />
-                      <span className="text-[11px] text-muted-foreground">
-                        Links to records of the chosen database.
+                      <span
+                        className={cn(
+                          'text-[11px]',
+                          property.relationDatabaseId
+                            ? 'text-muted-foreground'
+                            : 'text-destructive'
+                        )}
+                      >
+                        {property.relationDatabaseId
+                          ? 'Links to records of the chosen database.'
+                          : 'Choose a database to link to, or remove this property.'}
                       </span>
                     </div>
                   )}
@@ -264,7 +285,9 @@ export const InlineDatabaseCreateDialog = ({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={create}>Create</Button>
+          <Button onClick={create} disabled={hasIncompleteRelation}>
+            Create
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

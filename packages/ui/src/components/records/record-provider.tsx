@@ -1,5 +1,6 @@
 import { LocalRecordNode } from '@colanode/client/types';
 import { NodeRole, hasNodeRole } from '@colanode/core';
+import { useDatabase } from '@colanode/ui/contexts/database';
 import { RecordContext } from '@colanode/ui/contexts/record';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
@@ -13,9 +14,11 @@ export const RecordProvider = ({
   children: React.ReactNode;
 }) => {
   const workspace = useWorkspace();
+  const database = useDatabase();
 
   const canEdit =
-    record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
+    !database.isLocked &&
+    (record.createdBy === workspace.userId || hasNodeRole(role, 'editor'));
 
   return (
     <RecordContext.Provider
