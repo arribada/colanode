@@ -71,11 +71,11 @@ export const TableViewSummaryRow = () => {
   return (
     <div className="group/summary animate-fade-in flex flex-row items-center gap-0.5 border-t bg-muted/20">
       <span
-        className="flex items-center justify-center"
+        className="flex shrink-0 items-center justify-center"
         style={{ width: '30px', minWidth: '30px' }}
       />
       <div
-        className="h-8 border-r overflow-hidden"
+        className="h-8 shrink-0 border-r overflow-hidden"
         style={{ width: `${view.nameWidth}px`, minWidth: '300px' }}
       >
         <TableViewSummaryCell
@@ -92,8 +92,8 @@ export const TableViewSummaryRow = () => {
         return (
           <div
             key={`summary-${viewField.field.id}`}
-            className="h-8 border-r p-1 overflow-hidden"
-            style={{ width: `${viewField.width}px` }}
+            className="h-8 shrink-0 border-r p-1 overflow-hidden"
+            style={{ width: `${viewField.width}px`, minWidth: `${viewField.width}px` }}
           >
             <TableViewSummaryCell
               field={viewField.field}

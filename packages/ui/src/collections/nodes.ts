@@ -79,7 +79,21 @@ export const createNodesCollection = (userId: string) => {
         return {
           cleanup: () => window.eventBus.unsubscribe(subscriptionId),
           loadSubset: async (options) => {
-            const parsedOptions = parseLoadSubsetOptions(options);
+            let parsedOptions;
+            try {
+              parsedOptions = parseLoadSubsetOptions(options);
+            } catch {
+              // A view filtered by a relation / multi_select field builds an
+              // expression react-db's push-down parser rejects (or/length/
+              // coalesce), which otherwise throws and breaks the whole view.
+              // Fall back to loading a bounded set of records with no server
+              // filter and let react-db apply the predicate in memory.
+              parsedOptions = {
+                filters: [{ field: ['type'], operator: 'in', value: ['record'] }],
+                sorts: [],
+                limit: 2000,
+              };
+            }
 
             const nodes = await window.colanode.executeQuery({
               type: 'node.list',

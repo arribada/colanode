@@ -24,9 +24,9 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { Link } from '@colanode/ui/components/ui/link';
-import { useTableCellRange } from '@colanode/ui/contexts/table-cell-range';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useTableCellRange } from '@colanode/ui/contexts/table-cell-range';
 import { useTableFill } from '@colanode/ui/contexts/table-fill';
 import { useTableSelection } from '@colanode/ui/contexts/table-selection';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -118,7 +118,7 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
             )}
           >
             <span
-              className="flex items-center justify-center gap-0.5 text-sm text-muted-foreground"
+              className="flex shrink-0 items-center justify-center gap-0.5 text-sm text-muted-foreground"
               style={{ width: '30px', minWidth: '30px' }}
             >
               <span
@@ -199,7 +199,7 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
               />
             </span>
             <div
-              className="h-8 border-r overflow-hidden"
+              className="h-8 shrink-0 border-r overflow-hidden"
               style={{ width: `${view.nameWidth}px`, minWidth: '300px' }}
             >
               <TableViewNameCell record={record} />
@@ -213,12 +213,12 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
                   data-cell-row={index}
                   data-cell-col={col}
                   className={cn(
-                    'group/cell relative h-8 border-r p-1 overflow-hidden',
+                    'group/cell relative h-8 shrink-0 border-r p-1 overflow-hidden',
                     inFillRange && 'bg-blue-100/70 dark:bg-blue-900/40',
                     inRange &&
                       'bg-blue-200/70 ring-1 ring-inset ring-blue-400 dark:bg-blue-800/50 dark:ring-blue-500'
                   )}
-                  style={{ width: `${field.width}px` }}
+                  style={{ width: `${field.width}px`, minWidth: `${field.width}px` }}
                   // Ctrl (or Cmd) + press starts a cell-range selection. Capture
                   // phase so it fires before the cell's own editor opens; the drag
                   // itself is tracked at the window level (see table-view.tsx).
