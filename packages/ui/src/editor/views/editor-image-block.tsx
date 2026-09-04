@@ -91,7 +91,7 @@ export const EditorImageBlock = ({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <figure
-          className="my-2 flex w-fit max-w-full flex-col gap-1"
+          className="group/img my-2 flex w-fit max-w-full flex-col gap-1"
           contentEditable={false}
         >
           <Resizable
@@ -102,15 +102,21 @@ export const EditorImageBlock = ({
             enable={editable ? { right: true } : {}}
             handleClasses={{
               right: cn(
-                'cn-img-resize-handle rounded transition-opacity',
-                editable && selected
-                  ? 'opacity-100 bg-primary'
-                  : 'opacity-0 hover:opacity-100 bg-primary/50'
+                'cn-img-resize-handle transition-opacity',
+                editable ? 'opacity-0 group-hover/img:opacity-100' : 'opacity-0',
+                editable && selected && '!opacity-100'
               ),
             }}
-            handleStyles={{ right: { width: '10px', right: '-5px' } }}
+            handleStyles={{ right: { width: '16px', right: '-8px' } }}
+            handleComponent={{
+              right: editable ? (
+                <div className="flex h-full items-center justify-center">
+                  <div className="h-10 max-h-[70%] w-1.5 rounded-full bg-primary shadow ring-1 ring-background" />
+                </div>
+              ) : undefined,
+            }}
             className={cn(
-              'relative overflow-hidden rounded-md border border-border',
+              'relative rounded-md border border-border',
               selected && 'ring-2 ring-primary ring-offset-1'
             )}
             onResizeStop={(_event, _direction, ref) => {
@@ -122,7 +128,7 @@ export const EditorImageBlock = ({
                 src={url}
                 alt={file.name}
                 draggable={false}
-                className="block h-auto w-full select-none"
+                className="block h-auto w-full select-none rounded-md"
               />
             ) : file.status === FileStatus.Pending ? (
               <div className="flex h-40 w-full flex-col items-center justify-center gap-1 bg-muted px-3 text-center text-xs text-muted-foreground">
