@@ -10,9 +10,9 @@ import { collections } from '@colanode/ui/collections';
 
 export const DatabaseCommand: EditorCommand = {
   key: 'database',
-  name: 'Database - Full Page',
-  description: 'Insert a full page database',
-  keywords: ['database', 'full', 'page'],
+  name: 'Blank database',
+  description: 'Insert a database with one starter column',
+  keywords: ['database', 'blank', 'quick', 'table'],
   icon: Database,
   group: 'database',
   disabled: false,

@@ -5,7 +5,7 @@ import { EditorCommand } from '@colanode/client/types';
 export const DatabaseLinkCommand: EditorCommand = {
   key: 'database-link',
   name: 'Linked database',
-  description: 'Insert a view of an existing database',
+  description: 'Embed a view of an existing database',
   keywords: ['database', 'linked', 'link', 'existing'],
   icon: Link2,
   group: 'database',

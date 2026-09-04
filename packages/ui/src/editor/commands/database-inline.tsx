@@ -4,9 +4,9 @@ import { EditorCommand } from '@colanode/client/types';
 
 export const DatabaseInlineCommand: EditorCommand = {
   key: 'database-inline',
-  name: 'Database - Inline',
-  description: 'Insert a database inline in the current document',
-  keywords: ['database', 'inline'],
+  name: 'New database',
+  description: 'Create a database and choose its columns',
+  keywords: ['database', 'new', 'inline', 'table', 'create'],
   icon: DatabaseZap,
   group: 'database',
   disabled: false,

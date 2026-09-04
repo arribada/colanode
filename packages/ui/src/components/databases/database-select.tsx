@@ -76,8 +76,8 @@ export const DatabaseSelect = ({ id, onChange }: DatabaseSelectProps) => {
       </PopoverTrigger>
       <PopoverContent className="w-96 p-1 overflow-hidden">
         <Command className="min-h-min">
-          <CommandInput placeholder="Search field types..." className="h-9" />
-          <CommandEmpty>No field type found.</CommandEmpty>
+          <CommandInput placeholder="Search databases..." className="h-9" />
+          <CommandEmpty>No database found.</CommandEmpty>
           <CommandList>
             <CommandGroup className="h-min overflow-y-auto">
               {databases.map((database) => (

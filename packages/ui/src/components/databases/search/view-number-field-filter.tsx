@@ -162,7 +162,18 @@ export const ViewNumberFieldFilter = ({
               value={numberValue ?? ''}
               aria-label={`${field.name} filter value`}
               onChange={(e) => {
-                const numberValue = parseFloat(e.target.value);
+                const raw = e.target.value;
+                // Allow clearing the value -- an empty input makes the filter
+                // inert instead of sticking on the previous number.
+                if (raw.trim() === '') {
+                  updateFilter({
+                    ...filter,
+                    value: null,
+                  });
+                  return;
+                }
+
+                const numberValue = parseFloat(raw);
                 if (isNaN(numberValue)) {
                   return;
                 }

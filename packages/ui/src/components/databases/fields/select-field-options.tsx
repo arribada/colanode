@@ -56,7 +56,11 @@ export const SelectFieldOptions = ({
         value={inputValue}
         onValueChange={setInputValue}
       />
-      <CommandEmpty>No options found.</CommandEmpty>
+      <CommandEmpty>
+        {database.canEdit && allowAdd
+          ? 'Type a name and press Enter to create an option.'
+          : 'No options found.'}
+      </CommandEmpty>
       <CommandList>
         <CommandGroup className="h-min">
           {selectOptions.map((option) => {
