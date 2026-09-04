@@ -28,6 +28,24 @@ export const getNotificationMessage = (
       // ignore malformed preview
     }
   }
+  // Public-share suggestions carry the visitor's name/email in the preview.
+  if (type === 'share_suggestion') {
+    try {
+      const p = JSON.parse(preview) as {
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+      };
+      const who =
+        [p.firstName, p.lastName].filter(Boolean).join(' ').trim() || p.email;
+      if (who) {
+        return `Suggestion from ${who}`;
+      }
+    } catch {
+      // ignore malformed preview
+    }
+    return 'New suggestion';
+  }
   return fallback;
 };
 
@@ -42,6 +60,14 @@ const getNotificationTypeLabel = (type: string): string => {
       return 'New message';
     case 'automation':
       return 'New task assigned';
+    case 'task_assigned':
+      return 'Task assigned to you';
+    case 'task_status':
+      return 'Task status changed';
+    case 'share_suggestion':
+      return 'New suggestion';
+    case 'document_suggestion':
+      return 'New edit suggestion';
     default:
       return 'New notification';
   }
