@@ -4,6 +4,7 @@ import React, { Fragment } from 'react';
 
 import { RecordNode } from '@colanode/core';
 import { Link } from '@colanode/ui/components/ui/link';
+import { useRecord } from '@colanode/ui/contexts/record';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 interface NameEditorProps {
@@ -57,13 +58,16 @@ interface TableViewNameCellProps {
 
 export const TableViewNameCell = ({ record }: TableViewNameCellProps) => {
   const workspace = useWorkspace();
+  const recordContext = useRecord();
   const [isEditing, setIsEditing] = React.useState(false);
 
-  const canEdit = true;
+  const canEdit = recordContext.canEdit;
   const hasName = record.name && record.name.length > 0;
 
   const handleSave = (newName: string) => {
-    if (newName === record.name) return;
+    // Always leave edit mode, even on a no-op save (Enter on an unchanged name).
+    setIsEditing(false);
+    if (!canEdit || newName === record.name) return;
 
     const nodes = workspace.collections.nodes;
     nodes.update(record.id, (draft) => {
@@ -72,8 +76,6 @@ export const TableViewNameCell = ({ record }: TableViewNameCellProps) => {
       }
       draft.name = newName;
     });
-
-    setIsEditing(false);
   };
 
   return (

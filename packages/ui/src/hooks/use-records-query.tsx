@@ -220,6 +220,20 @@ const createSortDefinition = (
     };
   }
 
+  if (field.type === 'updated_at') {
+    return {
+      direction: sort.direction,
+      selector: (record) => record.updatedAt ?? '',
+    };
+  }
+
+  if (field.type === 'updated_by') {
+    return {
+      direction: sort.direction,
+      selector: (record) => record.updatedBy ?? '',
+    };
+  }
+
   if (field.type === 'select') {
     const options = field.options ?? {};
     // Sort by the option's position in the field, not its opaque id, so the
@@ -335,7 +349,7 @@ const buildFieldFilterExpression = (
         getFieldValue<StringValueExpression>(record, field.id)
       );
     case 'file':
-      return null;
+      return buildArrayFieldFilterExpression(filter, record, field.id);
     case 'multi_select':
       return buildArrayFieldFilterExpression(filter, record, field.id);
     case 'number':
@@ -600,19 +614,34 @@ const buildDateComparisonExpression = (
     return null;
   }
 
+  // The stored value is a full ISO timestamp but the filter value is a single
+  // day. Compare against the whole [start-of-day, end-of-day] range so the
+  // time component never causes an exact-match miss or drops boundary days.
+  const day = new Date(filter.value as string);
+  if (Number.isNaN(day.getTime())) {
+    return null;
+  }
+  const dayStart = startOfLocalDay(day);
+  const dayEnd = endOfLocalDay(day);
+
   switch (filter.operator) {
     case 'is_equal_to':
-      return eq(valueRef, value);
-    case 'is_not_equal_to':
-      return not(eq(valueRef, value));
+      return combineWithAnd([gte(valueRef, dayStart), lte(valueRef, dayEnd)]);
+    case 'is_not_equal_to': {
+      const range = combineWithAnd([
+        gte(valueRef, dayStart),
+        lte(valueRef, dayEnd),
+      ]);
+      return range ? not(range) : null;
+    }
     case 'is_on_or_after':
-      return gte(valueRef, value);
+      return gte(valueRef, dayStart);
     case 'is_on_or_before':
-      return lte(valueRef, value);
+      return lte(valueRef, dayEnd);
     case 'is_after':
-      return gt(valueRef, value);
+      return gt(valueRef, dayEnd);
     case 'is_before':
-      return lt(valueRef, value);
+      return lt(valueRef, dayStart);
     default:
       return null;
   }

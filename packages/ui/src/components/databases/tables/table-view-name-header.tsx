@@ -1,7 +1,7 @@
 import { debounceStrategy, usePacedMutations } from '@tanstack/react-db';
 import { ArrowDownAz, ArrowDownZa, Filter, Type } from 'lucide-react';
 import { Resizable } from 're-resizable';
-import { Fragment, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDrop } from 'react-dnd';
 
 import { LocalNode } from '@colanode/client/types';
@@ -129,33 +129,29 @@ export const TableViewNameHeader = () => {
             />
           </div>
           <Separator />
-          {database.canEdit && !database.isLocked && (
-            <Fragment>
-              <button
-                type="button"
-                className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
-                onClick={() => {
-                  view.initFieldSort(SpecialId.Name, 'asc');
-                  setOpenPopover(false);
-                }}
-              >
-                <ArrowDownAz className="size-4" />
-                <span>Sort ascending</span>
-              </button>
+          <button
+            type="button"
+            className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
+            onClick={() => {
+              view.initFieldSort(SpecialId.Name, 'asc');
+              setOpenPopover(false);
+            }}
+          >
+            <ArrowDownAz className="size-4" />
+            <span>Sort ascending</span>
+          </button>
 
-              <button
-                type="button"
-                className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
-                onClick={() => {
-                  view.initFieldSort(SpecialId.Name, 'desc');
-                  setOpenPopover(false);
-                }}
-              >
-                <ArrowDownZa className="size-4" />
-                <span>Sort descending</span>
-              </button>
-            </Fragment>
-          )}
+          <button
+            type="button"
+            className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"
+            onClick={() => {
+              view.initFieldSort(SpecialId.Name, 'desc');
+              setOpenPopover(false);
+            }}
+          >
+            <ArrowDownZa className="size-4" />
+            <span>Sort descending</span>
+          </button>
           <button
             type="button"
             className="flex cursor-pointer flex-row items-center gap-2 p-1 hover:bg-accent rounded-sm"

@@ -18,6 +18,7 @@ import {
 } from '@colanode/ui/components/ui/popover';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { isFilterableField } from '@colanode/ui/lib/databases';
 
 interface ViewFilterAddPopoverProps {
   children: React.ReactNode;
@@ -32,6 +33,7 @@ export const ViewFilterAddPopover = ({
   const [open, setOpen] = useState(false);
   const fieldsWithoutFilters = database.fields.filter(
     (field) =>
+      isFilterableField(field) &&
       !view.filters.some(
         (filter) => filter.type === 'field' && filter.fieldId === field.id
       )

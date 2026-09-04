@@ -69,7 +69,7 @@ export const isNumericSummaryField = (
   return (
     field.type === 'number' ||
     field.type === 'formula' ||
-    field.type === 'rollup'
+    field.type === 'rating'
   );
 };
 

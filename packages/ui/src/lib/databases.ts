@@ -718,6 +718,8 @@ const recordMatchesFilter = (
       return recordMatchesCreatedAtFilter(record, filter);
     case 'created_by':
       return recordMatchesCreatedByFilter(record, filter, currentUserId);
+    case 'updated_at':
+      return recordMatchesUpdatedAtFilter(record, filter);
     case 'date':
       return recordMatchesDateFilter(record, filter, field);
     case 'email':
@@ -807,6 +809,37 @@ const recordMatchesCreatedAtFilter = (
   return false;
 };
 
+const recordMatchesUpdatedAtFilter = (
+  record: LocalRecordNode,
+  filter: DatabaseViewFieldFilterAttributes
+) => {
+  if (!filter.value) return false;
+  if (typeof filter.value !== 'string') return true;
+  if (!record.updatedAt) return false;
+
+  const filterDate = new Date(filter.value);
+  filterDate.setHours(0, 0, 0, 0);
+  const recordDate = new Date(record.updatedAt);
+  recordDate.setHours(0, 0, 0, 0);
+
+  switch (filter.operator) {
+    case 'is_equal_to':
+      return recordDate.getTime() === filterDate.getTime();
+    case 'is_not_equal_to':
+      return recordDate.getTime() !== filterDate.getTime();
+    case 'is_on_or_after':
+      return recordDate.getTime() >= filterDate.getTime();
+    case 'is_on_or_before':
+      return recordDate.getTime() <= filterDate.getTime();
+    case 'is_after':
+      return recordDate.getTime() > filterDate.getTime();
+    case 'is_before':
+      return recordDate.getTime() < filterDate.getTime();
+  }
+
+  return false;
+};
+
 const recordMatchesCreatedByFilter = (
   record: LocalRecordNode,
   filter: DatabaseViewFieldFilterAttributes,
@@ -860,6 +893,20 @@ const recordMatchesDateFilter = (
 
   const recordDate = new Date(fieldValue.value);
   recordDate.setHours(0, 0, 0, 0); // Set time to midnight
+
+  if (filter.operator === 'is_between') {
+    const range = Array.isArray(filter.value) ? filter.value : [];
+    const startRaw = typeof range[0] === 'string' ? range[0] : '';
+    const endRaw = typeof range[1] === 'string' ? range[1] : '';
+    const start = startRaw ? new Date(startRaw) : null;
+    const end = endRaw ? new Date(endRaw) : null;
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(0, 0, 0, 0);
+    if (!start && !end) return false;
+    if (start && recordDate.getTime() < start.getTime()) return false;
+    if (end && recordDate.getTime() > end.getTime()) return false;
+    return true;
+  }
 
   if (typeof filter.value !== 'string') {
     return true;
@@ -982,18 +1029,29 @@ const recordMatchesNumberFilter = (
     return !!fieldValue;
   }
 
+  const numericValue =
+    fieldValue && fieldValue.type === 'number' ? fieldValue.value : null;
+
+  if (filter.operator === 'is_between') {
+    if (numericValue == null) return false;
+    const range = Array.isArray(filter.value) ? filter.value : [];
+    const min = parseFloat(String(range[0] ?? ''));
+    const max = parseFloat(String(range[1] ?? ''));
+    if (Number.isNaN(min) && Number.isNaN(max)) return false;
+    if (!Number.isNaN(min) && numericValue < min) return false;
+    if (!Number.isNaN(max) && numericValue > max) return false;
+    return true;
+  }
+
   if (!fieldValue || fieldValue.type !== 'number') {
     return false;
   }
 
-  if (typeof filter.value !== 'number') {
-    return true;
+  if (typeof filter.value !== 'number' || Number.isNaN(filter.value)) {
+    return false;
   }
 
   const filterValue = filter.value;
-  if (!filterValue) {
-    return true;
-  }
 
   switch (filter.operator) {
     case 'is_equal_to':
@@ -1177,7 +1235,11 @@ const recordMatchesUrlFilter = (
 export const isFilterableField = (field: FieldAttributes) => {
   // Formula and rollup values are derived at read-time and are not stored in
   // SQLite, so the SQL-backed filters cannot target them.
-  if (field.type === 'formula' || field.type === 'rollup') {
+  if (
+    field.type === 'formula' ||
+    field.type === 'rollup' ||
+    field.type === 'file'
+  ) {
     return false;
   }
 
@@ -1194,6 +1256,11 @@ export const isSortableField = (field: FieldAttributes) => {
     field.type === 'phone' ||
     field.type === 'select' ||
     field.type === 'url' ||
+    field.type === 'multi_select' ||
+    field.type === 'created_by' ||
+    field.type === 'updated_at' ||
+    field.type === 'updated_by' ||
+    field.type === 'rating' ||
     // Formula values are materialised into a real stored FieldValue on write
     // (see materializeRecordFormulas), so the view query can order by them.
     field.type === 'formula'
@@ -1745,6 +1812,7 @@ const COMPUTED_FIELD_TYPES = new Set<FieldType>([
   'updated_by',
   'formula',
   'rollup',
+  'autonumber',
 ]);
 
 // Whether a field has no value for this record — used to hide empty fields on

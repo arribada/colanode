@@ -16,9 +16,16 @@ export const RecordProvider = ({
   const workspace = useWorkspace();
   const database = useDatabase();
 
+  // Per-record lock (lockMode) freezes values/name/avatar for everyone but the
+  // record creator or a node admin -- mirroring the document editability rule.
+  const isPrivileged =
+    record.createdBy === workspace.userId || hasNodeRole(role, 'admin');
+  const lockMode = record.lockMode ?? 'open';
+
   const canEdit =
     !database.isLocked &&
-    (record.createdBy === workspace.userId || hasNodeRole(role, 'editor'));
+    (record.createdBy === workspace.userId || hasNodeRole(role, 'editor')) &&
+    (isPrivileged || lockMode === 'open');
 
   return (
     <RecordContext.Provider

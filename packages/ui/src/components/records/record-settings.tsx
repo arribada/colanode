@@ -30,6 +30,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
@@ -40,6 +41,7 @@ interface RecordSettingsProps {
 
 export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const workspace = useWorkspace();
+  const database = useDatabase();
   const { mutate: saveAsTemplate, isPending: isSavingAsTemplate } =
     useMutation();
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
@@ -47,7 +49,7 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const canDelete =
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
-  const canDuplicate = hasNodeRole(role, 'editor');
+  const canDuplicate = hasNodeRole(role, 'editor') && !database.isLocked;
 
   const duplicateRecord = () => {
     if (!canDuplicate) {
@@ -61,6 +63,8 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
       rootId: record.rootId,
       databaseId: record.databaseId,
       name: record.name ? `${record.name} (copy)` : '',
+      avatar: record.avatar,
+      cover: record.cover,
       fields: { ...record.fields },
       createdAt: new Date().toISOString(),
       createdBy: workspace.userId,

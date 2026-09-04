@@ -78,7 +78,7 @@ const coerceCell = (
 
 export const TableView = () => {
   const workspace = useWorkspace();
-  useDatabase();
+  const database = useDatabase();
   const view = useDatabaseView();
 
   // --- multi-row selection --------------------------------------------------
@@ -360,6 +360,9 @@ export const TableView = () => {
     if (!anchor) {
       return;
     }
+    if (!database.canEdit || database.isLocked) {
+      return;
+    }
     const records = recordsRef.current;
     const cols = columnsRef.current;
     const startRow = Math.min(anchor.row, focus?.row ?? anchor.row);
@@ -460,7 +463,7 @@ export const TableView = () => {
         }
       });
     }
-  }, [anchor, focus, workspace]);
+  }, [anchor, focus, workspace, database]);
 
   useEffect(() => {
     if (!anchor || !focus) {

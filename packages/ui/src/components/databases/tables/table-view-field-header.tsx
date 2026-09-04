@@ -13,6 +13,7 @@ import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
 import { FieldNumberFormat } from '@colanode/ui/components/databases/fields/field-number-format';
 import { FieldRenameInput } from '@colanode/ui/components/databases/fields/field-rename-input';
 import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
+import { Input } from '@colanode/ui/components/ui/input';
 import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
 import {
   AlertDialog,
@@ -105,6 +106,23 @@ export const TableViewFieldHeader = ({
     });
     setPendingType(null);
     setOpenPopover(false);
+  };
+
+  const changeRatingMax = (max: number) => {
+    if (Number.isNaN(max)) {
+      return;
+    }
+    const clamped = Math.min(10, Math.max(1, Math.round(max)));
+    workspace.collections.nodes.update(database.id, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      const current = draft.fields[viewField.field.id];
+      if (!current || current.type !== 'rating') {
+        return;
+      }
+      current.max = clamped;
+    });
   };
 
   const changeRelationTarget = (databaseId: string) => {
@@ -317,6 +335,7 @@ export const TableViewFieldHeader = ({
                 <FieldTypeSelect
                   value={viewField.field.type}
                   onChange={requestChangeFieldType}
+                  types={[...CHANGEABLE_FIELD_TYPES, viewField.field.type]}
                 />
               </div>
             )}
@@ -333,6 +352,32 @@ export const TableViewFieldHeader = ({
                 <Separator />
               </Fragment>
             )}
+            {viewField.field.type === 'rating' &&
+              database.canEdit &&
+              !database.isLocked && (
+                <Fragment>
+                  <div className="flex items-center justify-between gap-2 p-1">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Number of stars
+                    </span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      className="h-7 w-16"
+                      value={
+                        ('max' in viewField.field
+                          ? viewField.field.max
+                          : undefined) ?? 5
+                      }
+                      onChange={(event) =>
+                        changeRatingMax(parseInt(event.target.value, 10))
+                      }
+                    />
+                  </div>
+                  <Separator />
+                </Fragment>
+              )}
             {viewField.field.type === 'relation' &&
               database.canEdit &&
               !database.isLocked && (
