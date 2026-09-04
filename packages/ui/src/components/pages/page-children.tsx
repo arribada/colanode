@@ -1,16 +1,34 @@
 import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
-import { Plus, Upload } from 'lucide-react';
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  SquareArrowOutUpRight,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalPageNode } from '@colanode/client/types';
 import { generateId, IdType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
+import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { Button } from '@colanode/ui/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@colanode/ui/components/ui/dropdown-menu';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { openFileDialog } from '@colanode/ui/lib/files';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface PageChildrenProps {
   nodeId: string;
@@ -27,6 +45,12 @@ interface PageChildrenProps {
 export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate({ from: '/workspace/$userId' });
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
 
   const childrenQuery = useLiveQuery(
     (q) =>
@@ -47,6 +71,22 @@ export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => 
   );
 
   const children = childrenQuery.data ?? [];
+
+  const startRename = (id: string, currentName: string) => {
+    setRenameDraft(currentName);
+    setRenamingId(id);
+  };
+
+  const commitRename = (id: string) => {
+    const finalName = renameDraft.trim();
+    if (finalName.length > 0) {
+      workspace.collections.nodes.update(id, (draft) => {
+        // Every listed child type carries a `name`; set it generically.
+        (draft as { name?: string }).name = finalName;
+      });
+    }
+    setRenamingId(null);
+  };
 
   const handleCreatePage = () => {
     const childId = generateId(IdType.Page);
@@ -114,13 +154,14 @@ export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => 
           <div className="flex flex-col gap-0.5 pt-1">
             {children.map((child) => {
               const { name, avatar, label } = getMentionNodeDisplay(child);
+              const isRenaming = renamingId === child.id;
               return (
-                <Link
+                <div
                   key={child.id}
-                  from="/workspace/$userId"
-                  to="$nodeId"
-                  params={{ nodeId: child.id }}
-                  className="flex flex-row items-center gap-2 rounded-md p-1.5 hover:bg-accent"
+                  className={cn(
+                    'group/child flex flex-row items-center gap-2 rounded-md p-1.5',
+                    !isRenaming && 'hover:bg-accent'
+                  )}
                   data-testid={`page-child-${child.id}`}
                 >
                   <Avatar
@@ -129,9 +170,83 @@ export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => 
                     name={name}
                     avatar={avatar}
                   />
-                  <span className="flex-1 truncate text-sm">{name}</span>
+                  {isRenaming ? (
+                    <input
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the field the moment Rename is picked
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(event) => setRenameDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          commitRename(child.id);
+                        } else if (event.key === 'Escape') {
+                          event.preventDefault();
+                          setRenamingId(null);
+                        }
+                      }}
+                      onBlur={() => commitRename(child.id)}
+                      className="flex-1 bg-transparent text-sm outline-none"
+                    />
+                  ) : (
+                    <Link
+                      from="/workspace/$userId"
+                      to="$nodeId"
+                      params={{ nodeId: child.id }}
+                      className="flex min-w-0 flex-1 flex-row items-center gap-2"
+                    >
+                      <span className="flex-1 truncate text-sm">{name}</span>
+                    </Link>
+                  )}
                   <span className="text-xs text-muted-foreground">{label}</span>
-                </Link>
+                  {canEdit && !isRenaming && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          data-testid={`page-child-menu-${child.id}`}
+                          className="flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:bg-background hover:text-foreground group-hover/child:opacity-100 data-[state=open]:opacity-100"
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link
+                            from="/workspace/$userId"
+                            to="$nodeId"
+                            params={{ nodeId: child.id }}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <SquareArrowOutUpRight className="size-4" />
+                            Open
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => startRename(child.id, name)}
+                        >
+                          <Pencil className="size-4" />
+                          Rename
+                        </DropdownMenuItem>
+                        <CopyLinkAction
+                          nodeId={child.id}
+                          item={DropdownMenuItem}
+                        />
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() =>
+                            setDeleteTarget({ id: child.id, label })
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -158,6 +273,19 @@ export const PageChildren = ({ nodeId, rootId, canEdit }: PageChildrenProps) => 
             <Upload className="mr-1.5 size-4" /> Upload
           </Button>
         </div>
+      )}
+      {deleteTarget && (
+        <NodeDeleteDialog
+          id={deleteTarget.id}
+          title={`Delete this ${deleteTarget.label.toLowerCase()}?`}
+          description="This action cannot be undone. It will no longer be accessible by you or others you've shared it with."
+          open={deleteTarget != null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteTarget(null);
+            }
+          }}
+        />
       )}
     </div>
   );
