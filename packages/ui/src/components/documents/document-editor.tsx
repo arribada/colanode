@@ -168,6 +168,7 @@ import {
   usePresences,
   usePresencePublisher,
 } from '@colanode/ui/hooks/use-presence';
+import { getRandomSelectOptionColor } from '@colanode/ui/lib/databases';
 import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -949,12 +950,42 @@ export const DocumentEditor = ({
       const fieldId = generateId(IdType.Field);
       const index = generateFractionalIndex(previousIndex, null);
       previousIndex = index;
-      fields[fieldId] = {
+      const base = {
         id: fieldId,
         type: property.type,
         index,
         name: property.name,
-      } as LocalDatabaseNode['fields'][string];
+      };
+      if (property.type === 'relation') {
+        fields[fieldId] = {
+          ...base,
+          databaseId: property.relationDatabaseId ?? null,
+        } as LocalDatabaseNode['fields'][string];
+      } else if (
+        (property.type === 'select' || property.type === 'multi_select') &&
+        property.options &&
+        property.options.length > 0
+      ) {
+        const options: Record<string, unknown> = {};
+        let optionIndex: string | null = null;
+        for (const label of property.options) {
+          const optionId = generateId(IdType.SelectOption);
+          const optIdx = generateFractionalIndex(optionIndex, null);
+          optionIndex = optIdx;
+          options[optionId] = {
+            id: optionId,
+            name: label,
+            color: getRandomSelectOptionColor(),
+            index: optIdx,
+          };
+        }
+        fields[fieldId] = {
+          ...base,
+          options,
+        } as LocalDatabaseNode['fields'][string];
+      } else {
+        fields[fieldId] = base as LocalDatabaseNode['fields'][string];
+      }
     }
 
     const database: LocalDatabaseNode = {
