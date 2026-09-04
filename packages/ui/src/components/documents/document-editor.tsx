@@ -29,11 +29,23 @@ import {
 } from '@colanode/client/lib';
 import {
   LocalNode,
+  LocalDatabaseNode,
+  LocalDatabaseViewNode,
   DocumentState,
   DocumentUpdate,
 } from '@colanode/client/types';
-import { RichTextContent, richTextContentSchema } from '@colanode/core';
+import {
+  generateFractionalIndex,
+  generateId,
+  IdType,
+  RichTextContent,
+  richTextContentSchema,
+} from '@colanode/core';
 import { encodeState, YDoc } from '@colanode/crdt';
+import {
+  InlineDatabaseCreateDialog,
+  InlineDatabaseValues,
+} from '@colanode/ui/components/databases/inline-database-create-dialog';
 import { DocumentReadingProgress } from '@colanode/ui/components/documents/document-reading-progress';
 import { DocumentToc } from '@colanode/ui/components/documents/document-toc';
 import { useLayout } from '@colanode/ui/contexts/layout';
@@ -401,6 +413,7 @@ export const DocumentEditor = ({
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const [viewReady, setViewReady] = useState(false);
   const [wordCount, setWordCount] = useState(0);
+  const [inlineDbModalOpen, setInlineDbModalOpen] = useState(false);
 
   const debouncedSave = useMemo(
     () =>
@@ -679,6 +692,7 @@ export const DocumentEditor = ({
             accountId: workspace.accountId,
             workspaceId: workspace.workspaceId,
             rootId: node.rootId,
+            onCreateInlineDatabase: () => setInlineDbModalOpen(true),
           },
         }),
         BoldMark,
@@ -916,8 +930,78 @@ export const DocumentEditor = ({
     return () => cancelAnimationFrame(raf);
   }, [editor]);
 
+  const handleCreateInlineDatabase = (values: InlineDatabaseValues) => {
+    const activeEditor = editorRef.current;
+    if (!activeEditor) {
+      return;
+    }
+    const databaseId = generateId(IdType.Database);
+    const viewId = generateId(IdType.DatabaseView);
+
+    const fields: LocalDatabaseNode['fields'] = {};
+    let previousIndex: string | null = null;
+    for (const property of values.properties) {
+      const fieldId = generateId(IdType.Field);
+      const index = generateFractionalIndex(previousIndex, null);
+      previousIndex = index;
+      fields[fieldId] = {
+        id: fieldId,
+        type: property.type,
+        index,
+        name: property.name,
+      } as LocalDatabaseNode['fields'][string];
+    }
+
+    const database: LocalDatabaseNode = {
+      id: databaseId,
+      type: 'database',
+      name: values.name,
+      parentId: node.id,
+      fields,
+      rootId: node.rootId,
+      createdAt: new Date().toISOString(),
+      createdBy: workspace.userId,
+      updatedAt: null,
+      updatedBy: null,
+      localRevision: '0',
+      serverRevision: '0',
+    };
+
+    const view: LocalDatabaseViewNode = {
+      id: viewId,
+      type: 'database_view',
+      name: 'Default',
+      index: generateFractionalIndex(null, null),
+      layout: 'table',
+      parentId: databaseId,
+      rootId: databaseId,
+      createdAt: new Date().toISOString(),
+      createdBy: workspace.userId,
+      updatedAt: null,
+      updatedBy: null,
+      localRevision: '0',
+      serverRevision: '0',
+    };
+
+    workspace.collections.nodes.insert([database, view]);
+    activeEditor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'database',
+        attrs: { id: databaseId, inline: true },
+      })
+      .run();
+    setInlineDbModalOpen(false);
+  };
+
   return (
     <div className="relative">
+      <InlineDatabaseCreateDialog
+        open={inlineDbModalOpen}
+        onOpenChange={setInlineDbModalOpen}
+        onCreate={handleCreateInlineDatabase}
+      />
       {editor && viewReady && (canEdit || canSuggestEdits) && (
         <Fragment>
           <ToolbarMenu

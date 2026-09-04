@@ -13,6 +13,9 @@ export type EditorContext = {
   accountId: string;
   workspaceId: string;
   rootId: string;
+  // Opens the inline-database creation modal (name + properties) instead of
+  // creating a database silently. Provided by the document editor.
+  onCreateInlineDatabase?: () => void;
 };
 
 // Slash-menu section a command belongs to. Every command declares its own group
