@@ -21,7 +21,7 @@ export const DatabaseCommand: EditorCommand = {
       return;
     }
 
-    const { userId, documentId, rootId } = context;
+    const { userId, rootId } = context;
     const nodes = collections.workspace(userId).nodes;
     const databaseId = generateId(IdType.Database);
     const fieldId = generateId(IdType.Field);
@@ -31,7 +31,7 @@ export const DatabaseCommand: EditorCommand = {
       id: databaseId,
       type: 'database',
       name: 'Untitled',
-      parentId: documentId,
+      parentId: rootId,
       fields: {
         [fieldId]: {
           id: fieldId,

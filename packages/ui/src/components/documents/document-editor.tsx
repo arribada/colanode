@@ -961,7 +961,12 @@ export const DocumentEditor = ({
       id: databaseId,
       type: 'database',
       name: values.name,
-      parentId: node.id,
+      // Parent the database to the SPACE (rootId), not the page/document: a
+      // database under a page node is a parent relationship the role/sync
+      // resolution chokes on, which left the fresh embed stuck on 'still
+      // downloading' (the whiteboard embed hit + fixed the same thing). The
+      // embed only references it by id, so the space is the right parent.
+      parentId: node.rootId,
       fields,
       rootId: node.rootId,
       createdAt: new Date().toISOString(),
