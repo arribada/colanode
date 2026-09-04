@@ -77,6 +77,8 @@ import {
   DatabaseInlineCommand,
   DatabaseLinkCommand,
   WhiteboardCommand,
+  TableOfFiguresCommand,
+  TableOfTablesCommand,
 } from '@colanode/ui/editor/commands';
 import {
   BlockquoteNode,
@@ -143,6 +145,8 @@ import {
   ParserExtension,
   Markdown,
   PresenceExtension,
+  TextAlignExtension,
+  ReferenceListNode,
   setRemoteCarets,
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions';
@@ -592,6 +596,8 @@ export const DocumentEditor = ({
         ToggleContentNode,
         CalloutNode,
         TableOfContentsNode,
+        ReferenceListNode,
+        TextAlignExtension,
         BookmarkNode,
         ColumnsNode,
         ColumnNode,
@@ -656,6 +662,8 @@ export const DocumentEditor = ({
             ToggleCommand,
             CalloutCommand,
             TableOfContentsCommand,
+            TableOfFiguresCommand,
+            TableOfTablesCommand,
             BookmarkCommand,
             EmbedCommand,
             PlaneCommand,
