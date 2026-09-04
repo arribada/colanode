@@ -414,6 +414,7 @@ export const DocumentEditor = ({
   const [viewReady, setViewReady] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [inlineDbModalOpen, setInlineDbModalOpen] = useState(false);
+  const inlineDbInsertPosRef = useRef<number | null>(null);
 
   const debouncedSave = useMemo(
     () =>
@@ -692,7 +693,10 @@ export const DocumentEditor = ({
             accountId: workspace.accountId,
             workspaceId: workspace.workspaceId,
             rootId: node.rootId,
-            onCreateInlineDatabase: () => setInlineDbModalOpen(true),
+            onCreateInlineDatabase: (insertPos: number) => {
+              inlineDbInsertPosRef.current = insertPos;
+              setInlineDbModalOpen(true);
+            },
           },
         }),
         BoldMark,
@@ -935,6 +939,7 @@ export const DocumentEditor = ({
     if (!activeEditor) {
       return;
     }
+    try {
     const databaseId = generateId(IdType.Database);
     const viewId = generateId(IdType.DatabaseView);
 
@@ -984,15 +989,28 @@ export const DocumentEditor = ({
     };
 
     workspace.collections.nodes.insert([database, view]);
-    activeEditor
-      .chain()
-      .focus()
-      .insertContent({
+    const insertPos = inlineDbInsertPosRef.current;
+    const chain = activeEditor.chain().focus();
+    if (insertPos != null) {
+      chain.insertContentAt(insertPos, {
         type: 'database',
         attrs: { id: databaseId, inline: true },
-      })
-      .run();
-    setInlineDbModalOpen(false);
+      });
+    } else {
+      chain.insertContent({
+        type: 'database',
+        attrs: { id: databaseId, inline: true },
+      });
+    }
+    chain.run();
+    inlineDbInsertPosRef.current = null;
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not create the database'
+      );
+    }
   };
 
   return (

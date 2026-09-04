@@ -15,6 +15,6 @@ export const DatabaseInlineCommand: EditorCommand = {
     // name the database and set up its properties. Nothing is created until the
     // modal is confirmed, so bailing out never leaves an orphan Untitled DB.
     editor.chain().focus().deleteRange(range).run();
-    context?.onCreateInlineDatabase?.();
+    context?.onCreateInlineDatabase?.(editor.state.selection.from);
   },
 };

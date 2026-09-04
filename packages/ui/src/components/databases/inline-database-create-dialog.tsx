@@ -35,13 +35,21 @@ interface InlineDatabaseCreateDialogProps {
 const PROPERTY_TYPES: { value: string; label: string }[] = [
   { value: 'text', label: 'Text' },
   { value: 'number', label: 'Number' },
+  { value: 'select', label: 'Select' },
+  { value: 'multi_select', label: 'Multi-select' },
   { value: 'date', label: 'Date' },
   { value: 'boolean', label: 'Checkbox' },
   { value: 'url', label: 'URL' },
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
   { value: 'rating', label: 'Rating' },
+  { value: 'relation', label: 'Relation' },
+  { value: 'collaborator', label: 'Person' },
+  { value: 'file', label: 'File' },
 ];
+
+// Select / relation etc. keep their options / target empty here; they are
+// configured from the database's field settings once it exists.
 
 const selectClass =
   'h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-ring';
@@ -72,7 +80,7 @@ export const InlineDatabaseCreateDialog = ({
   };
 
   const create = () => {
-    onCreate({
+    const values = {
       name: name.trim() || 'Untitled',
       properties: properties
         .map((property) => ({
@@ -80,8 +88,10 @@ export const InlineDatabaseCreateDialog = ({
           type: property.type,
         }))
         .filter((property) => property.name.length > 0),
-    });
+    };
+    // Close first so a downstream error can never leave the modal stuck open.
     onOpenChange(false);
+    onCreate(values);
   };
 
   return (
