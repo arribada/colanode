@@ -38,7 +38,7 @@ export const defaultClasses = {
   headingNumber:
     'mr-2 font-normal text-muted-foreground select-none tabular-nums',
   headingChevron:
-    'inline-flex size-5 -ml-5 shrink-0 items-center justify-center rounded align-middle text-muted-foreground opacity-0 transition-opacity cursor-pointer select-none hover:bg-accent group-hover:opacity-100',
+    'inline-flex size-5 mr-1 shrink-0 items-center justify-center rounded align-middle text-muted-foreground opacity-0 transition-opacity cursor-pointer select-none hover:bg-accent group-hover:opacity-100',
   headingChevronCollapsed: 'opacity-100',
   headingCollapsedHidden: 'hidden',
 };
