@@ -15,6 +15,7 @@ import {
 } from '@colanode/ui/components/ui/context-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import { cn } from '@colanode/ui/lib/utils';
 
 interface EditorImageBlockProps {
   file: LocalFileNode;
@@ -22,6 +23,7 @@ interface EditorImageBlockProps {
   editor: NodeViewProps['editor'];
   getPos: NodeViewProps['getPos'];
   updateAttributes: NodeViewProps['updateAttributes'];
+  selected: boolean;
 }
 
 const DEFAULT_WIDTH = 420;
@@ -34,6 +36,7 @@ export const EditorImageBlock = ({
   editor,
   getPos,
   updateAttributes,
+  selected,
 }: EditorImageBlockProps) => {
   const workspace = useWorkspace();
   const localFileQuery = useLiveQuery({
@@ -98,10 +101,18 @@ export const EditorImageBlock = ({
             maxWidth={MAX_WIDTH}
             enable={editable ? { right: true } : {}}
             handleClasses={{
-              right:
-                'cn-img-resize-handle opacity-0 hover:opacity-100 transition-opacity bg-primary/50 rounded',
+              right: cn(
+                'cn-img-resize-handle rounded transition-opacity',
+                editable && selected
+                  ? 'opacity-100 bg-primary'
+                  : 'opacity-0 hover:opacity-100 bg-primary/50'
+              ),
             }}
-            className="relative overflow-hidden rounded-md border border-border"
+            handleStyles={{ right: { width: '10px', right: '-5px' } }}
+            className={cn(
+              'relative overflow-hidden rounded-md border border-border',
+              selected && 'ring-2 ring-primary ring-offset-1'
+            )}
             onResizeStop={(_event, _direction, ref) => {
               updateAttributes({ width: Math.round(ref.offsetWidth) });
             }}

@@ -60,6 +60,7 @@ const FileNodeInner = ({
   editor,
   getPos,
   updateAttributes,
+  selected,
   id,
 }: NodeViewProps & { id: string }) => {
   const workspace = useWorkspace();
@@ -85,6 +86,7 @@ const FileNodeInner = ({
         editor={editor}
         getPos={getPos}
         updateAttributes={updateAttributes}
+        selected={selected}
       />
     );
   }
