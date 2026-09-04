@@ -33,6 +33,18 @@ export const TableNode = Table.configure({
           return { 'data-color-rules': JSON.stringify(rules) };
         },
       },
+      // Optional "Table N" caption, mirroring image figure captions.
+      caption: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const caption = attributes.caption as string | null;
+          if (caption == null) {
+            return {};
+          }
+          return { 'data-caption': caption };
+        },
+      },
     };
   },
   addNodeView() {

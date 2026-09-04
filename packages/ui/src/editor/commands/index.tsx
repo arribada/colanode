@@ -33,6 +33,10 @@ import {
 } from '@colanode/ui/editor/commands/page-templates';
 import { ParagraphCommand } from '@colanode/ui/editor/commands/paragraph';
 import { PlaneCommand } from '@colanode/ui/editor/commands/plane';
+import {
+  TableOfFiguresCommand,
+  TableOfTablesCommand,
+} from '@colanode/ui/editor/commands/reference-list';
 import { TableCommand } from '@colanode/ui/editor/commands/table';
 import { TableOfContentsCommand } from '@colanode/ui/editor/commands/table-of-contents';
 import { TodoCommand } from '@colanode/ui/editor/commands/todo';
@@ -53,6 +57,8 @@ export {
   ChartCommand,
   GithubCommand,
   TableOfContentsCommand,
+  TableOfFiguresCommand,
+  TableOfTablesCommand,
   CodeBlockCommand,
   DividerCommand,
   FileCommand,

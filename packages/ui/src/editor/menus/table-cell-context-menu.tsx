@@ -18,6 +18,7 @@ import {
   Paintbrush,
   ClipboardPaste,
   Wand2,
+  Captions,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -65,6 +66,46 @@ export const TableCellContextMenu = ({
     columns: string[];
     rules: ConditionalColorRule[];
   } | null>(null);
+
+  const parentTableHasCaption = (() => {
+    const pos = typeof getPos === 'function' ? getPos() : undefined;
+    if (pos == null) {
+      return false;
+    }
+    try {
+      const resolved = editor.state.doc.resolve(pos + 1);
+      const table = resolved.node(1);
+      return table?.type.name === 'table' && table.attrs.caption != null;
+    } catch {
+      return false;
+    }
+  })();
+
+  const toggleTableCaption = () => {
+    const pos = typeof getPos === 'function' ? getPos() : undefined;
+    if (pos == null) {
+      return;
+    }
+    try {
+      const resolved = editor.state.doc.resolve(pos + 1);
+      const table = resolved.node(1);
+      if (table?.type.name !== 'table') {
+        return;
+      }
+      const tablePos = resolved.before(1);
+      const next = table.attrs.caption == null ? '' : null;
+      editor
+        .chain()
+        .focus()
+        .command(({ tr }) => {
+          tr.setNodeAttribute(tablePos, 'caption', next);
+          return true;
+        })
+        .run();
+    } catch {
+      // not inside a resolvable table -- ignore
+    }
+  };
 
   const openConditionalColors = () => {
     const pos = typeof getPos === 'function' ? getPos() : undefined;
@@ -154,6 +195,13 @@ export const TableCellContextMenu = ({
         >
           <Wand2 className="size-4" />
           Conditional colours…
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="editor-table-caption"
+          onSelect={() => toggleTableCaption()}
+        >
+          <Captions className="size-4" />
+          {parentTableHasCaption ? 'Remove table caption' : 'Add table caption'}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuSub>

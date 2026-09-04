@@ -59,6 +59,7 @@ import {
   setRemoteCarets,
   type RemoteCaret,
 } from '@colanode/ui/editor/extensions/presence';
+import { ReferenceListNode } from '@colanode/ui/editor/extensions/reference-list';
 import { TabKeymapExtension } from '@colanode/ui/editor/extensions/tab-keymap';
 import { TableNode } from '@colanode/ui/editor/extensions/table';
 import { TableCellNode } from '@colanode/ui/editor/extensions/table-cell';
@@ -134,6 +135,7 @@ export {
   ColumnsResizeExtension,
   ChartNode,
   TableOfContentsNode,
+  ReferenceListNode,
   TrailingNode,
   UnderlineMark,
   DatabaseNode,

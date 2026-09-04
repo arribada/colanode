@@ -1,5 +1,9 @@
 import { type NodeViewProps } from '@tiptap/core';
-import { NodeViewContent, NodeViewWrapper } from '@tiptap/react';
+import {
+  NodeViewContent,
+  NodeViewWrapper,
+  useEditorState,
+} from '@tiptap/react';
 import { useState, useRef } from 'react';
 
 import {
@@ -11,7 +15,39 @@ import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableHandles } from '@colanode/ui/editor/views/table-handles';
 import { TableSelectionToolbar } from '@colanode/ui/editor/views/table-selection-toolbar';
 
-export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
+export const TableNodeView = ({
+  editor,
+  getPos,
+  node,
+  updateAttributes,
+}: NodeViewProps) => {
+  const caption = (node.attrs.caption as string | null | undefined) ?? null;
+  const hasCaption = caption !== null;
+  // This table's live ordinal among all captioned tables, in document order.
+  const tableNumber = useEditorState({
+    editor,
+    selector: ({ editor: current }): number | null => {
+      if (!hasCaption || typeof getPos !== 'function') {
+        return null;
+      }
+      const myPos = getPos();
+      if (myPos == null) {
+        return null;
+      }
+      let seen = 0;
+      let mine: number | null = null;
+      current.state.doc.descendants((child, pos) => {
+        if (child.type.name === 'table' && child.attrs.caption != null) {
+          seen += 1;
+          if (pos === myPos) {
+            mine = seen;
+          }
+        }
+        return true;
+      });
+      return mine;
+    },
+  });
   const [isSideHovered, setIsSideHovered] = useState(false);
   const [isBottomHovered, setIsBottomHovered] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -123,6 +159,32 @@ export const TableNodeView = ({ editor, getPos }: NodeViewProps) => {
         <div className="max-md:overflow-x-auto">
           <NodeViewContent<'table'> as="table" className={defaultClasses.table} />
         </div>
+        {hasCaption && (
+          <figcaption
+            contentEditable={false}
+            className="mt-1 text-sm text-muted-foreground"
+          >
+            <span className="font-medium text-foreground">
+              Table {tableNumber ?? '?'}
+            </span>
+            {' — '}
+            {editor.isEditable ? (
+              <input
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the caption right after "Add table caption"
+                autoFocus={caption === ''}
+                value={caption ?? ''}
+                onPointerDown={(event) => event.stopPropagation()}
+                onChange={(event) =>
+                  updateAttributes({ caption: event.target.value })
+                }
+                placeholder="Describe this table…"
+                className="w-64 max-w-full border-none bg-transparent italic outline-none placeholder:not-italic placeholder:text-muted-foreground"
+              />
+            ) : (
+              <span className="italic">{caption}</span>
+            )}
+          </figcaption>
+        )}
         <TableHandles
           editor={editor}
           getPos={getPos}
