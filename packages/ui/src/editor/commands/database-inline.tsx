@@ -67,10 +67,13 @@ export const DatabaseInlineCommand: EditorCommand = {
 
     nodes.insert([database, view]);
 
+    // Close the slash menu in its own transaction first -- when this was chained
+    // with insertContent, a failed embed insert rolled the whole thing back and
+    // left the menu stuck open (so users re-ran it and piled up Untitled DBs).
+    editor.chain().focus().deleteRange(range).run();
     editor
       .chain()
       .focus()
-      .deleteRange(range)
       .insertContent({
         type: 'database',
         attrs: {

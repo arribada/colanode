@@ -67,10 +67,10 @@ export const DatabaseCommand: EditorCommand = {
 
     nodes.insert([database, view]);
 
+    editor.chain().focus().deleteRange(range).run();
     editor
       .chain()
       .focus()
-      .deleteRange(range)
       .insertContent({
         type: 'database',
         attrs: {
