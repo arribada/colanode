@@ -17,18 +17,32 @@ declare module '@tiptap/core' {
        */
       toggleHeadingNumbering: () => ReturnType;
       /**
-       * Explicitly enable or disable heading numbering.
+       * Explicitly enable or disable heading numbering. Enabling picks the
+       * hierarchical ('nested') style; kept for backward compatibility.
        */
       setHeadingNumbering: (enabled: boolean) => ReturnType;
+      /**
+       * Set the heading numbering style explicitly:
+       *   'off'    – no numbers,
+       *   'nested' – hierarchical 1, 1.1, 1.1.1,
+       *   'flat'   – a single running counter 1, 2, 3 across every heading.
+       */
+      setHeadingNumberingMode: (mode: HeadingNumberingMode) => ReturnType;
     };
   }
 }
 
+// The heading auto-numbering style. 'off' renders no numbers, 'nested' renders
+// hierarchical numbers (1, 1.1, 1.1.1) driven by heading level, and 'flat'
+// renders a single running counter (1, 2, 3) across every heading regardless of
+// its level.
+export type HeadingNumberingMode = 'off' | 'nested' | 'flat';
+
 export interface HeadingEnhancementsStorage {
-  // Session-level flag: when true the plugin renders hierarchical numbers in
-  // front of every top-level heading. Defaults to off so existing documents are
+  // Session-level style: which numbering, if any, the plugin renders in front of
+  // every top-level heading. Defaults to 'off' so existing documents are
   // unchanged.
-  numbering: boolean;
+  numberingMode: HeadingNumberingMode;
 }
 
 export const headingEnhancementsKey = new PluginKey<DecorationSet>(
@@ -118,7 +132,7 @@ interface TopLevelNode {
 // headings still produce a stable, monotonic outline.
 const buildDecorations = (
   doc: ProseMirrorNode,
-  numbering: boolean,
+  numberingMode: HeadingNumberingMode,
   toggle: (id: string) => void
 ): DecorationSet => {
   const tops: TopLevelNode[] = [];
@@ -127,7 +141,10 @@ const buildDecorations = (
   });
 
   const decorations: Decoration[] = [];
+  // Nested style: one counter per level. Flat style: a single running counter
+  // (index 0) bumped for every heading whatever its level.
   const counters = [0, 0, 0];
+  let flatCounter = 0;
 
   for (let i = 0; i < tops.length; i++) {
     const top = tops[i];
@@ -143,6 +160,7 @@ const buildDecorations = (
     for (let l = level; l < counters.length; l++) {
       counters[l] = 0;
     }
+    flatCounter += 1;
 
     // Chevron first so it sits in the left gutter, ahead of the number/text.
     decorations.push(
@@ -156,12 +174,15 @@ const buildDecorations = (
       )
     );
 
-    if (numbering) {
-      const label = counters.slice(0, level).join('.');
+    if (numberingMode !== 'off') {
+      const label =
+        numberingMode === 'flat'
+          ? String(flatCounter)
+          : counters.slice(0, level).join('.');
       decorations.push(
         Decoration.widget(top.offset + 1, () => createNumber(label), {
           side: -1,
-          key: `heading-number-${id}-${label}`,
+          key: `heading-number-${id}-${numberingMode}-${label}`,
         })
       );
     }
@@ -197,7 +218,7 @@ export const HeadingEnhancementsExtension = Extension.create<
 
   addStorage() {
     return {
-      numbering: false,
+      numberingMode: 'off',
     };
   },
 
@@ -206,7 +227,9 @@ export const HeadingEnhancementsExtension = Extension.create<
       toggleHeadingNumbering:
         () =>
         ({ tr, dispatch }) => {
-          this.storage.numbering = !this.storage.numbering;
+          // Cycle off <-> nested. Toggling from flat also turns it off.
+          this.storage.numberingMode =
+            this.storage.numberingMode === 'off' ? 'nested' : 'off';
           if (dispatch) {
             tr.setMeta(headingEnhancementsKey, { recompute: true });
             dispatch(tr);
@@ -216,7 +239,20 @@ export const HeadingEnhancementsExtension = Extension.create<
       setHeadingNumbering:
         (enabled: boolean) =>
         ({ tr, dispatch }) => {
-          this.storage.numbering = enabled;
+          this.storage.numberingMode = enabled ? 'nested' : 'off';
+          if (dispatch) {
+            tr.setMeta(headingEnhancementsKey, { recompute: true });
+            dispatch(tr);
+          }
+          return true;
+        },
+      setHeadingNumberingMode:
+        (mode: HeadingNumberingMode) =>
+        ({ tr, dispatch }) => {
+          // Choosing the mode already showing toggles it back off, so the same
+          // slash command acts as an on/off switch for that style.
+          this.storage.numberingMode =
+            this.storage.numberingMode === mode ? 'off' : mode;
           if (dispatch) {
             tr.setMeta(headingEnhancementsKey, { recompute: true });
             dispatch(tr);
@@ -252,10 +288,14 @@ export const HeadingEnhancementsExtension = Extension.create<
         key: headingEnhancementsKey,
         state: {
           init: (_config, state) =>
-            buildDecorations(state.doc, storage.numbering, toggle),
+            buildDecorations(state.doc, storage.numberingMode, toggle),
           apply: (tr, value, _oldState, newState) => {
             if (tr.docChanged || tr.getMeta(headingEnhancementsKey)) {
-              return buildDecorations(newState.doc, storage.numbering, toggle);
+              return buildDecorations(
+                newState.doc,
+                storage.numberingMode,
+                toggle
+              );
             }
             return value.map(tr.mapping, tr.doc);
           },

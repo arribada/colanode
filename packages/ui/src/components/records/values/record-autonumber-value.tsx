@@ -40,7 +40,7 @@ export const RecordAutonumberValue = ({ field }: RecordAutonumberValueProps) => 
       aria-label={field.name}
       className="w-full text-sm tabular-nums text-muted-foreground"
     >
-      {rank ?? ''}
+      {rank === null ? '' : `${field.prefix ?? ''}${rank}`}
     </p>
   );
 };

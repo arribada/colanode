@@ -155,6 +155,11 @@ export const relationFieldAttributesSchema = z.object({
   name: z.string(),
   index: z.string(),
   databaseId: z.string().optional().nullable(),
+  // When set, this relation is bidirectional: relatedFieldId is the id of the
+  // relation field living on the TARGET database (databaseId) that mirrors this
+  // one. Adding/removing a related record on either side is mirrored onto the
+  // other side's value. Absent/null = classic one-way relation (unchanged).
+  relatedFieldId: z.string().optional().nullable(),
 });
 
 export type RelationFieldAttributes = z.infer<
@@ -257,6 +262,10 @@ export const autonumberFieldAttributesSchema = z.object({
   type: z.literal('autonumber'),
   name: z.string(),
   index: z.string(),
+  // Optional string prepended to the derived rank when rendering, so the
+  // sequence reads like an ID (e.g. prefix 'REQ-' + rank 1 => 'REQ-1'). The
+  // rank itself is still derived on the fly and never stored.
+  prefix: z.string().optional().nullable(),
 });
 
 export type AutonumberFieldAttributes = z.infer<

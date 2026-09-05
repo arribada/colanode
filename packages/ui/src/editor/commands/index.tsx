@@ -24,7 +24,10 @@ import {
   MathInlineCommand,
 } from '@colanode/ui/editor/commands/math';
 import { MermaidCommand } from '@colanode/ui/editor/commands/mermaid';
-import { NumberHeadingsCommand } from '@colanode/ui/editor/commands/number-headings';
+import {
+  NumberHeadingsCommand,
+  NumberHeadingsFlatCommand,
+} from '@colanode/ui/editor/commands/number-headings';
 import { OrderedListCommand } from '@colanode/ui/editor/commands/ordered-list';
 import { PageCommand } from '@colanode/ui/editor/commands/page';
 import {
@@ -67,6 +70,7 @@ export {
   Heading2Command,
   Heading3Command,
   NumberHeadingsCommand,
+  NumberHeadingsFlatCommand,
   CreateAdrCommand,
   MeetingNotesCommand,
   SpecCommand,

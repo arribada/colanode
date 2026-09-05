@@ -1,6 +1,6 @@
 import { useForm, useStore } from '@tanstack/react-form';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod/v4';
 
@@ -13,10 +13,12 @@ import {
   generateFractionalIndex,
   generateId,
   IdType,
+  RelationFieldAttributes,
   RollupAggregation,
 } from '@colanode/core';
 import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
 import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
+import { Checkbox } from '@colanode/ui/components/ui/checkbox';
 import { FormulaExpressionEditor } from '@colanode/ui/components/databases/fields/formula-expression-editor';
 import { RollupConfigEditor } from '@colanode/ui/components/databases/fields/rollup-config-editor';
 import { Button } from '@colanode/ui/components/ui/button';
@@ -61,6 +63,7 @@ const formSchema = z.object({
     z.literal('autonumber'),
   ]),
   relationDatabaseId: z.string().optional().nullable(),
+  relationBidirectional: z.boolean().optional(),
   expression: z.string().optional(),
   formulaResultType: z
     .enum(['number', 'string', 'boolean', 'date'])
@@ -88,6 +91,7 @@ const defaultValues: FieldCreateFormValues = {
   name: '',
   type: 'text',
   relationDatabaseId: null,
+  relationBidirectional: false,
   expression: '',
   formulaResultType: null,
   rollupRelationFieldId: null,
@@ -196,6 +200,13 @@ export const FieldCreatePopover = ({
       }
 
       const fieldId = generateId(IdType.Field);
+      const bidirectional =
+        values.type === 'relation' &&
+        !!values.relationDatabaseId &&
+        !!values.relationBidirectional;
+      const reverseFieldId = bidirectional
+        ? generateId(IdType.Field)
+        : null;
       nodes.update(database.id, (draft) => {
         if (draft.type !== 'database') {
           return;
@@ -234,6 +245,7 @@ export const FieldCreatePopover = ({
             name: values.name,
             index,
             databaseId: values.relationDatabaseId,
+            relatedFieldId: reverseFieldId,
           };
         } else {
           newField = {
@@ -246,6 +258,32 @@ export const FieldCreatePopover = ({
 
         draft.fields[fieldId] = newField;
       });
+
+      // Bidirectional: create the mirrored relation field on the TARGET
+      // database, pointing back to the source database and linking to this
+      // field. Named after the source database so it reads sensibly there.
+      if (bidirectional && reverseFieldId && values.relationDatabaseId) {
+        nodes.update(values.relationDatabaseId, (draft) => {
+          if (draft.type !== 'database') {
+            return;
+          }
+          if (draft.fields[reverseFieldId]) {
+            return;
+          }
+          const maxIndex = Object.values(draft.fields)
+            .map((field) => field.index)
+            .sort((a, b) => -compareString(a, b))[0];
+          const reverseField: RelationFieldAttributes = {
+            id: reverseFieldId,
+            type: 'relation',
+            name: database.name,
+            index: generateFractionalIndex(maxIndex, null),
+            databaseId: database.id,
+            relatedFieldId: fieldId,
+          };
+          draft.fields[reverseFieldId] = reverseField;
+        });
+      }
 
       return fieldId;
     },
@@ -321,18 +359,40 @@ export const FieldCreatePopover = ({
                 )}
               />
               {type === 'relation' && (
-                <form.Field
-                  name="relationDatabaseId"
-                  children={(field) => (
-                    <Field>
-                      <FieldLabel htmlFor={field.name}>Database</FieldLabel>
-                      <DatabaseSelect
-                        id={field.state.value}
-                        onChange={(value) => field.handleChange(value)}
-                      />
-                    </Field>
-                  )}
-                />
+                <Fragment>
+                  <form.Field
+                    name="relationDatabaseId"
+                    children={(field) => (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Database</FieldLabel>
+                        <DatabaseSelect
+                          id={field.state.value}
+                          onChange={(value) => field.handleChange(value)}
+                        />
+                      </Field>
+                    )}
+                  />
+                  <form.Field
+                    name="relationBidirectional"
+                    children={(field) => (
+                      <Field>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={field.name}
+                            checked={!!field.state.value}
+                            onCheckedChange={(checked) =>
+                              field.handleChange(checked === true)
+                            }
+                          />
+                          <FieldLabel htmlFor={field.name} className="!mt-0">
+                            Bidirectional (create a matching field in the
+                            related database)
+                          </FieldLabel>
+                        </div>
+                      </Field>
+                    )}
+                  />
+                </Fragment>
               )}
               {type === 'formula' && (
                 <Field>

@@ -112,7 +112,19 @@ export const TimelineViewChart = () => {
 
   const scale: TimelineScale = view.timeline?.scale ?? 'week';
   const startFieldId = view.timeline?.startFieldId ?? null;
-  const endFieldId = view.timeline?.endFieldId ?? null;
+
+  // When the view configures no separate end field, fall back to the start
+  // date field's own range partner (its endFieldId attribute). A `date` field
+  // that is itself a start+due range then draws as a span with no extra setup,
+  // instead of collapsing to a milestone dot.
+  const startField = startFieldId
+    ? database.fields.find((field) => field.id === startFieldId)
+    : undefined;
+  const rangeEndFieldId =
+    startField && startField.type === 'date' && startField.endFieldId
+      ? startField.endFieldId
+      : null;
+  const endFieldId = view.timeline?.endFieldId ?? rangeEndFieldId;
 
   const groupField = database.fields.find((field) => field.id === view.groupBy);
 

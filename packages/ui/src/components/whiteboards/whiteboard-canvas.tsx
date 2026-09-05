@@ -172,6 +172,19 @@ const ALIGN_SNAP_PX = 6;
 // (top/right/bottom/left) instead of attaching at the exact border point.
 const ANCHOR_SNAP_PX = 16;
 
+// Coarse pointer (finger / stylus) needs a much bigger grip than a mouse.
+// Resolved once at module load: the pointer class of a device does not change
+// mid-session, and threading a media query through the render is not worth it.
+// SSR / test guard: no matchMedia -> assume a fine pointer (the old sizes).
+const IS_COARSE_POINTER =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(pointer: coarse)').matches;
+// Half-size of a square resize grip / radius of a round grip, in screen px.
+const HANDLE_HALF = IS_COARSE_POINTER ? 11 : 5;
+const GRIP_RADIUS = IS_COARSE_POINTER ? 11 : 6;
+const GRIP_RADIUS_LG = IS_COARSE_POINTER ? 13 : 9;
+
 interface Viewport {
   x: number;
   y: number;
@@ -3916,11 +3929,15 @@ export const WhiteboardCanvas = ({
     return cell;
   })();
   const cursor =
-    tool === 'hand'
-      ? 'grab'
-      : tool === 'select'
-        ? 'default'
-        : 'crosshair';
+    // Format painter armed: the copy cursor makes it plain that the next
+    // click paints the picked-up style rather than selecting.
+    styleBrush
+      ? 'copy'
+      : tool === 'hand'
+        ? 'grab'
+        : tool === 'select'
+          ? 'default'
+          : 'crosshair';
 
   const editingEl = editing ? scene[editing.id] : null;
   const editingScreen = editingEl
@@ -4012,7 +4029,11 @@ export const WhiteboardCanvas = ({
       // The board surface is white in both themes: everything drawn on it —
       // fills, strokes, text — is authored in light colours, so a dark canvas
       // made an ordinary board look broken and did not match the export.
-      className="relative h-full w-full overflow-hidden bg-white"
+      className={cn(
+        'relative h-full w-full overflow-hidden bg-white',
+        // A visible cue for the whole canvas while the format painter is armed.
+        styleBrush && 'board-style-brush-active ring-2 ring-inset ring-primary/40'
+      )}
       onDragOver={
         canEdit && !embedded ? (e) => e.preventDefault() : undefined
       }
@@ -4349,10 +4370,10 @@ export const WhiteboardCanvas = ({
                             <rect
                               key={handle}
                               data-handle={handle}
-                              x={hp.x - 5}
-                              y={hp.y - 5}
-                              width={10}
-                              height={10}
+                              x={hp.x - HANDLE_HALF}
+                              y={hp.y - HANDLE_HALF}
+                              width={HANDLE_HALF * 2}
+                              height={HANDLE_HALF * 2}
                               rx={2}
                               fill="#fff"
                               stroke="#3b82f6"
@@ -4373,7 +4394,7 @@ export const WhiteboardCanvas = ({
                         data-handle="rotate"
                         cx={tl.x + w / 2}
                         cy={tl.y - 24}
-                        r={6}
+                        r={GRIP_RADIUS}
                         fill="#fff"
                         stroke="#3b82f6"
                         strokeWidth={1.5}
@@ -4449,7 +4470,7 @@ export const WhiteboardCanvas = ({
                     data-connector-end={which}
                     cx={sp.x}
                     cy={sp.y}
-                    r={6}
+                    r={GRIP_RADIUS}
                     fill="#fff"
                     stroke="#22c55e"
                     strokeWidth={2}
@@ -4482,7 +4503,7 @@ export const WhiteboardCanvas = ({
                     data-bend-index="new"
                     cx={sp.x}
                     cy={sp.y}
-                    r={6}
+                    r={GRIP_RADIUS}
                     fill="#fff"
                     stroke="#3b82f6"
                     strokeWidth={1.5}
@@ -4502,7 +4523,7 @@ export const WhiteboardCanvas = ({
                         data-bend-index={i}
                         cx={sp.x}
                         cy={sp.y}
-                        r={6}
+                        r={GRIP_RADIUS}
                         fill="#fff"
                         stroke="#3b82f6"
                         strokeWidth={1.5}
@@ -4541,7 +4562,7 @@ export const WhiteboardCanvas = ({
                   <circle
                     cx={hd.x}
                     cy={hd.y}
-                    r={9}
+                    r={GRIP_RADIUS_LG}
                     fill="#fff"
                     stroke="#3b82f6"
                     strokeWidth={1.5}

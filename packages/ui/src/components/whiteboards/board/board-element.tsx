@@ -813,7 +813,15 @@ export const BoardElementView = ({
     );
   }
   switch (customPath ? '__custom' : element.type) {
-    case 'sticky':
+    case 'sticky': {
+      // A sticky has a subtle default outline that is part of the note look;
+      // an explicit stroke chosen in the toolbar (style.stroke is set the
+      // moment the user picks a colour or a non-default width/dash) overrides
+      // it, so the Stroke picker now works on notes like it does on shapes.
+      const stickyStroked =
+        style.stroke !== undefined &&
+        style.stroke !== 'none' &&
+        style.stroke !== 'transparent';
       shape = (
         <>
           <rect
@@ -823,12 +831,14 @@ export const BoardElementView = ({
             height={element.h}
             rx={6}
             fill={fill === 'none' ? '#fff7ae' : fill}
-            stroke="rgba(0,0,0,0.08)"
-            strokeWidth={1}
+            stroke={stickyStroked ? stroke : 'rgba(0,0,0,0.08)'}
+            strokeWidth={stickyStroked ? (style.strokeWidth ?? 2) : 1}
+            strokeDasharray={stickyStroked ? dash : undefined}
           />
         </>
       );
       break;
+    }
     case 'rect':
     case 'frame': {
       // Frames default to a translucent slate wash, but honour an explicit fill

@@ -7,6 +7,7 @@ import {
   isSameDay,
   DatabaseViewFilterAttributes,
 } from '@colanode/core';
+import { LocalRecordNode } from '@colanode/client/types';
 import { CalendarViewDay } from '@colanode/ui/components/databases/calendars/calendar-view-day';
 import { buttonVariants } from '@colanode/ui/components/ui/button';
 import { useDatabase } from '@colanode/ui/contexts/database';
@@ -26,6 +27,46 @@ const toUTCDate = (dateParam: Date | string): Date => {
   return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
 };
 
+// UTC midnight of whatever a date field stores, or null when it holds no date.
+const fieldDay = (
+  record: LocalRecordNode,
+  fieldId: string | null | undefined
+): Date | null => {
+  if (!fieldId) {
+    return null;
+  }
+  const value = record.fields[fieldId]?.value;
+  if (typeof value !== 'string' || value.length === 0) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+  );
+};
+
+// Whether a record occupies `day`. With a range end field the record spans
+// start..end inclusive; without one (or with an end before the start) it sits
+// only on its start day, matching the non-range behaviour.
+const recordCoversDay = (
+  record: LocalRecordNode,
+  startFieldId: string,
+  endFieldId: string | null | undefined,
+  day: Date
+): boolean => {
+  const start = fieldDay(record, startFieldId);
+  if (!start) {
+    return false;
+  }
+  const rawEnd = fieldDay(record, endFieldId);
+  const end = rawEnd && rawEnd.getTime() >= start.getTime() ? rawEnd : start;
+  const t = day.getTime();
+  return t >= start.getTime() && t <= end.getTime();
+};
+
 interface CalendarViewGridProps {
   field: FieldAttributes;
 }
@@ -40,13 +81,20 @@ export const CalendarViewGrid = ({ field }: CalendarViewGridProps) => {
   const [month, setMonth] = useState(new Date());
   const { first, last } = useMemo(() => getDisplayedDates(month), [month]);
 
+  // A `date` grouping field may link a second date field as its range end; when
+  // it does, records are drawn across every day they span, not just the start.
+  const endFieldId =
+    field.type === 'date' && field.endFieldId ? field.endFieldId : null;
+
   const filters: DatabaseViewFilterAttributes[] = useMemo(
     () => [
       ...view.filters,
       {
         id: 'start_date',
         type: 'field',
-        fieldId: field.id,
+        // Lower bound is the range END (a record ending in-window may have
+        // started before it); with no range, both bounds test the start field.
+        fieldId: endFieldId ?? field.id,
         operator: 'is_on_or_after',
         value: first.toISOString(),
       },
@@ -58,7 +106,7 @@ export const CalendarViewGrid = ({ field }: CalendarViewGridProps) => {
         value: last.toISOString(),
       },
     ],
-    [view.filters, field.id, first, last]
+    [view.filters, field.id, endFieldId, first, last]
   );
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -189,12 +237,13 @@ export const CalendarViewGrid = ({ field }: CalendarViewGridProps) => {
             value: day.toISOString(),
           };
 
-          const dayRecords = filterRecords(
-            records,
-            filter,
-            field,
-            workspace.userId
-          );
+          // With a range end field, a record occupies every day from its start
+          // to its end; otherwise it sits on the single matching day as before.
+          const dayRecords = endFieldId
+            ? records.filter((record) =>
+                recordCoversDay(record, field.id, endFieldId, day)
+              )
+            : filterRecords(records, filter, field, workspace.userId);
 
           const canCreate =
             (field.type === 'created_at' &&

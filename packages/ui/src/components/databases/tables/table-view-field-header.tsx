@@ -6,7 +6,15 @@ import { useDrag, useDrop } from 'react-dnd';
 import { toast } from 'sonner';
 
 import { LocalNode, ViewField } from '@colanode/client/types';
-import { FieldAttributes, FieldType } from '@colanode/core';
+import {
+  compareString,
+  FieldAttributes,
+  FieldType,
+  generateFractionalIndex,
+  generateId,
+  IdType,
+  RelationFieldAttributes,
+} from '@colanode/core';
 import { FieldDateRange } from '@colanode/ui/components/databases/fields/field-date-range';
 import { FieldDeleteDialog } from '@colanode/ui/components/databases/fields/field-delete-dialog';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
@@ -14,6 +22,7 @@ import { FieldNumberFormat } from '@colanode/ui/components/databases/fields/fiel
 import { FieldRenameInput } from '@colanode/ui/components/databases/fields/field-rename-input';
 import { FieldTypeSelect } from '@colanode/ui/components/databases/fields/field-type-select';
 import { Input } from '@colanode/ui/components/ui/input';
+import { Checkbox } from '@colanode/ui/components/ui/checkbox';
 import { DatabaseSelect } from '@colanode/ui/components/databases/database-select';
 import {
   AlertDialog,
@@ -59,6 +68,9 @@ const CHANGEABLE_FIELD_TYPES = new Set<FieldType>([
   'multi_select',
   'collaborator',
   'file',
+  // A field can be changed TO relation: it starts with no target, and the
+  // header's relation section below lets the user pick the target database.
+  'relation',
 ]);
 
 interface TableViewFieldHeaderProps {
@@ -125,6 +137,19 @@ export const TableViewFieldHeader = ({
     });
   };
 
+  const changeAutonumberPrefix = (prefix: string) => {
+    workspace.collections.nodes.update(database.id, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      const current = draft.fields[viewField.field.id];
+      if (!current || current.type !== 'autonumber') {
+        return;
+      }
+      current.prefix = prefix;
+    });
+  };
+
   const changeRelationTarget = (databaseId: string) => {
     workspace.collections.nodes.update(database.id, (draft) => {
       if (draft.type !== 'database') {
@@ -135,6 +160,69 @@ export const TableViewFieldHeader = ({
         return;
       }
       current.databaseId = databaseId;
+    });
+  };
+
+  // Toggle bidirectionality for the current relation field. Enabling it creates
+  // a mirrored relation field on the target database (named after this database)
+  // and links the two via relatedFieldId. Disabling only unlinks THIS side (it
+  // leaves the reverse field in place so its existing values are not lost).
+  const changeRelationBidirectional = (enabled: boolean) => {
+    const current = viewField.field;
+    if (current.type !== 'relation') {
+      return;
+    }
+    const targetDatabaseId = current.databaseId;
+
+    if (!enabled) {
+      workspace.collections.nodes.update(database.id, (draft) => {
+        if (draft.type !== 'database') {
+          return;
+        }
+        const field = draft.fields[current.id];
+        if (!field || field.type !== 'relation') {
+          return;
+        }
+        field.relatedFieldId = null;
+      });
+      return;
+    }
+
+    if (!targetDatabaseId) {
+      toast.error('Pick a related database first.');
+      return;
+    }
+
+    const reverseFieldId = generateId(IdType.Field);
+    workspace.collections.nodes.update(database.id, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      const field = draft.fields[current.id];
+      if (!field || field.type !== 'relation') {
+        return;
+      }
+      field.relatedFieldId = reverseFieldId;
+    });
+    workspace.collections.nodes.update(targetDatabaseId, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      if (draft.fields[reverseFieldId]) {
+        return;
+      }
+      const maxIndex = Object.values(draft.fields)
+        .map((field) => field.index)
+        .sort((a, b) => -compareString(a, b))[0];
+      const reverseField: RelationFieldAttributes = {
+        id: reverseFieldId,
+        type: 'relation',
+        name: database.name,
+        index: generateFractionalIndex(maxIndex, null),
+        databaseId: database.id,
+        relatedFieldId: current.id,
+      };
+      draft.fields[reverseFieldId] = reverseField;
     });
   };
 
@@ -378,6 +466,31 @@ export const TableViewFieldHeader = ({
                   <Separator />
                 </Fragment>
               )}
+            {viewField.field.type === 'autonumber' &&
+              database.canEdit &&
+              !database.isLocked && (
+                <Fragment>
+                  <div className="flex items-center justify-between gap-2 p-1">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Prefix
+                    </span>
+                    <Input
+                      type="text"
+                      className="h-7 w-28"
+                      placeholder="e.g. REQ-"
+                      value={
+                        ('prefix' in viewField.field
+                          ? viewField.field.prefix
+                          : undefined) ?? ''
+                      }
+                      onChange={(event) =>
+                        changeAutonumberPrefix(event.target.value)
+                      }
+                    />
+                  </div>
+                  <Separator />
+                </Fragment>
+              )}
             {viewField.field.type === 'relation' &&
               database.canEdit &&
               !database.isLocked && (
@@ -390,6 +503,21 @@ export const TableViewFieldHeader = ({
                       id={viewField.field.databaseId ?? null}
                       onChange={changeRelationTarget}
                     />
+                    <div className="mt-1 flex items-center gap-2">
+                      <Checkbox
+                        id={`relation-bidirectional-${viewField.field.id}`}
+                        checked={!!viewField.field.relatedFieldId}
+                        onCheckedChange={(checked) =>
+                          changeRelationBidirectional(checked === true)
+                        }
+                      />
+                      <label
+                        htmlFor={`relation-bidirectional-${viewField.field.id}`}
+                        className="cursor-pointer text-xs text-muted-foreground"
+                      >
+                        Bidirectional
+                      </label>
+                    </div>
                   </div>
                   <Separator />
                 </Fragment>

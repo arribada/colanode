@@ -44,6 +44,42 @@ export const RecordRelationValue = ({
     }
   );
 
+  // Bidirectional sync: when this relation is linked to a field on the target
+  // database (field.relatedFieldId), mirror every add/remove onto the target
+  // record's own relation value. Guarded to be idempotent so the mirroring
+  // write on the other side does not bounce back (it finds the id already
+  // present/absent and skips the write).
+  const mirrorRelation = (targetRecordId: string, add: boolean) => {
+    const relatedFieldId = field.relatedFieldId;
+    if (!relatedFieldId) return;
+    workspace.collections.nodes.update(targetRecordId, (draft) => {
+      if (draft.type !== 'record') return;
+      const existing = draft.fields[relatedFieldId];
+      const current =
+        existing && existing.type === 'string_array' ? existing.value : [];
+      const has = current.includes(record.id);
+      if (add) {
+        if (has) return;
+        draft.fields[relatedFieldId] = {
+          type: 'string_array',
+          value: [...current, record.id],
+        };
+      } else {
+        if (!has) return;
+        const next = current.filter((id) => id !== record.id);
+        if (next.length === 0) {
+          const { [relatedFieldId]: _removed, ...rest } = draft.fields;
+          draft.fields = rest;
+        } else {
+          draft.fields[relatedFieldId] = {
+            type: 'string_array',
+            value: next,
+          };
+        }
+      }
+    });
+  };
+
   const [open, setOpen] = useState(false);
 
   const relationIds = useMemo(() => value?.value ?? [], [value]);
@@ -121,6 +157,8 @@ export const RecordRelationValue = ({
                             value: newRelations,
                           });
                         }
+
+                        mirrorRelation(relation.id, false);
                       }}
                     >
                       <X className="size-4" />
@@ -141,7 +179,8 @@ export const RecordRelationValue = ({
             onSelect={(selectedRecord) => {
               if (!record.canEdit || readOnly) return;
 
-              const newRelations = relationIds.includes(selectedRecord.id)
+              const wasSelected = relationIds.includes(selectedRecord.id);
+              const newRelations = wasSelected
                 ? relationIds.filter((id) => id !== selectedRecord.id)
                 : [...relationIds, selectedRecord.id];
 
@@ -153,6 +192,8 @@ export const RecordRelationValue = ({
                   value: newRelations,
                 });
               }
+
+              mirrorRelation(selectedRecord.id, !wasSelected);
 
               setOpen(false);
             }}
