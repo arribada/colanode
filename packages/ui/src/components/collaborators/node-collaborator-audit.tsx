@@ -29,10 +29,11 @@ export const NodeCollaboratorAudit = ({
     [collaboratorId]
   );
 
-  const user = userQuery.data;
-  if (!user) {
-    return null;
-  }
+  const user = userQuery.data ?? {
+    id: collaboratorId,
+    name: 'Unknown user',
+    avatar: null,
+  };
 
   return (
     <div className="flex items-center gap-2 w-full">

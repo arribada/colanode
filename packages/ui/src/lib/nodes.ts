@@ -20,7 +20,7 @@ export const buildNodeCollaborators = (nodes: Node[]): NodeCollaborator[] => {
     const nodeCollaborators = extractNodeCollaborators(node);
 
     for (const [collaboratorId, role] of Object.entries(nodeCollaborators)) {
-      collaborators[collaboratorId] = {
+      collaborators[`${node.id}.${collaboratorId}`] = {
         nodeId: node.id,
         collaboratorId,
         role,

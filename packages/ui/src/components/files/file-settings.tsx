@@ -1,4 +1,4 @@
-import { Copy, Settings, Trash2 } from 'lucide-react';
+import { Settings, Trash2 } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import { LocalFileNode } from '@colanode/client/types';
@@ -37,10 +37,6 @@ export const FileSettings = ({ file, role }: FileSettingsProps) => {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" className="mr-2 w-56">
-          <DropdownMenuItem className="flex items-center gap-2" disabled>
-            <Copy className="size-4" />
-            Duplicate
-          </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => {

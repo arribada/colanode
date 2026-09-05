@@ -1,11 +1,13 @@
 import { eq, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
-import { Folder } from 'lucide-react';
+import { Folder, RotateCw } from 'lucide-react';
+import { toast } from 'sonner';
 
-import { LocalFileNode, Download } from '@colanode/client/types';
+import { DownloadStatus, LocalFileNode, Download } from '@colanode/client/types';
 import { formatBytes, timeAgo } from '@colanode/core';
 import { FileIcon } from '@colanode/ui/components/files/file-icon';
 import { FileThumbnail } from '@colanode/ui/components/files/file-thumbnail';
+import { Button } from '@colanode/ui/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -13,6 +15,7 @@ import {
 } from '@colanode/ui/components/ui/tooltip';
 import { WorkspaceDownloadStatus } from '@colanode/ui/components/workspaces/downloads/workspace-download-status';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
 interface WorkspaceDownloadFileProps {
   download: Download;
@@ -23,6 +26,7 @@ export const WorkspaceDownloadFile = ({
 }: WorkspaceDownloadFileProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate({ from: '/workspace/$userId' });
+  const { mutate, isPending } = useMutation();
 
   const fileQuery = useLiveQuery(
     (q) =>
@@ -100,6 +104,29 @@ export const WorkspaceDownloadFile = ({
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {download.status === DownloadStatus.Failed && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isPending}
+            onClick={(e) => {
+              e.stopPropagation();
+              mutate({
+                input: {
+                  type: 'file.download.retry',
+                  userId: workspace.userId,
+                  downloadId: download.id,
+                },
+                onError: (error) => {
+                  toast.error(error.message);
+                },
+              });
+            }}
+          >
+            <RotateCw className="mr-2 size-4" /> Retry
+          </Button>
+        )}
         <div className="w-10 flex items-center justify-center">
           <WorkspaceDownloadStatus
             status={download.status}

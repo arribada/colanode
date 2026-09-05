@@ -1,6 +1,7 @@
-import { count, eq, useLiveQuery } from '@tanstack/react-db';
+import { eq, useLiveQuery } from '@tanstack/react-db';
 import { useRef } from 'react';
 
+import { LocalMessageNode } from '@colanode/client/types';
 import { extractNodeRole } from '@colanode/core';
 import { Conversation } from '@colanode/ui/components/messages/conversation';
 import {
@@ -47,19 +48,20 @@ export const CommentsPanelContent = ({
   );
   const rootNode = rootNodeQuery.data;
 
-  const commentCountQuery = useLiveQuery(
+  // The page-level panel only shows non-anchored messages (inline comment
+  // threads carry an anchorId and are shown in their own thread). Count the
+  // same set the list displays so the empty-state text and the list agree.
+  const commentsQuery = useLiveQuery(
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
         .where(({ nodes }) => eq(nodes.type, 'message'))
-        .where(({ nodes }) => eq(nodes.parentId, pageId))
-        .select(({ nodes }) => ({
-          count: count(nodes.id),
-        }))
-        .findOne(),
+        .where(({ nodes }) => eq(nodes.parentId, pageId)),
     [workspace.userId, pageId]
   );
-  const commentCount = commentCountQuery.data?.count ?? 0;
+  const commentCount = commentsQuery.data.filter(
+    (node) => !(node as LocalMessageNode).anchorId
+  ).length;
 
   const role = rootNode ? extractNodeRole(rootNode, workspace.userId) : null;
 

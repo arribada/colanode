@@ -37,7 +37,7 @@ const DesktopLinkComponent = React.forwardRef<
           return;
         }
 
-        if (href && isNewTabClick(e, target)) {
+        if (href && isNewTabClick(e, target) && layout.openInNewTab) {
           e.preventDefault();
           e.stopPropagation();
           layout.openInNewTab(href as string);

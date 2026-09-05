@@ -15,7 +15,10 @@ interface AppProps {
 }
 
 export const App = ({ type }: AppProps) => {
-  const queryClientRef = useRef<QueryClient>(buildQueryClient());
+  const queryClientRef = useRef<QueryClient | null>(null);
+  if (!queryClientRef.current) {
+    queryClientRef.current = buildQueryClient();
+  }
 
   return (
     <AppErrorBoundary context={`app-${type}`}>

@@ -13,23 +13,26 @@ interface CommentButtonProps {
 }
 
 export const CommentButton = ({ editor, onAddComment }: CommentButtonProps) => {
+  const isActive = editor.isActive('comment');
   return (
     <MarkButton
-      isActive={editor.isActive('comment')}
+      isActive={isActive}
       onClick={() => {
-        // If the selection already sits inside a comment, reuse its thread so
-        // clicking "Comment" again re-opens the existing conversation.
-        const existing = editor.getAttributes('comment')?.threadId as
-          | string
-          | undefined;
-        const threadId = existing ?? generateId(IdType.CommentThread);
-        if (!existing) {
-          editor.chain().focus().setComment(threadId).run();
+        // Toggle off: if the selection already sits inside a comment mark,
+        // remove the highlight (wires unsetComment to a real control so orphan
+        // highlights whose thread has no messages can be cleared).
+        if (isActive) {
+          editor.chain().focus().unsetComment().run();
+          return;
         }
+        // Fresh comment: apply the mark and open the panel to compose the first
+        // message.
+        const threadId = generateId(IdType.CommentThread);
+        editor.chain().focus().setComment(threadId).run();
         onAddComment(threadId);
       }}
       icon={MessageSquarePlus}
-      label="Comment"
+      label={isActive ? 'Remove comment' : 'Comment'}
       testId="editor-toolbar-comment"
     />
   );

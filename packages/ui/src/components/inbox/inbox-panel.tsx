@@ -1,6 +1,6 @@
 // ABOUTME: Inbox sidebar panel — lists the user's notifications with resolved
 // ABOUTME: names/avatars; a row marks read + navigates, plus mark-all-as-read.
-import { inArray, useLiveQuery } from '@tanstack/react-db';
+import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
 import { CheckCheck } from 'lucide-react';
 import { useMemo } from 'react';
@@ -38,7 +38,11 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => inArray(nodes.id, sourceNodeIds)),
+        .where(({ nodes }) =>
+          sourceNodeIds.length > 0
+            ? inArray(nodes.id, sourceNodeIds)
+            : eq(nodes.id, '__none__')
+        ),
     [sourceNodeIds.join(',')]
   );
 

@@ -40,6 +40,7 @@ export const ChannelCreateDialog = ({
         id: channelId,
         type: 'channel',
         name: values.name,
+        avatar: values.avatar,
         parentId: spaceId,
         rootId: spaceId,
         createdAt: new Date().toISOString(),
@@ -80,6 +81,7 @@ export const ChannelCreateDialog = ({
           id={generateId(IdType.Channel)}
           values={{
             name: '',
+            avatar: null,
           }}
           submitText="Create"
           testId="channel-create-submit"

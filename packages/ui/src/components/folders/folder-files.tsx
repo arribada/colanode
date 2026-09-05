@@ -48,6 +48,11 @@ export const FolderFiles = ({
         id,
         name,
         files,
+        hasNextPage: fileListQuery.hasNextPage ?? false,
+        isFetchingNextPage: fileListQuery.isFetchingNextPage ?? false,
+        fetchNextPage: () => {
+          fileListQuery.fetchNextPage();
+        },
         onClick: () => {
           console.log('onClick');
         },

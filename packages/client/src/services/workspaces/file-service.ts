@@ -9,6 +9,7 @@ import {
   mapDownload,
   mapLocalFile,
   mapNode,
+  mapTempFile,
   mapUpload,
 } from '@colanode/client/lib/mappers';
 import { fetchNode } from '@colanode/client/lib/utils';
@@ -174,6 +175,11 @@ export class FileService {
       .deleteFrom('temp_files')
       .where('id', '=', tempFileId)
       .execute();
+
+    eventBus.publish({
+      type: 'temp.file.deleted',
+      tempFile: mapTempFile(tempFile, ''),
+    });
 
     const url = await this.app.fs.url(createdLocalFile.path);
     eventBus.publish({
@@ -522,6 +528,50 @@ export class FileService {
       .executeTakeFirst();
 
     if (updatedLocalFile) {
+      // A previously failed download stays Failed forever unless we re-queue it.
+      // When the file is opened again (autoDownload), reset it to Pending and
+      // enqueue a fresh download job so the preview can recover.
+      if (
+        autoDownload &&
+        updatedLocalFile.download_status === DownloadStatus.Failed
+      ) {
+        const requeuedLocalFile = await this.workspace.database
+          .updateTable('local_files')
+          .returningAll()
+          .set({
+            download_status: DownloadStatus.Pending,
+            download_progress: 0,
+            download_completed_at: null,
+            download_error_code: null,
+            download_error_message: null,
+            download_retries: 0,
+          })
+          .where('id', '=', fileId)
+          .executeTakeFirst();
+
+        if (requeuedLocalFile) {
+          await this.app.jobs.addJob({
+            type: 'local.file.download',
+            userId: this.workspace.userId,
+            fileId: fileId,
+          });
+
+          const requeuedUrl = await this.app.fs.url(requeuedLocalFile.path);
+          const mappedLocalFile = mapLocalFile(requeuedLocalFile, requeuedUrl);
+          eventBus.publish({
+            type: 'local.file.updated',
+            workspace: {
+              workspaceId: this.workspace.workspaceId,
+              userId: this.workspace.userId,
+              accountId: this.workspace.accountId,
+            },
+            localFile: mappedLocalFile,
+          });
+
+          return mappedLocalFile;
+        }
+      }
+
       const url = await this.app.fs.url(updatedLocalFile.path);
       return mapLocalFile(updatedLocalFile, url);
     }
@@ -640,6 +690,109 @@ export class FileService {
     });
 
     return createdDownload;
+  }
+
+  // Re-queues a previously Failed manual download: resets the row to Pending
+  // (progress/retries cleared) and re-adds the file.download job so the UI can
+  // retry without the user re-triggering the whole download from the file view.
+  public async retryDownload(downloadId: string): Promise<boolean> {
+    const download = await this.workspace.database
+      .selectFrom('downloads')
+      .selectAll()
+      .where('id', '=', downloadId)
+      .executeTakeFirst();
+
+    if (!download || download.status !== DownloadStatus.Failed) {
+      return false;
+    }
+
+    const updatedDownload = await this.workspace.database
+      .updateTable('downloads')
+      .returningAll()
+      .set({
+        status: DownloadStatus.Pending,
+        progress: 0,
+        retries: 0,
+        started_at: null,
+        completed_at: null,
+        error_code: null,
+        error_message: null,
+      })
+      .where('id', '=', downloadId)
+      .executeTakeFirst();
+
+    if (!updatedDownload) {
+      return false;
+    }
+
+    await this.app.jobs.addJob({
+      type: 'file.download',
+      userId: this.workspace.userId,
+      downloadId: updatedDownload.id,
+    });
+
+    eventBus.publish({
+      type: 'download.updated',
+      workspace: {
+        workspaceId: this.workspace.workspaceId,
+        userId: this.workspace.userId,
+        accountId: this.workspace.accountId,
+      },
+      download: mapDownload(updatedDownload),
+    });
+
+    return true;
+  }
+
+  // Re-queues a previously Failed upload: resets the row to Pending
+  // (progress/retries cleared) and re-adds the file.upload job.
+  public async retryUpload(fileId: string): Promise<boolean> {
+    const upload = await this.workspace.database
+      .selectFrom('uploads')
+      .selectAll()
+      .where('file_id', '=', fileId)
+      .executeTakeFirst();
+
+    if (!upload || upload.status !== UploadStatus.Failed) {
+      return false;
+    }
+
+    const updatedUpload = await this.workspace.database
+      .updateTable('uploads')
+      .returningAll()
+      .set({
+        status: UploadStatus.Pending,
+        progress: 0,
+        retries: 0,
+        started_at: null,
+        completed_at: null,
+        error_code: null,
+        error_message: null,
+      })
+      .where('file_id', '=', fileId)
+      .executeTakeFirst();
+
+    if (!updatedUpload) {
+      return false;
+    }
+
+    await this.app.jobs.addJob({
+      type: 'file.upload',
+      userId: this.workspace.userId,
+      fileId: updatedUpload.file_id,
+    });
+
+    eventBus.publish({
+      type: 'upload.updated',
+      workspace: {
+        workspaceId: this.workspace.workspaceId,
+        userId: this.workspace.userId,
+        accountId: this.workspace.accountId,
+      },
+      upload: mapUpload(updatedUpload),
+    });
+
+    return true;
   }
 
   private buildFilePath(id: string, extension: string): string {

@@ -1,6 +1,7 @@
-import { count, eq, useLiveQuery } from '@tanstack/react-db';
+import { eq, useLiveQuery } from '@tanstack/react-db';
 import { MessageSquareText } from 'lucide-react';
 
+import { LocalMessageNode } from '@colanode/client/types';
 import { usePageComments } from '@colanode/ui/contexts/page-comments';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
@@ -13,20 +14,21 @@ export const PageCommentsButton = ({ pageId }: PageCommentsButtonProps) => {
   const workspace = useWorkspace();
   const { commentsPageId, openComments, closeComments } = usePageComments();
 
-  const commentCountQuery = useLiveQuery(
+  // Count only non-anchored messages: inline comment threads (anchorId set)
+  // live in their own thread and are not shown in the page-level panel, so
+  // they must not inflate the badge.
+  const commentsQuery = useLiveQuery(
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
         .where(({ nodes }) => eq(nodes.type, 'message'))
-        .where(({ nodes }) => eq(nodes.parentId, pageId))
-        .select(({ nodes }) => ({
-          count: count(nodes.id),
-        }))
-        .findOne(),
+        .where(({ nodes }) => eq(nodes.parentId, pageId)),
     [workspace.userId, pageId]
   );
 
-  const commentCount = commentCountQuery.data?.count ?? 0;
+  const commentCount = commentsQuery.data.filter(
+    (node) => !(node as LocalMessageNode).anchorId
+  ).length;
   const isOpen = commentsPageId === pageId;
 
   return (

@@ -2,7 +2,6 @@ import { Bell, BellOff, Settings } from 'lucide-react';
 
 import { LocalChatNode } from '@colanode/client/types';
 import { NodeRole } from '@colanode/core';
-import { NodeCollaboratorsPopover } from '@colanode/ui/components/collaborators/node-collaborators-popover';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,13 +15,12 @@ interface ChatSettingsProps {
   chat: LocalChatNode;
   role: NodeRole;
 }
-export const ChatSettings = ({ chat, role }: ChatSettingsProps) => {
+export const ChatSettings = ({ chat }: ChatSettingsProps) => {
   const workspace = useWorkspace();
   const { muted } = useChannelMute(workspace.userId, chat.id);
 
   return (
     <div className="flex items-center gap-3">
-      <NodeCollaboratorsPopover node={chat} nodes={[chat]} role={role} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Settings className="size-4 cursor-pointer text-muted-foreground hover:text-foreground" />

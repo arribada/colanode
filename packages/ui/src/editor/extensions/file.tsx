@@ -129,8 +129,16 @@ export const FileNode = Node.create<FileNodeOptions>({
 
             (async () => {
               for (const file of files) {
-                const tempFile = await window.colanode.saveTempFile(file);
-                editor.commands.addFile(tempFile);
+                try {
+                  const tempFile = await window.colanode.saveTempFile(file);
+                  editor.commands.addFile(tempFile);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not upload the file'
+                  );
+                }
               }
             })();
 
@@ -149,8 +157,16 @@ export const FileNode = Node.create<FileNodeOptions>({
 
             (async () => {
               for (const file of files) {
-                const tempFile = await window.colanode.saveTempFile(file);
-                editor.commands.addFile(tempFile);
+                try {
+                  const tempFile = await window.colanode.saveTempFile(file);
+                  editor.commands.addFile(tempFile);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not upload the file'
+                  );
+                }
               }
             })();
 

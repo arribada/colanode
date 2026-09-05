@@ -1,6 +1,7 @@
 import { CommandProps, mergeAttributes, Node } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import { toast } from 'sonner';
 
 import { TempFile } from '@colanode/client/types';
 import { TempFileNodeView } from '@colanode/ui/editor/views';
@@ -69,8 +70,16 @@ export const TempFileNode = Node.create({
 
             (async () => {
               for (const file of files) {
-                const tempFile = await window.colanode.saveTempFile(file);
-                editor.commands.addTempFile(tempFile);
+                try {
+                  const tempFile = await window.colanode.saveTempFile(file);
+                  editor.commands.addTempFile(tempFile);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not upload the file'
+                  );
+                }
               }
             })();
 
@@ -89,8 +98,16 @@ export const TempFileNode = Node.create({
 
             (async () => {
               for (const file of files) {
-                const tempFile = await window.colanode.saveTempFile(file);
-                editor.commands.addTempFile(tempFile);
+                try {
+                  const tempFile = await window.colanode.saveTempFile(file);
+                  editor.commands.addTempFile(tempFile);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not upload the file'
+                  );
+                }
               }
             })();
 

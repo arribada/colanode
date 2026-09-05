@@ -17,6 +17,7 @@ import {
   SelectOptionAttributes,
 } from '@colanode/core';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { resolveWikiTasksDb } from '@colanode/ui/lib/wiki-tasks';
 
 interface WikiTaskButtonProps {
   editor: Editor;
@@ -24,10 +25,6 @@ interface WikiTaskButtonProps {
   // back to the page the selection came from.
   pageId: string;
 }
-
-// The shared "Wiki Tasks" registry. Resolved at runtime (by id, then by name)
-// so a recreated registry with a fresh id still works.
-const WIKI_TASKS_DB_ID = '01kypqr1dc2dw5wbydtfave3emdb';
 
 const sortByIndex = (
   options: Record<string, SelectOptionAttributes> | undefined
@@ -50,13 +47,7 @@ export const WikiTaskButton = ({ editor, pageId }: WikiTaskButtonProps) => {
     const databases = (databaseListQuery.data ?? []).map(
       (node) => node as LocalDatabaseNode
     );
-    return (
-      databases.find((db) => db.id === WIKI_TASKS_DB_ID) ??
-      databases.find((db) =>
-        (db.name ?? '').toLowerCase().includes('wiki tasks')
-      ) ??
-      null
-    );
+    return resolveWikiTasksDb(databases);
   }, [databaseListQuery.data]);
 
   // Resolved and genuinely absent (vs still loading), so the button doesn't flash.

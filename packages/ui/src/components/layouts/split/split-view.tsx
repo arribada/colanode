@@ -95,7 +95,9 @@ const SplitPane = ({ leaf }: { leaf: SplitLeaf }) => {
         <button
           type="button"
           title="Split right"
-          onClick={() => openInSplit(leaf.tabId, 'horizontal')}
+          onClick={() =>
+            openInSplit(paneRouter.state.location.href, 'horizontal')
+          }
           className="flex size-5 items-center justify-center rounded hover:bg-accent hover:text-foreground"
         >
           <Columns2 className="size-3.5" />
@@ -103,7 +105,9 @@ const SplitPane = ({ leaf }: { leaf: SplitLeaf }) => {
         <button
           type="button"
           title="Split down"
-          onClick={() => openInSplit(leaf.tabId, 'vertical')}
+          onClick={() =>
+            openInSplit(paneRouter.state.location.href, 'vertical')
+          }
           className="flex size-5 items-center justify-center rounded hover:bg-accent hover:text-foreground"
         >
           <Rows2 className="size-3.5" />

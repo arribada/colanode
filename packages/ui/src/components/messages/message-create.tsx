@@ -1,5 +1,5 @@
 import { JSONContent } from '@tiptap/core';
-import { Plus, Search, Send, Upload } from 'lucide-react';
+import { Plus, Send, Upload } from 'lucide-react';
 import {
   forwardRef,
   useCallback,
@@ -140,12 +140,6 @@ export const MessageCreate = forwardRef<MessageCreateRefProps>((_, ref) => {
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem disabled={true}>
-                <div className="flex flex-row items-center gap-2 text-sm">
-                  <Search className="size-4" />
-                  <span>Browse</span>
-                </div>
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleUploadClick}>
                 <div className="flex cursor-pointer flex-row items-center gap-2 text-sm">
                   <Upload className="size-4" />

@@ -1,3 +1,5 @@
+import { RotateCw } from 'lucide-react';
+
 import { DownloadStatus, LocalFileNode } from '@colanode/client/types';
 import { FileStatus } from '@colanode/core';
 import { FileDownloadProgress } from '@colanode/ui/components/files/file-download-progress';
@@ -6,6 +8,7 @@ import { FileNotUploaded } from '@colanode/ui/components/files/file-not-uploaded
 import { FilePreviewAudio } from '@colanode/ui/components/files/previews/file-preview-audio';
 import { FilePreviewImage } from '@colanode/ui/components/files/previews/file-preview-image';
 import { FilePreviewVideo } from '@colanode/ui/components/files/previews/file-preview-video';
+import { Button } from '@colanode/ui/components/ui/button';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 
@@ -37,6 +40,25 @@ export const FilePreview = ({ file }: FilePreviewProps) => {
     return <FileNoPreview mimeType={file.mimeType} />;
   }
 
+  if (localFile.downloadStatus === DownloadStatus.Failed) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center text-muted-foreground">
+          <p className="text-sm font-medium text-muted-foreground">
+            Couldn't download this file.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => localFileQuery.refetch()}
+          >
+            <RotateCw className="mr-2 size-4" /> Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (localFile.downloadStatus !== DownloadStatus.Completed) {
     return <FileDownloadProgress progress={localFile.downloadProgress} />;
   }
@@ -52,6 +74,16 @@ export const FilePreview = ({ file }: FilePreviewProps) => {
 
     if (file.subtype === 'audio') {
       return <FilePreviewAudio url={localFile.url} name={file.name} />;
+    }
+
+    if (file.subtype === 'pdf') {
+      return (
+        <iframe
+          src={localFile.url}
+          title={file.name}
+          className="h-full w-full rounded-md border border-border"
+        />
+      );
     }
   }
 

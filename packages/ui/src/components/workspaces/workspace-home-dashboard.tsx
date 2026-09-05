@@ -18,8 +18,12 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { LocalDatabaseNode, LocalRecordNode } from '@colanode/client/types';
-import { timeAgo } from '@colanode/core';
+import {
+  LocalDatabaseNode,
+  LocalRecordNode,
+  LocalSpaceNode,
+} from '@colanode/client/types';
+import { compareString, generateFractionalIndex, timeAgo } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { NotificationItem } from '@colanode/ui/components/notifications/notification-item';
 import { PageCreateDialog } from '@colanode/ui/components/pages/page-create-dialog';
@@ -30,6 +34,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import { ADR_DATABASE_ID } from '@colanode/ui/lib/adr';
+import { resolveWikiTasksDb } from '@colanode/ui/lib/wiki-tasks';
 
 // Node types shown in the "Recently updated" feed. Pulled via a dedicated
 // bounded query (ordered by recency, capped at RECENT_LIMIT) so the home
@@ -79,6 +84,11 @@ export const WorkspaceHomeDashboard = () => {
 
   const [pageDialogOpen, setPageDialogOpen] = useState(false);
   const [spaceDialogOpen, setSpaceDialogOpen] = useState(false);
+
+  // Guests / none-role users cannot create spaces (the server rejects it), so
+  // don't surface the entry point to them — mirroring sidebar-spaces.tsx.
+  const canCreateSpace =
+    workspace.role !== 'guest' && workspace.role !== 'none';
 
   const notificationsQuery = useClientQuery({
     type: 'notification.list',
@@ -138,12 +148,18 @@ export const WorkspaceHomeDashboard = () => {
     [workspace.userId]
   );
 
-  // The notification/task rows' source nodes, fetched by id.
+  // The notification/task rows' source nodes, fetched by id. Guard the empty
+  // case: an `inArray(nodes.id, [])` is an invalid `IN ()`, so fall back to a
+  // sentinel id that matches nothing when there are no notifications.
   const sourceQuery = useLiveQuery(
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => inArray(nodes.id, sourceNodeIds)),
+        .where(({ nodes }) =>
+          sourceNodeIds.length > 0
+            ? inArray(nodes.id, sourceNodeIds)
+            : eq(nodes.id, '__none__')
+        ),
     [sourceNodeIds.join(',')]
   );
 
@@ -152,23 +168,41 @@ export const WorkspaceHomeDashboard = () => {
     [structuralQuery.data]
   );
 
-  const spaces = useMemo(
-    () => structuralNodes.filter((node) => node.type === 'space'),
-    [structuralNodes]
-  );
+  const spaces = useMemo(() => {
+    const list = structuralNodes.filter(
+      (node) => node.type === 'space'
+    ) as unknown as LocalSpaceNode[];
+    // Mirror the sidebar's ordering: id order is the default, a space's own
+    // `index` (written on drag-reorder) overrides it. Keying every space with a
+    // sequential default fractional index means the grid and the sidebar (and
+    // the "first space" default) stay consistent without backfilling indexes.
+    const sorted = [...list].sort((a, b) => compareString(a.id, b.id));
+    const keyById = new Map<string, string>();
+    let lastDefault: string | null = null;
+    for (const space of sorted) {
+      lastDefault = generateFractionalIndex(lastDefault, null);
+      const custom =
+        typeof space.index === 'string' && space.index.length > 0
+          ? space.index
+          : null;
+      keyById.set(space.id, custom ?? lastDefault);
+    }
+    sorted.sort((a, b) =>
+      compareString(keyById.get(a.id) ?? a.id, keyById.get(b.id) ?? b.id)
+    );
+    return sorted;
+  }, [structuralNodes]);
 
-  // Resolve the shared "Wiki Tasks" registry by name rather than a hardcoded
-  // id, so the link survives the registry being recreated (a new node gets a
-  // fresh id but keeps the "Wiki Tasks" name).
+  // Resolve the shared "Wiki Tasks" registry by id first, then by name (via the
+  // shared helper), so the link survives the registry being recreated (a new
+  // node gets a fresh id but keeps the "Wiki Tasks" name).
   const tasksRegistry = useMemo(
     () =>
-      structuralNodes.find(
-        (node) =>
-          node.type === 'database' &&
-          'name' in node &&
-          typeof node.name === 'string' &&
-          node.name.toLowerCase().includes('wiki tasks')
-      ),
+      resolveWikiTasksDb(
+        structuralNodes.filter(
+          (node) => node.type === 'database'
+        ) as unknown as LocalDatabaseNode[]
+      ) ?? undefined,
     [structuralNodes]
   );
 
@@ -227,12 +261,21 @@ export const WorkspaceHomeDashboard = () => {
     if (!name && !emailLocal) {
       return [];
     }
+    // The account name may be a single first name ("Geoffrey") or a full,
+    // multi-word name ("Geoffrey Fournier"), while the leader option stores the
+    // full name. Compare word SETS: match when any account-name word appears in
+    // the option's words (so "Geoffrey" matches "Geoffrey Fournier"), or the
+    // email-local part matches a word. Keeps the emailLocal fallback.
+    const nameWords = new Set(name.split(/\s+/).filter(Boolean));
     const matchesLeader = (leaderName: string) => {
       const words = leaderName.toLowerCase().split(/\s+/).filter(Boolean);
-      return (
-        (name.length > 0 && words.includes(name)) ||
-        (emailLocal.length > 0 && words.includes(emailLocal))
-      );
+      if (words.length === 0) {
+        return false;
+      }
+      if (nameWords.size > 0 && words.some((word) => nameWords.has(word))) {
+        return true;
+      }
+      return emailLocal.length > 0 && words.includes(emailLocal);
     };
 
     const records = (wikiTasksQuery.data ?? []) as LocalRecordNode[];
@@ -254,27 +297,34 @@ export const WorkspaceHomeDashboard = () => {
   }, [tasksRegistry, currentUser, wikiTasksQuery.data]);
 
   // ADR registry records, to surface UNRESOLVED architecture decisions on the
-  // home for traceability (mirror of "Your wiki tasks").
-  const adrDbQuery = useLiveQuery(
-    (q) =>
-      q
-        .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => eq(nodes.id, ADR_DATABASE_ID))
-        .findOne(),
-    [workspace.userId]
-  );
+  // home for traceability (mirror of "Your wiki tasks"). Resolve the ADR
+  // database by id first, then fall back to a name/🧭-emoji match so the section
+  // survives the database being recreated with a fresh id.
+  const adrDb = useMemo<LocalDatabaseNode | undefined>(() => {
+    const databases = structuralNodes.filter(
+      (node) => node.type === 'database'
+    ) as unknown as LocalDatabaseNode[];
+    return (
+      databases.find((db) => db.id === ADR_DATABASE_ID) ??
+      databases.find((db) => {
+        const dbName = (db.name ?? '').toLowerCase();
+        return dbName.includes('adr') || dbName.includes('🧭');
+      })
+    );
+  }, [structuralNodes]);
+  const adrDatabaseId = adrDb?.id ?? ADR_DATABASE_ID;
   const adrRecordsQuery = useLiveQuery(
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
         .where(({ nodes }) => eq(nodes.type, 'record'))
         .where(({ nodes }) =>
-          eq((nodes as unknown as LocalRecordNode).databaseId, ADR_DATABASE_ID)
+          eq((nodes as unknown as LocalRecordNode).databaseId, adrDatabaseId)
         ),
-    [workspace.userId]
+    [adrDatabaseId]
   );
   const unresolvedAdrs = useMemo<LocalRecordNode[]>(() => {
-    const db = adrDbQuery.data as LocalDatabaseNode | undefined;
+    const db = adrDb;
     const records = (adrRecordsQuery.data ?? []) as LocalRecordNode[];
     const statusField =
       db && db.type === 'database'
@@ -304,7 +354,7 @@ export const WorkspaceHomeDashboard = () => {
         return !/resolv|closed|done/.test(optionName);
       })
       .slice(0, 8);
-  }, [adrDbQuery.data, adrRecordsQuery.data]);
+  }, [adrDb, adrRecordsQuery.data]);
 
   const recent = recentQuery.data ?? [];
 
@@ -363,15 +413,17 @@ export const WorkspaceHomeDashboard = () => {
           <FilePlus2 className="size-4 text-muted-foreground" />
           New page
         </button>
-        <button
-          type="button"
-          data-testid="home-new-space"
-          onClick={() => setSpaceDialogOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-medium transition-all hover:border-border hover:bg-accent hover:shadow-sm"
-        >
-          <FolderPlus className="size-4 text-muted-foreground" />
-          New space
-        </button>
+        {canCreateSpace ? (
+          <button
+            type="button"
+            data-testid="home-new-space"
+            onClick={() => setSpaceDialogOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-medium transition-all hover:border-border hover:bg-accent hover:shadow-sm"
+          >
+            <FolderPlus className="size-4 text-muted-foreground" />
+            New space
+          </button>
+        ) : null}
         <button
           type="button"
           data-testid="home-search"
@@ -465,11 +517,11 @@ export const WorkspaceHomeDashboard = () => {
         <div className="flex items-center gap-2">
           <Compass className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-medium">ADRs to resolve</h2>
-          {adrDbQuery.data ? (
+          {adrDb ? (
             <Link
               from="/workspace/$userId"
               to="$nodeId"
-              params={{ nodeId: ADR_DATABASE_ID }}
+              params={{ nodeId: adrDatabaseId }}
               className="ml-auto text-xs text-muted-foreground hover:text-foreground"
             >
               Open the ADR registry →

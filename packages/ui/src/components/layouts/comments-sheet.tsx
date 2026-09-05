@@ -29,7 +29,9 @@ export const CommentsSheet = () => {
         className="flex h-[90vh] flex-col gap-0 rounded-t-3xl border-0 p-0"
       >
         <div className="flex h-10 shrink-0 flex-row items-center justify-between border-b border-border px-4">
-          <SheetTitle className="text-sm font-semibold">Comments</SheetTitle>
+          <SheetTitle className="text-sm font-semibold">
+            {commentsAnchorId ? 'Comment' : 'Comments'}
+          </SheetTitle>
           <button
             type="button"
             aria-label="Close comments"

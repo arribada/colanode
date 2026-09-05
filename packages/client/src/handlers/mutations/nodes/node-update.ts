@@ -13,12 +13,12 @@ export class NodeUpdateMutationHandler
     input: NodeUpdateMutationInput
   ): Promise<NodeUpdateMutationOutput> {
     const workspace = this.getWorkspace(input.userId);
-    await workspace.nodes.updateNode(input.nodeId, () => {
+    const result = await workspace.nodes.updateNode(input.nodeId, () => {
       return input.attributes;
     });
 
     return {
-      success: true,
+      success: result === 'success',
     };
   }
 }

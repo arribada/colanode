@@ -36,7 +36,7 @@ export const ChannelSettings = ({ channel, role }: ChannelSettingsProps) => {
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
-  const canDelete = hasNodeRole(role, 'editor');
+  const canDelete = hasNodeRole(role, 'admin');
 
   return (
     <Fragment>

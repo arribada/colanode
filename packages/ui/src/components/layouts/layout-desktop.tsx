@@ -13,6 +13,7 @@ import { SplitView } from '@colanode/ui/components/layouts/split/split-view';
 import { SplitViewProvider } from '@colanode/ui/components/layouts/split/split-view-provider';
 import { TabsContent } from '@colanode/ui/components/layouts/tabs/tabs-content';
 import { TabsHeader } from '@colanode/ui/components/layouts/tabs/tabs-header';
+import { LayoutContext } from '@colanode/ui/contexts/layout';
 import { useSplitView } from '@colanode/ui/contexts/split-view';
 import { TabManagerContext } from '@colanode/ui/contexts/tab-manager';
 import { router, routeTree } from '@colanode/ui/routes';
@@ -101,12 +102,16 @@ export const LayoutDesktop = () => {
         getRouter: handleTabGetRouter,
       }}
     >
-      <SplitViewProvider>
-        <div className="flex flex-col h-full">
-          <TabsHeader />
-          <LayoutBody />
-        </div>
-      </SplitViewProvider>
+      <LayoutContext.Provider
+        value={{ openInNewTab: (url) => handleTabAdd(url) }}
+      >
+        <SplitViewProvider>
+          <div className="flex flex-col h-full">
+            <TabsHeader />
+            <LayoutBody />
+          </div>
+        </SplitViewProvider>
+      </LayoutContext.Provider>
     </TabManagerContext.Provider>
   );
 };

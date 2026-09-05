@@ -41,10 +41,12 @@ export const NodeCollaborator = ({
     [collaboratorId]
   );
 
-  const user = userQuery.data;
-  if (!user) {
-    return null;
-  }
+  const user = userQuery.data ?? {
+    id: collaboratorId,
+    name: 'Unknown user',
+    avatar: null,
+    email: `${collaboratorId.slice(0, 8)}…`,
+  };
 
   return (
     <div

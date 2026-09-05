@@ -35,6 +35,8 @@ import { DocumentSuggestionWorkspaceListMutationHandler } from './documents/docu
 import { DocumentUpdateMutationHandler } from './documents/document-update';
 import { FileCreateMutationHandler } from './files/file-create';
 import { FileDownloadMutationHandler } from './files/file-download';
+import { FileDownloadRetryMutationHandler } from './files/file-download-retry';
+import { FileUploadRetryMutationHandler } from './files/file-upload-retry';
 import { TempFileCreateMutationHandler } from './files/temp-file-create';
 import { MessageCreateMutationHandler } from './messages/message-create';
 import { MessageTaskSetMutationHandler } from './messages/message-task-set';
@@ -82,7 +84,6 @@ import { ServerSyncMutationHandler } from './servers/server-sync';
 import { SpaceChildReorderMutationHandler } from './spaces/space-child-reorder';
 import { UnsplashDownloadMutationHandler } from './unsplash/unsplash-download';
 import { UserRoleUpdateMutationHandler } from './users/user-role-update';
-import { UserStorageUpdateMutationHandler } from './users/user-storage-update';
 import { UsersCreateMutationHandler } from './users/users-create';
 import { WorkspaceCreateMutationHandler } from './workspaces/workspace-create';
 import { WorkspaceDeleteMutationHandler } from './workspaces/workspace-delete';
@@ -152,6 +153,8 @@ export const buildMutationHandlerMap = (
     'account.logout': new AccountLogoutMutationHandler(app),
     'file.create': new FileCreateMutationHandler(app),
     'file.download': new FileDownloadMutationHandler(app),
+    'file.download.retry': new FileDownloadRetryMutationHandler(app),
+    'file.upload.retry': new FileUploadRetryMutationHandler(app),
     'space.child.reorder': new SpaceChildReorderMutationHandler(app),
     'account.update': new AccountUpdateMutationHandler(app),
     'document.restore': new DocumentRestoreMutationHandler(app),
@@ -171,7 +174,6 @@ export const buildMutationHandlerMap = (
     'email.password.reset.complete':
       new EmailPasswordResetCompleteMutationHandler(app),
     'workspace.delete': new WorkspaceDeleteMutationHandler(app),
-    'user.storage.update': new UserStorageUpdateMutationHandler(app),
     'temp.file.create': new TempFileCreateMutationHandler(app),
     'tab.create': new TabCreateMutationHandler(app),
     'tab.update': new TabUpdateMutationHandler(app),

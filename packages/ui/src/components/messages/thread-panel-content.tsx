@@ -58,7 +58,10 @@ export const ThreadPanelContent = ({ threadRootId }: ThreadPanelContentProps) =>
       <div className="shrink-0 border-b border-border px-4 py-2">
         <ConversationContext.Provider
           value={{
-            id: root.parentId ?? root.rootId,
+            // Seed with the message id (not the channel) so canReplyInThread
+            // resolves false and the no-op "Reply in thread" action is hidden
+            // on the root message inside the thread panel.
+            id: root.id,
             role,
             rootId: root.rootId,
             canCreateMessage: false,

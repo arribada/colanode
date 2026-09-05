@@ -12,39 +12,16 @@ import {
   DialogTitle,
 } from '@colanode/ui/components/ui/dialog';
 
-// Delete every entry in the origin-private file system (where the web client
-// keeps its local SQLite databases). Structural typing keeps this free of the
-// not-always-present DOM lib types for the File System Access API.
-const wipeLocalStorage = async (): Promise<void> => {
-  try {
-    const storage = navigator.storage as unknown as {
-      getDirectory?: () => Promise<{
-        entries: () => AsyncIterable<[string, unknown]>;
-        removeEntry: (
-          name: string,
-          opts: { recursive: boolean }
-        ) => Promise<void>;
-      }>;
-    };
-    if (!storage.getDirectory) {
-      return;
-    }
-    const root = await storage.getDirectory();
-    for await (const [name] of root.entries()) {
-      await root.removeEntry(name, { recursive: true }).catch(() => {});
-    }
-  } catch {
-    // best-effort — reload anyway so a partial wipe still recovers
-  }
-};
-
 export const AccountResetLocalData = () => {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const reset = async () => {
     setBusy(true);
-    await wipeLocalStorage();
+    // Delegate to the platform-appropriate reset: on web this runs inside the
+    // worker (closing the SQLite handles before deleting the OPFS databases); on
+    // desktop it deletes the on-disk databases via IPC in the main process.
+    await window.colanode.reset();
     window.location.reload();
   };
 

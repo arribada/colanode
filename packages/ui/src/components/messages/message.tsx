@@ -73,24 +73,34 @@ export const Message = ({ message, previousMessage }: MessageProps) => {
 
   const displayAuthor = shouldDisplayAuthor(message, previousMessage);
 
-  const longPressHandlers = isMobile
-    ? useLongPress(
-        () => {
-          setIsMobileMenuOpen(true);
-        },
-        {
-          onStart: () => {
-            setIsLongPressing(true);
-          },
-          onFinish: () => {
-            setIsLongPressing(false);
-          },
-          onCancel: () => {
-            setIsLongPressing(false);
-          },
+  // Rules of Hooks: useLongPress must be called unconditionally on every
+  // render. Gate the effect internally on isMobile (and only spread the
+  // handlers when mobile) so toggling the breakpoint never changes the hook
+  // count.
+  const longPressHandlers = useLongPress(
+    () => {
+      if (isMobile) {
+        setIsMobileMenuOpen(true);
+      }
+    },
+    {
+      onStart: () => {
+        if (isMobile) {
+          setIsLongPressing(true);
         }
-      )
-    : {};
+      },
+      onFinish: () => {
+        setIsLongPressing(false);
+      },
+      onCancel: () => {
+        setIsLongPressing(false);
+      },
+    }
+  );
+
+  // Spread as a union-with-{} VARIABLE (not an inline conditional) so the div
+  // spread stays assignable, matching the original typing.
+  const longPressProps = isMobile ? longPressHandlers : {};
 
   return (
     <MessageContext.Provider
@@ -114,7 +124,7 @@ export const Message = ({ message, previousMessage }: MessageProps) => {
             : 'hover:bg-accent',
           displayAuthor && 'mt-2 first:mt-0'
         )}
-        {...longPressHandlers}
+        {...longPressProps}
       >
         <div className="mr-2 w-10 pt-1">
           {displayAuthor && <MessageAuthorAvatar message={message} />}

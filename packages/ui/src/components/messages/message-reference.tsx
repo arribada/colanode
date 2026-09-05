@@ -21,17 +21,14 @@ export const MessageReference = ({ messageId }: MessageReferenceProps) => {
     [workspace.userId, messageId]
   );
 
-  if (
-    messageGetQuery.isLoading ||
-    !messageGetQuery.data ||
-    messageGetQuery.data.type !== 'message'
-  ) {
+  if (messageGetQuery.isLoading) {
     return null;
   }
 
-  const message = messageGetQuery.data as LocalMessageNode;
-
-  if (!message) {
+  // Once the query has settled, a missing node (or a node that is no longer a
+  // message) means the referenced message was deleted — surface that instead
+  // of silently rendering nothing.
+  if (!messageGetQuery.data || messageGetQuery.data.type !== 'message') {
     return (
       <div className="flex flex-row gap-2 border-l-4 p-2">
         <span className="text-sm text-muted-foreground">
@@ -40,6 +37,8 @@ export const MessageReference = ({ messageId }: MessageReferenceProps) => {
       </div>
     );
   }
+
+  const message = messageGetQuery.data as LocalMessageNode;
 
   return (
     <div className="flex flex-row gap-2 border-l-4 p-2">

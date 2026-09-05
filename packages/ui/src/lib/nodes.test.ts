@@ -54,7 +54,7 @@ describe('buildNodeCollaborators', () => {
     );
   });
 
-  it('lets a more specific (later) node override an ancestor grant for the same collaborator', () => {
+  it('preserves a grant for the same collaborator on every node level', () => {
     const space = nodeWithCollaborators('space1', 'workspace', {
       user1: 'viewer',
     });
@@ -63,12 +63,17 @@ describe('buildNodeCollaborators', () => {
     });
 
     const collaborators = buildNodeCollaborators([space, page]);
-    const user1Entry = collaborators.find((c) => c.collaboratorId === 'user1');
 
-    expect(user1Entry).toEqual({
-      nodeId: 'page1',
-      collaboratorId: 'user1',
-      role: 'editor',
-    });
+    expect(collaborators).toEqual(
+      expect.arrayContaining([
+        { nodeId: 'space1', collaboratorId: 'user1', role: 'viewer' },
+        { nodeId: 'page1', collaboratorId: 'user1', role: 'editor' },
+      ])
+    );
+    // the most-specific (direct) grant is still resolvable per node
+    const pageEntry = collaborators.find(
+      (c) => c.nodeId === 'page1' && c.collaboratorId === 'user1'
+    );
+    expect(pageEntry?.role).toEqual('editor');
   });
 });

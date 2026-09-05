@@ -51,13 +51,13 @@ export const NodeCollaborators = ({
 
                 let canEdit = isAdmin;
                 if (canEdit && collaborator.role === 'admin') {
-                  const otherAdmins = collaborators.filter(
+                  const otherDirectAdmins = directCollaborators.filter(
                     (c) =>
                       c.collaboratorId !== collaborator.collaboratorId &&
                       c.role === 'admin'
                   ).length;
 
-                  canEdit = otherAdmins > 0;
+                  canEdit = otherDirectAdmins > 0;
                 }
 
                 return (
@@ -96,15 +96,13 @@ export const NodeCollaborators = ({
               <h4 className="text-sm font-medium">Inherit from {name}</h4>
               <div className="flex flex-col gap-3">
                 {inheritCollaborators.map((collaborator) => {
-                  const canEdit = isAdmin && collaborator.role !== 'admin';
-
                   return (
                     <NodeCollaborator
                       key={collaborator.collaboratorId}
                       nodeId={ancestor.id}
                       collaboratorId={collaborator.collaboratorId}
                       role={collaborator.role}
-                      canEdit={canEdit}
+                      canEdit={false}
                       canRemove={false}
                     />
                   );

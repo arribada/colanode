@@ -86,5 +86,10 @@ export const openFileDialog = (
 };
 
 export const canPreviewFile = (subtype: FileSubtype) => {
-  return subtype === 'image' || subtype === 'video' || subtype === 'audio';
+  return (
+    subtype === 'image' ||
+    subtype === 'video' ||
+    subtype === 'audio' ||
+    subtype === 'pdf'
+  );
 };

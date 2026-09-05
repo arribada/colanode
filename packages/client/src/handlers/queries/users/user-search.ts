@@ -5,6 +5,7 @@ import { mapUser } from '@colanode/client/lib/mappers';
 import { UserSearchQueryInput } from '@colanode/client/queries/users/user-search';
 import { Event } from '@colanode/client/types/events';
 import { User } from '@colanode/client/types/users';
+import { UserStatus } from '@colanode/core';
 
 export class UserSearchQueryHandler
   extends WorkspaceQueryHandlerBase
@@ -76,12 +77,19 @@ export class UserSearchQueryHandler
     input: UserSearchQueryInput
   ): Promise<SelectUser[]> {
     const workspace = this.getWorkspace(input.userId);
-    const exclude = input.exclude ?? [];
+    const exclude = [...(input.exclude ?? []), input.userId];
 
     let queryBuilder = workspace.database
       .selectFrom('users')
       .selectAll()
-      .where('name', 'like', `%${input.searchQuery}%`);
+      .where('status', '=', UserStatus.Active)
+      .where((eb) =>
+        eb.or([
+          eb('name', 'like', `%${input.searchQuery}%`),
+          eb('email', 'like', `%${input.searchQuery}%`),
+          eb('custom_name', 'like', `%${input.searchQuery}%`),
+        ])
+      );
 
     if (exclude.length > 0) {
       queryBuilder = queryBuilder.where('id', 'not in', exclude);
@@ -94,9 +102,10 @@ export class UserSearchQueryHandler
   private async fetchUsers(input: UserSearchQueryInput): Promise<SelectUser[]> {
     const workspace = this.getWorkspace(input.userId);
 
-    const exclude = input.exclude ?? [];
+    const exclude = [...(input.exclude ?? []), input.userId];
     return workspace.database
       .selectFrom('users')
+      .where('status', '=', UserStatus.Active)
       .where('id', 'not in', exclude)
       .selectAll()
       .execute();

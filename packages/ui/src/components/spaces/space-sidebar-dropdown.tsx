@@ -12,6 +12,7 @@ import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalSpaceNode } from '@colanode/client/types';
+import { extractNodeRole, hasNodeRole } from '@colanode/core';
 import { ChannelCreateDialog } from '@colanode/ui/components/channels/channel-create-dialog';
 import { DatabaseCreateDialog } from '@colanode/ui/components/databases/database-create-dialog';
 import { PageCreateDialog } from '@colanode/ui/components/pages/page-create-dialog';
@@ -40,6 +41,9 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate({ from: '/workspace/$userId' });
   const [showChat] = useChatVisibility();
+
+  const spaceRole = extractNodeRole(space, workspace.userId);
+  const canCreate = spaceRole !== null && hasNodeRole(spaceRole, 'editor');
 
   const [openCreatePage, setOpenCreatePage] = useState(false);
   const [openCreateChannel, setOpenCreateChannel] = useState(false);
@@ -88,14 +92,16 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
         <DropdownMenuContent className="ml-1 w-72">
           <DropdownMenuLabel>{space.name ?? 'Unnamed'}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => setOpenCreatePage(true)}
-            className="flex flex-row items-center gap-2 cursor-pointer"
-          >
-            <StickyNote className="size-4" />
-            <span>Add page</span>
-          </DropdownMenuItem>
-          {pageTemplates.length > 0 && (
+          {canCreate && (
+            <DropdownMenuItem
+              onSelect={() => setOpenCreatePage(true)}
+              className="flex flex-row items-center gap-2 cursor-pointer"
+            >
+              <StickyNote className="size-4" />
+              <span>Add page</span>
+            </DropdownMenuItem>
+          )}
+          {canCreate && pageTemplates.length > 0 && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="flex flex-row items-center gap-2 cursor-pointer">
                 <FileStack className="size-4" />
@@ -115,7 +121,7 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )}
-          {showChat && (
+          {canCreate && showChat && (
             <DropdownMenuItem
               onSelect={() => setOpenCreateChannel(true)}
               className="flex flex-row items-center gap-2 cursor-pointer"
@@ -124,21 +130,25 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
               <span>Add channel</span>
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem
-            onSelect={() => setOpenCreateDatabase(true)}
-            className="flex flex-row items-center gap-2 cursor-pointer"
-          >
-            <Database className="size-4" />
-            <span>Add database</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => setOpenCreateWhiteboard(true)}
-            className="flex flex-row items-center gap-2 cursor-pointer"
-          >
-            <Presentation className="size-4" />
-            <span>Add board</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {canCreate && (
+            <DropdownMenuItem
+              onSelect={() => setOpenCreateDatabase(true)}
+              className="flex flex-row items-center gap-2 cursor-pointer"
+            >
+              <Database className="size-4" />
+              <span>Add database</span>
+            </DropdownMenuItem>
+          )}
+          {canCreate && (
+            <DropdownMenuItem
+              onSelect={() => setOpenCreateWhiteboard(true)}
+              className="flex flex-row items-center gap-2 cursor-pointer"
+            >
+              <Presentation className="size-4" />
+              <span>Add board</span>
+            </DropdownMenuItem>
+          )}
+          {canCreate && <DropdownMenuSeparator />}
           <DropdownMenuItem
             onClick={() =>
               navigate({
