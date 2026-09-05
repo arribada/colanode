@@ -316,6 +316,10 @@ export class SocketConnection {
         cursor
       );
     } else if (message.input.type === 'node.reactions') {
+      if (!user.rootIds.has(message.input.rootId)) {
+        return null;
+      }
+
       return new NodeReactionSynchronizer(
         message.id,
         user.user,
@@ -323,6 +327,10 @@ export class SocketConnection {
         cursor
       );
     } else if (message.input.type === 'node.interactions') {
+      if (!user.rootIds.has(message.input.rootId)) {
+        return null;
+      }
+
       return new NodeInteractionSynchronizer(
         message.id,
         user.user,
@@ -514,6 +522,18 @@ export class SocketConnection {
 
     if (!collaboration || collaboration.deleted_at) {
       user.rootIds.delete(event.nodeId);
+
+      // Access to this root was revoked. Tear down every armed synchronizer
+      // scoped to exactly this root so a stale, already-registered
+      // synchronizer cannot deliver one more batch for a space the user can
+      // no longer see. Only the revoked root is affected; other roots keep
+      // their synchronizers.
+      for (const [id, synchronizer] of user.synchronizers) {
+        const input = synchronizer.input;
+        if ('rootId' in input && input.rootId === event.nodeId) {
+          user.synchronizers.delete(id);
+        }
+      }
     } else {
       user.rootIds.add(event.nodeId);
     }

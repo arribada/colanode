@@ -7,7 +7,7 @@ import {
 } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { eventBus } from '@colanode/server/lib/event-bus';
-import { mapNode } from '@colanode/server/lib/nodes';
+import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 import { WorkspaceContext } from '@colanode/server/types/api';
 
 export const markNodeAsSeen = async (
@@ -34,8 +34,8 @@ export const markNodeAsSeen = async (
     return MutationStatus.NOT_FOUND;
   }
 
-  const rootNode = mapNode(root);
-  const role = extractNodeRole(rootNode, workspace.user.id);
+  const tree = await fetchNodeTree(mutation.data.nodeId);
+  const role = extractNodeRole(tree.map(mapNode), workspace.user.id);
   if (!role || !hasNodeRole(role, 'viewer')) {
     return MutationStatus.FORBIDDEN;
   }
@@ -115,8 +115,8 @@ export const markNodeAsOpened = async (
     return MutationStatus.NOT_FOUND;
   }
 
-  const rootNode = mapNode(root);
-  const role = extractNodeRole(rootNode, workspace.user.id);
+  const tree = await fetchNodeTree(mutation.data.nodeId);
+  const role = extractNodeRole(tree.map(mapNode), workspace.user.id);
   if (!role || !hasNodeRole(role, 'viewer')) {
     return MutationStatus.FORBIDDEN;
   }

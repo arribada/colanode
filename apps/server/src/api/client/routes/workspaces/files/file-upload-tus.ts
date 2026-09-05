@@ -223,7 +223,7 @@ export const fileUploadTusRoute: FastifyPluginCallbackZod = (
             },
           });
 
-          if (result === null) {
+          if (!result) {
             throw {
               status_code: 500,
               body: JSON.stringify({

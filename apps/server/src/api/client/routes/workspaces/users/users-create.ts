@@ -66,6 +66,25 @@ export const usersCreateRoute: FastifyPluginCallbackZod = (
         });
       }
 
+      // Re-apply the same role-authorization rules enforced by user-role-update:
+      // the owner role is never assignable through this endpoint, 'none' is not a
+      // valid invite role, and only the workspace owner can mint admins.
+      for (const user of input.users) {
+        if (user.role === 'owner' || user.role === 'none') {
+          return reply.code(403).send({
+            code: ApiErrorCode.UserInviteNoAccess,
+            message: 'The requested role cannot be assigned through this endpoint.',
+          });
+        }
+
+        if (user.role === 'admin' && workspace.user.role !== 'owner') {
+          return reply.code(403).send({
+            code: ApiErrorCode.UserInviteNoAccess,
+            message: 'Only the workspace owner can invite admins.',
+          });
+        }
+      }
+
       const output: UsersCreateOutput = {
         users: [],
         errors: [],
@@ -175,8 +194,9 @@ export const usersCreateRoute: FastifyPluginCallbackZod = (
 };
 
 const getOrCreateAccount = async (
-  email: string
+  rawEmail: string
 ): Promise<SelectAccount | undefined> => {
+  const email = rawEmail.toLowerCase();
   const account = await database
     .selectFrom('accounts')
     .selectAll()

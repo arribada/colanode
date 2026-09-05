@@ -124,6 +124,8 @@ export const oidcLoginRoute: FastifyPluginCallbackZod = (
         });
       }
 
+      const email = oidcUser.email.toLowerCase();
+
       // Unlike Google, most self-hosted OIDC providers don't assert
       // `email_verified` at all. Since the admin explicitly configured
       // this provider (and presumably trusts it), we treat the identity
@@ -133,7 +135,7 @@ export const oidcLoginRoute: FastifyPluginCallbackZod = (
 
       let existingAccount = await database
         .selectFrom('accounts')
-        .where('email', '=', oidcUser.email)
+        .where('email', '=', email)
         .selectAll()
         .executeTakeFirst();
 
@@ -209,7 +211,7 @@ export const oidcLoginRoute: FastifyPluginCallbackZod = (
         .values({
           id: generateId(IdType.Account),
           name,
-          email: oidcUser.email,
+          email,
           avatar,
           status,
           created_at: new Date(),

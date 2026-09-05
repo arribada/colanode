@@ -183,9 +183,11 @@ export const googleLoginRoute: FastifyPluginCallbackZod = (
         });
       }
 
+      const email = googleUser.email.toLowerCase();
+
       let existingAccount = await database
         .selectFrom('accounts')
-        .where('email', '=', googleUser.email)
+        .where('email', '=', email)
         .selectAll()
         .executeTakeFirst();
 
@@ -264,7 +266,7 @@ export const googleLoginRoute: FastifyPluginCallbackZod = (
         .values({
           id: generateId(IdType.Account),
           name: googleUser.name,
-          email: googleUser.email,
+          email,
           avatar,
           status,
           created_at: new Date(),
