@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { AppInitOutput, AppType } from '@colanode/client/types';
@@ -9,6 +10,7 @@ import { AppLoading } from '@colanode/ui/components/app/app-loading';
 import { AppReset } from '@colanode/ui/components/app/app-reset';
 import { AppThemeProvider } from '@colanode/ui/components/app/app-theme-provider';
 import { RadarProvider } from '@colanode/ui/components/app/radar-provider';
+import { Button } from '@colanode/ui/components/ui/button';
 import { AppContext } from '@colanode/ui/contexts/app';
 
 interface AppProviderProps {
@@ -46,6 +48,27 @@ export const AppProvider = ({ type }: AppProviderProps) => {
         <AppAssets />
         {initOutput === null && <AppLoading />}
         {initOutput === 'reset' && <AppReset />}
+        {initOutput === 'error' && (
+          <div
+            data-testid="app-init-error"
+            className="flex min-h-screen w-full flex-col items-center justify-center gap-4 p-6 text-center"
+          >
+            <TriangleAlert className="size-12 text-destructive" />
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Something went wrong
+            </h1>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Colanode could not finish loading. Please try again.
+            </p>
+            <Button
+              data-testid="app-init-error-reload"
+              className="min-h-11 min-w-11"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </Button>
+          </div>
+        )}
         {initOutput === 'success' && (
           <RadarProvider>
             <AppLayout type={type} />

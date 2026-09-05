@@ -12,11 +12,16 @@ import { TimelineViewNoConfig } from '@colanode/ui/components/databases/timeline
 import { ViewFullscreenButton } from '@colanode/ui/components/databases/view-fullscreen-button';
 import { ViewSettingsPopover } from '@colanode/ui/components/databases/view-settings-popover';
 import { ViewTabs } from '@colanode/ui/components/databases/view-tabs';
+import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 
 export const TimelineView = () => {
+  const database = useDatabase();
   const view = useDatabaseView();
-  const configured = Boolean(view.timeline?.startFieldId);
+  const startFieldId = view.timeline?.startFieldId;
+  const configured = Boolean(
+    startFieldId && database.fields.some((field) => field.id === startFieldId)
+  );
 
   return (
     <Fragment>
@@ -25,7 +30,10 @@ export const TimelineView = () => {
         <div className="sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2">
           <div className="invisible flex flex-row items-center group-hover/database:visible">
             <ViewFullscreenButton />
-            <ViewSettingsPopover showConditionalColor={false}>
+            <ViewSettingsPopover
+              showFieldSettings={false}
+              showConditionalColor={false}
+            >
               <TimelineConfigSettings />
             </ViewSettingsPopover>
           </div>

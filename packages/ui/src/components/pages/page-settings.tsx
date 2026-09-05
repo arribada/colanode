@@ -126,7 +126,14 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           <CopyLinkAction nodeId={page.id} item={DropdownMenuItem} />
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => setShowShareDialog(true)}
+            disabled={!canEdit}
+            onClick={() => {
+              if (!canEdit) {
+                return;
+              }
+
+              setShowShareDialog(true);
+            }}
           >
             <Share2 className="size-4" />
             Share to web

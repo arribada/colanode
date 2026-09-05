@@ -49,6 +49,7 @@ export const WorkspaceSettingsContainer = () => {
             <Separator className="mt-3" />
           </div>
           <WorkspaceForm
+            accountId={workspace.accountId}
             readOnly={!canEdit}
             values={{
               name: currentWorkspace.name,

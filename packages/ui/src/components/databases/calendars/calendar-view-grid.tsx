@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DayPicker, DayProps, getDefaultClassNames } from 'react-day-picker';
 
 import {
@@ -61,8 +61,18 @@ export const CalendarViewGrid = ({ field }: CalendarViewGridProps) => {
     [view.filters, field.id, first, last]
   );
 
-  const { data } = useRecordsQuery(filters, view.sorts, 200);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useRecordsQuery(filters, view.sorts);
   const records = data;
+
+  // The visible month is a bounded date range (is_on_or_after / is_on_or_before
+  // above), so eagerly pull every page until exhausted -- otherwise records
+  // beyond the first page would silently vanish from the grid.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <DayPicker
@@ -198,6 +208,7 @@ export const CalendarViewGrid = ({ field }: CalendarViewGridProps) => {
 
           return (
             <CalendarViewDay
+              field={field}
               date={props.day.date}
               records={dayRecords}
               onCreate={onCreate}

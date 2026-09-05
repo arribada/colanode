@@ -50,6 +50,7 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const canDelete =
     record.createdBy === workspace.userId || hasNodeRole(role, 'editor');
   const canDuplicate = hasNodeRole(role, 'editor') && !database.isLocked;
+  const canShare = hasNodeRole(role, 'editor');
 
   const duplicateRecord = () => {
     if (!canDuplicate) {
@@ -117,7 +118,14 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
           <CopyLinkAction nodeId={record.id} item={DropdownMenuItem} />
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => setShowShareDialog(true)}
+            disabled={!canShare}
+            onClick={() => {
+              if (!canShare) {
+                return;
+              }
+
+              setShowShareDialog(true);
+            }}
           >
             <Share2 className="size-4" />
             Share to web

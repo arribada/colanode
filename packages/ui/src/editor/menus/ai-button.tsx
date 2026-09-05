@@ -380,7 +380,7 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
           >
             <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Sparkles className="size-3.5 text-primary" />
-              Suggestion IA — remplacer la sélection ?
+              AI suggestion — replace the selection?
             </div>
             <div className="mb-2 max-h-48 overflow-auto whitespace-pre-wrap text-sm">
               {preview.text}
@@ -392,10 +392,10 @@ export const AiButton = ({ editor, userId, pageId }: AiButtonProps) => {
                 size="sm"
                 onClick={() => setPreview(null)}
               >
-                Annuler
+                Cancel
               </Button>
               <Button type="button" size="sm" onClick={acceptPreview}>
-                Remplacer
+                Replace
               </Button>
             </div>
           </div>,

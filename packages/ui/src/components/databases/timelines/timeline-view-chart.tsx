@@ -117,8 +117,8 @@ export const TimelineViewChart = () => {
   const groupField = database.fields.find((field) => field.id === view.groupBy);
 
   const bars = useMemo(
-    () => buildTimelineBars(records, startFieldId, endFieldId),
-    [records, startFieldId, endFieldId]
+    () => buildTimelineBars(records, startFieldId, endFieldId, database.fields),
+    [records, startFieldId, endFieldId, database.fields]
   );
 
   // `today` is read once per render rather than per row, so every row and the

@@ -7,6 +7,7 @@
 // off-by-one that makes a Gantt chart untrustworthy.
 
 import { LocalRecordNode } from '@colanode/client/types';
+import { FieldAttributes } from '@colanode/core';
 
 export type TimelineScale = 'day' | 'week' | 'month';
 
@@ -130,6 +131,28 @@ export const startOfUtcMonth = (date: Date): Date =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 
 /**
+ * The raw date a field holds for a record. Most fields store their value in
+ * record.fields, but created_at / updated_at are top-level node timestamps
+ * (record.createdAt / record.updatedAt), not entries in record.fields -- read
+ * from the wrong place they always come back undefined and the record is
+ * silently dropped. Resolve by field TYPE, falling back to record.fields.
+ */
+const rawTimelineDateValue = (
+  record: LocalRecordNode,
+  fieldId: string,
+  fields: FieldAttributes[] | undefined
+): unknown => {
+  const field = fields?.find((f) => f.id === fieldId);
+  if (field?.type === 'created_at') {
+    return record.createdAt;
+  }
+  if (field?.type === 'updated_at') {
+    return record.updatedAt ?? null;
+  }
+  return record.fields[fieldId]?.value;
+};
+
+/**
  * One bar per record that has a usable start date. Records without one are
  * dropped -- they have no position on a time axis, and inventing one (today,
  * say) would draw work that was never scheduled.
@@ -137,7 +160,8 @@ export const startOfUtcMonth = (date: Date): Date =>
 export const buildTimelineBars = (
   records: LocalRecordNode[],
   startFieldId: string | null | undefined,
-  endFieldId: string | null | undefined
+  endFieldId: string | null | undefined,
+  fields?: FieldAttributes[]
 ): TimelineBar[] => {
   if (!startFieldId) {
     return [];
@@ -145,13 +169,15 @@ export const buildTimelineBars = (
 
   const bars: TimelineBar[] = [];
   for (const record of records) {
-    const start = parseTimelineDate(record.fields[startFieldId]?.value);
+    const start = parseTimelineDate(
+      rawTimelineDateValue(record, startFieldId, fields)
+    );
     if (!start) {
       continue;
     }
 
     const rawEnd = endFieldId
-      ? parseTimelineDate(record.fields[endFieldId]?.value)
+      ? parseTimelineDate(rawTimelineDateValue(record, endFieldId, fields))
       : null;
 
     // An end before the start is a data error, not a backwards bar: treat it

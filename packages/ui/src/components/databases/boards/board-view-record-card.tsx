@@ -33,8 +33,13 @@ export const BoardViewRecordCard = () => {
     canDrag: () => boardView.canDrag(record),
     item: record,
     end: (item, monitor) => {
-      const value = monitor.getDropResult() as { value: FieldValue | null };
-      return boardView.onDragEnd(item, value.value);
+      const result = monitor.getDropResult() as {
+        value: FieldValue | null;
+      } | null;
+      if (!result) {
+        return;
+      }
+      return boardView.onDragEnd(item, result.value);
     },
   });
 

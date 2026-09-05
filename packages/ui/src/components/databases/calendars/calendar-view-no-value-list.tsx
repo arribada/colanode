@@ -33,9 +33,9 @@ export const CalendarViewNoValueList = ({
         const name = record.name ?? 'Unnamed';
         return (
           <Link
-            from="/workspace/$userId"
-            to="$nodeId"
-            params={{ nodeId: record.id }}
+            from="/workspace/$userId/$nodeId"
+            to="modal/$modalNodeId"
+            params={{ modalNodeId: record.id }}
             key={record.id}
             data-testid={`calendar-no-value-record-${record.id}`}
             className="flex flex-row items-center border rounded-md p-1 gap-2 cursor-pointer hover:bg-muted"

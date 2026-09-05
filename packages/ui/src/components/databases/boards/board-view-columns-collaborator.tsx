@@ -141,7 +141,7 @@ export const BoardViewColumnsCollaborator = ({
               count={noValueCount}
             />
           ),
-          canDrag: () => true,
+          canDrag: (record) => record.canEdit,
           onDragEnd: async (record, value) => {
             const nodes = workspace.collections.nodes;
             if (!value) {

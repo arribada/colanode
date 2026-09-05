@@ -321,10 +321,27 @@ export const View = ({ view }: ViewProps) => {
           setOpenedFieldFilters((prev) => prev.filter((id) => id !== fieldId));
         },
         createRecord: async (filters?: DatabaseViewFilterAttributes[]) => {
-          const viewFilters = Object.values(view.filters ?? {}) ?? [];
+          // Seed the new record from the SAME filters the user currently sees
+          // (personal-scope filters included via effectiveFilters), and
+          // de-duplicate by field so a caller-passed filter (e.g. a board
+          // column value) wins and view filters are never double-applied.
           const extraFilters = filters ?? [];
-
-          const allFilters = [...viewFilters, ...extraFilters];
+          const merged = [...effectiveFilters, ...extraFilters];
+          const seen = new Set<string>();
+          const allFilters: DatabaseViewFilterAttributes[] = [];
+          for (let i = merged.length - 1; i >= 0; i--) {
+            const candidate = merged[i];
+            if (!candidate) {
+              continue;
+            }
+            if (candidate.type === 'field') {
+              if (seen.has(candidate.fieldId)) {
+                continue;
+              }
+              seen.add(candidate.fieldId);
+            }
+            allFilters.unshift(candidate);
+          }
           const fields = generateFieldValuesFromFilters(
             database.fields,
             allFilters,

@@ -726,6 +726,19 @@ export const WhiteboardCanvas = ({
   const manipulableIds = (ids: string[]): string[] =>
     ids.filter((id) => !isLockedForMe(id));
 
+  // Ids the renderer omits from the canvas: mind-map collapsed descendants
+  // plus anything hidden from the layers panel. Selection collectors (marquee,
+  // Ctrl+A) must skip these so invisible elements never get selection handles.
+  const hiddenIdsFor = (scene: BoardScene): Set<string> => {
+    const ids = mindmapHiddenIds(scene);
+    for (const el of Object.values(scene)) {
+      if (el.hidden) {
+        ids.add(el.id);
+      }
+    }
+    return ids;
+  };
+
   // Lock the selection to the local user, or unlock it if it is already fully
   // locked. Locking stamps `lockedBy` = me; unlocking clears both fields
   // (kept absent so the element round-trips like a legacy, never-locked one).
@@ -1213,13 +1226,22 @@ export const WhiteboardCanvas = ({
       return {
         fill: style.stickyColor,
         color: style.textColor,
+        fontFamily: style.fontFamily,
+        textAlign: style.textAlign,
+        verticalAlign: style.verticalAlign,
         opacity: style.opacity,
       };
     }
     if (type === 'text') {
       // Was `style.stroke`: a text element has no outline, so the stroke
       // swatch was standing in for a text colour. Now it uses the real one.
-      return { color: style.textColor, opacity: style.opacity };
+      return {
+        color: style.textColor,
+        fontFamily: style.fontFamily,
+        textAlign: style.textAlign,
+        verticalAlign: style.verticalAlign,
+        opacity: style.opacity,
+      };
     }
     if (type === 'highlighter') {
       // Wide and translucent, so it reads as marker over the top of things
@@ -1245,6 +1267,9 @@ export const WhiteboardCanvas = ({
       strokeWidth: style.strokeWidth,
       strokeStyle: style.strokeStyle,
       color: style.textColor,
+      fontFamily: style.fontFamily,
+      textAlign: style.textAlign,
+      verticalAlign: style.verticalAlign,
       opacity: style.opacity,
     };
   };
@@ -2167,8 +2192,14 @@ export const WhiteboardCanvas = ({
         w: it.current.x - it.start.x,
         h: it.current.y - it.start.y,
       });
+      const marqueeHidden = hiddenIdsFor(sceneRef.current);
       const hits = sortedElements(sceneRef.current)
-        .filter((el) => rectsIntersect(box, elementRect(el)) && !el.locked)
+        .filter(
+          (el) =>
+            rectsIntersect(box, elementRect(el)) &&
+            !el.locked &&
+            !marqueeHidden.has(el.id)
+        )
         .map((el) => el.id);
       setSelection(
         it.additive ? [...new Set([...selectionRef.current, ...hits])] : hits
@@ -2336,6 +2367,15 @@ export const WhiteboardCanvas = ({
         return;
       }
 
+      // Format-painter: Esc drops the style brush. Handled at the top so it
+      // works during normal editing, not only while a slideshow is running.
+      if (e.key === 'Escape' && styleBrushRef.current) {
+        e.preventDefault();
+        styleBrushRef.current = null;
+        setStyleBrush(null);
+        return;
+      }
+
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -2356,13 +2396,7 @@ export const WhiteboardCanvas = ({
       // Presentation owns the arrow keys and Escape while it is running, so
       // it is handled before anything else can claim them.
       if (slideRef.current !== null) {
-        if (e.key === 'Escape' && styleBrushRef.current) {
-        e.preventDefault();
-        styleBrushRef.current = null;
-        setStyleBrush(null);
-        return;
-      }
-      if (e.key === 'Escape') {
+        if (e.key === 'Escape') {
           e.preventDefault();
           stopPresenting();
           return;
@@ -2412,7 +2446,10 @@ export const WhiteboardCanvas = ({
       }
       if (meta && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        setSelection(Object.keys(sceneRef.current));
+        const allHidden = hiddenIdsFor(sceneRef.current);
+        setSelection(
+          Object.keys(sceneRef.current).filter((id) => !allHidden.has(id))
+        );
         return;
       }
       if (!canEdit) {
@@ -2554,35 +2591,73 @@ export const WhiteboardCanvas = ({
   };
 
   const duplicateSelection = () => {
-    const ids = selectionRef.current;
-    if (ids.length === 0) {
+    const sources = selectionRef.current
+      .map((id) => sceneRef.current[id])
+      .filter((el): el is BoardElement => Boolean(el));
+    if (sources.length === 0) {
       return;
     }
+    // Same id-remap the paste path (insertElements) performs: without it a
+    // duplicated connector/mindmap/frame keeps pointing at the ORIGINAL
+    // elements. cloneElement carries every discriminant field (connector,
+    // poll, image, nodeCard, mindmap, group, badge, lock...) so nothing is
+    // silently dropped.
+    const idMap: Record<string, string> = {};
+    for (const el of sources) {
+      idMap[el.id] = createElementId();
+    }
+    const ordered = [...sources].sort((a, c) =>
+      a.z < c.z ? -1 : a.z > c.z ? 1 : 0
+    );
+    const zKeys = generateNKeysBetween(
+      topZ(sceneRef.current),
+      null,
+      ordered.length
+    );
     const before = cloneScene(sceneRef.current);
     const next = { ...sceneRef.current };
     const newIds: string[] = [];
-    let z = topZ(sceneRef.current);
-    for (const id of ids) {
-      const el = sceneRef.current[id];
-      if (!el) {
-        continue;
-      }
-      const clone = newElement({
-        type: el.type,
+    ordered.forEach((src, i) => {
+      const el = cloneElement(src);
+      const nid = idMap[src.id]!;
+      const remapped: BoardElement = {
+        ...el,
+        id: nid,
+        z: zKeys[i]!,
         x: el.x + GRID,
         y: el.y + GRID,
-        w: el.w,
-        h: el.h,
-        z,
-        style: { ...el.style },
-        text: el.text,
-        points: el.points?.map((pt) => [...pt]),
-      });
-      clone.rotation = el.rotation;
-      next[clone.id] = clone;
-      newIds.push(clone.id);
-      z = topZ(next);
-    }
+      };
+      if (el.points) {
+        remapped.points = el.points.map(([px, py]) => [
+          (px ?? 0) + GRID,
+          (py ?? 0) + GRID,
+        ]);
+      }
+      if (el.frameId && idMap[el.frameId]) {
+        remapped.frameId = idMap[el.frameId];
+      }
+      if (el.connector) {
+        remapped.connector = {
+          ...el.connector,
+          fromId: el.connector.fromId
+            ? idMap[el.connector.fromId] ?? el.connector.fromId
+            : el.connector.fromId,
+          toId: el.connector.toId
+            ? idMap[el.connector.toId] ?? el.connector.toId
+            : el.connector.toId,
+        };
+      }
+      if (el.mindmap) {
+        remapped.mindmap = {
+          ...el.mindmap,
+          parentId: el.mindmap.parentId
+            ? idMap[el.mindmap.parentId] ?? el.mindmap.parentId
+            : el.mindmap.parentId,
+        };
+      }
+      next[nid] = remapped;
+      newIds.push(nid);
+    });
     setSelection(newIds);
     commit(before, next, newIds);
   };
@@ -2992,12 +3067,27 @@ export const WhiteboardCanvas = ({
       if (!el) {
         continue;
       }
+      // The renderer prefers arrow*Type over the boolean, so a live toggle
+      // must keep the two in sync: turning an end OFF forces the type to
+      // 'none'; turning it ON keeps an already-chosen real head, otherwise
+      // clears the type so it falls back to the boolean (a plain triangle).
+      const c = el.connector ?? {};
       next[id] = {
         ...el,
         connector: {
-          ...el.connector,
+          ...c,
           arrowStart: arrows.start,
           arrowEnd: arrows.end,
+          arrowStartType: arrows.start
+            ? c.arrowStartType && c.arrowStartType !== 'none'
+              ? c.arrowStartType
+              : undefined
+            : 'none',
+          arrowEndType: arrows.end
+            ? c.arrowEndType && c.arrowEndType !== 'none'
+              ? c.arrowEndType
+              : undefined
+            : 'none',
         },
       };
     }
@@ -3009,14 +3099,30 @@ export const WhiteboardCanvas = ({
 
   const toggleElementFlag = (id: string, flag: 'hidden' | 'locked') => {
     const el = sceneRef.current[id];
-    if (!el || isLockedForMe(id)) {
+    if (!el) {
       return;
     }
     const before = cloneScene(sceneRef.current);
-    const next = {
-      ...sceneRef.current,
-      [id]: { ...el, [flag]: el[flag] ? undefined : true },
-    };
+    const next = { ...sceneRef.current };
+    if (flag === 'locked') {
+      // An explicit owner action from the layers panel: stamp lockedBy on lock
+      // (so isLockedForMe treats the locker as the owner) and clear BOTH fields
+      // on unlock, mirroring toggleLockSelection. No isLockedForMe guard here —
+      // otherwise the locker could never unlock their own panel-lock.
+      if (el.locked) {
+        const { locked: _locked, lockedBy: _lockedBy, ...rest } = el;
+        void _locked;
+        void _lockedBy;
+        next[id] = rest;
+      } else {
+        next[id] = { ...el, locked: true, lockedBy: workspace.userId };
+      }
+    } else {
+      if (isLockedForMe(id)) {
+        return;
+      }
+      next[id] = { ...el, hidden: el.hidden ? undefined : true };
+    }
     commit(before, next, [id]);
   };
 
@@ -3686,11 +3792,25 @@ export const WhiteboardCanvas = ({
     const selFrame = els.find(
       (el) => el.type === 'frame' && selection.includes(el.id)
     );
-    const rects = (selFrame ? [selFrame] : els).map((el) =>
-      el.type === 'connector' || el.type === 'freehand'
-        ? pointsBounds(el.points ?? [[el.x, el.y]])
-        : elementRect(el)
-    );
+    const rects = (selFrame ? [selFrame] : els).map((el) => {
+      if (el.type === 'connector') {
+        // Resolve anchored/auto endpoints (raw el.points are (0,0)/stale for
+        // those) and include any bend waypoints, so the export region matches
+        // the drawn path rather than inflating around a placeholder origin.
+        const { start, end } = resolveConnectorEndpoints(el, sceneRef.current);
+        const c = el.connector ?? {};
+        const bends = connectorBendPoints(c.bends, c.bend);
+        return pointsBounds([
+          [start.x, start.y],
+          [end.x, end.y],
+          ...bends.map((b) => [b.x, b.y]),
+        ]);
+      }
+      if (el.type === 'freehand') {
+        return pointsBounds(el.points ?? [[el.x, el.y]]);
+      }
+      return elementRect(el);
+    });
     const bounds = unionBounds(rects) ?? { x: 0, y: 0, w: 800, h: 600 };
     const pad = 40;
     return {
@@ -3710,6 +3830,7 @@ export const WhiteboardCanvas = ({
   const onExport = async () => {
     const target = computeExportRegion();
     if (!target) {
+      toast.error('Nothing to export');
       return;
     }
     try {
@@ -3718,32 +3839,34 @@ export const WhiteboardCanvas = ({
       });
       downloadBlob(blob, `${boardFileName()}.png`);
     } catch {
-      // ignore export failures (e.g. tainted canvas)
+      toast.error('Could not export board as PNG');
     }
   };
 
   const onExportSvg = () => {
     const target = computeExportRegion();
     if (!target) {
+      toast.error('Nothing to export');
       return;
     }
     try {
       exportSceneSvg(target.group, target.region, `${boardFileName()}.svg`);
     } catch {
-      // ignore export failures
+      toast.error('Could not export board as SVG');
     }
   };
 
   const onExportPdf = () => {
     const target = computeExportRegion();
     if (!target) {
+      toast.error('Nothing to export');
       return;
     }
     try {
       const svgString = buildSceneSvgString(target.group, target.region);
       printHtmlDocument({ title: boardFileName(), bodyHtml: svgString });
     } catch {
-      // ignore export failures
+      toast.error('Could not export board as PDF');
     }
   };
 
@@ -4215,24 +4338,29 @@ export const WhiteboardCanvas = ({
                   el.type !== 'freehand' &&
                   !(el.locked && el.lockedBy !== workspace.userId) && (
                     <>
-                      {RESIZE_HANDLES.map((handle) => {
-                        const hp = handlePoint(tl, w, h, handle);
-                        return (
-                          <rect
-                            key={handle}
-                            data-handle={handle}
-                            x={hp.x - 5}
-                            y={hp.y - 5}
-                            width={10}
-                            height={10}
-                            rx={2}
-                            fill="#fff"
-                            stroke="#3b82f6"
-                            strokeWidth={1.5}
-                            style={{ cursor: 'pointer' }}
-                          />
-                        );
-                      })}
+                      {/* Resize math runs in world coordinates and drags the
+                          wrong way once the box is rotated, so the handles are
+                          suppressed for a rotated element — move + rotate stay
+                          available. */}
+                      {rot === 0 &&
+                        RESIZE_HANDLES.map((handle) => {
+                          const hp = handlePoint(tl, w, h, handle);
+                          return (
+                            <rect
+                              key={handle}
+                              data-handle={handle}
+                              x={hp.x - 5}
+                              y={hp.y - 5}
+                              width={10}
+                              height={10}
+                              rx={2}
+                              fill="#fff"
+                              stroke="#3b82f6"
+                              strokeWidth={1.5}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          );
+                        })}
                       <line
                         x1={tl.x + w / 2}
                         y1={tl.y}

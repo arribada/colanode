@@ -1,4 +1,4 @@
-import { Copy, Image, LetterText, Settings, Trash2, Users } from 'lucide-react';
+import { Image, LetterText, Settings, Trash2, Users } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import { LocalFolderNode, LocalNode } from '@colanode/client/types';
@@ -76,10 +76,6 @@ export const FolderSettings = ({
           >
             <Image className="size-4" />
             Update icon
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-2" disabled>
-            <Copy className="size-4" />
-            Duplicate
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

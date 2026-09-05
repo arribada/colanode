@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { InView } from 'react-intersection-observer';
 
 import { extractNodeRole } from '@colanode/core';
 import { BoardViewColumnSummary } from '@colanode/ui/components/databases/boards/board-view-column-summary';
@@ -28,7 +29,8 @@ export const BoardViewColumnRecords = ({
     [view.filters, boardView.filter]
   );
 
-  const { data } = useRecordsQuery(filters, view.sorts);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useRecordsQuery(filters, view.sorts);
   const records = data;
 
   return (
@@ -45,7 +47,17 @@ export const BoardViewColumnRecords = ({
             </RecordProvider>
           );
         })}
-        <BoardViewRecordCreateCard filters={filters} columnId={columnId} />
+        {boardView.canCreateInColumn !== false && (
+          <BoardViewRecordCreateCard filters={filters} columnId={columnId} />
+        )}
+        <InView
+          rootMargin="200px"
+          onChange={(inView) => {
+            if (inView && hasNextPage && !isFetchingNextPage) {
+              fetchNextPage();
+            }
+          }}
+        ></InView>
       </div>
     </div>
   );

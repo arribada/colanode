@@ -5,6 +5,7 @@ import { EmptyDatabaseState } from '@colanode/ui/components/databases/empty-data
 import { GalleryViewCard } from '@colanode/ui/components/databases/galleries/gallery-view-card';
 import { GalleryViewRecordCreateCard } from '@colanode/ui/components/databases/galleries/gallery-view-record-create-card';
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
+import { Skeleton } from '@colanode/ui/components/ui/skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -19,6 +20,16 @@ export const GalleryViewBody = () => {
     useRecordsQuery(view.filters, view.sorts);
 
   const records = data;
+
+  if (isLoading && records.length === 0) {
+    return (
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pb-2">
+        {[0, 1, 2, 3, 4, 5].map((card) => (
+          <Skeleton key={card} className="h-40 w-full rounded-md" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pb-2">

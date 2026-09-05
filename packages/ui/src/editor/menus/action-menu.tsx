@@ -39,7 +39,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -65,6 +64,19 @@ interface ActionMenuProps {
 }
 
 const LEFT_MARGIN = 45;
+
+// Node types whose attrs.id is a REFERENCE to a backing node rather than a
+// block id. Duplicating these by re-serializing content would copy the
+// reference id, which the global IdExtension reassigns on collision and thereby
+// severs the embed — so Duplicate is not offered for them.
+const REFERENCE_EMBED_TYPES = new Set<string>([
+  'page',
+  'folder',
+  'file',
+  'database',
+  'whiteboardEmbed',
+  'planeEmbed',
+]);
 
 type MenuState = {
   show: boolean;
@@ -378,6 +390,15 @@ export const ActionMenu = ({
       return;
     }
 
+    // Reference embeds (page/folder/file/database/whiteboardEmbed/planeEmbed)
+    // carry the referenced node's id in attrs.id. Re-serializing them via
+    // toJSON() would copy that reference id, which the global IdExtension then
+    // treats as a colliding block id and reassigns — silently severing the
+    // embed. Duplicating these safely needs a fresh backing node, so skip them.
+    if (isReferenceEmbed) {
+      return;
+    }
+
     const insertPos = menuState.pos + menuState.pmNode.nodeSize;
     editor
       .chain()
@@ -415,6 +436,13 @@ export const ActionMenu = ({
   // "Turn into" only makes sense for text blocks (paragraph/headings); other
   // blocks (lists, embeds, tables…) are left without the sub-menu.
   const canTurnInto = menuState.pmNode?.isTextblock ?? false;
+
+  // Reference embeds point at a backing node via attrs.id (not a block id), so
+  // they cannot be duplicated by copying their serialized content (see
+  // duplicateBlock). Hide the Duplicate action for these node types.
+  const isReferenceEmbed = REFERENCE_EMBED_TYPES.has(
+    menuState.pmNode?.type.name ?? ''
+  );
 
   // Convert the hovered block to a type whose slash command is more than a bare
   // setNode (lists, toggle, code, quote, callout): reuse the exact chain those
@@ -819,19 +847,17 @@ export const ActionMenu = ({
                 nodeId={pageId}
                 item={DropdownMenuItem}
                 label="Copy link to block"
-                shortcut={
-                  <DropdownMenuShortcut>Alt+Shift+L</DropdownMenuShortcut>
-                }
               />
             )}
-            <DropdownMenuItem
-              data-testid="editor-action-menu-duplicate"
-              onClick={duplicateBlock}
-            >
-              <Copy className="size-4" />
-              Duplicate
-              <DropdownMenuShortcut>Ctrl+D</DropdownMenuShortcut>
-            </DropdownMenuItem>
+            {!isReferenceEmbed && (
+              <DropdownMenuItem
+                data-testid="editor-action-menu-duplicate"
+                onClick={duplicateBlock}
+              >
+                <Copy className="size-4" />
+                Duplicate
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               data-testid="editor-action-menu-delete"
               onClick={deleteBlock}
@@ -839,7 +865,6 @@ export const ActionMenu = ({
             >
               <Trash2 className="size-4" />
               Delete
-              <DropdownMenuShortcut>Del</DropdownMenuShortcut>
             </DropdownMenuItem>
             {(onAddComment || onSuggestEdit || userId) && (
               <DropdownMenuSeparator />
@@ -851,7 +876,6 @@ export const ActionMenu = ({
               >
                 <MessageSquarePlus className="size-4" />
                 Comment
-                <DropdownMenuShortcut>Ctrl+Shift+M</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
             {onSuggestEdit && (
@@ -861,7 +885,6 @@ export const ActionMenu = ({
               >
                 <PencilLine className="size-4" />
                 Suggest edit
-                <DropdownMenuShortcut>Ctrl+Shift+Alt+X</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
             {userId && (
@@ -871,7 +894,6 @@ export const ActionMenu = ({
               >
                 <Sparkles className="size-4" />
                 Ask AI
-                <DropdownMenuShortcut>Ctrl+J</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

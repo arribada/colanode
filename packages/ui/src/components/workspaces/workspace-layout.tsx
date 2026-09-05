@@ -40,6 +40,12 @@ export const WorkspaceLayout = () => {
   const [composeBlockId, setComposeBlockId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // Track the current suggestions target so the route-change reset effect below
+  // can tell whether a navigation is *arriving at* the page a suggestion
+  // notification just opened (keep the panel) versus leaving it (reset).
+  const suggestionsPageIdRef = useRef<string | null>(null);
+  suggestionsPageIdRef.current = suggestionsPageId;
+
   // Most-recent-first inverses of sidebar node operations, for global Ctrl/Cmd-Z.
   const undoStackRef = useRef<Array<() => void>>([]);
   const pushUndo = useCallback((undo: () => void) => {
@@ -58,8 +64,15 @@ export const WorkspaceLayout = () => {
     setThreadRootId(null);
     setCommentsPageId(null);
     setCommentsAnchorId(null);
-    setSuggestionsPageId(null);
-    setComposeBlockId(null);
+    // A suggestion notification navigates to its target page and opens the
+    // panel in the same click; that navigation would otherwise fire this reset
+    // and immediately close it. Keep the panel whenever the newly-active route
+    // targets the page it points at; only reset when navigating elsewhere.
+    const suggestionsTarget = suggestionsPageIdRef.current;
+    if (!suggestionsTarget || !location.split('/').includes(suggestionsTarget)) {
+      setSuggestionsPageId(null);
+      setComposeBlockId(null);
+    }
   }, [location]);
 
   // Cmd-K (macOS) / Ctrl-K toggles the workspace-wide search dialog

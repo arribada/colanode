@@ -28,7 +28,7 @@ export const WorkspaceLocationTracker = () => {
   const workspace = useWorkspace();
 
   useEffect(() => {
-    router.subscribe('onLoad', (event) => {
+    const unsubscribe = router.subscribe('onLoad', (event) => {
       if (!event.hrefChanged) {
         return;
       }
@@ -40,6 +40,8 @@ export const WorkspaceLocationTracker = () => {
 
       upsertMetadata(workspace.userId, 'location', location);
     });
+
+    return () => unsubscribe();
   }, [workspace.userId, router]);
 
   useEffect(() => {

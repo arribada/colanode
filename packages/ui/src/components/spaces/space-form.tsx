@@ -19,7 +19,7 @@ import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { cn } from '@colanode/ui/lib/utils';
 
 const formSchema = z.object({
-  name: z.string().min(3, 'Name must be at least 3 characters long.'),
+  name: z.string().min(1, 'Name is required.'),
   description: z.string(),
   avatar: z.string().optional().nullable(),
 });

@@ -1,10 +1,16 @@
 // ABOUTME: Hand-rolled, dependency-free inline SVG renderers (pie / bar / line)
 // ABOUTME: for the database chart view. CSP-safe — no external chart library.
+import { DatabaseViewChartAggregate } from '@colanode/core';
+
 import { ChartBucket } from '@colanode/ui/components/databases/charts/chart-aggregation';
 
 interface ChartGraphicProps {
   buckets: ChartBucket[];
   formatValue: (value: number) => string;
+}
+
+interface PieChartGraphicProps extends ChartGraphicProps {
+  aggregate: DatabaseViewChartAggregate;
 }
 
 const polarToCartesian = (
@@ -23,8 +29,21 @@ const polarToCartesian = (
 export const PieChartGraphic = ({
   buckets,
   formatValue,
-}: ChartGraphicProps) => {
+  aggregate,
+}: PieChartGraphicProps) => {
   const total = buckets.reduce((sum, bucket) => sum + bucket.value, 0);
+  // The pie center figure only makes sense as a running total for count/sum.
+  // For an average the per-group values are averages, so their arithmetic sum
+  // is meaningless — show the overall (weighted) average instead.
+  const centerLabel = aggregate === 'average' ? 'Average' : 'Total';
+  const totalCount = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+  const centerValue =
+    aggregate === 'average'
+      ? totalCount > 0
+        ? buckets.reduce((sum, bucket) => sum + bucket.value * bucket.count, 0) /
+          totalCount
+        : 0
+      : total;
   const size = 260;
   const cx = size / 2;
   const cy = size / 2;
@@ -85,7 +104,7 @@ export const PieChartGraphic = ({
         fontSize={22}
         fontWeight={600}
       >
-        {formatValue(total)}
+        {formatValue(centerValue)}
       </text>
       <text
         x={cx}
@@ -94,7 +113,7 @@ export const PieChartGraphic = ({
         className="fill-muted-foreground"
         fontSize={11}
       >
-        Total
+        {centerLabel}
       </text>
     </svg>
   );
@@ -111,15 +130,23 @@ export const BarChartGraphic = ({
   const paddingTop = 12;
   const plotWidth = width - paddingLeft - 12;
   const plotHeight = height - paddingBottom - paddingTop;
+  // Floor/cap the domain at 0 so the zero baseline is always inside the plot,
+  // and negative sums/averages render below the axis instead of vanishing.
+  const minValue = Math.min(...buckets.map((b) => b.value), 0);
   const maxValue = Math.max(...buckets.map((b) => b.value), 0);
 
-  if (buckets.length === 0 || maxValue <= 0) {
+  if (buckets.length === 0 || (minValue === 0 && maxValue === 0)) {
     return <EmptyGraphic />;
   }
 
+  const range = maxValue - minValue || 1;
+  const valueToY = (value: number) =>
+    paddingTop + plotHeight - ((value - minValue) / range) * plotHeight;
+  const baselineY = valueToY(0);
+
   const slotWidth = plotWidth / buckets.length;
   const barWidth = Math.min(slotWidth * 0.6, 60);
-  const ticks = buildTicks(maxValue, 4);
+  const ticks = buildRangeTicks(minValue, maxValue, 4);
 
   return (
     <svg
@@ -128,7 +155,7 @@ export const BarChartGraphic = ({
       role="img"
     >
       {ticks.map((tick) => {
-        const y = paddingTop + plotHeight - (tick / maxValue) * plotHeight;
+        const y = valueToY(tick);
         return (
           <g key={tick}>
             <line
@@ -152,9 +179,11 @@ export const BarChartGraphic = ({
         );
       })}
       {buckets.map((bucket, index) => {
-        const barHeight = (bucket.value / maxValue) * plotHeight;
+        const valueY = valueToY(bucket.value);
+        const y = Math.min(valueY, baselineY);
+        const barHeight = Math.abs(valueY - baselineY);
         const x = paddingLeft + index * slotWidth + (slotWidth - barWidth) / 2;
-        const y = paddingTop + plotHeight - barHeight;
+        const labelY = bucket.value < 0 ? y + barHeight + 12 : y - 4;
         return (
           <g key={bucket.key}>
             <rect
@@ -167,7 +196,7 @@ export const BarChartGraphic = ({
             />
             <text
               x={x + barWidth / 2}
-              y={y - 4}
+              y={labelY}
               textAnchor="middle"
               className="fill-foreground"
               fontSize={10}
@@ -188,9 +217,9 @@ export const BarChartGraphic = ({
       })}
       <line
         x1={paddingLeft}
-        y1={paddingTop + plotHeight}
+        y1={baselineY}
         x2={width - 12}
-        y2={paddingTop + plotHeight}
+        y2={baselineY}
         stroke="currentColor"
         strokeOpacity={0.3}
       />
@@ -209,11 +238,18 @@ export const LineChartGraphic = ({
   const paddingTop = 12;
   const plotWidth = width - paddingLeft - 12;
   const plotHeight = height - paddingBottom - paddingTop;
+  // Floor/cap the domain at 0 so negative series render below the zero axis.
+  const minValue = Math.min(...buckets.map((b) => b.value), 0);
   const maxValue = Math.max(...buckets.map((b) => b.value), 0);
 
-  if (buckets.length === 0 || maxValue <= 0) {
+  if (buckets.length === 0 || (minValue === 0 && maxValue === 0)) {
     return <EmptyGraphic />;
   }
+
+  const range = maxValue - minValue || 1;
+  const valueToY = (value: number) =>
+    paddingTop + plotHeight - ((value - minValue) / range) * plotHeight;
+  const baselineY = valueToY(0);
 
   const stepX = buckets.length > 1 ? plotWidth / (buckets.length - 1) : 0;
   const points = buckets.map((bucket, index) => {
@@ -221,14 +257,14 @@ export const LineChartGraphic = ({
       buckets.length > 1
         ? paddingLeft + index * stepX
         : paddingLeft + plotWidth / 2;
-    const y = paddingTop + plotHeight - (bucket.value / maxValue) * plotHeight;
+    const y = valueToY(bucket.value);
     return { x, y, bucket };
   });
 
   const path = points
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
     .join(' ');
-  const ticks = buildTicks(maxValue, 4);
+  const ticks = buildRangeTicks(minValue, maxValue, 4);
   const strokeColor = buckets[0]?.color ?? '#3b82f6';
 
   return (
@@ -238,7 +274,7 @@ export const LineChartGraphic = ({
       role="img"
     >
       {ticks.map((tick) => {
-        const y = paddingTop + plotHeight - (tick / maxValue) * plotHeight;
+        const y = valueToY(tick);
         return (
           <g key={tick}>
             <line
@@ -278,9 +314,9 @@ export const LineChartGraphic = ({
       ))}
       <line
         x1={paddingLeft}
-        y1={paddingTop + plotHeight}
+        y1={baselineY}
         x2={width - 12}
-        y2={paddingTop + plotHeight}
+        y2={baselineY}
         stroke="currentColor"
         strokeOpacity={0.3}
       />
@@ -294,13 +330,18 @@ const EmptyGraphic = () => (
   </div>
 );
 
-const buildTicks = (maxValue: number, count: number): number[] => {
-  if (maxValue <= 0) {
+const buildRangeTicks = (
+  minValue: number,
+  maxValue: number,
+  count: number
+): number[] => {
+  if (minValue === 0 && maxValue === 0) {
     return [0];
   }
+  const span = maxValue - minValue || 1;
   const ticks: number[] = [];
   for (let i = 0; i <= count; i++) {
-    ticks.push((maxValue / count) * i);
+    ticks.push(minValue + (span / count) * i);
   }
   return ticks;
 };

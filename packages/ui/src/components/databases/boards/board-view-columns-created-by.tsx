@@ -58,6 +58,7 @@ export const BoardViewColumnsCreatedBy = ({
               filter,
               canDrop: () => false,
               drop: () => null,
+              canCreateInColumn: false,
               header: (
                 <BoardViewColumnCreatedByHeader
                   field={field}

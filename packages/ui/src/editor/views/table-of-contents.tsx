@@ -120,11 +120,11 @@ export const TableOfContentsNodeView = ({ editor }: NodeViewProps) => {
       <div contentEditable={false} className="flex select-none flex-col gap-0.5">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <ListTree className="size-3.5" />
-          <span>Sommaire</span>
+          <span>Contents</span>
         </div>
         {headings.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Ajoutez des titres (H1/H2/H3) pour construire le sommaire.
+            Add headings (H1/H2/H3) to build the table of contents.
           </p>
         ) : (
           headings.map((heading, index) => {

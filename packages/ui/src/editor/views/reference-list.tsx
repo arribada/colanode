@@ -57,11 +57,11 @@ export const ReferenceListNodeView = ({ editor, node }: NodeViewProps) => {
   };
 
   const Icon = kind === 'table' ? Table2 : Image;
-  const title = kind === 'table' ? 'Table des tableaux' : 'Table des figures';
+  const title = kind === 'table' ? 'Table of tables' : 'Table of figures';
   const emptyHint =
     kind === 'table'
-      ? 'Ajoutez une légende à un tableau (clic droit dans le tableau) pour le lister ici.'
-      : 'Ajoutez une légende à une image pour la lister ici.';
+      ? 'Add a caption to a table (right-click inside the table) to list it here.'
+      : 'Add a caption to an image to list it here.';
 
   return (
     <NodeViewWrapper

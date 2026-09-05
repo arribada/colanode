@@ -328,28 +328,32 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
             <Copy className="size-4" />
             Duplicate
           </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() =>
-              splitView.openInSplit(
-                `/workspace/${workspace.userId}/${page.id}`,
-                'horizontal'
-              )
-            }
-          >
-            <Columns2 className="size-4" />
-            Open in split (right)
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() =>
-              splitView.openInSplit(
-                `/workspace/${workspace.userId}/${page.id}`,
-                'vertical'
-              )
-            }
-          >
-            <Rows2 className="size-4" />
-            Open in split (down)
-          </ContextMenuItem>
+          {splitView.isSplitAvailable && (
+            <>
+              <ContextMenuItem
+                onClick={() =>
+                  splitView.openInSplit(
+                    `/workspace/${workspace.userId}/${page.id}`,
+                    'horizontal'
+                  )
+                }
+              >
+                <Columns2 className="size-4" />
+                Open in split (right)
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() =>
+                  splitView.openInSplit(
+                    `/workspace/${workspace.userId}/${page.id}`,
+                    'vertical'
+                  )
+                }
+              >
+                <Rows2 className="size-4" />
+                Open in split (down)
+              </ContextMenuItem>
+            </>
+          )}
           {/* Dragging needs a mouse — this is the same move, reachable by touch. */}
           <ContextMenuItem onClick={() => setMoveOpen(true)}>
             <FolderInput className="size-4" />

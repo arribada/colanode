@@ -148,7 +148,7 @@ export const BoardViewColumnsSelect = ({
           ),
           dragOverClass: noValueDraggingClass,
           columnClass: noValueDraggingClass,
-          canDrag: () => true,
+          canDrag: (record) => record.canEdit,
           onDragEnd: async (record, value) => {
             const nodes = workspace.collections.nodes;
             if (!value) {

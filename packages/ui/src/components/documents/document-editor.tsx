@@ -1068,7 +1068,9 @@ export const DocumentEditor = ({
                 : undefined
             }
             onSuggestEdit={
-              isPage ? (blockId) => openSuggest(node.id, blockId) : undefined
+              supportsLock
+                ? (blockId) => openSuggest(node.id, blockId)
+                : undefined
             }
           />
           {canEdit && (
@@ -1083,7 +1085,7 @@ export const DocumentEditor = ({
                     : undefined
                 }
                 onSuggestEdit={
-                  isPage
+                  supportsLock
                     ? (blockId) => openSuggest(node.id, blockId)
                     : undefined
                 }

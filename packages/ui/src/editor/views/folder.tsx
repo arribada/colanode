@@ -12,10 +12,6 @@ export const FolderNodeView = ({ node }: NodeViewProps) => {
 
   const id = node.attrs.id;
 
-  if (!id) {
-    return null;
-  }
-
   const folderGetQuery = useLiveQuery(
     (q) =>
       q
@@ -24,6 +20,10 @@ export const FolderNodeView = ({ node }: NodeViewProps) => {
         .findOne(),
     [workspace.userId, id]
   );
+
+  if (!id) {
+    return null;
+  }
 
   if (folderGetQuery.isLoading) {
     return null;

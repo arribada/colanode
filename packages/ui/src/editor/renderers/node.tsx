@@ -1,4 +1,5 @@
 import { JSONContent } from '@tiptap/core';
+import { Presentation } from 'lucide-react';
 import { ReactElement } from 'react';
 import { match } from 'ts-pattern';
 
@@ -112,6 +113,15 @@ export const NodeRenderer = ({
         ))
         .with('planeIssueLink', () => (
           <PlaneIssueLinkRenderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('whiteboardEmbed', () => (
+          <div
+            className="my-2 flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground"
+            contentEditable={false}
+          >
+            <Presentation className="size-4 shrink-0" />
+            Whiteboard embed
+          </div>
         ))
         .with('hardBreak', () => (
           <HardBreakRenderer node={node} keyPrefix={keyPrefix} />

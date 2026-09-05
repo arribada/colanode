@@ -16,12 +16,18 @@ export const TimelineViewNoConfig = () => {
   const database = useDatabase();
   const view = useDatabaseView();
 
+  const canEdit = database.canEdit && !database.isLocked;
+
   const dateFields = database.fields.filter((field) =>
     TIMELINE_DATE_FIELDS.includes(field.type)
   );
 
   const handleFieldSelect = useCallback(
     (fieldId: string) => {
+      if (!canEdit) {
+        return;
+      }
+
       workspace.collections.nodes.update(view.id, (draft) => {
         if (draft.type !== 'database_view') {
           return;
@@ -30,25 +36,31 @@ export const TimelineViewNoConfig = () => {
         draft.timeline = { ...(draft.timeline ?? {}), startFieldId: fieldId };
       });
     },
-    [view.id]
+    [view.id, canEdit]
   );
 
   return (
     <div className="flex w-full flex-col items-center justify-center pt-20">
       {dateFields.length > 0 ? (
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm">
-            Pick the date each record starts on. You can add an end date and
-            change the scale afterwards, in the view settings.
-          </p>
-          <div className="w-90">
-            <FieldSelect
-              fields={dateFields}
-              value={view.timeline?.startFieldId ?? null}
-              onChange={handleFieldSelect}
-            />
+        canEdit ? (
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-sm">
+              Pick the date each record starts on. You can add an end date and
+              change the scale afterwards, in the view settings.
+            </p>
+            <div className="w-90">
+              <FieldSelect
+                fields={dateFields}
+                value={view.timeline?.startFieldId ?? null}
+                onChange={handleFieldSelect}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            This timeline has no start date field yet.
+          </p>
+        )
       ) : (
         <div className="flex flex-col items-center gap-4">
           <p className="text-sm">

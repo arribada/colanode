@@ -118,7 +118,11 @@ export const ChartNodeView = ({
               No data yet — click Edit to add rows.
             </p>
           ) : chartType === 'pie' ? (
-            <PieChartGraphic buckets={buckets} formatValue={formatValue} />
+            <PieChartGraphic
+              buckets={buckets}
+              formatValue={formatValue}
+              aggregate="sum"
+            />
           ) : chartType === 'line' ? (
             <LineChartGraphic buckets={buckets} formatValue={formatValue} />
           ) : (

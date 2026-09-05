@@ -77,6 +77,27 @@ export const FolderBody = ({ folder }: FolderBodyProps) => {
   const currentLayout =
     folderLayouts.find((l) => l.value === layout) ?? folderLayouts[0];
 
+  const uploadFiles = async (files: File[]) => {
+    for (const file of files) {
+      try {
+        const tempFile = await window.colanode.saveTempFile(file);
+        const result = await window.colanode.executeMutation({
+          type: 'file.create',
+          userId: workspace.userId,
+          tempFileId: tempFile.id,
+          parentId: folder.id,
+        });
+        if (!result.success) {
+          toast.error(result.error.message);
+        }
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : 'Could not upload the file'
+        );
+      }
+    }
+  };
+
   const handleUploadClick = async () => {
     const result = await openFileDialog();
 
@@ -137,7 +158,7 @@ export const FolderBody = ({ folder }: FolderBodyProps) => {
     <Dropzone
       text="Drop files here to upload them in the folder"
       onDrop={(files) => {
-        files.forEach((file) => console.log(file));
+        void uploadFiles(files);
       }}
     >
       <div className="flex h-full max-h-full flex-col gap-4 overflow-y-auto">

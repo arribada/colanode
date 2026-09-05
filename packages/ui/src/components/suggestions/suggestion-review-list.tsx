@@ -13,7 +13,7 @@ import {
 import { toast } from 'sonner';
 
 import { DocumentSuggestionItem } from '@colanode/client/mutations';
-import { DocumentState, DocumentUpdate } from '@colanode/client/types';
+import { DocumentState, DocumentUpdate, LocalNode } from '@colanode/client/types';
 import {
   extractNodeRole,
   hasNodeRole,
@@ -109,27 +109,52 @@ export const SuggestionReviewList = ({ pageId }: SuggestionReviewListProps) => {
     [workspace.userId, pageId]
   );
   const page = pageQuery.data;
-  const rootNodeQuery = useCollectionQuery(
+  // Resolve the reviewer's role from the page's FULL ancestor chain
+  // (root -> ... -> page), the way NodeProvider / the server's fetchNodeTree
+  // do, so node-level collaborators (e.g. granted directly on the page or its
+  // parent) are honored and not just the space-level grant. All nodes in the
+  // tree share the page's rootId, so a single query gives us the whole tree.
+  const treeQuery = useCollectionQuery(
     (q) =>
       q
         .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => eq(nodes.id, page?.rootId ?? ''))
-        .findOne(),
+        .where(({ nodes }) => eq(nodes.rootId, page?.rootId ?? '')),
     [workspace.userId, page?.rootId]
   );
-  const rootNode = rootNodeQuery.data;
-  const role = rootNode ? extractNodeRole(rootNode, workspace.userId) : null;
+  const ancestorChain = useMemo<LocalNode[]>(() => {
+    if (!page) {
+      return [];
+    }
+    const byId = new Map<string, LocalNode>();
+    for (const node of (treeQuery.data ?? []) as unknown as LocalNode[]) {
+      byId.set(node.id, node);
+    }
+    // Ensure the page itself is present even if the tree query hasn't caught up.
+    byId.set(page.id, page as unknown as LocalNode);
+    const chain: LocalNode[] = [];
+    let current: LocalNode | undefined = page as unknown as LocalNode;
+    while (current) {
+      chain.unshift(current);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return chain;
+  }, [page, treeQuery.data]);
+  const role =
+    ancestorChain.length > 0
+      ? extractNodeRole(ancestorChain, workspace.userId)
+      : null;
   const canReview = role ? hasNodeRole(role, 'editor') : false;
 
   // Page lock: when the page is locked or in suggest mode, only a privileged
   // user (the page creator or a node admin) may APPLY a suggestion - the server
   // enforces this in document.update, so mirror it here to keep the Accept
   // button honest. Null/absent lock => 'open', so unlocked pages are unaffected.
-  const pageNode = page && page.type === 'page' ? page : null;
-  const lockMode = pageNode?.lockMode ?? 'open';
+  const lockNode =
+    page && (page.type === 'page' || page.type === 'record') ? page : null;
+  const lockMode = lockNode?.lockMode ?? 'open';
   const isPrivileged =
-    !!pageNode &&
-    (pageNode.createdBy === workspace.userId ||
+    !!lockNode &&
+    (lockNode.createdBy === workspace.userId ||
       (role ? hasNodeRole(role, 'admin') : false));
   const applyRestricted = lockMode === 'locked' || lockMode === 'suggest';
   const canAccept = canReview && (!applyRestricted || isPrivileged);

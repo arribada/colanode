@@ -85,7 +85,11 @@ export const WorkspaceUsersContainer = () => {
             <InView
               rootMargin="200px"
               onChange={(inView) => {
-                if (inView && users.length === USERS_PER_PAGE) {
+                if (
+                  inView &&
+                  usersQuery.hasNextPage &&
+                  !usersQuery.isFetchingNextPage
+                ) {
                   usersQuery.fetchNextPage();
                 }
               }}

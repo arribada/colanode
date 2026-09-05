@@ -3,7 +3,7 @@ import '@colanode/ui/styles/highlight.css';
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react';
 import { Check, ChevronDown, Clipboard } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   Command,
@@ -37,6 +37,15 @@ export const CodeBlockNodeView = ({
 
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
+  const copyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeout.current !== null) {
+        clearTimeout(copyTimeout.current);
+      }
+    };
+  }, []);
 
   return (
     <NodeViewWrapper
@@ -95,6 +104,13 @@ export const CodeBlockNodeView = ({
           onClick={() => {
             navigator.clipboard.writeText(code).then(() => {
               setCopied(true);
+              if (copyTimeout.current !== null) {
+                clearTimeout(copyTimeout.current);
+              }
+              copyTimeout.current = setTimeout(() => {
+                setCopied(false);
+                copyTimeout.current = null;
+              }, 1500);
             });
           }}
         >

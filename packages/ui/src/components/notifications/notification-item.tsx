@@ -1,7 +1,5 @@
 // ABOUTME: Shared notification row — resolves the source node's name/avatar,
 // ABOUTME: shows a relative timestamp, and on click marks read + navigates.
-import { CheckCircle2, ListTodo } from 'lucide-react';
-
 import type { SelectNotification } from '@colanode/client/databases';
 import type { LocalNode } from '@colanode/client/types';
 import { timeAgo } from '@colanode/core';
@@ -77,10 +75,6 @@ interface NotificationItemProps {
   notification: SelectNotification;
   node: LocalNode | undefined | null;
   userId: string;
-  // 'task' swaps the avatar for a checkbox-style icon (used by the home
-  // dashboard's "Your wiki tasks" section); 'notification' (the default) shows
-  // the source node's avatar.
-  variant?: 'notification' | 'task';
   // Called with the source node id once the notification is marked read.
   // Navigation is the caller's job so this row stays route-agnostic.
   onNavigate?: (nodeId: string) => void;
@@ -91,15 +85,12 @@ export const NotificationItem = ({
   notification,
   node,
   userId,
-  variant = 'notification',
   onNavigate,
   testId,
 }: NotificationItemProps) => {
   const display = node ? getMentionNodeDisplay(node) : null;
   const fallback =
-    variant === 'task'
-      ? 'Task'
-      : (display?.name ?? getNotificationTypeLabel(notification.type));
+    display?.name ?? getNotificationTypeLabel(notification.type);
   const label = getNotificationMessage(
     notification.type,
     notification.preview,
@@ -144,20 +135,12 @@ export const NotificationItem = ({
       onClick={handleClick}
       className="flex flex-row items-center gap-2 rounded-md p-1.5 text-left hover:bg-accent"
     >
-      {variant === 'task' ? (
-        unread ? (
-          <ListTodo className="size-4 shrink-0 text-blue-500" />
-        ) : (
-          <CheckCircle2 className="size-4 shrink-0 text-muted-foreground" />
-        )
-      ) : (
-        <Avatar
-          size="small"
-          id={notification.source_node_id}
-          name={display?.name ?? label}
-          avatar={display?.avatar}
-        />
-      )}
+      <Avatar
+        size="small"
+        id={notification.source_node_id}
+        name={display?.name ?? label}
+        avatar={display?.avatar}
+      />
       <span
         className={`flex-1 truncate text-sm ${
           unread ? 'font-medium' : 'text-muted-foreground'
@@ -165,7 +148,7 @@ export const NotificationItem = ({
       >
         {label}
       </span>
-      {variant === 'notification' && unread ? (
+      {unread ? (
         <span className="size-2 shrink-0 rounded-full bg-blue-500" />
       ) : null}
       <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">

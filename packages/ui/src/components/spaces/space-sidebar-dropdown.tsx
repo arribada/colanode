@@ -4,7 +4,6 @@ import {
   Ellipsis,
   FileStack,
   MessageCircle,
-  Plus,
   Presentation,
   Settings,
   StickyNote,
@@ -151,18 +150,6 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
           >
             <Settings className="size-4" />
             <span>Settings</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-              navigate({
-                to: '$nodeId',
-                params: { nodeId: space.id },
-              })
-            }
-            className="flex flex-row items-center gap-2 cursor-pointer"
-          >
-            <Plus className="size-4" />
-            <span>Add collaborators</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

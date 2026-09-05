@@ -153,6 +153,7 @@ export const SplitViewProvider = ({ children }: { children: ReactNode }) => {
   return (
     <SplitViewContext.Provider
       value={{
+        isSplitAvailable: true,
         tree,
         focusedLeafId,
         openInSplit,

@@ -43,7 +43,11 @@ export const WorkspaceUploadsContainer = () => {
           <InView
             rootMargin="200px"
             onChange={(inView) => {
-              if (inView && uploads.length === UPLOADS_PER_PAGE) {
+              if (
+                inView &&
+                uploadsQuery.hasNextPage &&
+                !uploadsQuery.isFetchingNextPage
+              ) {
                 uploadsQuery.fetchNextPage();
               }
             }}

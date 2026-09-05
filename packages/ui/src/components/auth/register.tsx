@@ -90,10 +90,14 @@ export const Register = () => {
       },
       onSuccess(output: LoginOutput) {
         if (output.type === 'success') {
-          navigate({
-            to: '/workspace/$userId',
-            params: { userId: output.workspaces[0]!.user.id },
-          });
+          if (output.workspaces.length > 0) {
+            navigate({
+              to: '/workspace/$userId',
+              params: { userId: output.workspaces[0]!.user.id },
+            });
+          } else {
+            navigate({ to: '/create' });
+          }
         } else if (output.type === 'verify') {
           setState({
             type: 'verify',

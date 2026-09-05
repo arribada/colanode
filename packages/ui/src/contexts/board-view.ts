@@ -25,6 +25,10 @@ interface BoardViewContext {
   header: React.ReactNode;
   canDrag: (record: RecordItem) => boolean;
   onDragEnd: (item: RecordItem, value: FieldValue | null) => void;
+  // Whether the per-column "Add record" affordance should be shown. Read-only
+  // group fields (e.g. created_by) cannot be seeded from a filter, so the
+  // create card is hidden for those columns.
+  canCreateInColumn?: boolean;
 }
 
 export const BoardViewContext = createContext<BoardViewContext>(

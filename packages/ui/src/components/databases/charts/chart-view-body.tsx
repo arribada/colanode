@@ -3,7 +3,7 @@
 import { ChartPie } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 
-import { DatabaseViewChartAggregate } from '@colanode/core';
+import { DatabaseViewChartAggregate, SpecialId } from '@colanode/core';
 import {
   aggregateRecords,
   resolveGroupField,
@@ -88,7 +88,9 @@ export const ChartViewBody = () => {
     [data, groupField, aggregate, valueFieldId, chartType, chart?.colors]
   );
 
-  const hasGroupBy = chart?.groupBy != null && chart.groupBy !== '';
+  const hasGroupBy =
+    chart?.groupBy === SpecialId.Name ||
+    (chart?.groupBy != null && chart.groupBy !== '' && groupField != null);
 
   const formatValue = (value: number): string => {
     if (Number.isInteger(value)) {
@@ -131,7 +133,11 @@ export const ChartViewBody = () => {
       <div className="flex flex-col items-start gap-6 lg:flex-row lg:items-center">
         <div className="flex w-full items-center justify-center lg:w-auto">
           {chartType === 'pie' && (
-            <PieChartGraphic buckets={buckets} formatValue={formatValue} />
+            <PieChartGraphic
+              buckets={buckets}
+              formatValue={formatValue}
+              aggregate={aggregate}
+            />
           )}
           {chartType === 'bar' && (
             <BarChartGraphic buckets={buckets} formatValue={formatValue} />

@@ -8,6 +8,7 @@ export type NodeSearchResult = {
   name: string | null;
   avatar: string | null;
   rootId: string;
+  rootType: NodeType;
   spaceName: string | null;
   snippet: string | null;
   matchedIn: NodeSearchMatchSource;

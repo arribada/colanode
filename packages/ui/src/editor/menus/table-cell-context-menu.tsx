@@ -119,8 +119,17 @@ export const TableCellContextMenu = ({
         return;
       }
       const columns: string[] = [];
-      table.firstChild?.forEach((cell, _offset, index) => {
-        columns.push(cell.textContent.trim() || `Column ${index + 1}`);
+      let columnIndex = 0;
+      table.firstChild?.forEach((cell) => {
+        const colspan = (cell.attrs.colspan as number | null) ?? 1;
+        columns[columnIndex] =
+          cell.textContent.trim() || `Column ${columnIndex + 1}`;
+        // Merged header cells span several columns; fill the covered slots so
+        // the array index stays aligned with the plugin's accumulated index.
+        for (let i = 1; i < colspan; i++) {
+          columns[columnIndex + i] = `Column ${columnIndex + i + 1}`;
+        }
+        columnIndex += colspan;
       });
       setTableInfo({
         pos: resolved.before(1),

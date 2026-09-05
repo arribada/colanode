@@ -147,18 +147,22 @@ export const WhiteboardSidebarItem = ({
           Rename
         </ContextMenuItem>
         <CopyLinkAction nodeId={whiteboard.id} item={ContextMenuItem} />
-        <ContextMenuItem
-          onClick={() => splitView.openInSplit(whiteboardUrl, 'horizontal')}
-        >
-          <Columns2 className="size-4" />
-          Open in split (right)
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => splitView.openInSplit(whiteboardUrl, 'vertical')}
-        >
-          <Rows2 className="size-4" />
-          Open in split (down)
-        </ContextMenuItem>
+        {splitView.isSplitAvailable && (
+          <>
+            <ContextMenuItem
+              onClick={() => splitView.openInSplit(whiteboardUrl, 'horizontal')}
+            >
+              <Columns2 className="size-4" />
+              Open in split (right)
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => splitView.openInSplit(whiteboardUrl, 'vertical')}
+            >
+              <Rows2 className="size-4" />
+              Open in split (down)
+            </ContextMenuItem>
+          </>
+        )}
         {canEdit && (
           <ContextMenuItem
             className="text-destructive focus:text-destructive"

@@ -16,7 +16,6 @@ import {
 import { Input } from '@colanode/ui/components/ui/input';
 import { Spinner } from '@colanode/ui/components/ui/spinner';
 import { Textarea } from '@colanode/ui/components/ui/textarea';
-import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 import { openFileDialog } from '@colanode/ui/lib/files';
@@ -37,6 +36,7 @@ const defaultValues: WorkspaceFormValues = {
 };
 
 interface WorkspaceFormProps {
+  accountId: string;
   values?: WorkspaceFormValues;
   onSubmit: (values: WorkspaceFormValues) => void;
   isSaving: boolean;
@@ -46,6 +46,7 @@ interface WorkspaceFormProps {
 }
 
 export const WorkspaceForm = ({
+  accountId,
   values,
   onSubmit,
   isSaving,
@@ -53,7 +54,6 @@ export const WorkspaceForm = ({
   saveText,
   readOnly = false,
 }: WorkspaceFormProps) => {
-  const workspace = useWorkspace();
   const isMobile = useIsMobile();
 
   const id = useRef(generateId(IdType.Workspace));
@@ -90,7 +90,7 @@ export const WorkspaceForm = ({
       mutate({
         input: {
           type: 'avatar.upload',
-          accountId: workspace.accountId,
+          accountId,
           file,
         },
         onSuccess(output) {

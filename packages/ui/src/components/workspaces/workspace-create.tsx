@@ -45,6 +45,7 @@ export const WorkspaceCreate = ({ accountId }: WorkspaceCreateProps) => {
             </h1>
           </div>
           <WorkspaceForm
+            accountId={accountId}
             onSubmit={(values) => {
               mutate({
                 input: {

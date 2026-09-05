@@ -7,6 +7,10 @@ import { router } from '@colanode/ui/routes';
 
 
 export interface SplitViewContextProps {
+  // Whether a real split-view provider is mounted (desktop only). The default
+  // context has this false so the shared sidebar affordances that trigger a
+  // split can hide themselves on web/mobile where openInSplit is a no-op.
+  isSplitAvailable: boolean;
   // null = not split: the normal single-tab content is shown instead.
   tree: SplitNode | null;
   focusedLeafId: string | null;

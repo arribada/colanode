@@ -18,8 +18,46 @@ export const AvatarUpload = ({ onUpload }: AvatarUploadProps) => {
 
   const [url, setUrl] = useState<string | undefined>(undefined);
 
-  const handleSubmit = async (_: string) => {
-    // TODO
+  const handleSubmit = async (value: string) => {
+    if (isPending) {
+      return;
+    }
+
+    try {
+      const response = await fetch(value);
+      if (!response.ok) {
+        throw new Error('Could not download the image from that URL.');
+      }
+
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) {
+        throw new Error('The URL does not point to an image.');
+      }
+
+      const name = value.split('/').pop()?.split('?')[0] || 'avatar';
+      const file = new File([blob], name, { type: blob.type });
+      const tempFile = await window.colanode.saveTempFile(file);
+
+      mutate({
+        input: {
+          type: 'avatar.upload',
+          accountId: workspace.accountId,
+          file: tempFile,
+        },
+        onSuccess(output) {
+          onUpload(output.id);
+        },
+        onError(error) {
+          toast.error(error.message);
+        },
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not import the image from that URL.'
+      );
+    }
   };
 
   return (

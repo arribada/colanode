@@ -9,7 +9,7 @@ import { Field, FieldError } from '@colanode/ui/components/ui/field';
 import { Input } from '@colanode/ui/components/ui/input';
 
 const formSchema = z.object({
-  name: z.string().min(3, 'Name must be at least 3 characters long.'),
+  name: z.string().min(1, 'Name is required.'),
   avatar: z.string().optional().nullable(),
 });
 

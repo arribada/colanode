@@ -38,7 +38,8 @@ export const BoardViewColumn = () => {
       ref={dropRef as React.Ref<HTMLDivElement>}
       className={cn(
         'relative isolate flex min-h-[400px] flex-col rounded-xl p-2 transition-colors',
-        isOver && 'ring-2 ring-inset ring-primary/40'
+        isOver &&
+          (boardView.dragOverClass ?? 'ring-2 ring-inset ring-primary/40')
       )}
       style={{
         minWidth: '272px',

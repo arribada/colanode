@@ -1,14 +1,17 @@
 // ABOUTME: Chart-specific settings block (type, group-by, aggregate, value
 // ABOUTME: field) rendered inside the shared view settings popover as its slot.
-import { ChartColumnBig, ChartLine, ChartPie } from 'lucide-react';
+import { ChartColumnBig, ChartLine, ChartPie, X } from 'lucide-react';
 import { FC } from 'react';
 
 import {
   DatabaseViewChartAggregate,
   DatabaseViewChartAttributes,
   DatabaseViewChartType,
+  FieldAttributes,
+  SpecialId,
 } from '@colanode/core';
 import { FieldSelect } from '@colanode/ui/components/databases/fields/field-select';
+import { Button } from '@colanode/ui/components/ui/button';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -36,9 +39,31 @@ export const ChartConfigSettings = () => {
   const chartType = chart?.type ?? 'bar';
   const aggregate = chart?.aggregate ?? 'count';
 
+  // Any field whose value getNumericValue can reduce: a real number, a numeric
+  // formula, a rollup, a rating (1..n stars) or an autonumber.
   const numberFields = database.fields.filter(
-    (field) => field.type === 'number'
+    (field) =>
+      field.type === 'number' ||
+      (field.type === 'formula' && field.resultType === 'number') ||
+      field.type === 'rollup' ||
+      field.type === 'rating' ||
+      field.type === 'autonumber'
   );
+
+  // Relation/collaborator group-by would label every series with an opaque id,
+  // so exclude them until name resolution exists (mirrors the timeline).
+  const groupByFields = database.fields.filter(
+    (field) => field.type !== 'relation' && field.type !== 'collaborator'
+  );
+
+  // Group by the record name (special "name" id) is a valid grouping too, so
+  // surface it as a synthetic pick alongside the real fields.
+  const nameGroupField = {
+    id: SpecialId.Name,
+    type: 'text',
+    name: 'Name',
+    index: '',
+  } as unknown as FieldAttributes;
 
   const updateChart = (patch: Partial<DatabaseViewChartAttributes>) => {
     if (!canEdit) {
@@ -89,13 +114,30 @@ export const ChartConfigSettings = () => {
         <p className="text-sm font-medium">Group by</p>
         <div
           aria-disabled={!canEdit}
-          className={cn(!canEdit && 'pointer-events-none opacity-50')}
+          className={cn(
+            'flex flex-row items-center gap-1.5',
+            !canEdit && 'pointer-events-none opacity-50'
+          )}
         >
-          <FieldSelect
-            fields={database.fields}
-            value={chart?.groupBy ?? null}
-            onChange={(fieldId) => updateChart({ groupBy: fieldId })}
-          />
+          <div className="grow">
+            <FieldSelect
+              fields={[nameGroupField, ...groupByFields]}
+              value={chart?.groupBy ?? null}
+              onChange={(fieldId) => updateChart({ groupBy: fieldId })}
+            />
+          </div>
+          {chart?.groupBy != null && chart.groupBy !== '' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={!canEdit}
+              aria-label="Clear group by"
+              onClick={() => updateChart({ groupBy: null })}
+            >
+              <X className="size-4" />
+            </Button>
+          )}
         </div>
       </div>
 

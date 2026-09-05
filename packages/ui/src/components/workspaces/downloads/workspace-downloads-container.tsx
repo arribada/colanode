@@ -43,7 +43,11 @@ export const WorkspaceDownloadsContainer = () => {
           <InView
             rootMargin="200px"
             onChange={(inView) => {
-              if (inView && downloads.length === DOWNLOADS_PER_PAGE) {
+              if (
+                inView &&
+                downloadsQuery.hasNextPage &&
+                !downloadsQuery.isFetchingNextPage
+              ) {
                 downloadsQuery.fetchNextPage();
               }
             }}

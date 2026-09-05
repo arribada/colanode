@@ -1,7 +1,6 @@
 import {
   Bell,
   BellOff,
-  Copy,
   Image,
   LetterText,
   Settings,
@@ -75,13 +74,6 @@ export const ChannelSettings = ({ channel, role }: ChannelSettingsProps) => {
           >
             <Image className="size-4" />
             Update icon
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="flex items-center gap-2 cursor-pointer"
-            disabled
-          >
-            <Copy className="size-4" />
-            Duplicate
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2"

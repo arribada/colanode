@@ -1,7 +1,7 @@
 import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
 import { Home, Settings, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 
 import { NodeSearchResult } from '@colanode/client/queries';
@@ -25,10 +25,10 @@ import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 const groupOrder: NodeType[] = [
   'page',
   'database',
-  'database_view',
   'record',
   'folder',
   'file',
+  'whiteboard',
   'space',
   'channel',
   'chat',
@@ -38,10 +38,10 @@ const groupOrder: NodeType[] = [
 const groupLabels: Partial<Record<NodeType, string>> = {
   page: 'Pages',
   database: 'Databases',
-  database_view: 'Views',
   record: 'Records',
   folder: 'Folders',
   file: 'Files',
+  whiteboard: 'Whiteboards',
   space: 'Spaces',
   channel: 'Channels',
   chat: 'Chats',
@@ -77,6 +77,14 @@ export const SearchDialog = () => {
   const [showChat] = useChatVisibility();
 
   const [searchQuery, setSearchQuery] = useState('');
+  // The Cmd-K toggle closes the dialog through the context without going through
+  // handleOpenChange, so reset the query on every close path to keep the two in
+  // sync (otherwise a re-open flashes the previous query/results).
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery('');
+    }
+  }, [open]);
   // Debounce the raw input so a query only fires once typing settles, not on
   // every keystroke. The input stays bound to the immediate value so it feels
   // responsive; the search + empty-state switch off the debounced value.
@@ -123,7 +131,15 @@ export const SearchDialog = () => {
 
   const results = showChat
     ? allResults
-    : allResults.filter((result) => !chatNodeTypes.includes(result.type));
+    : allResults.filter(
+        (result) =>
+          !chatNodeTypes.includes(result.type) &&
+          // Page comments are message nodes rooted in a page and stay
+          // searchable; chat/channel messages are dropped with their rooms.
+          !(
+            result.type === 'message' && chatNodeTypes.includes(result.rootType)
+          )
+      );
 
   const groups = groupOrder
     .map((type) => ({
@@ -206,9 +222,7 @@ export const SearchDialog = () => {
         placeholder="Search pages, databases, messages..."
       />
       <CommandList className="max-h-[400px]">
-        <CommandEmpty>
-          {isSearching ? 'No results found.' : 'Nothing recent yet.'}
-        </CommandEmpty>
+        <CommandEmpty>No results found.</CommandEmpty>
         {visibleActions.length > 0 && (
           <CommandGroup heading="Actions">
             {visibleActions.map((action) => (
@@ -227,6 +241,11 @@ export const SearchDialog = () => {
               </CommandItem>
             ))}
           </CommandGroup>
+        )}
+        {!isSearching && recentNodes.length === 0 && (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            Nothing recent yet.
+          </div>
         )}
         {!isSearching && recentNodes.length > 0 && (
           <CommandGroup heading="Recent">

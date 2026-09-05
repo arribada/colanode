@@ -1,7 +1,9 @@
 import { Plus } from 'lucide-react';
+import { useRef } from 'react';
+import { useDrop } from 'react-dnd';
 
 import { LocalRecordNode } from '@colanode/client/types';
-import { extractNodeRole, isSameDay } from '@colanode/core';
+import { FieldAttributes, extractNodeRole, isSameDay } from '@colanode/core';
 import { CalendarViewRecordCard } from '@colanode/ui/components/databases/calendars/calendar-view-record-card';
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
 import { useDatabase } from '@colanode/ui/contexts/database';
@@ -9,6 +11,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface CalendarViewDayProps {
+  field: FieldAttributes;
   date: Date;
   records: LocalRecordNode[];
   isOutside: boolean;
@@ -16,6 +19,7 @@ interface CalendarViewDayProps {
 }
 
 export const CalendarViewDay = ({
+  field,
   date,
   records,
   isOutside,
@@ -27,8 +31,46 @@ export const CalendarViewDay = ({
   const isToday = isSameDay(date, new Date());
   const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
+  // Only real `date` fields can be rescheduled -- created_at / updated_at are
+  // server-derived and read-only, so they accept no drops.
+  const canDropHere = field.type === 'date' && !database.isLocked;
+
+  const [{ isOver }, drop] = useDrop({
+    accept: 'calendar-record',
+    canDrop: () => canDropHere,
+    drop: (item: { id: string; canEdit: boolean }) => {
+      if (!canDropHere || !item.canEdit) {
+        return;
+      }
+
+      const target = new Date(
+        Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+      ).toISOString();
+
+      workspace.collections.nodes.update(item.id, (draft) => {
+        if (draft.type !== 'record') {
+          return;
+        }
+
+        draft.fields[field.id] = { type: 'string', value: target };
+      });
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver() && monitor.canDrop(),
+    }),
+  });
+
+  const tdRef = useRef<HTMLTableCellElement>(null);
+  const dropRef = drop(tdRef);
+
   return (
-    <td className="animate-fade-in group/calendar-day flex w-full flex-col gap-1 h-40 p-2 border-r first:border-l border-border overflow-auto">
+    <td
+      ref={dropRef as React.Ref<HTMLTableCellElement>}
+      className={cn(
+        'animate-fade-in group/calendar-day flex w-full flex-col gap-1 h-40 p-2 border-r first:border-l border-border overflow-auto',
+        isOver && 'ring-2 ring-inset ring-primary/40'
+      )}
+    >
       <div
         className={cn(
           'flex w-full justify-end text-sm',
@@ -63,7 +105,7 @@ export const CalendarViewDay = ({
 
         return (
           <RecordProvider key={record.id} record={record} role={role}>
-            <CalendarViewRecordCard />
+            <CalendarViewRecordCard field={field} />
           </RecordProvider>
         );
       })}

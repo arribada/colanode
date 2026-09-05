@@ -21,7 +21,7 @@ export const WorkspaceSyncIndicator = () => {
     >
       <Spinner className="size-3.5" />
       <span>
-        Synchronisation en cours…
+        Syncing…
         {itemsSynced > 0 ? ` (${itemsSynced.toLocaleString()})` : null}
       </span>
     </div>

@@ -25,7 +25,7 @@ export const MessageReactionCreatePopover = ({
       <PopoverContent className="w-max p-0" align="end">
         <EmojiPicker
           onPick={(emoji, skinTone) => {
-            const id = emoji.skins[skinTone]?.id;
+            const id = emoji.skins[skinTone]?.id ?? emoji.skins[0]?.id;
             if (!id) {
               return;
             }

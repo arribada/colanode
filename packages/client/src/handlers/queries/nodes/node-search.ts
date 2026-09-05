@@ -19,6 +19,7 @@ import { Event } from '@colanode/client/types/events';
 import {
   DocumentContent,
   NodeAttributes,
+  NodeType,
   extractDocumentText,
   getNodeModel,
 } from '@colanode/core';
@@ -119,7 +120,7 @@ export class NodeSearchQueryHandler
       workspace,
       rows.filter((row) => contentIds.has(row.id)).map((row) => row.id)
     );
-    const rootNames = await this.fetchRootNames(
+    const rootNodes = await this.fetchRootNodes(
       workspace,
       rows.map((row) => row.root_id)
     );
@@ -150,7 +151,8 @@ export class NodeSearchQueryHandler
         name: 'name' in attributes ? (attributes.name ?? null) : null,
         avatar: 'avatar' in attributes ? (attributes.avatar ?? null) : null,
         rootId: row.root_id,
-        spaceName: rootNames.get(row.root_id) ?? null,
+        rootType: rootNodes.get(row.root_id)?.type ?? row.type,
+        spaceName: rootNodes.get(row.root_id)?.name ?? null,
         snippet,
         matchedIn,
       });
@@ -206,30 +208,30 @@ export class NodeSearchQueryHandler
     return texts;
   }
 
-  private async fetchRootNames(
+  private async fetchRootNodes(
     workspace: WorkspaceService,
     rootIds: string[]
-  ): Promise<Map<string, string | null>> {
-    const names = new Map<string, string | null>();
+  ): Promise<Map<string, { name: string | null; type: NodeType }>> {
+    const nodes = new Map<string, { name: string | null; type: NodeType }>();
     const uniqueRootIds = [...new Set(rootIds)];
     if (uniqueRootIds.length === 0) {
-      return names;
+      return nodes;
     }
 
     const rows = await workspace.database
       .selectFrom('nodes')
-      .select(['id', 'attributes'])
+      .select(['id', 'type', 'attributes'])
       .where('id', 'in', uniqueRootIds)
       .execute();
 
     for (const row of rows) {
       const attributes = JSON.parse(row.attributes) as NodeAttributes;
-      names.set(
-        row.id,
-        'name' in attributes ? (attributes.name ?? null) : null
-      );
+      nodes.set(row.id, {
+        name: 'name' in attributes ? (attributes.name ?? null) : null,
+        type: row.type,
+      });
     }
 
-    return names;
+    return nodes;
   }
 }

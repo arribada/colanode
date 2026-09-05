@@ -92,7 +92,11 @@ export const isSameDay = (
   const d1 = typeof date1 === 'string' ? new Date(date1) : date1;
   const d2 = typeof date2 === 'string' ? new Date(date2) : date2;
 
-  return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth();
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
 };
 
 export const isStringArray = (
