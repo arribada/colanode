@@ -39,12 +39,19 @@ export const DatabaseNode = Node.create({
   addNodeView() {
     return ReactNodeViewRenderer(DatabaseNodeView, {
       as: 'database',
-      // A column-resize handle inside the embedded table must not be hijacked by
-      // this draggable atom: tell ProseMirror to ignore pointer events that start
-      // on a resize handle so re-resizable can drive the resize itself.
+      // Interactive controls inside this draggable atom (cell editors, the
+      // column-resize handle, buttons, selects) must receive their own
+      // keyboard/pointer events. Without this ProseMirror treats typing in a
+      // cell input as input over the selected atom and REPLACES the whole
+      // embedded database. Returning true tells ProseMirror to ignore those
+      // events so the embedded UI stays fully interactive.
       stopEvent: ({ event }) => {
         const target = event.target as HTMLElement | null;
-        return Boolean(target?.closest?.('.cn-col-resize-handle'));
+        return Boolean(
+          target?.closest?.(
+            '.cn-col-resize-handle, input, textarea, select, button, [contenteditable="true"]'
+          )
+        );
       },
     });
   },

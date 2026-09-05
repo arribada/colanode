@@ -75,6 +75,10 @@ export const DatePicker = ({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          captionLayout="dropdown"
+          startMonth={new Date(2015, 0)}
+          endMonth={new Date(2035, 11)}
+          defaultMonth={dateObj ?? undefined}
           selected={dateObj ?? undefined}
           onSelect={(date) => {
             if (!date) {

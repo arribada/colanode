@@ -62,11 +62,6 @@ type NumberValueExpression = ExpressionValue<number>;
 type BooleanValueExpression = ExpressionValue<boolean>;
 type ArrayValueExpression = ExpressionValue<string[]>;
 
-const DEFAULT_ORDERING: OrderByDefinition = {
-  direction: 'asc',
-  selector: (record) => record.id,
-};
-
 export const useRecordsQuery = (
   filters: DatabaseViewFilterAttributes[],
   sorts: DatabaseViewSortAttributes[],
@@ -117,16 +112,14 @@ export const useRecordsQuery = (
         });
       }
 
-      const orderings = buildSortDefinitions(sorts, fieldsById);
-      const effectiveOrderings =
-        orderings.length > 0 ? orderings : [DEFAULT_ORDERING];
-
-      effectiveOrderings.forEach(({ selector, direction }) => {
-        query = query.orderBy(
-          ({ nodes }) => selector(nodes as unknown as RecordRef),
-          direction
-        );
-      });
+      // tanstack-db orderBy only targets top-level columns, not the nested JSON
+      // field values, so per-field sorts silently no-op at the DB level. Order
+      // by id here purely for stable pagination; the user's sort is applied
+      // client-side (see below) over the loaded records.
+      query = query.orderBy(
+        ({ nodes }) => (nodes as unknown as RecordRef).id,
+        'asc'
+      );
 
       return query;
     },
@@ -138,14 +131,62 @@ export const useRecordsQuery = (
     [database.id, database.fields, pageSize, mergedFilters, sorts]
   );
 
-  return {
-    ...result,
-    data: result.data
+  const sortDefinitions = useMemo(
+    () => buildSortDefinitions(sorts, fieldsById),
+    [sorts, fieldsById]
+  );
+
+  const data = useMemo(() => {
+    const rows = result.data
       .map((node) => node as LocalRecordNode)
       // Template records live in the same database (record.template.save) but
       // must never surface in a browsing view; drop them here.
-      .filter((record) => record.isTemplate !== true),
+      .filter((record) => record.isTemplate !== true);
+
+    if (sortDefinitions.length === 0) {
+      return rows;
+    }
+
+    // Sort the loaded records here because the DB query only orders by id
+    // (tanstack-db cannot order by a nested JSON field value).
+    return [...rows].sort((a, b) => {
+      for (const { selector, direction } of sortDefinitions) {
+        const cmp = compareSortValues(
+          selector(a as unknown as RecordRef),
+          selector(b as unknown as RecordRef)
+        );
+        if (cmp !== 0) {
+          return direction === 'asc' ? cmp : -cmp;
+        }
+      }
+      return 0;
+    });
+  }, [result.data, sortDefinitions]);
+
+  return {
+    ...result,
+    data,
   };
+};
+
+// Comparator for client-side record sorting: empty values sort last, numbers
+// numerically, booleans false<true, everything else as a natural-order string.
+const compareSortValues = (a: unknown, b: unknown): number => {
+  const aEmpty = a === null || a === undefined || a === '';
+  const bEmpty = b === null || b === undefined || b === '';
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+  if (typeof a === 'number' && typeof b === 'number') {
+    return a - b;
+  }
+  if (typeof a === 'boolean' && typeof b === 'boolean') {
+    return a === b ? 0 : a ? 1 : -1;
+  }
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
 };
 
 const buildFieldsById = (fields: FieldAttributes[]) => {
