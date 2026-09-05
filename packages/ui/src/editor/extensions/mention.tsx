@@ -413,6 +413,7 @@ export const MentionExtension = Node.create<MentionOptions>({
               userId,
               searchQuery: query,
               exclude: [userId],
+              activeOnly: true,
             }),
             window.colanode.executeQuery({
               type: 'node.mention.search',

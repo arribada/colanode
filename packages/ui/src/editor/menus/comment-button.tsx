@@ -18,11 +18,15 @@ export const CommentButton = ({ editor, onAddComment }: CommentButtonProps) => {
     <MarkButton
       isActive={isActive}
       onClick={() => {
-        // Toggle off: if the selection already sits inside a comment mark,
-        // remove the highlight (wires unsetComment to a real control so orphan
-        // highlights whose thread has no messages can be cleared).
+        // Already inside a comment: RE-OPEN that thread's panel. Never
+        // unsetComment here -- removing the mark would orphan any messages
+        // anchored to the thread (they filter out of the page panel and become
+        // unreachable). Clearing empty threads needs proper lifecycle handling.
         if (isActive) {
-          editor.chain().focus().unsetComment().run();
+          const existing = editor.getAttributes('comment').threadId;
+          if (typeof existing === 'string' && existing.length > 0) {
+            onAddComment(existing);
+          }
           return;
         }
         // Fresh comment: apply the mark and open the panel to compose the first
@@ -32,7 +36,7 @@ export const CommentButton = ({ editor, onAddComment }: CommentButtonProps) => {
         onAddComment(threadId);
       }}
       icon={MessageSquarePlus}
-      label={isActive ? 'Remove comment' : 'Comment'}
+      label="Comment"
       testId="editor-toolbar-comment"
     />
   );

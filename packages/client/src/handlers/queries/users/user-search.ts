@@ -77,12 +77,13 @@ export class UserSearchQueryHandler
     input: UserSearchQueryInput
   ): Promise<SelectUser[]> {
     const workspace = this.getWorkspace(input.userId);
-    const exclude = [...(input.exclude ?? []), input.userId];
+    const exclude = input.excludeSelf
+      ? [...(input.exclude ?? []), input.userId]
+      : (input.exclude ?? []);
 
     let queryBuilder = workspace.database
       .selectFrom('users')
       .selectAll()
-      .where('status', '=', UserStatus.Active)
       .where((eb) =>
         eb.or([
           eb('name', 'like', `%${input.searchQuery}%`),
@@ -90,6 +91,10 @@ export class UserSearchQueryHandler
           eb('custom_name', 'like', `%${input.searchQuery}%`),
         ])
       );
+
+    if (input.activeOnly) {
+      queryBuilder = queryBuilder.where('status', '=', UserStatus.Active);
+    }
 
     if (exclude.length > 0) {
       queryBuilder = queryBuilder.where('id', 'not in', exclude);
@@ -102,13 +107,18 @@ export class UserSearchQueryHandler
   private async fetchUsers(input: UserSearchQueryInput): Promise<SelectUser[]> {
     const workspace = this.getWorkspace(input.userId);
 
-    const exclude = [...(input.exclude ?? []), input.userId];
-    return workspace.database
-      .selectFrom('users')
-      .where('status', '=', UserStatus.Active)
-      .where('id', 'not in', exclude)
-      .selectAll()
-      .execute();
+    const exclude = input.excludeSelf
+      ? [...(input.exclude ?? []), input.userId]
+      : (input.exclude ?? []);
+
+    let queryBuilder = workspace.database.selectFrom('users');
+    if (input.activeOnly) {
+      queryBuilder = queryBuilder.where('status', '=', UserStatus.Active);
+    }
+    if (exclude.length > 0) {
+      queryBuilder = queryBuilder.where('id', 'not in', exclude);
+    }
+    return queryBuilder.selectAll().execute();
   }
 
   private buildUserNodes = (rows: SelectUser[]): User[] => {

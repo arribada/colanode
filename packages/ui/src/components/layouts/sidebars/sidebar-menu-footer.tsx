@@ -100,10 +100,6 @@ export function SidebarMenuFooter() {
                     to: '/workspace/$userId',
                     params: { userId: userId },
                   });
-                } else {
-                  // No workspace has synced for this account yet — send the user
-                  // somewhere actionable instead of a dead click.
-                  navigate({ to: '/create' });
                 }
               }}
             >

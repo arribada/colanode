@@ -272,7 +272,10 @@ export const WorkspaceHomeDashboard = () => {
       if (words.length === 0) {
         return false;
       }
-      if (nameWords.size > 0 && words.some((word) => nameWords.has(word))) {
+      if (
+        nameWords.size > 0 &&
+        [...nameWords].every((word) => words.includes(word))
+      ) {
         return true;
       }
       return emailLocal.length > 0 && words.includes(emailLocal);
@@ -308,7 +311,7 @@ export const WorkspaceHomeDashboard = () => {
       databases.find((db) => db.id === ADR_DATABASE_ID) ??
       databases.find((db) => {
         const dbName = (db.name ?? '').toLowerCase();
-        return dbName.includes('adr') || dbName.includes('🧭');
+        return /\badr\b/.test(dbName) || dbName.includes('🧭');
       })
     );
   }, [structuralNodes]);

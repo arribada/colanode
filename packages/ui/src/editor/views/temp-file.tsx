@@ -36,6 +36,16 @@ const TempFilePreview = ({
     return <FilePreviewAudio url={url} />;
   }
 
+  if (subtype === 'pdf') {
+    return (
+      <iframe
+        src={url}
+        title={name}
+        className="h-full w-full rounded-md border border-border"
+      />
+    );
+  }
+
   return <FileNoPreview mimeType={mimeType} />;
 };
 

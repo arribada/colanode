@@ -48,6 +48,8 @@ export const NodeCollaboratorSearch = ({
     searchQuery: query,
     exclude: excluded,
     userId: workspace.userId,
+    excludeSelf: true,
+    activeOnly: true,
   });
 
   const users = userSearchQuery.data ?? [];
