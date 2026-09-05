@@ -61,7 +61,7 @@ export const TimelineViewNoConfig = () => {
             This timeline has no start date field yet.
           </p>
         )
-      ) : (
+      ) : canEdit ? (
         <div className="flex flex-col items-center gap-4">
           <p className="text-sm">
             This database has no date field, so there is nothing to lay records
@@ -77,6 +77,10 @@ export const TimelineViewNoConfig = () => {
             onSuccess={handleFieldSelect}
           />
         </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          This timeline needs a date field.
+        </p>
       )}
     </div>
   );

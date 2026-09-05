@@ -39,7 +39,9 @@ export const BoardViewColumn = () => {
       className={cn(
         'relative isolate flex min-h-[400px] flex-col rounded-xl p-2 transition-colors',
         isOver &&
-          (boardView.dragOverClass ?? 'ring-2 ring-inset ring-primary/40')
+          (boardView.dragOverClass && boardView.dragOverClass.length > 0
+            ? boardView.dragOverClass
+            : 'ring-2 ring-inset ring-primary/40')
       )}
       style={{
         minWidth: '272px',

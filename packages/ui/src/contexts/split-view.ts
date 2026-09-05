@@ -25,7 +25,7 @@ export interface SplitViewContextProps {
 }
 
 export const SplitViewContext = createContext<SplitViewContextProps>(
-  {} as SplitViewContextProps
+  { isSplitAvailable: false } as SplitViewContextProps
 );
 
 export const useSplitView = () => useContext(SplitViewContext);

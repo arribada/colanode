@@ -349,7 +349,7 @@ const buildFieldFilterExpression = (
         getFieldValue<StringValueExpression>(record, field.id)
       );
     case 'file':
-      return buildArrayFieldFilterExpression(filter, record, field.id);
+      return null;
     case 'multi_select':
       return buildArrayFieldFilterExpression(filter, record, field.id);
     case 'number':

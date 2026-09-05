@@ -45,9 +45,7 @@ export const ChartConfigSettings = () => {
     (field) =>
       field.type === 'number' ||
       (field.type === 'formula' && field.resultType === 'number') ||
-      field.type === 'rollup' ||
-      field.type === 'rating' ||
-      field.type === 'autonumber'
+      field.type === 'rating'
   );
 
   // Relation/collaborator group-by would label every series with an opaque id,
