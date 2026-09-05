@@ -226,6 +226,10 @@ type Interaction =
       mode: 'connector';
       id: string;
       before: BoardScene;
+      // Set when the drag was started from a quick-connect '+' handle: a tap
+      // (no travel, no target) rolls the temp connector back and opens the
+      // shape-type picker instead, preserving click-to-create.
+      quick?: { sourceId: string; side: QuickSide };
     }
   | { mode: 'connector-bend'; id: string; index: number; before: BoardScene }
   // Dragging one END of an existing connector to re-attach it.
@@ -1462,14 +1466,43 @@ export const WhiteboardCanvas = ({
       return;
     }
 
-    // quick-connect "+" handle: open the shape-type picker for that side.
+    // quick-connect "+" handle: start a connector rubber-band from that side.
+    // A real drag onto another shape wires the two together (the existing
+    // connector move/up handlers do the hit-testing and drop). A tap that
+    // never leaves the handle falls back to the shape-type picker on release.
     const quickEl = target.closest('[data-quick]');
     if (quickEl) {
       if (canEdit && selectionRef.current.length === 1) {
-        openQuickConnect(
-          selectionRef.current[0]!,
-          quickEl.getAttribute('data-quick') as QuickSide
-        );
+        const sourceId = selectionRef.current[0]!;
+        const side = quickEl.getAttribute('data-quick') as QuickSide;
+        const src = sceneRef.current[sourceId];
+        if (src) {
+          const ap = anchorPoint(elementRect(src), side);
+          const connector = newElement({
+            type: 'connector',
+            x: 0,
+            y: 0,
+            z: topZ(sceneRef.current),
+            style: styleForType('connector'),
+            points: [
+              [ap.x, ap.y],
+              [ap.x, ap.y],
+            ],
+          });
+          connector.connector = {
+            fromId: sourceId,
+            fromAnchor: side,
+            arrowEnd: true,
+          };
+          const before = cloneScene(sceneRef.current);
+          applyLocal({ ...sceneRef.current, [connector.id]: connector });
+          interactionRef.current = {
+            mode: 'connector',
+            id: connector.id,
+            before,
+            quick: { sourceId, side },
+          };
+        }
       }
       return;
     }
@@ -2239,6 +2272,24 @@ export const WhiteboardCanvas = ({
 
     if (it.mode === 'connector') {
       const el = sceneRef.current[it.id];
+      // A quick-connect drag that never reached a target and barely moved is a
+      // tap: roll the temp connector back and open the shape-type picker, so
+      // click-to-create-a-new-shape still works from the '+' handle.
+      if (it.quick && el?.points && !el.connector?.toId) {
+        const [a, b] = el.points;
+        const travel =
+          a && b
+            ? Math.hypot((a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0))
+            : 0;
+        if (travel < 5) {
+          const next = { ...sceneRef.current };
+          delete next[it.id];
+          applyLocal(next);
+          persistIds([it.id], next);
+          openQuickConnect(it.quick.sourceId, it.quick.side);
+          return;
+        }
+      }
       // discard zero-length connectors
       if (el?.points) {
         const [a, b] = el.points;
@@ -3402,6 +3453,18 @@ export const WhiteboardCanvas = ({
     applyLocal(next);
     setSelection([el.id]);
     commit(before, next, [el.id]);
+  };
+
+  // Drops a poll in the middle of the current view (the toolbar has no scene
+  // point to work from, unlike the right-click menu).
+  const onAddPoll = () => {
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    addPoll({
+      x: (cw / 2 - vp.x) / vp.zoom - 130,
+      y: (ch / 2 - vp.y) / vp.zoom - 60,
+    });
   };
 
   const onEmoji = (character: string) => {
@@ -5013,6 +5076,7 @@ export const WhiteboardCanvas = ({
         mindmapDirection={mindmapDirection}
         onMindmapDirection={onMindmapDirection}
         onFramePreset={onFramePreset}
+        onAddPoll={onAddPoll}
         onMiroImport={() => setMiroImportOpen(true)}
         onPresent={startPresenting}
         onEmoji={onEmoji}

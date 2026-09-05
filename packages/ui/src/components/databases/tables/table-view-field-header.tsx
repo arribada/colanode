@@ -175,6 +175,8 @@ export const TableViewFieldHeader = ({
     const targetDatabaseId = current.databaseId;
 
     if (!enabled) {
+      // Unlink BOTH sides, otherwise editing the reverse field keeps mirroring
+      // back onto this one even though the checkbox now reads "off".
       workspace.collections.nodes.update(database.id, (draft) => {
         if (draft.type !== 'database') {
           return;
@@ -185,6 +187,18 @@ export const TableViewFieldHeader = ({
         }
         field.relatedFieldId = null;
       });
+      if (targetDatabaseId && current.relatedFieldId) {
+        const reverseId = current.relatedFieldId;
+        workspace.collections.nodes.update(targetDatabaseId, (draft) => {
+          if (draft.type !== 'database') {
+            return;
+          }
+          const rf = draft.fields[reverseId];
+          if (rf && rf.type === 'relation') {
+            rf.relatedFieldId = null;
+          }
+        });
+      }
       return;
     }
 
@@ -193,7 +207,9 @@ export const TableViewFieldHeader = ({
       return;
     }
 
-    const reverseFieldId = generateId(IdType.Field);
+    // Reuse an existing reverse field (avoids duplicate reverse columns when
+    // bidirectional is toggled off then on again).
+    const reverseFieldId = current.relatedFieldId ?? generateId(IdType.Field);
     workspace.collections.nodes.update(database.id, (draft) => {
       if (draft.type !== 'database') {
         return;
@@ -208,7 +224,11 @@ export const TableViewFieldHeader = ({
       if (draft.type !== 'database') {
         return;
       }
-      if (draft.fields[reverseFieldId]) {
+      const existingReverse = draft.fields[reverseFieldId];
+      if (existingReverse) {
+        if (existingReverse.type === 'relation') {
+          existingReverse.relatedFieldId = current.id;
+        }
         return;
       }
       const maxIndex = Object.values(draft.fields)

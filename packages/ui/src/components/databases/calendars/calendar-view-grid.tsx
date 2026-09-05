@@ -92,9 +92,10 @@ export const CalendarViewGrid = ({ field }: CalendarViewGridProps) => {
       {
         id: 'start_date',
         type: 'field',
-        // Lower bound is the range END (a record ending in-window may have
-        // started before it); with no range, both bounds test the start field.
-        fieldId: endFieldId ?? field.id,
+        // Fetch by START date on both bounds (records starting in the visible
+        // window). Using the END field here dropped records whose end is blank;
+        // multi-day spanning is handled client-side by recordCoversDay.
+        fieldId: field.id,
         operator: 'is_on_or_after',
         value: first.toISOString(),
       },

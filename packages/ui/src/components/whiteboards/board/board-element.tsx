@@ -819,9 +819,10 @@ export const BoardElementView = ({
       // moment the user picks a colour or a non-default width/dash) overrides
       // it, so the Stroke picker now works on notes like it does on shapes.
       const stickyStroked =
-        style.stroke !== undefined &&
-        style.stroke !== 'none' &&
-        style.stroke !== 'transparent';
+        (style.stroke !== undefined &&
+          style.stroke !== 'none' &&
+          style.stroke !== 'transparent') ||
+        style.strokeWidth !== undefined;
       shape = (
         <>
           <rect
@@ -831,7 +832,7 @@ export const BoardElementView = ({
             height={element.h}
             rx={6}
             fill={fill === 'none' ? '#fff7ae' : fill}
-            stroke={stickyStroked ? stroke : 'rgba(0,0,0,0.08)'}
+            stroke={stickyStroked ? (stroke ?? 'rgba(0,0,0,0.45)') : 'rgba(0,0,0,0.08)'}
             strokeWidth={stickyStroked ? (style.strokeWidth ?? 2) : 1}
             strokeDasharray={stickyStroked ? dash : undefined}
           />

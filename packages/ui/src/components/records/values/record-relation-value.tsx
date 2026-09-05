@@ -52,6 +52,13 @@ export const RecordRelationValue = ({
   const mirrorRelation = (targetRecordId: string, add: boolean) => {
     const relatedFieldId = field.relatedFieldId;
     if (!relatedFieldId) return;
+    // The target record is often NOT loaded in the on-demand nodes collection
+    // (a relation into an un-opened database; RecordSearch reads SQLite
+    // directly). collection.update THROWS UpdateKeyNotFoundError on an unknown
+    // key, which previously crashed the value editor mid-link. Guard: this
+    // optimistic mirror only reflects already-loaded target records; robust
+    // cross-database sync is handled authoritatively server-side.
+    if (!workspace.collections.nodes.has(targetRecordId)) return;
     workspace.collections.nodes.update(targetRecordId, (draft) => {
       if (draft.type !== 'record') return;
       const existing = draft.fields[relatedFieldId];

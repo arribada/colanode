@@ -36,6 +36,7 @@ import {
   Type,
   Undo2,
   Upload,
+  Vote,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -423,6 +424,7 @@ interface BoardToolbarProps {
   onMindmapDirection: (direction: 'right' | 'left' | 'down' | 'up') => void;
   // Drops a correctly proportioned frame in the middle of the view.
   onFramePreset: (preset: { w: number; h: number; label: string }) => void;
+  onAddPoll: () => void;
   onMiroImport: () => void;
   onPresent: () => void;
   onEmoji: (character: string) => void;
@@ -485,6 +487,7 @@ export const BoardToolbar = ({
   mindmapDirection,
   onMindmapDirection,
   onFramePreset,
+  onAddPoll,
   onMiroImport,
   onPresent,
   onEmoji,
@@ -897,6 +900,30 @@ export const BoardToolbar = ({
                   boardPortalTarget()
                 )}
             </div>
+
+            <div className="mx-1 h-6 w-px bg-border" />
+
+            {/* Actions that used to hide in the '...' overflow, now given a
+                visible affordance. They still exist in the overflow menu; these
+                just make them discoverable. */}
+            <ToolbarButton title="Present the frames" onClick={onPresent}>
+              <Play className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Create a poll" onClick={onAddPoll}>
+              <Vote className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Import a Miro board" onClick={onMiroImport}>
+              <Upload className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Export PNG" onClick={onExport}>
+              <Download className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Export SVG" onClick={onExportSvg}>
+              <FileCode className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton title="Print / PDF" onClick={onExportPdf}>
+              <Printer className="size-4" />
+            </ToolbarButton>
           </>
         )}
       </div>
