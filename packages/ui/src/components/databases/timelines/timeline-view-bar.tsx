@@ -124,6 +124,7 @@ export const TimelineViewBar = ({
 
       if (
         (mode === 'move' || mode === 'resize-end') &&
+        !bar.isMilestone &&
         canEditEnd &&
         endFieldId
       ) {
@@ -164,6 +165,7 @@ export const TimelineViewBar = ({
       dayDelta: 0,
       moved: false,
     };
+    suppressClick.current = false;
     dragRef.current = state;
     setDrag(state);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -210,9 +212,22 @@ export const TimelineViewBar = ({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    if (current.moved) {
+    // Only swallow the follow-up navigation click when a real reschedule
+    // happened (a sub-day drag rounds to 0 days -> treat it as a click so the
+    // record still opens).
+    if (current.moved && current.dayDelta !== 0) {
       suppressClick.current = true;
       commit(current.mode, current.dayDelta);
+    }
+    setDrag(null);
+  };
+
+  // A cancelled pointer (touch interruption, OS gesture) must NOT commit or arm
+  // suppressClick -- otherwise the next genuine click gets eaten.
+  const cancelDrag = (event: React.PointerEvent<HTMLElement>) => {
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
     setDrag(null);
   };
@@ -267,7 +282,7 @@ export const TimelineViewBar = ({
       }}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
-      onPointerCancel={endDrag}
+      onPointerCancel={cancelDrag}
       className={cn(
         'group/timeline-bar absolute top-1/2 z-10 flex -translate-y-1/2 items-center justify-between',
         'overflow-visible rounded-md px-1.5 hover:brightness-110',
@@ -290,7 +305,7 @@ export const TimelineViewBar = ({
           onPointerDown={(event) => beginDrag(event, 'resize-start')}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerCancel={cancelDrag}
           className="absolute inset-y-0 left-0 z-20 w-2 cursor-ew-resize rounded-l-md opacity-0 group-hover/timeline-bar:opacity-100 group-hover/timeline-bar:bg-black/20"
         />
       )}
@@ -315,7 +330,7 @@ export const TimelineViewBar = ({
           onPointerDown={(event) => beginDrag(event, 'resize-end')}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerCancel={cancelDrag}
           className="absolute inset-y-0 right-0 z-20 w-2 cursor-ew-resize rounded-r-md opacity-0 group-hover/timeline-bar:opacity-100 group-hover/timeline-bar:bg-black/20"
         />
       )}

@@ -1548,9 +1548,13 @@ export const WhiteboardCanvas = ({
     // resize handles (MULTI selection): scale the whole group about the
     // opposite corner. Rotate is not offered for a multi-selection.
     if (handleEl && selectionRef.current.length > 1) {
+      // Mirror the multiSelectBounds overlay: skip hidden elements so the drag
+      // bbox matches the drawn handles (else hiding a selected member makes the
+      // group jump and silently resizes the invisible element).
+      const multiHidden = hiddenIdsFor(sceneRef.current);
       const ids = manipulableIds(selectionRef.current).filter((id) => {
         const el = sceneRef.current[id];
-        return el && el.type !== 'connector';
+        return el && el.type !== 'connector' && !multiHidden.has(id);
       });
       const rects = ids
         .map((id) => sceneRef.current[id])

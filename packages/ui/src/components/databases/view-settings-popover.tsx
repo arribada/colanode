@@ -44,6 +44,7 @@ import {
 import { Separator } from '@colanode/ui/components/ui/separator';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -128,6 +129,8 @@ export const ViewSettingsPopover = ({
   const database = useDatabase();
   const view = useDatabaseView();
   const workspace = useWorkspace();
+
+  const { views } = useDatabaseViews();
 
   const [open, setOpen] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
@@ -280,7 +283,7 @@ export const ViewSettingsPopover = ({
                     {database.isLocked ? 'Unlock database' : 'Lock database'}
                   </span>
                 </button>
-                {!database.isLocked && (
+                {!database.isLocked && views.length > 1 && (
                   <button
                     type="button"
                     className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"
