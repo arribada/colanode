@@ -148,3 +148,21 @@ html[data-testing] *::after {
   transition-delay: 0s !important;
   scroll-behavior: auto !important;
 }
+
+/*
+ * Touch reveal. On coarse/no-hover pointers (phones, tablets) there is no
+ * :hover, so controls revealed only on hover (view settings + fullscreen,
+ * row action menus, "add record", "Open", cell handles, sidebar row actions)
+ * are permanently UNREACHABLE. Force those hover-reveal utilities visible on
+ * touch. Desktop (hover: hover) never matches this media query, so mouse
+ * behaviour is completely unaffected.
+ */
+@media (hover: none) {
+  [class*="group-hover:opacity-100"] {
+    opacity: 1 !important;
+  }
+  [class*="group-hover:visible"],
+  [class*="group-hover/database:visible"] {
+    visibility: visible !important;
+  }
+}

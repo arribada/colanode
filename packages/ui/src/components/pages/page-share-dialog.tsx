@@ -322,7 +322,7 @@ export const PageShareDialog = ({
                   </Button>
                 </div>
                 {passwordTooShort && (
-                  <p className="text-xs text-red-600">
+                  <p className="text-xs text-destructive">
                     Password must be at least 8 characters.
                   </p>
                 )}
@@ -412,7 +412,7 @@ export const PageShareDialog = ({
                   type="button"
                   aria-label="Revoke link"
                   onClick={() => revoke(s.id)}
-                  className="text-muted-foreground hover:text-red-600"
+                  className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
                 </button>

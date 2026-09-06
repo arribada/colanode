@@ -48,7 +48,11 @@ export const SuggestionsPanel = () => {
   );
 
   if (isMobile) {
-    return <div className="fixed inset-0 z-50 bg-background">{body}</div>;
+    return (
+      <div className="fixed inset-0 z-50 bg-background pb-[env(safe-area-inset-bottom)]">
+        {body}
+      </div>
+    );
   }
 
   return (

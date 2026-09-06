@@ -26,7 +26,7 @@ export const CommentsSheet = () => {
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="flex h-[90vh] flex-col gap-0 rounded-t-3xl border-0 p-0"
+        className="flex h-[90vh] flex-col gap-0 rounded-t-3xl border-0 p-0 pb-[env(safe-area-inset-bottom)]"
       >
         <div className="flex h-10 shrink-0 flex-row items-center justify-between border-b border-border px-4">
           <SheetTitle className="text-sm font-semibold">
@@ -35,7 +35,7 @@ export const CommentsSheet = () => {
           <button
             type="button"
             aria-label="Close comments"
-            className="cursor-pointer text-muted-foreground hover:text-foreground"
+            className="-mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={closeComments}
           >
             <X className="size-4" />

@@ -144,7 +144,7 @@ export const ChartNodeView = ({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Chart</DialogTitle>
             <DialogDescription>

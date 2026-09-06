@@ -13,7 +13,7 @@ export const ViewTab = ({ view, isActive, onClick }: ViewTabProps) => {
     <div
       role="presentation"
       className={cn(
-        'inline-flex cursor-pointer flex-row items-center gap-1 border-b-2 p-1 pl-0 text-sm',
+        'inline-flex min-w-0 max-w-40 cursor-pointer flex-row items-center gap-1 border-b-2 p-1 pl-0 text-sm',
         isActive ? 'border-border' : 'border-transparent'
       )}
       onClick={() => onClick()}
@@ -24,9 +24,9 @@ export const ViewTab = ({ view, isActive, onClick }: ViewTabProps) => {
         name={view.name}
         avatar={view.avatar}
         layout={view.layout}
-        className="size-4"
+        className="size-4 shrink-0"
       />
-      {view.name}
+      <span className="truncate">{view.name}</span>
     </div>
   );
 };

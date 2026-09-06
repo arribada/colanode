@@ -27,8 +27,11 @@ export const SidebarMobile = () => {
         <SheetDescription>Colanode sidebar for mobile devices</SheetDescription>
       </VisuallyHidden>
       <SheetTrigger asChild>
-        <button className="px-2 outline-none" aria-label="Open sidebar">
-          <Menu className="size-4 text-muted-foreground" />
+        <button
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground"
+          aria-label="Open sidebar"
+        >
+          <Menu className="size-5" />
         </button>
       </SheetTrigger>
       <SheetContent

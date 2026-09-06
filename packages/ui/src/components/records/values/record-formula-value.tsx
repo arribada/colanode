@@ -47,7 +47,7 @@ export const RecordFormulaValue = ({ field }: RecordFormulaValueProps) => {
     return (
       <p
         aria-label={field.name}
-        className="text-sm text-red-500 line-clamp-1 w-full"
+        className="text-sm text-destructive line-clamp-1 w-full"
         title={result.error}
       >
         {result.error}

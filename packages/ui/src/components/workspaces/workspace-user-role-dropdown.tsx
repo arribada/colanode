@@ -80,7 +80,7 @@ export const WorkspaceUserRoleDropdown = ({
           type="button"
           aria-label={`Change role, currently ${currentRole?.name}`}
           data-testid={`workspace-user-role-${userId}`}
-          className="flex cursor-pointer flex-row items-center p-1 text-sm text-muted-foreground hover:bg-accent"
+          className="flex shrink-0 cursor-pointer flex-row items-center whitespace-nowrap p-1 text-sm text-muted-foreground hover:bg-accent"
         >
           {currentRole?.name}
           {isPending ? (

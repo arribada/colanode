@@ -161,7 +161,7 @@ export const SharedPagesDialog = ({
                 type="button"
                 aria-label="Revoke link"
                 onClick={() => revoke(s.id)}
-                className="shrink-0 text-muted-foreground hover:text-red-600"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
               >
                 <Trash2 className="size-4" />
               </button>

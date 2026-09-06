@@ -82,7 +82,7 @@ export const ViewTabs = () => {
   }
 
   return (
-    <div className="flex flex-row items-center gap-3">
+    <div className="flex min-w-0 flex-row items-center gap-3">
       {views.map((view) => (
         <ViewTab
           key={view.id}

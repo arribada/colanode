@@ -42,7 +42,7 @@ export const RecordAttributes = () => {
             data-testid={`record-attribute-row-${field.id}`}
             className="flex flex-row gap-2 h-8"
           >
-            <div className="w-60 max-w-60">
+            <div className="w-40 max-w-40 md:w-60 md:max-w-60">
               <RecordField field={field} />
             </div>
             <div className="flex-1 max-w-lg p-1">

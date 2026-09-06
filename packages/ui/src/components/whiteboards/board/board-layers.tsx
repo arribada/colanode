@@ -397,7 +397,7 @@ export const BoardLayers = ({
   };
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-20 z-30 flex max-h-[60vh] w-72 flex-col rounded-lg border border-border bg-background/95 shadow-xl backdrop-blur">
+    <div className="pointer-events-auto absolute right-3 top-20 z-30 flex max-h-[60vh] w-72 max-w-[calc(100vw-1.5rem)] flex-col rounded-lg border border-border bg-background/95 shadow-xl backdrop-blur">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs font-medium">
           Layers

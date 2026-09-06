@@ -202,7 +202,7 @@ const ColorInput = ({
     title={title}
     value={value}
     onChange={(e) => onChange(e.target.value)}
-    className="size-6 cursor-pointer rounded-full border border-black/10 bg-transparent p-0"
+    className="size-6 cursor-pointer rounded-full border border-border bg-transparent p-0"
   />
 );
 
@@ -343,7 +343,7 @@ const Swatch = ({
     aria-label={`color ${color}`}
     onClick={onClick}
     className={cn(
-      'size-6 rounded-full border border-black/10 transition-transform hover:scale-110',
+      'size-6 rounded-full border border-border transition-transform hover:scale-110',
       active && 'ring-2 ring-primary ring-offset-1'
     )}
     style={{
@@ -627,7 +627,7 @@ export const BoardToolbar = ({
                   onClick={() => setBoardMenu(false)}
                 />
                 <div
-                  className="fixed z-[61] w-64 rounded-lg border border-border bg-background p-1 shadow-xl"
+                  className="fixed z-[61] w-64 max-w-[calc(100vw-1.5rem)] rounded-lg border border-border bg-background p-1 shadow-xl"
                   style={{ left: boardMenuPos.left, top: boardMenuPos.top }}
                 >
                   {BOARD_ACTIONS.map((action) => {
@@ -871,7 +871,7 @@ export const BoardToolbar = ({
                       onClick={() => setTemplateMenu(false)}
                     />
                     <div
-                      className="fixed z-[61] w-56 rounded-lg border border-border bg-background p-1 shadow-xl"
+                      className="fixed z-[61] w-56 max-w-[calc(100vw-1.5rem)] rounded-lg border border-border bg-background p-1 shadow-xl"
                       style={{ left: templatePos.left, top: templatePos.top }}
                     >
                       <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -903,27 +903,32 @@ export const BoardToolbar = ({
 
             <div className="mx-1 h-6 w-px bg-border" />
 
-            {/* Actions that used to hide in the '...' overflow, now given a
-                visible affordance. They still exist in the overflow menu; these
-                just make them discoverable. */}
-            <ToolbarButton title="Present the frames" onClick={onPresent}>
-              <Play className="size-4" />
-            </ToolbarButton>
+            {/* Poll is the only session-action without a home in the '...'
+                overflow menu, so it stays out here on every screen size. */}
             <ToolbarButton title="Create a poll" onClick={onAddPoll}>
               <Vote className="size-4" />
             </ToolbarButton>
-            <ToolbarButton title="Import a Miro board" onClick={onMiroImport}>
-              <Upload className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton title="Export PNG" onClick={onExport}>
-              <Download className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton title="Export SVG" onClick={onExportSvg}>
-              <FileCode className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton title="Print / PDF" onClick={onExportPdf}>
-              <Printer className="size-4" />
-            </ToolbarButton>
+
+            {/* The rest duplicate the '...' overflow menu; on a phone they only
+                serve to stretch the row into a long horizontal scroll, so they
+                collapse into the overflow there and show as buttons from sm up. */}
+            <div className="hidden items-center gap-0.5 sm:flex">
+              <ToolbarButton title="Present the frames" onClick={onPresent}>
+                <Play className="size-4" />
+              </ToolbarButton>
+              <ToolbarButton title="Import a Miro board" onClick={onMiroImport}>
+                <Upload className="size-4" />
+              </ToolbarButton>
+              <ToolbarButton title="Export PNG" onClick={onExport}>
+                <Download className="size-4" />
+              </ToolbarButton>
+              <ToolbarButton title="Export SVG" onClick={onExportSvg}>
+                <FileCode className="size-4" />
+              </ToolbarButton>
+              <ToolbarButton title="Print / PDF" onClick={onExportPdf}>
+                <Printer className="size-4" />
+              </ToolbarButton>
+            </div>
           </>
         )}
       </div>

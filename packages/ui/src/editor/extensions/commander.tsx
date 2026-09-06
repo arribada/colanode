@@ -219,7 +219,7 @@ const CommandList = ({
           id="slash-command"
           role="listbox"
           data-testid="editor-slash-menu"
-          className="z-50 min-w-32 w-80 rounded-md border bg-popover text-popover-foreground p-1 shadow-md animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 overflow-hidden"
+          className="z-50 min-w-32 w-80 max-w-[calc(100vw-1rem)] rounded-md border bg-popover text-popover-foreground p-1 shadow-md animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 overflow-hidden"
         >
           <ScrollArea className="h-80">
             <ScrollViewport ref={scrollContainer}>

@@ -51,7 +51,12 @@ export const CalendarViewRecordCard = ({
         data-testid={`calendar-card-${record.id}`}
         className="animate-fade-in flex justify-start items-start cursor-pointer flex-col gap-1 rounded-md border p-1 pl-2 hover:bg-accent"
       >
-        <p className={hasName ? '' : 'text-muted-foreground'}>
+        <p
+          className={cn(
+            'w-full truncate text-sm',
+            hasName ? '' : 'text-muted-foreground'
+          )}
+        >
           {hasName ? name : 'Unnamed'}
         </p>
         {view.fields.length > 0 && (

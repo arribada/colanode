@@ -70,9 +70,9 @@ export const WorkspaceUsersContainer = () => {
                   className="flex items-center space-x-3"
                 >
                   <Avatar id={user.id} name={name} avatar={avatar} />
-                  <div className="grow">
-                    <p className="text-sm font-medium leading-none">{name}</p>
-                    <p className="text-sm text-muted-foreground">{email}</p>
+                  <div className="grow min-w-0">
+                    <p className="text-sm font-medium leading-none truncate">{name}</p>
+                    <p className="text-sm text-muted-foreground truncate">{email}</p>
                   </div>
                   <WorkspaceUserRoleDropdown
                     userId={user.id}

@@ -57,7 +57,7 @@ export const RecordUrlValue = ({ field, readOnly }: RecordUrlValueProps) => {
       </HoverCardTrigger>
       <HoverCardContent
         className={cn(
-          'flex w-full min-w-80 max-w-lg flex-row items-center justify-between gap-2 overflow-hidden',
+          'flex w-full min-w-0 max-w-lg flex-row items-center justify-between gap-2 overflow-hidden md:min-w-80',
           !canOpen && 'hidden'
         )}
       >

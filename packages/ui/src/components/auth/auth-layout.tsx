@@ -23,7 +23,7 @@ export const AuthLayout = () => {
           </div>
         </div>
 
-        <div className="w-96 max-w-xl flex flex-col items-center justify-center bg-background">
+        <div className="w-full max-w-sm px-6 flex flex-col items-center justify-center bg-background">
           {server ? (
             <AuthContext.Provider value={{ server }}>
               <Outlet />
