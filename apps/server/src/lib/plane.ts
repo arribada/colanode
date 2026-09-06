@@ -206,6 +206,9 @@ interface RawPlaneBoardIssue {
   sequence_id: number;
   priority: string;
   state: string | null;
+  // Plane scheduling dates ("YYYY-MM-DD"); absent/null when unscheduled.
+  start_date?: string | null;
+  target_date?: string | null;
 }
 
 interface ProjectsCacheEntry {
@@ -340,6 +343,8 @@ export const fetchPlaneProjectBoard = async (
         projectId,
         issueId: issue.id,
       }),
+      startDate: issue.start_date ?? null,
+      targetDate: issue.target_date ?? null,
     }));
 
     const totalIssues = issuesEnvelope.total_count ?? issues.length;

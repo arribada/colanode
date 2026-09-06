@@ -47,7 +47,7 @@ export const Document = ({
   });
 
   if (documentStateQuery.isPending || documentUpdatesQuery.isPending) {
-    return null;
+    return <DocumentSkeleton />;
   }
 
   const state = documentStateQuery.data ?? null;

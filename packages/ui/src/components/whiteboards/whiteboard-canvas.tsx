@@ -78,6 +78,7 @@ import {
   zKeyForStep,
   sortedElements,
   topZ,
+  bottomZ,
 } from '@colanode/ui/lib/board/elements';
 import { generateNKeysBetween } from '@colanode/ui/lib/board/fractional-index';
 import {
@@ -211,6 +212,20 @@ type Interaction =
       handle: ResizeHandle;
       start: Point;
       origRect: Rect;
+      before: BoardScene;
+    }
+  // Resizing a MULTI-selection: one bbox around everything, scaled about the
+  // opposite corner. `origin` keeps each element's untouched rect + points so
+  // the transform is always recomputed from the start, never compounded.
+  | {
+      mode: 'multiresize';
+      handle: ResizeHandle;
+      start: Point;
+      bbox: Rect;
+      origin: Record<
+        string,
+        { x: number; y: number; w: number; h: number; points?: number[][] }
+      >;
       before: BoardScene;
     }
   | {
@@ -1530,6 +1545,48 @@ export const WhiteboardCanvas = ({
       return;
     }
 
+    // resize handles (MULTI selection): scale the whole group about the
+    // opposite corner. Rotate is not offered for a multi-selection.
+    if (handleEl && selectionRef.current.length > 1) {
+      const ids = manipulableIds(selectionRef.current).filter((id) => {
+        const el = sceneRef.current[id];
+        return el && el.type !== 'connector';
+      });
+      const rects = ids
+        .map((id) => sceneRef.current[id])
+        .filter((el): el is BoardElement => Boolean(el))
+        .map((el) => elementRect(el));
+      const bbox = unionBounds(rects);
+      const handleType = handleEl.getAttribute('data-handle');
+      if (bbox && handleType && handleType !== 'rotate' && ids.length > 0) {
+        const origin: Record<
+          string,
+          { x: number; y: number; w: number; h: number; points?: number[][] }
+        > = {};
+        for (const id of ids) {
+          const el = sceneRef.current[id];
+          if (el) {
+            origin[id] = {
+              x: el.x,
+              y: el.y,
+              w: el.w,
+              h: el.h,
+              ...(el.points ? { points: el.points } : {}),
+            };
+          }
+        }
+        interactionRef.current = {
+          mode: 'multiresize',
+          handle: handleType as ResizeHandle,
+          start: p,
+          bbox,
+          origin,
+          before: cloneScene(sceneRef.current),
+        };
+        return;
+      }
+    }
+
     // resize / rotate handles (single selection)
     if (handleEl && selectionRef.current.length === 1) {
       const id = selectionRef.current[0]!;
@@ -2048,6 +2105,57 @@ export const WhiteboardCanvas = ({
         schedulePersist([it.id]);
         break;
       }
+      case 'multiresize': {
+        // Grow the union bbox by the same handle math a single element uses,
+        // derive per-axis scale factors and the fixed anchor (the opposite
+        // edge), then map every element's rect + points through them.
+        const grown = normalizeRect(
+          resizeRect(it.bbox, it.handle, p.x - it.start.x, p.y - it.start.y)
+        );
+        const bw = it.bbox.w || 1;
+        const bh = it.bbox.h || 1;
+        // A handle without an 'e'/'w' (or 'n'/'s') component does not touch
+        // that axis, so keep that scale at 1 and its anchor irrelevant.
+        const sx = it.handle.includes('e') || it.handle.includes('w')
+          ? Math.max(grown.w, 8) / bw
+          : 1;
+        const sy = it.handle.includes('n') || it.handle.includes('s')
+          ? Math.max(grown.h, 8) / bh
+          : 1;
+        // Anchor = the edge that stays put (opposite the dragged one).
+        const anchorX = it.handle.includes('w')
+          ? it.bbox.x + it.bbox.w
+          : it.bbox.x;
+        const anchorY = it.handle.includes('n')
+          ? it.bbox.y + it.bbox.h
+          : it.bbox.y;
+        const next = { ...sceneRef.current };
+        for (const [id, o] of Object.entries(it.origin)) {
+          const el = next[id];
+          if (!el) {
+            continue;
+          }
+          const nx = anchorX + (o.x - anchorX) * sx;
+          const ny = anchorY + (o.y - anchorY) * sy;
+          const updated: BoardElement = {
+            ...el,
+            x: nx,
+            y: ny,
+            w: Math.max(8, o.w * sx),
+            h: Math.max(8, o.h * sy),
+          };
+          if (o.points) {
+            updated.points = o.points.map(([px, py]) => [
+              anchorX + ((px ?? 0) - anchorX) * sx,
+              anchorY + ((py ?? 0) - anchorY) * sy,
+            ]);
+          }
+          next[id] = updated;
+        }
+        applyLocal(next);
+        schedulePersist(Object.keys(it.origin));
+        break;
+      }
       case 'rotate': {
         const el = sceneRef.current[it.id];
         if (!el) {
@@ -2333,6 +2441,11 @@ export const WhiteboardCanvas = ({
         applyLocal(next);
         persistIds([it.id], next);
       }
+      return;
+    }
+
+    if (it.mode === 'multiresize') {
+      commit(it.before, sceneRef.current, Object.keys(it.origin));
       return;
     }
 
@@ -3206,6 +3319,47 @@ export const WhiteboardCanvas = ({
     commit(before, next, [id]);
   };
 
+  /** Send ONE element (from the layers panel) to the very front / back. */
+  const reorderElement = (id: string, toFront: boolean) => {
+    const el = sceneRef.current[id];
+    if (!el || isLockedForMe(id)) {
+      return;
+    }
+    const z = toFront ? topZ(sceneRef.current) : bottomZ(sceneRef.current);
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current, [id]: { ...el, z } };
+    commit(before, next, [id]);
+  };
+
+  /**
+   * Re-parent an element from the layers panel: set / clear its groupId and
+   * frameId. Committed through the same path toggleElementFlag uses, so the
+   * change is one undo step and reaches everyone.
+   */
+  const reparentElement = (
+    id: string,
+    groupId: string | null,
+    frameId: string | null
+  ) => {
+    const el = sceneRef.current[id];
+    if (!el || el.type === 'frame' || isLockedForMe(id)) {
+      return;
+    }
+    const before = cloneScene(sceneRef.current);
+    const { groupId: _g, frameId: _f, ...rest } = el;
+    void _g;
+    void _f;
+    const updated: typeof el = { ...rest };
+    if (groupId) {
+      updated.groupId = groupId;
+    }
+    if (frameId) {
+      updated.frameId = frameId;
+    }
+    const next = { ...sceneRef.current, [id]: updated };
+    commit(before, next, [id]);
+  };
+
   // Format painter: the style lifted off one element, waiting to be dropped
   // on others. Kept in a ref as well because the pointer handler that applies
   // it runs from a stale closure.
@@ -3979,6 +4133,26 @@ export const WhiteboardCanvas = ({
     .filter((el): el is BoardElement => Boolean(el) && !hiddenIds.has(el!.id))
     .map((el) => ({ el, rect: elementRect(el) }));
 
+  // The bbox for the multi-select resize overlay. Connectors re-resolve their
+  // ends from the shapes they attach to, so they never anchor the box; a
+  // rotated member disables it (the scale math assumes an axis-aligned box).
+  const multiSelectBounds = (() => {
+    if (selection.length < 2) {
+      return null;
+    }
+    const els = selection
+      .map((id) => scene[id])
+      .filter((el): el is BoardElement => Boolean(el) && !hiddenIds.has(el!.id));
+    if (els.some((el) => (el.rotation ?? 0) !== 0)) {
+      return null;
+    }
+    const scalable = els.filter((el) => el.type !== 'connector');
+    if (scalable.length < 2) {
+      return null;
+    }
+    return unionBounds(scalable.map((el) => elementRect(el)));
+  })();
+
   const gridSize = GRID;
   // Screen size of one grid cell. Doubled until it is comfortably readable:
   // at 15% zoom the raw 20-unit step is a 3px cell, and dots that close
@@ -4468,6 +4642,56 @@ export const WhiteboardCanvas = ({
               </g>
             );
           })}
+
+          {/* MULTI-select bounding box + resize handles. One box round the
+              whole selection; dragging a handle scales every member about the
+              opposite corner. Suppressed if any member is rotated (the scale
+              math runs in world space and would drag the wrong way) or if
+              nothing in the selection is scalable. */}
+          {canEdit &&
+            selection.length > 1 &&
+            multiSelectBounds &&
+            (() => {
+              const tl = sceneToClient({
+                x: multiSelectBounds.x,
+                y: multiSelectBounds.y,
+              });
+              const w = multiSelectBounds.w * viewport.zoom;
+              const h = multiSelectBounds.h * viewport.zoom;
+              return (
+                <g key="multi-sel">
+                  <rect
+                    x={tl.x}
+                    y={tl.y}
+                    width={w}
+                    height={h}
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 3"
+                    pointerEvents="none"
+                  />
+                  {RESIZE_HANDLES.map((handle) => {
+                    const hp = handlePoint(tl, w, h, handle);
+                    return (
+                      <rect
+                        key={handle}
+                        data-handle={handle}
+                        x={hp.x - HANDLE_HALF}
+                        y={hp.y - HANDLE_HALF}
+                        width={HANDLE_HALF * 2}
+                        height={HANDLE_HALF * 2}
+                        rx={2}
+                        fill="#fff"
+                        stroke="#3b82f6"
+                        strokeWidth={1.5}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    );
+                  })}
+                </g>
+              );
+            })()}
 
           {/* Your own private elements, ringed so it is obvious which ones
               nobody else can see yet. */}
@@ -5552,6 +5776,8 @@ export const WhiteboardCanvas = ({
           onToggleHidden={(id) => toggleElementFlag(id, 'hidden')}
           onToggleLocked={(id) => toggleElementFlag(id, 'locked')}
           onMove={moveInStack}
+          onReorder={reorderElement}
+          onReparent={reparentElement}
           onClose={() => setLayersOpen(false)}
         />
       )}

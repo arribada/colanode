@@ -1,13 +1,46 @@
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
-import { ExternalLink, FolderKanban, RotateCw } from 'lucide-react';
+import {
+  ExternalLink,
+  FolderKanban,
+  GanttChartSquare,
+  List,
+  RotateCw,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
 
-import { PlaneBoardIssue } from '@colanode/core';
+import { PlaneBoardIssue, PlaneProjectBoardOutput } from '@colanode/core';
+import {
+  barGeometry,
+  buildTimelineBands,
+  buildTimelinePeriods,
+  dayDiff,
+  PX_PER_DAY,
+  parseTimelineDate,
+  startOfUtcDay,
+  TimelineBar,
+  timelineRange,
+  TimelineScale,
+} from '@colanode/ui/components/databases/timelines/timeline';
 import { Spinner } from '@colanode/ui/components/ui/spinner';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useQuery } from '@colanode/ui/hooks/use-query';
+import { cn } from '@colanode/ui/lib/utils';
 
 const MAX_HEIGHT = 340;
+
+// Fixed scale for the embed. The DB timeline lets the user pick day/week/month;
+// inline in a document, one sensible default keeps the block compact — 'week'
+// reads a multi-month project without an enormous horizontal scroll.
+const EMBED_SCALE: TimelineScale = 'week';
+// Frozen left column holding each issue's key + name, mirroring the DB Gantt.
+const NAME_WIDTH = 200;
+const ROW_HEIGHT = 30;
+
+const formatDay = (date: Date): string =>
+  `${String(date.getUTCDate()).padStart(2, '0')}/${String(
+    date.getUTCMonth() + 1
+  ).padStart(2, '0')}/${date.getUTCFullYear()}`;
 
 // A read-only external link — a real anchor (works everywhere, opens a new
 // tab) plus the Electron hook, mirroring the bookmark block. Nothing here ever
@@ -192,8 +225,58 @@ const PlaneEmbedPicker = ({
   );
 };
 
-// The read-only link hub for a chosen project.
-const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
+// A two-state segmented control letting an editor flip the same embed between
+// the link hub ('board') and the Gantt ('timeline'). Read-only viewers never
+// see it — the mode is fixed by whoever inserted/last set the block.
+const PlaneModeToggle = ({
+  mode,
+  onChange,
+}: {
+  mode: 'board' | 'timeline';
+  onChange: (mode: 'board' | 'timeline') => void;
+}) => (
+  <div className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 p-0.5">
+    <button
+      type="button"
+      onClick={() => onChange('board')}
+      aria-pressed={mode === 'board'}
+      title="Show as a list"
+      className={cn(
+        'flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground',
+        mode === 'board' && 'bg-accent text-foreground'
+      )}
+    >
+      <List className="size-3.5" />
+    </button>
+    <button
+      type="button"
+      onClick={() => onChange('timeline')}
+      aria-pressed={mode === 'timeline'}
+      title="Show as a timeline"
+      className={cn(
+        'flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground',
+        mode === 'timeline' && 'bg-accent text-foreground'
+      )}
+    >
+      <GanttChartSquare className="size-3.5" />
+    </button>
+  </div>
+);
+
+// The read-only hub for a chosen project — its issues as a list ('board' mode)
+// or a Gantt ('timeline' mode). Both share the same header, quick-links and
+// the same `plane.project.board` query; only the body differs.
+const PlaneEmbedHub = ({
+  projectId,
+  mode,
+  editable,
+  onModeChange,
+}: {
+  projectId: string;
+  mode: 'board' | 'timeline';
+  editable: boolean;
+  onModeChange: (mode: 'board' | 'timeline') => void;
+}) => {
   const workspace = useWorkspace();
   const { data, isLoading, isError, isFetching, refetch } = useQuery(
     { type: 'plane.project.board', userId: workspace.userId, projectId },
@@ -250,6 +333,9 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
           </span>
           <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
         </a>
+        {editable ? (
+          <PlaneModeToggle mode={mode} onChange={onModeChange} />
+        ) : null}
         <PlaneRetryButton
           onRetry={() => refetch()}
           busy={isFetching}
@@ -266,7 +352,9 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
         <PlaneQuickLink href={`${projectBase}pages/`} label="Pages" />
       </div>
 
-      {board.issues.length === 0 ? (
+      {mode === 'timeline' ? (
+        <PlaneEmbedTimeline board={board} />
+      ) : board.issues.length === 0 ? (
         <div className="p-3 text-sm text-muted-foreground">
           No issues in this project.
         </div>
@@ -307,12 +395,227 @@ const PlaneEmbedHub = ({ projectId }: { projectId: string }) => {
   );
 };
 
+// One Gantt bar per issue that carries a usable start date. An issue with no
+// startDate has no position on the axis and is dropped (same rule as the DB
+// timeline); a missing/earlier targetDate collapses the issue to a milestone
+// marker rather than inventing an end.
+const buildIssueBars = (issues: PlaneBoardIssue[]): TimelineBar[] => {
+  const bars: TimelineBar[] = [];
+  for (const issue of issues) {
+    const start = parseTimelineDate(issue.startDate);
+    if (!start) {
+      continue;
+    }
+    const rawEnd = parseTimelineDate(issue.targetDate);
+    const end = rawEnd && rawEnd.getTime() >= start.getTime() ? rawEnd : null;
+    bars.push({
+      recordId: issue.id,
+      start,
+      end: end ?? start,
+      isMilestone: end === null,
+    });
+  }
+  return bars;
+};
+
+// The Gantt body for a project board, reusing the DB timeline's pure date
+// maths (axis periods/bands + bar geometry) so it lines up pixel-for-pixel with
+// the database timeline view. Read-only: every bar links out to Plane.
+const PlaneEmbedTimeline = ({ board }: { board: PlaneProjectBoardOutput }) => {
+  const stateColorById = useMemo(
+    () => new Map(board.states.map((s) => [s.id, s.color])),
+    [board.states]
+  );
+
+  const bars = useMemo(() => buildIssueBars(board.issues), [board.issues]);
+  const issueById = useMemo(
+    () => new Map(board.issues.map((issue) => [issue.id, issue])),
+    [board.issues]
+  );
+
+  const today = useMemo(() => startOfUtcDay(new Date()), []);
+  const range = useMemo(
+    () => timelineRange(bars, EMBED_SCALE, today),
+    [bars, today]
+  );
+  const periods = useMemo(
+    () => buildTimelinePeriods(range, EMBED_SCALE),
+    [range]
+  );
+  const bands = useMemo(() => buildTimelineBands(periods), [periods]);
+
+  const pxPerDay = PX_PER_DAY[EMBED_SCALE];
+  const chartWidth = (dayDiff(range.start, range.end) + 1) * pxPerDay;
+  const todayOffset = dayDiff(range.start, today) * pxPerDay;
+  const todayVisible = todayOffset >= 0 && todayOffset <= chartWidth;
+
+  // Open scrolled to "now" so a project whose work started long ago doesn't
+  // present as an empty grid next to a column of names.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const centredOn = useRef<string | null>(null);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || chartWidth === 0) {
+      return;
+    }
+    const key = `${range.start.toISOString()}:${chartWidth}`;
+    if (centredOn.current === key) {
+      return;
+    }
+    centredOn.current = key;
+    scroller.scrollLeft = Math.max(0, todayOffset - scroller.clientWidth / 3);
+  }, [chartWidth, todayOffset, range.start]);
+
+  if (bars.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-1 px-3 py-10 text-center">
+        <p className="text-sm text-muted-foreground">
+          No issue in this project has a start date yet.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Set an issue&apos;s start and target dates in Plane to place it on the
+          timeline.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={scrollerRef}
+      className="w-full overflow-auto"
+      style={{ maxHeight: MAX_HEIGHT }}
+    >
+      <div
+        className="relative"
+        style={{ width: NAME_WIDTH + chartWidth, minWidth: '100%' }}
+      >
+        <div className="sticky top-0 z-20 flex flex-row bg-background">
+          <div
+            className="sticky left-0 z-30 shrink-0 border-r border-b bg-background"
+            style={{ width: NAME_WIDTH }}
+          />
+          <div className="shrink-0" style={{ width: chartWidth }}>
+            <div className="flex flex-row border-b">
+              {bands.map((band) => (
+                <div
+                  key={band.key}
+                  className="shrink-0 truncate border-r px-1 py-0.5 text-xs font-medium text-muted-foreground"
+                  style={{ width: band.days * pxPerDay }}
+                >
+                  {band.label}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-row border-b">
+              {periods.map((period) => (
+                <div
+                  key={period.key}
+                  className="shrink-0 truncate border-r px-1 py-0.5 text-center text-[10px] text-muted-foreground"
+                  style={{ width: period.days * pxPerDay }}
+                >
+                  {period.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 z-0"
+            style={{ left: NAME_WIDTH, width: chartWidth }}
+          >
+            {periods.map((period) => (
+              <div
+                key={period.key}
+                className="absolute inset-y-0 border-r border-border/40"
+                style={{
+                  left: dayDiff(range.start, period.start) * pxPerDay,
+                  width: period.days * pxPerDay,
+                }}
+              />
+            ))}
+            {todayVisible && (
+              <div
+                className="absolute inset-y-0 z-10 w-px bg-red-500"
+                style={{ left: todayOffset }}
+                title="Today"
+              />
+            )}
+          </div>
+
+          {bars.map((bar) => {
+            const issue = issueById.get(bar.recordId);
+            if (!issue) {
+              return null;
+            }
+            const geometry = barGeometry(bar, range, EMBED_SCALE);
+            const color =
+              (issue.stateId && stateColorById.get(issue.stateId)) || '#94A3B8';
+            const label = `${issue.key} — ${issue.name}`;
+            const title = bar.isMilestone
+              ? `${label} — ${formatDay(bar.start)}`
+              : `${label} — ${formatDay(bar.start)} → ${formatDay(bar.end)}`;
+
+            return (
+              <div
+                key={issue.id}
+                className="group/plane-row flex flex-row border-b border-border/40"
+                style={{ height: ROW_HEIGHT }}
+              >
+                <div
+                  className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r bg-background px-2 group-hover/plane-row:bg-accent"
+                  style={{ width: NAME_WIDTH }}
+                >
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                    {issue.key}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-xs" title={label}>
+                    {issue.name}
+                  </span>
+                </div>
+                <div className="relative shrink-0" style={{ width: chartWidth }}>
+                  <a
+                    href={issue.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openInPlane(issue.url);
+                    }}
+                    title={title}
+                    className={cn(
+                      'absolute top-1/2 z-10 flex -translate-y-1/2 items-center',
+                      'overflow-hidden rounded-md no-underline hover:brightness-110',
+                      bar.isMilestone && 'rotate-45 rounded-sm ring-1 ring-background'
+                    )}
+                    style={{
+                      left: geometry.left,
+                      width: bar.isMilestone ? 12 : geometry.width,
+                      height: bar.isMilestone ? 12 : 16,
+                      backgroundColor: color,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const PlaneEmbedNodeView = ({
   node,
   editor,
   updateAttributes,
 }: NodeViewProps) => {
   const projectId = (node.attrs.projectId as string | null) ?? '';
+  const mode: 'board' | 'timeline' =
+    node.attrs.mode === 'timeline' ? 'timeline' : 'board';
   const editable = editor.isEditable;
 
   if (!projectId) {
@@ -338,7 +641,12 @@ export const PlaneEmbedNodeView = ({
         contentEditable={false}
         className="my-2 select-none overflow-hidden rounded-md border border-border/60 bg-background"
       >
-        <PlaneEmbedHub projectId={projectId} />
+        <PlaneEmbedHub
+          projectId={projectId}
+          mode={mode}
+          editable={editable}
+          onModeChange={(next) => updateAttributes({ mode: next })}
+        />
       </div>
     </NodeViewWrapper>
   );

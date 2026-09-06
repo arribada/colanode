@@ -9,8 +9,13 @@ declare module '@tiptap/core' {
       /**
        * Insert a Plane project embed block. An empty projectId makes the
        * block render an in-place project picker instead of the link hub.
+       * `mode` selects the rendering: 'board' (the read-only link hub, the
+       * default) or 'timeline' (a Gantt of the project's scheduled issues).
        */
-      setPlaneEmbed: (projectId?: string) => ReturnType;
+      setPlaneEmbed: (
+        projectId?: string,
+        mode?: 'board' | 'timeline'
+      ) => ReturnType;
     };
   }
 }
@@ -44,6 +49,18 @@ export const PlaneEmbedNode = Node.create({
             ? { 'data-project-id': attributes.projectId }
             : {},
       },
+      // 'board' (default) renders the link hub; 'timeline' renders the Gantt.
+      // Anything other than 'timeline' falls back to 'board' so an unknown/
+      // legacy value can never leave the block blank.
+      mode: {
+        default: 'board',
+        parseHTML: (element) =>
+          element.getAttribute('data-mode') === 'timeline'
+            ? 'timeline'
+            : 'board',
+        renderHTML: (attributes) =>
+          attributes.mode === 'timeline' ? { 'data-mode': 'timeline' } : {},
+      },
     };
   },
 
@@ -65,11 +82,11 @@ export const PlaneEmbedNode = Node.create({
   addCommands() {
     return {
       setPlaneEmbed:
-        (projectId = '') =>
+        (projectId = '', mode = 'board') =>
         ({ commands }) =>
           commands.insertContent({
             type: this.name,
-            attrs: { projectId: projectId || null },
+            attrs: { projectId: projectId || null, mode },
           }),
     };
   },

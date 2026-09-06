@@ -7,7 +7,6 @@ import { LocalRecordNode } from '@colanode/client/types';
 import { FieldAttributes, SelectOptionAttributes } from '@colanode/core';
 import {
   barColorClass,
-  barGeometry,
   buildTimelineBands,
   buildTimelineBars,
   buildTimelinePeriods,
@@ -18,6 +17,7 @@ import {
   timelineRange,
   TimelineScale,
 } from '@colanode/ui/components/databases/timelines/timeline';
+import { TimelineViewBar } from '@colanode/ui/components/databases/timelines/timeline-view-bar';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
@@ -46,22 +46,6 @@ interface TimelineGroup {
   colorClass: string;
   rows: TimelineRow[];
 }
-
-const formatDay = (date: Date): string =>
-  `${String(date.getUTCDate()).padStart(2, '0')}/${String(
-    date.getUTCMonth() + 1
-  ).padStart(2, '0')}/${date.getUTCFullYear()}`;
-
-// Short form for drawing inside the bar, where the year is usually obvious
-// from the axis band directly above it.
-const formatShort = (date: Date): string =>
-  `${String(date.getUTCDate()).padStart(2, '0')}/${String(
-    date.getUTCMonth() + 1
-  ).padStart(2, '0')}`;
-
-// Below this the label would be clipped mid-digit, so the bar stays plain and
-// the dates live in its tooltip instead.
-const LABEL_MIN_WIDTH = 104;
 
 /** The select option a record sits under, for swimlanes. */
 const groupValueOf = (
@@ -125,6 +109,12 @@ export const TimelineViewChart = () => {
       ? startField.endFieldId
       : null;
   const endFieldId = view.timeline?.endFieldId ?? rangeEndFieldId;
+
+  // The field objects the bar writes back to; passing them down keeps the
+  // read-only test (created_at / updated_at) and drag logic in one place.
+  const endField = endFieldId
+    ? database.fields.find((field) => field.id === endFieldId)
+    : undefined;
 
   const groupField = database.fields.find((field) => field.id === view.groupBy);
 
@@ -355,7 +345,6 @@ export const TimelineViewChart = () => {
                 </div>
               )}
               {group.rows.map(({ record, bar }) => {
-                const geometry = barGeometry(bar, range, scale);
                 const name =
                   record.name && record.name !== '' ? record.name : 'Unnamed';
 
@@ -383,43 +372,15 @@ export const TimelineViewChart = () => {
                       className="relative shrink-0"
                       style={{ width: chartWidth }}
                     >
-                      <Link
-                        from="/workspace/$userId/$nodeId"
-                        to="modal/$modalNodeId"
-                        params={{ modalNodeId: record.id }}
-                        data-testid={`timeline-bar-${record.id}`}
-                        title={
-                          bar.isMilestone
-                            ? `${name} — ${formatDay(bar.start)}`
-                            : `${name} — ${formatDay(bar.start)} → ${formatDay(bar.end)}`
-                        }
-                        className={cn(
-                          'absolute top-1/2 z-10 flex -translate-y-1/2 items-center justify-between',
-                          'overflow-hidden rounded-md px-1.5 hover:brightness-110',
-                          group.colorClass,
-                          bar.isMilestone &&
-                            'rotate-45 rounded-sm px-0 ring-1 ring-background'
-                        )}
-                        style={{
-                          left: geometry.left,
-                          width: bar.isMilestone ? 12 : geometry.width,
-                          height: bar.isMilestone ? 12 : 18,
-                        }}
-                      >
-                        {/* The dates ride on the bar once there is room, so a
-                            start and an end can be read without hovering. */}
-                        {!bar.isMilestone &&
-                          geometry.width >= LABEL_MIN_WIDTH && (
-                            <>
-                              <span className="truncate text-[10px] font-medium text-white/90">
-                                {formatShort(bar.start)}
-                              </span>
-                              <span className="truncate text-[10px] font-medium text-white/90">
-                                {formatShort(bar.end)}
-                              </span>
-                            </>
-                          )}
-                      </Link>
+                      <TimelineViewBar
+                        record={record}
+                        bar={bar}
+                        range={range}
+                        scale={scale}
+                        colorClass={group.colorClass}
+                        startField={startField}
+                        endField={endField}
+                      />
                     </div>
                   </div>
                 );

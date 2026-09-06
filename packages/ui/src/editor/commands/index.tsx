@@ -35,7 +35,10 @@ import {
   SpecCommand,
 } from '@colanode/ui/editor/commands/page-templates';
 import { ParagraphCommand } from '@colanode/ui/editor/commands/paragraph';
-import { PlaneCommand } from '@colanode/ui/editor/commands/plane';
+import {
+  PlaneCommand,
+  PlaneTimelineCommand,
+} from '@colanode/ui/editor/commands/plane';
 import {
   TableOfFiguresCommand,
   TableOfTablesCommand,
@@ -56,6 +59,7 @@ export {
   BookmarkCommand,
   EmbedCommand,
   PlaneCommand,
+  PlaneTimelineCommand,
   ColumnsCommand,
   ChartCommand,
   GithubCommand,

@@ -340,6 +340,30 @@ export const buildTimelineBands = (
   return bands;
 };
 
+/**
+ * A horizontal pixel drag turned into a whole-day delta, using the same
+ * per-day scale barGeometry lays bars out with. Rounding to whole days keeps a
+ * dragged bar snapping to the day grid rather than landing on a fractional day
+ * that a `YYYY-MM-DD` date field cannot even store.
+ */
+export const dayDeltaFromPx = (dx: number, scale: TimelineScale): number =>
+  Math.round(dx / PX_PER_DAY[scale]);
+
+/** UTC-midnight ISO for a day shifted by `days`, matching the calendar's write
+ * convention (Date.UTC midnight) so a bar drag and a calendar drop agree. */
+export const shiftedUtcIso = (date: Date, days: number): string =>
+  new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + days,
+      0,
+      0,
+      0,
+      0
+    )
+  ).toISOString();
+
 /** Left offset and width of a bar, in pixels, within the chart body. */
 export const barGeometry = (
   bar: TimelineBar,

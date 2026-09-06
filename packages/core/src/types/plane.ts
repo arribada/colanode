@@ -82,6 +82,11 @@ export const planeBoardIssueSchema = z.object({
   priority: z.string(),
   // Canonical Plane web URL for the issue.
   url: z.string(),
+  // Plane scheduling dates (`YYYY-MM-DD`), null when the issue is unscheduled.
+  // Consumed by the /plane embed's timeline (Gantt) mode; an issue with no
+  // startDate has no position on the time axis and is left off the chart.
+  startDate: z.string().nullable(),
+  targetDate: z.string().nullable(),
 });
 
 export type PlaneBoardIssue = z.infer<typeof planeBoardIssueSchema>;
