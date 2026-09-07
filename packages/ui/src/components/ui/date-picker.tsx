@@ -106,16 +106,17 @@ export const DatePicker = ({
   const dateObj = value ? fromUTCDate(value) : undefined;
   const placeHolderText = placeholder ?? '';
 
-  // Re-seed the manual-entry field with the current value whenever the popover
-  // opens, so typing always starts from what is currently selected.
+  // Re-seed the manual-entry field with the current value ONLY when the popover
+  // opens -- NOT on value changes. The live-parse on every keystroke fires
+  // onChange -> value changes -> this effect would otherwise rewrite the input
+  // mid-type (e.g. reformat "5/3/2" to "05/03/2002"), jumping the caret and
+  // corrupting the entry. Seeding once on open fixes incremental typing.
   useEffect(() => {
     if (open) {
       setTyped(dateObj ? formatForInput(dateObj) : '');
     }
-    // dateObj is derived from `value`; keying on its time avoids resetting the
-    // field on every unrelated re-render while the popover stays open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, dateObj?.getTime()]);
+  }, [open]);
 
   if (readonly) {
     return (

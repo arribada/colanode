@@ -58,15 +58,19 @@ export const FieldDeleteDialog = ({
                 deleted.databaseId
               ) {
                 const reverseId = deleted.relatedFieldId;
-                nodes.update(deleted.databaseId, (draft) => {
-                  if (draft.type !== 'database') {
-                    return;
-                  }
-                  const reverse = draft.fields[reverseId];
-                  if (reverse && reverse.type === 'relation') {
-                    reverse.relatedFieldId = null;
-                  }
-                });
+                // Guard: skip the reverse cleanup if the target DB isn't loaded,
+                // so a missing/trashed target can never block the field delete.
+                if (nodes.has(deleted.databaseId)) {
+                  nodes.update(deleted.databaseId, (draft) => {
+                    if (draft.type !== 'database') {
+                      return;
+                    }
+                    const reverse = draft.fields[reverseId];
+                    if (reverse && reverse.type === 'relation') {
+                      reverse.relatedFieldId = null;
+                    }
+                  });
+                }
               }
 
               nodes.update(database.id, (draft) => {

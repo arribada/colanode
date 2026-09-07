@@ -168,6 +168,12 @@ export const TableViewFieldHeader = ({
     targetDatabaseId: string,
     reverseFieldId: string
   ) => {
+    // Guard: collection.update throws on an unknown key. If the target database
+    // isn't loaded (trashed / not yet synced) skip the reverse cleanup rather
+    // than aborting the primary delete/change/retarget that follows.
+    if (!workspace.collections.nodes.has(targetDatabaseId)) {
+      return;
+    }
     workspace.collections.nodes.update(targetDatabaseId, (draft) => {
       if (draft.type !== 'database') {
         return;

@@ -189,6 +189,13 @@ export const NotificationItem = ({
         aria-label="Dismiss notification"
         data-testid={`notification-dismiss-${notification.id}`}
         onClick={handleDismiss}
+        onKeyDown={(event) => {
+          // Enter/Space on the dismiss button would otherwise bubble to the
+          // row's onKeyDown and ALSO navigate -- stop it here.
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.stopPropagation();
+          }
+        }}
         className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover:opacity-100"
       >
         <X className="size-3.5" />
