@@ -1354,6 +1354,16 @@ export const WhiteboardCanvas = ({
     svgRef.current?.setPointerCapture(e.pointerId);
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
+    // Pull keyboard focus onto the board so element copy/paste works: otherwise
+    // focus can linger on a toolbar input or a surrounding contenteditable, and
+    // the copy (keydown) + paste guards — which bail for text fields — swallow
+    // Ctrl+C / Ctrl+V. The inline text editor is a sibling <textarea> that
+    // re-focuses itself, and nodeCard editors stopPropagation, so neither is
+    // affected.
+    if (!embedded) {
+      containerRef.current?.focus({ preventScroll: true });
+    }
+
     // Laser mode: broadcast a dot, never interact with the canvas.
     if (laserActiveRef.current) {
       const lp = clientToScene(e.clientX, e.clientY);
@@ -4415,11 +4425,15 @@ export const WhiteboardCanvas = ({
   return (
     <div
       ref={containerRef}
+      // Focusable (not tabbable) so a canvas pointerdown can pull keyboard focus
+      // onto the board — see onPointerDown — which makes element copy/paste
+      // reliable regardless of what held focus before.
+      tabIndex={-1}
       // The board surface is white in both themes: everything drawn on it —
       // fills, strokes, text — is authored in light colours, so a dark canvas
       // made an ordinary board look broken and did not match the export.
       className={cn(
-        'relative h-full w-full overflow-hidden bg-white',
+        'relative h-full w-full overflow-hidden bg-white focus:outline-none',
         // A visible cue for the whole canvas while the format painter is armed.
         styleBrush && 'board-style-brush-active ring-2 ring-inset ring-primary/40'
       )}
