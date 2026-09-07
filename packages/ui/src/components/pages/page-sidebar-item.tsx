@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Rows2,
+  Smile,
   Trash2,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -27,6 +28,7 @@ import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-act
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PageTransferDialog } from '@colanode/ui/components/pages/page-transfer-dialog';
+import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
 import {
   Collapsible,
   CollapsibleContent,
@@ -56,9 +58,11 @@ interface PageSidebarItemProps {
   page: LocalPageNode;
 }
 
-// What a page shows underneath it. Files live in folders and are opened from the
-// folder view, so they never make it into the tree.
-const PAGE_CHILD_TYPES = ['page', 'database', 'folder'];
+// What a page shows underneath it — including whiteboards, so a whiteboard moved
+// into a page nests under it in the sidebar tree, matching the in-body subpage
+// list. Files live in folders and are opened from the folder view, so they never
+// make it into the tree.
+const PAGE_CHILD_TYPES = ['page', 'database', 'folder', 'whiteboard'];
 
 export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const workspace = useWorkspace();
@@ -71,6 +75,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const [moveOpen, setMoveOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const { isRenaming, startRenaming, cancelRenaming, commitRenaming } =
     useInlineRename(page);
 
@@ -85,18 +90,20 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const hasChildren = children.length > 0;
 
   // Resolve this page's effective role from the full ancestor chain
-  // (root -> page), the way NodeProvider does, so the Delete gate honors
-  // node-level collaborators and not just the space grant.
-  const canDelete = useMemo(() => {
+  // (root -> page), the way NodeProvider does, so gates honor node-level
+  // collaborators and not just the space grant. Drives both the Delete gate and
+  // the "Change icon" action (each needs editor).
+  const role = useMemo(() => {
     const chain: LocalNode[] = [];
     let current: LocalNode | undefined = page;
     while (current) {
       chain.unshift(current);
       current = current.parentId ? tree.nodeById(current.parentId) : undefined;
     }
-    const role = extractNodeRole(chain, workspace.userId);
-    return role ? hasNodeRole(role, 'editor') : false;
+    return extractNodeRole(chain, workspace.userId);
   }, [page, tree, workspace.userId]);
+  const canEdit = role ? hasNodeRole(role, 'editor') : false;
+  const canDelete = canEdit;
 
   // Shared by the right-click context menu and the hover "…" menu so both offer
   // exactly the same actions.
@@ -280,6 +287,14 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                       <Pencil className="size-4" />
                       Rename
                     </DropdownMenuItem>
+                    {canEdit && (
+                      <DropdownMenuItem
+                        onSelect={() => setShowUpdateDialog(true)}
+                      >
+                        <Smile className="size-4" />
+                        Change icon
+                      </DropdownMenuItem>
+                    )}
                     <CopyLinkAction nodeId={page.id} item={DropdownMenuItem} />
                     <DropdownMenuItem
                       disabled={isDuplicating}
@@ -320,6 +335,12 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
             <Pencil className="size-4" />
             Rename
           </ContextMenuItem>
+          {canEdit && (
+            <ContextMenuItem onClick={() => setShowUpdateDialog(true)}>
+              <Smile className="size-4" />
+              Change icon
+            </ContextMenuItem>
+          )}
           <CopyLinkAction nodeId={page.id} item={ContextMenuItem} />
           <ContextMenuItem
             disabled={isDuplicating}
@@ -393,6 +414,14 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
           page={page}
           open={transferOpen}
           onOpenChange={setTransferOpen}
+        />
+      )}
+      {role && (
+        <PageUpdateDialog
+          page={page}
+          role={role}
+          open={showUpdateDialog}
+          onOpenChange={setShowUpdateDialog}
         />
       )}
       <NodeDeleteDialog
