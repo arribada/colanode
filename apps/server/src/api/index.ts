@@ -7,6 +7,7 @@ import { configGetRoute } from '@colanode/server/api/config';
 import { homeRoute } from '@colanode/server/api/home';
 import { publicShareRoute } from '@colanode/server/api/share';
 import { shareApiRoute } from '@colanode/server/api/share-api';
+import { unfurlRoute } from '@colanode/server/api/unfurl';
 import { config } from '@colanode/server/lib/config';
 
 export const apiRoutes: FastifyPluginCallback = (instance, _, done) => {
@@ -21,6 +22,7 @@ export const apiRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register(oauthRoutes);
   instance.register(publicShareRoute);
   instance.register(shareApiRoute);
+  instance.register(unfurlRoute);
 
   done();
 };
