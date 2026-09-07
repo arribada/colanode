@@ -4117,6 +4117,19 @@ export const WhiteboardCanvas = ({
       commit(before, next, [editing.id]);
       return;
     }
+    if (el.type === 'connector') {
+      // A connector's text is its on-wire label, kept under connector.label.
+      const next = {
+        ...sceneRef.current,
+        [editing.id]: {
+          ...el,
+          connector: { ...(el.connector ?? {}), label: value },
+        },
+      };
+      setEditing(null);
+      commit(before, next, [editing.id]);
+      return;
+    }
     const next = {
       ...sceneRef.current,
       [editing.id]: { ...el, text: value },
@@ -4149,11 +4162,7 @@ export const WhiteboardCanvas = ({
     if (!canEdit) {
       return;
     }
-    if (
-      el.type === 'connector' ||
-      el.type === 'freehand' ||
-      el.type === 'image'
-    ) {
+    if (el.type === 'freehand' || el.type === 'image') {
       return;
     }
     if (isLockedForMe(id)) {
@@ -4166,7 +4175,12 @@ export const WhiteboardCanvas = ({
       return;
     }
     setSelection([id]);
-    setEditing({ id, value: el.text ?? '' });
+    // A connector carries its text as a LABEL on the wire, not as `text`.
+    setEditing({
+      id,
+      value:
+        el.type === 'connector' ? (el.connector?.label ?? '') : (el.text ?? ''),
+    });
   };
 
   // ----- export ------------------------------------------------------------
@@ -4339,8 +4353,28 @@ export const WhiteboardCanvas = ({
           : 'crosshair';
 
   const editingEl = editing ? scene[editing.id] : null;
-  const editingScreen = editingEl
-    ? sceneToClient({ x: editingEl.x, y: editingEl.y })
+  // A connector has no box: float its label editor over the wire's midpoint at a
+  // fixed ~160x36 on-screen size (converted to scene units so the existing
+  // zoom-scaled sizing below lands right).
+  const editingBox =
+    editingEl && editingEl.type === 'connector'
+      ? (() => {
+          const { start, end } = resolveConnectorEndpoints(editingEl, scene);
+          const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+          const wScene = 160 / viewport.zoom;
+          const hScene = 36 / viewport.zoom;
+          return {
+            x: mid.x - wScene / 2,
+            y: mid.y - hScene / 2,
+            w: wScene,
+            h: hScene,
+          };
+        })()
+      : editingEl
+        ? { x: editingEl.x, y: editingEl.y, w: editingEl.w, h: editingEl.h }
+        : null;
+  const editingScreen = editingBox
+    ? sceneToClient({ x: editingBox.x, y: editingBox.y })
     : null;
 
   // Text-sizing controls reflect the first selected text-bearing element.
@@ -5620,15 +5654,15 @@ export const WhiteboardCanvas = ({
       )}
 
       {/* inline text editor */}
-      {editing && editingEl && editingScreen && (
+      {editing && editingEl && editingBox && editingScreen && (
         <textarea
           ref={(node) => node?.focus()}
           className="absolute z-30 resize-none rounded-md border border-primary bg-background p-1 text-foreground shadow-lg outline-none"
           style={{
             left: editingScreen.x,
             top: editingScreen.y,
-            width: Math.max(80, editingEl.w * viewport.zoom),
-            height: Math.max(32, editingEl.h * viewport.zoom),
+            width: Math.max(80, editingBox.w * viewport.zoom),
+            height: Math.max(32, editingBox.h * viewport.zoom),
             fontSize: (editingEl.style.fontSize ?? 16) * viewport.zoom,
           }}
           value={editing.value}

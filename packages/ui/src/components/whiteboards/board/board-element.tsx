@@ -722,17 +722,17 @@ export const BoardElementView = ({
           <g style={{ userSelect: 'none' }}>
             <rect
               x={mid.x - labelWidth / 2}
-              y={mid.y - 17}
+              y={mid.y - 10}
               width={labelWidth}
-              height={18}
+              height={20}
               rx={5}
               fill="#ffffff"
               stroke="#e2e8f0"
-              opacity={0.92}
+              opacity={0.95}
             />
             <text
               x={mid.x}
-              y={mid.y - 4}
+              y={mid.y + 4}
               textAnchor="middle"
               fontSize={12}
               fontWeight={500}
