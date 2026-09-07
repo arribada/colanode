@@ -20,6 +20,7 @@ export const boardElementTypeSchema = z.enum([
   'frame',
   'mindmap',
   'image',
+  'icon',
   'nodeCard',
   'poll',
 ]);
@@ -213,6 +214,10 @@ export const boardElementSchema = z.object({
   // Colanode file-node id backing an `image` element (the uploaded picture).
   // Optional + absent on non-image elements and legacy boards.
   fileId: z.string().optional(),
+  // Sprite id of the SVG icon shown by an `icon` element — the same ids the
+  // shared Icon picker (emoji/avatar) uses, resolved against /assets/icons.svg.
+  // Optional + absent on every other element type and on legacy boards.
+  icon: z.string().optional(),
   // Colanode node id a `nodeCard` element references (the page / folder /
   // etc. shown as a card). Optional + absent on non-card elements and on
   // legacy boards, so it is fully backward-compatible.

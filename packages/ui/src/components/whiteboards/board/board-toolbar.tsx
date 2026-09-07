@@ -31,6 +31,7 @@ import {
   Smile,
   Spline,
   Square,
+  Sticker,
   StickyNote,
   Trash2,
   Type,
@@ -42,6 +43,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { EmojiPicker } from '@colanode/ui/components/emojis/emoji-picker';
+import { IconPicker } from '@colanode/ui/components/icons/icon-picker';
 import {
   Popover,
   PopoverContent,
@@ -431,6 +433,7 @@ interface BoardToolbarProps {
   onMiroImport: () => void;
   onPresent: () => void;
   onEmoji: (character: string) => void;
+  onIcon: (iconId: string) => void;
   styleBrushActive: boolean;
   onStyleBrush: () => void;
   layersOpen: boolean;
@@ -494,6 +497,7 @@ export const BoardToolbar = ({
   onMiroImport,
   onPresent,
   onEmoji,
+  onIcon,
   styleBrushActive,
   onStyleBrush,
   layersOpen,
@@ -519,6 +523,7 @@ export const BoardToolbar = ({
   );
   const keepColor = (hex: string) => setCustomColors(rememberCustomColor(hex));
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [iconOpen, setIconOpen] = useState(false);
   const [boardMenu, setBoardMenu] = useState(false);
   const boardMenuWrapRef = useRef<HTMLDivElement>(null);
   const [boardMenuPos, setBoardMenuPos] = useState<{
@@ -606,6 +611,22 @@ export const BoardToolbar = ({
                 }
                 onEmoji(emojiFromUnified(unified));
                 setEmojiOpen(false);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Popover open={iconOpen} onOpenChange={setIconOpen} modal={true}>
+          <PopoverTrigger aria-label="Add an icon" title="Add an icon">
+            <span className="flex size-8 items-center justify-center rounded-md hover:bg-accent">
+              <Sticker className="size-4" />
+            </span>
+          </PopoverTrigger>
+          <PopoverContent className="w-max p-0" align="start">
+            <IconPicker
+              onPick={(icon) => {
+                onIcon(icon.id);
+                setIconOpen(false);
               }}
             />
           </PopoverContent>

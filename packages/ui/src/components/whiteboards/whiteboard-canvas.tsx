@@ -3751,6 +3751,30 @@ export const WhiteboardCanvas = ({
     commit(before, next, [el.id]);
   };
 
+  const onIcon = (iconId: string) => {
+    if (!iconId) {
+      return;
+    }
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    const size = 96;
+    const el = newElement({
+      type: 'icon',
+      x: (cw / 2 - vp.x) / vp.zoom - size / 2,
+      y: (ch / 2 - vp.y) / vp.zoom - size / 2,
+      w: size,
+      h: size,
+      z: topZ(sceneRef.current),
+    });
+    el.icon = iconId;
+    const before = cloneScene(sceneRef.current);
+    const next = { ...sceneRef.current, [el.id]: el };
+    applyLocal(next);
+    setSelection([el.id]);
+    commit(before, next, [el.id]);
+  };
+
   const onFramePreset = (preset: { w: number; h: number; label: string }) => {
     const cw = svgRef.current?.clientWidth ?? 800;
     const ch = svgRef.current?.clientHeight ?? 600;
@@ -5432,6 +5456,7 @@ export const WhiteboardCanvas = ({
         onMiroImport={() => setMiroImportOpen(true)}
         onPresent={startPresenting}
         onEmoji={onEmoji}
+        onIcon={onIcon}
         styleBrushActive={styleBrush !== null}
         onStyleBrush={pickUpStyle}
         layersOpen={layersOpen}

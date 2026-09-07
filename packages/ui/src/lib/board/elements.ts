@@ -171,6 +171,14 @@ const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
       fontSize: 14,
     },
   },
+  // A library SVG icon dropped on the board. Square by default; `style.fill` is
+  // reused as the icon's colour (see board-element), so a fresh icon reads as a
+  // slate silhouette that the Fill picker then recolours.
+  icon: {
+    w: 96,
+    h: 96,
+    style: { fill: DEFAULT_STROKE },
+  },
 };
 
 export const defaultForType = (type: BoardElementType): ElementDefault =>

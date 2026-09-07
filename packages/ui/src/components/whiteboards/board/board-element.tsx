@@ -918,6 +918,28 @@ export const BoardElementView = ({
     case 'nodeCard':
       shape = <BoardNodeCard element={element} canEdit={canEdit} />;
       break;
+    case 'icon':
+      // Nested <svg> with its own viewBox scales the sprite symbol to the
+      // element box regardless of the symbol's intrinsic size; currentColor +
+      // style.color lets the Fill picker recolour it. Absent id -> nothing.
+      shape = element.icon ? (
+        <svg
+          x={element.x}
+          y={element.y}
+          width={element.w}
+          height={element.h}
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          preserveAspectRatio="xMidYMid meet"
+          style={{
+            color:
+              fill !== 'none' && fill !== 'transparent' ? fill : '#334155',
+          }}
+        >
+          <use href={`/assets/icons.svg#${element.icon}`} />
+        </svg>
+      ) : null;
+      break;
     case '__custom':
       // Already drawn above. Without this it would fall to `default` and be
       // thrown away — the switch ends by clearing the shape, not keeping it.
