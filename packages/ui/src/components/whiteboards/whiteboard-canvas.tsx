@@ -3751,18 +3751,18 @@ export const WhiteboardCanvas = ({
     commit(before, next, [el.id]);
   };
 
-  const onIcon = (iconId: string) => {
+  // Drop a library icon element centred on a scene point. Shared by the
+  // toolbar Icon button (drops at the viewport centre) and drag-and-drop from
+  // the picker (drops under the cursor).
+  const addIconAt = (iconId: string, point: Point) => {
     if (!iconId) {
       return;
     }
-    const cw = svgRef.current?.clientWidth ?? 800;
-    const ch = svgRef.current?.clientHeight ?? 600;
-    const vp = viewportRef.current;
     const size = 96;
     const el = newElement({
       type: 'icon',
-      x: (cw / 2 - vp.x) / vp.zoom - size / 2,
-      y: (ch / 2 - vp.y) / vp.zoom - size / 2,
+      x: point.x - size / 2,
+      y: point.y - size / 2,
       w: size,
       h: size,
       z: topZ(sceneRef.current),
@@ -3773,6 +3773,16 @@ export const WhiteboardCanvas = ({
     applyLocal(next);
     setSelection([el.id]);
     commit(before, next, [el.id]);
+  };
+
+  const onIcon = (iconId: string) => {
+    const cw = svgRef.current?.clientWidth ?? 800;
+    const ch = svgRef.current?.clientHeight ?? 600;
+    const vp = viewportRef.current;
+    addIconAt(iconId, {
+      x: (cw / 2 - vp.x) / vp.zoom,
+      y: (ch / 2 - vp.y) / vp.zoom,
+    });
   };
 
   const onFramePreset = (preset: { w: number; h: number; label: string }) => {
@@ -4419,6 +4429,16 @@ export const WhiteboardCanvas = ({
       onDrop={
         canEdit && !embedded
           ? (e) => {
+              // A library icon dragged out of the toolbar picker: drop it under
+              // the cursor instead of the picker's click-to-centre.
+              const iconId = e.dataTransfer?.getData(
+                'application/x-colanode-icon'
+              );
+              if (iconId) {
+                e.preventDefault();
+                addIconAt(iconId, clientToScene(e.clientX, e.clientY));
+                return;
+              }
               const files = Array.from(e.dataTransfer?.files ?? []).filter(
                 (f) => f.type.startsWith('image/')
               );
@@ -4718,61 +4738,77 @@ export const WhiteboardCanvas = ({
             const h = rect.h * viewport.zoom;
             const center = { x: tl.x + w / 2, y: tl.y + h / 2 };
             const rot = el.rotation ?? 0;
+            // Half-height of the element's ROTATED bounding box: how far above
+            // the centre its visible top edge sits at this angle. The rotate
+            // grip is placed just above that in screen space, so it never swings
+            // onto the side "+" handles the way a grip inside the rotated group
+            // did at 90 degrees.
+            const rotRad = (rot * Math.PI) / 180;
+            const rotHalfH =
+              Math.abs((w / 2) * Math.sin(rotRad)) +
+              Math.abs((h / 2) * Math.cos(rotRad));
             return (
-              <g
-                key={`sel-${el.id}`}
-                transform={`rotate(${rot} ${center.x} ${center.y})`}
-              >
-                <rect
-                  x={tl.x}
-                  y={tl.y}
-                  width={w}
-                  height={h}
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth={1.5}
-                />
+              <g key={`sel-${el.id}`}>
+                <g transform={`rotate(${rot} ${center.x} ${center.y})`}>
+                  <rect
+                    x={tl.x}
+                    y={tl.y}
+                    width={w}
+                    height={h}
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                  />
+                  {/* Resize math runs in world coordinates and drags the wrong
+                      way once the box is rotated, so the handles are suppressed
+                      for a rotated element — move + rotate stay available. */}
+                  {canEdit &&
+                    selection.length === 1 &&
+                    el.type !== 'connector' &&
+                    el.type !== 'freehand' &&
+                    rot === 0 &&
+                    !(el.locked && el.lockedBy !== workspace.userId) &&
+                    RESIZE_HANDLES.map((handle) => {
+                      const hp = handlePoint(tl, w, h, handle);
+                      return (
+                        <rect
+                          key={handle}
+                          data-handle={handle}
+                          x={hp.x - HANDLE_HALF}
+                          y={hp.y - HANDLE_HALF}
+                          width={HANDLE_HALF * 2}
+                          height={HANDLE_HALF * 2}
+                          rx={2}
+                          fill="#fff"
+                          stroke="#3b82f6"
+                          strokeWidth={1.5}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      );
+                    })}
+                </g>
+                {/* Rotate grip: SCREEN space, always straight above the rotated
+                    box (center.y - rotHalfH). Out of the rotated group so it no
+                    longer overlaps the side "+" quick-connect handles at 90 deg,
+                    which made the orientation hard to re-grab. */}
                 {canEdit &&
                   selection.length === 1 &&
                   el.type !== 'connector' &&
                   el.type !== 'freehand' &&
                   !(el.locked && el.lockedBy !== workspace.userId) && (
                     <>
-                      {/* Resize math runs in world coordinates and drags the
-                          wrong way once the box is rotated, so the handles are
-                          suppressed for a rotated element — move + rotate stay
-                          available. */}
-                      {rot === 0 &&
-                        RESIZE_HANDLES.map((handle) => {
-                          const hp = handlePoint(tl, w, h, handle);
-                          return (
-                            <rect
-                              key={handle}
-                              data-handle={handle}
-                              x={hp.x - HANDLE_HALF}
-                              y={hp.y - HANDLE_HALF}
-                              width={HANDLE_HALF * 2}
-                              height={HANDLE_HALF * 2}
-                              rx={2}
-                              fill="#fff"
-                              stroke="#3b82f6"
-                              strokeWidth={1.5}
-                              style={{ cursor: 'pointer' }}
-                            />
-                          );
-                        })}
                       <line
-                        x1={tl.x + w / 2}
-                        y1={tl.y}
-                        x2={tl.x + w / 2}
-                        y2={tl.y - 24}
+                        x1={center.x}
+                        y1={center.y - rotHalfH}
+                        x2={center.x}
+                        y2={center.y - rotHalfH - 24}
                         stroke="#3b82f6"
                         strokeWidth={1.5}
                       />
                       <circle
                         data-handle="rotate"
-                        cx={tl.x + w / 2}
-                        cy={tl.y - 24}
+                        cx={center.x}
+                        cy={center.y - rotHalfH - 24}
                         r={GRIP_RADIUS}
                         fill="#fff"
                         stroke="#3b82f6"

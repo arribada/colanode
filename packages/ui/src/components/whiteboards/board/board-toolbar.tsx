@@ -616,7 +616,7 @@ export const BoardToolbar = ({
           </PopoverContent>
         </Popover>
 
-        <Popover open={iconOpen} onOpenChange={setIconOpen} modal={true}>
+        <Popover open={iconOpen} onOpenChange={setIconOpen} modal={false}>
           <PopoverTrigger aria-label="Add an icon" title="Add an icon">
             <span className="flex size-8 items-center justify-center rounded-md hover:bg-accent">
               <Sticker className="size-4" />
