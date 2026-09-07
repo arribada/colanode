@@ -321,6 +321,9 @@ const ToolbarButton = ({
     onClick={onClick}
     className={cn(
       'flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+      // Touch (coarse pointer) devices get a bigger tap target and icon; the
+      // toolbar row already scrolls horizontally so the extra width is fine.
+      'pointer-coarse:size-11 pointer-coarse:[&_svg]:size-5',
       active && 'bg-primary/10 text-primary hover:bg-primary/15',
       disabled && 'pointer-events-none opacity-40'
     )}

@@ -490,7 +490,7 @@ const PlaneEmbedTimeline = ({ board }: { board: PlaneProjectBoardOutput }) => {
         className="relative"
         style={{ width: NAME_WIDTH + chartWidth, minWidth: '100%' }}
       >
-        <div className="sticky top-0 z-20 flex flex-row bg-background">
+        <div className="sticky top-0 z-30 flex flex-row bg-background">
           <div
             className="sticky left-0 z-30 shrink-0 border-r border-b bg-background"
             style={{ width: NAME_WIDTH }}
@@ -566,7 +566,7 @@ const PlaneEmbedTimeline = ({ board }: { board: PlaneProjectBoardOutput }) => {
                 style={{ height: ROW_HEIGHT }}
               >
                 <div
-                  className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r bg-background px-2 group-hover/plane-row:bg-accent"
+                  className="sticky left-0 z-20 flex shrink-0 items-center gap-1.5 border-r bg-background px-2 group-hover/plane-row:bg-accent"
                   style={{ width: NAME_WIDTH }}
                 >
                   <span className="shrink-0 font-mono text-[10px] text-muted-foreground">

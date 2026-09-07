@@ -3,7 +3,7 @@
 import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { useNavigate } from '@tanstack/react-router';
 import { CheckCheck } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { NotificationItem } from '@colanode/ui/components/notifications/notification-item';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -22,7 +22,14 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
     userId,
   });
 
-  const notifications = notificationsQuery.data ?? [];
+  // Dismissed rows are hidden locally: there is no delete mutation, so a
+  // dismiss marks the notification read and we drop it from this session's list.
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const notifications = (notificationsQuery.data ?? []).filter(
+    (n) => !dismissedIds.has(n.id)
+  );
 
   // Resolve only the notifications' source nodes by id, instead of scanning
   // every page/record/space in the workspace just to name a handful of rows.
@@ -97,6 +104,9 @@ export const InboxPanel = ({ userId }: InboxPanelProps) => {
               node={nodeById.get(n.source_node_id)}
               userId={userId}
               onNavigate={handleNavigate}
+              onDismiss={(id) =>
+                setDismissedIds((prev) => new Set(prev).add(id))
+              }
               testId={`inbox-item-${n.id}`}
             />
           ))}

@@ -135,6 +135,12 @@ export const databaseViewTimelineAttributesSchema = z.object({
   endFieldId: z.string().nullable().optional(),
   // Width of one column on the axis.
   scale: databaseViewTimelineScaleSchema.optional().nullable(),
+  // OPTIONAL id of a relation field on THIS database whose target is the same
+  // database (a self-relation such as "Depends on"). Each record's related
+  // records are its predecessors; the timeline draws a dependency arrow from
+  // every predecessor's bar end to this record's bar start. Absent = no arrows
+  // (unchanged for existing views). A non-self relation is ignored at render.
+  dependencyFieldId: z.string().nullable().optional(),
 });
 
 export type DatabaseViewTimelineAttributes = z.infer<

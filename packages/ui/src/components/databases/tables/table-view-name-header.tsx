@@ -98,7 +98,7 @@ export const TableViewNameHeader = () => {
         <PopoverTrigger asChild>
           <div
             className={cn(
-              'flex h-8 w-full cursor-pointer flex-row items-center gap-1 p-1 text-sm hover:bg-accent',
+              'cn-table-field-header flex h-8 w-full cursor-pointer flex-row items-center gap-1 p-1 text-sm hover:bg-accent',
               dropMonitor.isOver && dropMonitor.canDrop
                 ? 'border-r-2 border-blue-300 dark:border-blue-900'
                 : 'border-r'

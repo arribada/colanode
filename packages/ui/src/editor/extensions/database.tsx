@@ -49,7 +49,7 @@ export const DatabaseNode = Node.create({
         const target = event.target as HTMLElement | null;
         return Boolean(
           target?.closest?.(
-            '.cn-col-resize-handle, input, textarea, select, button, [contenteditable="true"]'
+            '.cn-table-field-header, .cn-col-resize-handle, input, textarea, select, button, [contenteditable="true"]'
           )
         );
       },

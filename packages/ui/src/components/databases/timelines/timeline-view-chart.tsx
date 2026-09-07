@@ -7,6 +7,7 @@ import { LocalRecordNode } from '@colanode/client/types';
 import { FieldAttributes, SelectOptionAttributes } from '@colanode/core';
 import {
   barColorClass,
+  buildDependencyLinks,
   buildTimelineBands,
   buildTimelineBars,
   buildTimelinePeriods,
@@ -116,6 +117,19 @@ export const TimelineViewChart = () => {
     ? database.fields.find((field) => field.id === endFieldId)
     : undefined;
 
+  // Dependency arrows read a self-relation field (target === this database).
+  // A relation into another database would list unrelated records and is
+  // ignored, so a stale/mis-set config draws nothing rather than nonsense.
+  const dependencyFieldId = view.timeline?.dependencyFieldId ?? null;
+  const dependencyField = dependencyFieldId
+    ? database.fields.find(
+        (field) =>
+          field.id === dependencyFieldId &&
+          field.type === 'relation' &&
+          field.databaseId === database.id
+      )
+    : undefined;
+
   const groupField = database.fields.find((field) => field.id === view.groupBy);
 
   const bars = useMemo(
@@ -208,6 +222,49 @@ export const TimelineViewChart = () => {
     return ordered;
   }, [records, bars, groupField]);
 
+  // Vertical centre of every record row, in chart-body pixels. Only built for
+  // the flat layout: with swimlanes the group header rows are not a fixed
+  // height, so a single row-index * ROW_HEIGHT mapping would drift. Arrows in
+  // grouped views are deferred rather than drawn at the wrong Y.
+  const rowCenterY = useMemo(() => {
+    const map = new Map<string, number>();
+    if (groupField || groups.length === 0) {
+      return map;
+    }
+    const rows = groups[0]?.rows ?? [];
+    rows.forEach((row, index) => {
+      map.set(row.record.id, index * ROW_HEIGHT + ROW_HEIGHT / 2);
+    });
+    return map;
+  }, [groups, groupField]);
+
+  const dependencyLinks = useMemo(
+    () =>
+      dependencyField
+        ? buildDependencyLinks(
+            bars,
+            records,
+            dependencyField.id,
+            range,
+            scale,
+            rowCenterY
+          )
+        : [],
+    [dependencyField, bars, records, range, scale, rowCenterY]
+  );
+
+  // Start-only timelines collapse to a row of dots. If the user never set an
+  // end field AND the database has another date field to use as one, surface a
+  // one-line nudge in the body rather than leaving them to hunt the hover-only
+  // End picker in the settings popover.
+  const everyBarIsMilestone =
+    bars.length > 0 && bars.every((bar) => bar.isMilestone);
+  const hasAnotherDateField = database.fields.some(
+    (field) => field.type === 'date' && field.id !== startFieldId
+  );
+  const showEndFieldHint =
+    everyBarIsMilestone && !endFieldId && hasAnotherDateField;
+
   const todayOffset = dayDiff(range.start, today) * pxPerDay;
   const todayVisible = todayOffset >= 0 && todayOffset <= chartWidth;
 
@@ -258,7 +315,16 @@ export const TimelineViewChart = () => {
         className="relative"
         style={{ width: NAME_WIDTH + chartWidth, minWidth: '100%' }}
       >
-        <div className="sticky top-0 z-20 flex flex-row bg-background">
+        {showEndFieldHint && (
+          <div className="sticky left-0 z-20 mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-md border border-amber-300/60 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200">
+            <span>
+              Every record shows as a dot. Pick an{' '}
+              <span className="font-medium">End date</span> field in the view
+              settings to draw bars from start to end.
+            </span>
+          </div>
+        )}
+        <div className="sticky top-0 z-30 flex flex-row bg-background">
           <div
             className="sticky left-0 z-30 shrink-0 border-r border-b bg-background"
             style={{ width: NAME_WIDTH }}
@@ -317,12 +383,54 @@ export const TimelineViewChart = () => {
             )}
           </div>
 
+          {dependencyLinks.length > 0 && (
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 z-0 overflow-visible"
+              style={{ left: NAME_WIDTH, width: chartWidth }}
+            >
+              <defs>
+                <marker
+                  id="timeline-dep-arrow"
+                  viewBox="0 0 8 8"
+                  refX="6"
+                  refY="4"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0,0 L8,4 L0,8 z" className="fill-muted-foreground" />
+                </marker>
+              </defs>
+              {dependencyLinks.map((link) => {
+                // Elbow from the predecessor's end to the dependent's start:
+                // out a little, across, then into the target. A small forward
+                // stub keeps the arrow off the bar edge; when the dependent
+                // starts before its predecessor ends (a scheduling overlap) the
+                // path routes forward, down between the two rows, back, then in
+                // -- so it never runs straight through the bars.
+                const stub = 10;
+                const straight = `M ${link.fromX} ${link.fromY} H ${link.fromX + stub} V ${link.toY} H ${link.toX}`;
+                const around = `M ${link.fromX} ${link.fromY} H ${link.fromX + stub} V ${(link.fromY + link.toY) / 2} H ${link.toX - stub} V ${link.toY} H ${link.toX}`;
+                return (
+                  <path
+                    key={link.key}
+                    d={link.toX >= link.fromX + stub * 2 ? straight : around}
+                    className="fill-none stroke-muted-foreground/70"
+                    strokeWidth={1.5}
+                    markerEnd="url(#timeline-dep-arrow)"
+                  />
+                );
+              })}
+            </svg>
+          )}
+
           {groups.map((group) => (
             <div key={group.key}>
               {groupField && (
                 <div className="flex flex-row">
                   <div
-                    className="sticky left-0 z-10 flex shrink-0 flex-row items-center gap-2 border-r bg-background px-2 py-1"
+                    className="sticky left-0 z-20 flex shrink-0 flex-row items-center gap-2 border-r bg-background px-2 py-1"
                     style={{ width: NAME_WIDTH }}
                   >
                     <span
@@ -355,7 +463,7 @@ export const TimelineViewChart = () => {
                     style={{ height: ROW_HEIGHT }}
                   >
                     <div
-                      className="sticky left-0 z-10 flex shrink-0 items-center border-r bg-background px-2 group-hover/timeline-row:bg-accent"
+                      className="sticky left-0 z-20 flex shrink-0 items-center border-r bg-background px-2 group-hover/timeline-row:bg-accent"
                       style={{ width: NAME_WIDTH }}
                     >
                       <Link

@@ -93,12 +93,20 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const font = page.font ?? 'default';
   const smallText = page.smallText ?? false;
   const showToc = page.showToc ?? false;
+  const headingNumbering = page.headingNumbering ?? 'off';
+  const headingNumberDelimiter = page.headingNumberDelimiter ?? '.';
 
   const setPageAttrs = (
     changes: Partial<
       Pick<
         LocalPageNode,
-        'lockMode' | 'lockedBy' | 'font' | 'smallText' | 'showToc'
+        | 'lockMode'
+        | 'lockedBy'
+        | 'font'
+        | 'smallText'
+        | 'showToc'
+        | 'headingNumbering'
+        | 'headingNumberDelimiter'
       >
     >
   ) => {
@@ -281,6 +289,78 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           >
             Table of contents
           </DropdownMenuCheckboxItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!canEdit} className="gap-2">
+              <ListTree className="size-4" />
+              <span>Heading numbers</span>
+              <span className="ml-auto text-xs capitalize text-muted-foreground">
+                {headingNumbering === 'off'
+                  ? 'Off'
+                  : headingNumbering === 'nested'
+                    ? '1.1.1'
+                    : headingNumbering === 'flat'
+                      ? '1, 2, 3'
+                      : '1.a.i'}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuLabel>Style</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={headingNumbering}
+                onValueChange={(value) => {
+                  if (!canEdit) {
+                    return;
+                  }
+                  setPageAttrs({
+                    headingNumbering: value as
+                      | 'off'
+                      | 'nested'
+                      | 'flat'
+                      | 'legal',
+                  });
+                }}
+              >
+                <DropdownMenuRadioItem value="off">Off</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="nested">
+                  Nested — 1, 1.1, 1.1.1
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="flat">
+                  Flat — 1, 2, 3
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="legal">
+                  Legal — 1, 1.a, 1.a.i
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Separator</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={
+                  headingNumberDelimiter === '' ? 'none' : headingNumberDelimiter
+                }
+                onValueChange={(value) => {
+                  if (!canEdit) {
+                    return;
+                  }
+                  setPageAttrs({
+                    headingNumberDelimiter: value === 'none' ? '' : value,
+                  });
+                }}
+              >
+                <DropdownMenuRadioItem value=".">
+                  Period — 1.1.
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value=")">
+                  Parenthesis — 1.1)
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="-">
+                  Dash — 1.1-
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="none">
+                  None — 1.1
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             disabled={!canEdit}

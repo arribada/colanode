@@ -31,8 +31,8 @@ export const NodeBreadcrumb = ({ nodes }: NodeBreadcrumbProps) => {
   const ellipsisItems = showEllipsis ? nodes.slice(1, -2) : [];
 
   return (
-    <Breadcrumb className="grow">
-      <BreadcrumbList>
+    <Breadcrumb className="flex min-w-0 grow">
+      <BreadcrumbList className="flex-nowrap overflow-hidden">
         {visibleItems.map((item, index) => {
           if (!item) {
             return null;

@@ -20,6 +20,7 @@ import { ViewSkeleton } from '@colanode/ui/components/databases/view-skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewContext } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
 import {
@@ -39,6 +40,13 @@ import {
 const TableView = lazy(() =>
   import('@colanode/ui/components/databases/tables/table-view').then(
     (module) => ({ default: module.TableView })
+  )
+);
+// Phones get a stacked card list for the `table` layout instead of the
+// horizontally-scrolling grid (see view dispatch below).
+const TableViewMobile = lazy(() =>
+  import('@colanode/ui/components/databases/tables/table-view-mobile').then(
+    (module) => ({ default: module.TableViewMobile })
   )
 );
 const BoardView = lazy(() =>
@@ -80,6 +88,7 @@ export const View = ({ view }: ViewProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { mutate: createFromTemplate } = useMutation();
   const scope = useViewScope(view.id);
   const effectiveFilters =
@@ -407,7 +416,7 @@ export const View = ({ view }: ViewProps) => {
       <div className="w-full h-full group/database">
         <Suspense fallback={<ViewSkeleton />}>
           {match(view.layout)
-            .with('table', () => <TableView />)
+            .with('table', () => (isMobile ? <TableViewMobile /> : <TableView />))
             .with('board', () => <BoardView />)
             .with('calendar', () => <CalendarView />)
             .with('gallery', () => <GalleryView />)

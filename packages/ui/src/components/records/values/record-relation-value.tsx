@@ -2,6 +2,7 @@ import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { X } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 
+import { mapNodeAttributes } from '@colanode/client/lib';
 import { LocalRecordNode } from '@colanode/client/types';
 import { RelationFieldAttributes, StringArrayFieldValue } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
@@ -49,31 +50,57 @@ export const RecordRelationValue = ({
   // record's own relation value. Guarded to be idempotent so the mirroring
   // write on the other side does not bounce back (it finds the id already
   // present/absent and skips the write).
-  const mirrorRelation = (targetRecordId: string, add: boolean) => {
+  // Compute the target's next reverse-relation string_array after adding or
+  // removing this record's id. Returns null when the value is already in the
+  // desired state (idempotent -> the mirroring write is skipped, so a bounce
+  // from the other side finds nothing to do and stops).
+  const nextReverseValue = (
+    current: string[],
+    add: boolean
+  ): string[] | null => {
+    const has = current.includes(record.id);
+    if (add) {
+      if (has) return null;
+      return [...current, record.id];
+    }
+    if (!has) return null;
+    return current.filter((id) => id !== record.id);
+  };
+
+  // Read the target record's current reverse-relation ids off a full node
+  // object (its attributes are flattened onto the node, so node.fields is the
+  // record's field map).
+  const readReverseIds = (
+    node: LocalRecordNode,
+    relatedFieldId: string
+  ): string[] => {
+    const existing = node.fields[relatedFieldId];
+    return existing && existing.type === 'string_array' ? existing.value : [];
+  };
+
+  const mirrorRelation = (
+    targetRecordId: string,
+    add: boolean,
+    // The caller always has the full target node in hand (RecordSearch.onSelect
+    // passes the selected LocalRecordNode; the X-remove path passes the loaded
+    // relation row). We use it to persist the reverse side even when the target
+    // is NOT in the on-demand nodes collection.
+    targetRecord?: LocalRecordNode
+  ) => {
     const relatedFieldId = field.relatedFieldId;
     if (!relatedFieldId) return;
-    // The target record is often NOT loaded in the on-demand nodes collection
-    // (a relation into an un-opened database; RecordSearch reads SQLite
-    // directly). collection.update THROWS UpdateKeyNotFoundError on an unknown
-    // key, which previously crashed the value editor mid-link. Guard: this
-    // optimistic mirror only reflects already-loaded target records; robust
-    // cross-database sync is handled authoritatively server-side.
-    if (!workspace.collections.nodes.has(targetRecordId)) return;
-    workspace.collections.nodes.update(targetRecordId, (draft) => {
-      if (draft.type !== 'record') return;
-      const existing = draft.fields[relatedFieldId];
-      const current =
-        existing && existing.type === 'string_array' ? existing.value : [];
-      const has = current.includes(record.id);
-      if (add) {
-        if (has) return;
-        draft.fields[relatedFieldId] = {
-          type: 'string_array',
-          value: [...current, record.id],
-        };
-      } else {
-        if (!has) return;
-        const next = current.filter((id) => id !== record.id);
+
+    // Fast path: the target IS loaded -> optimistically patch the collection so
+    // an open view of the other database reflects the change immediately. This
+    // is the previous behaviour and stays idempotent.
+    if (workspace.collections.nodes.has(targetRecordId)) {
+      workspace.collections.nodes.update(targetRecordId, (draft) => {
+        if (draft.type !== 'record') return;
+        const existing = draft.fields[relatedFieldId];
+        const current =
+          existing && existing.type === 'string_array' ? existing.value : [];
+        const next = nextReverseValue(current, add);
+        if (next === null) return;
         if (next.length === 0) {
           const { [relatedFieldId]: _removed, ...rest } = draft.fields;
           draft.fields = rest;
@@ -83,8 +110,54 @@ export const RecordRelationValue = ({
             value: next,
           };
         }
-      }
-    });
+      });
+      return;
+    }
+
+    // Slow path: the target database is not open, so the record is absent from
+    // the nodes collection (collection.update would throw UpdateKeyNotFoundError
+    // on an unknown key). Instead persist the reverse side authoritatively via a
+    // node.update mutation built from the full target node we already hold.
+    // node.update does a CRDT read-modify-write against the live node state and
+    // re-checks canUpdateAttributes, so this merges cleanly and is skipped
+    // server- and client-side if the user cannot edit the target.
+    if (!targetRecord || targetRecord.type !== 'record') return;
+
+    // Per-record lock mirrors the value-editor rule: a locked target may only be
+    // mirrored into by its creator; skip otherwise (the server would reject it
+    // too). General role checks are enforced authoritatively by node.update.
+    const lockMode = targetRecord.lockMode ?? 'open';
+    if (lockMode === 'locked' && targetRecord.createdBy !== workspace.userId) {
+      return;
+    }
+
+    const current = readReverseIds(targetRecord, relatedFieldId);
+    const next = nextReverseValue(current, add);
+    if (next === null) return; // already in the desired state -> no-op.
+
+    const attributes = mapNodeAttributes(targetRecord);
+    if (attributes.type !== 'record') return;
+    if (next.length === 0) {
+      const { [relatedFieldId]: _removed, ...restFields } = attributes.fields;
+      attributes.fields = restFields;
+    } else {
+      attributes.fields = {
+        ...attributes.fields,
+        [relatedFieldId]: { type: 'string_array', value: next },
+      };
+    }
+
+    window.colanode
+      .executeMutation({
+        type: 'node.update',
+        userId: workspace.userId,
+        nodeId: targetRecordId,
+        attributes,
+      })
+      .catch(() => {
+        // Best-effort mirror: a failed reverse write must never break the
+        // primary relation edit the user just made.
+      });
   };
 
   const [open, setOpen] = useState(false);
@@ -165,7 +238,7 @@ export const RecordRelationValue = ({
                           });
                         }
 
-                        mirrorRelation(relation.id, false);
+                        mirrorRelation(relation.id, false, relation);
                       }}
                     >
                       <X className="size-4" />
@@ -200,7 +273,7 @@ export const RecordRelationValue = ({
                 });
               }
 
-              mirrorRelation(selectedRecord.id, !wasSelected);
+              mirrorRelation(selectedRecord.id, !wasSelected, selectedRecord);
 
               setOpen(false);
             }}

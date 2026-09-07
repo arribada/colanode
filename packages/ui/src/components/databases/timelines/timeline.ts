@@ -364,6 +364,87 @@ export const shiftedUtcIso = (date: Date, days: number): string =>
     )
   ).toISOString();
 
+export interface DependencyLink {
+  key: string;
+  fromRecordId: string;
+  toRecordId: string;
+  // Chart-body pixel coordinates: (fromX,fromY) is the predecessor bar's END
+  // edge, (toX,toY) the dependent bar's START edge. Y is the row centre.
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+}
+
+/**
+ * One link per (predecessor -> dependent) edge that both ends can be drawn for.
+ *
+ * `rowCenterY` maps a recordId to the vertical centre of its row in the chart
+ * body; a record absent from it (filtered out, over the row limit, or in a
+ * grouped layout the caller opted out of) contributes no arrow. The dependency
+ * field holds, on the DEPENDENT record, the ids of the records it depends on
+ * (its predecessors) -- read as a string_array, matching how relation fields
+ * store their value. A record depending on itself is skipped: it is a
+ * degenerate self-edge, never a real schedule link.
+ */
+export const buildDependencyLinks = (
+  bars: TimelineBar[],
+  records: LocalRecordNode[],
+  dependencyFieldId: string | null | undefined,
+  range: TimelineRange,
+  scale: TimelineScale,
+  rowCenterY: Map<string, number>
+): DependencyLink[] => {
+  if (!dependencyFieldId) {
+    return [];
+  }
+
+  const barById = new Map(bars.map((bar) => [bar.recordId, bar]));
+  const recordById = new Map(records.map((record) => [record.id, record]));
+
+  const links: DependencyLink[] = [];
+  for (const record of records) {
+    const toBar = barById.get(record.id);
+    const toY = rowCenterY.get(record.id);
+    if (!toBar || toY === undefined) {
+      continue;
+    }
+
+    const raw = record.fields[dependencyFieldId];
+    const predecessorIds =
+      raw && raw.type === 'string_array' ? raw.value : [];
+
+    for (const predecessorId of predecessorIds) {
+      if (predecessorId === record.id) {
+        continue;
+      }
+      const fromBar = barById.get(predecessorId);
+      const fromY = rowCenterY.get(predecessorId);
+      // Only draw an edge when BOTH ends are on screen; a predecessor with no
+      // start date, filtered away or beyond the row limit has no anchor, and a
+      // half-drawn arrow into empty space reads as a rendering fault.
+      if (!fromBar || fromY === undefined || !recordById.has(predecessorId)) {
+        continue;
+      }
+
+      const fromGeom = barGeometry(fromBar, range, scale);
+      const toGeom = barGeometry(toBar, range, scale);
+
+      links.push({
+        key: `${predecessorId}->${record.id}`,
+        fromRecordId: predecessorId,
+        toRecordId: record.id,
+        fromX: fromGeom.left + fromGeom.width,
+        fromY,
+        toX: toGeom.left,
+        toY,
+      });
+    }
+  }
+
+  return links;
+};
+
 /** Left offset and width of a bar, in pixels, within the chart body. */
 export const barGeometry = (
   bar: TimelineBar,

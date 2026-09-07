@@ -368,8 +368,14 @@ export const WorkspaceHomeDashboard = () => {
   // Task assignments (from the wiki-task automations) go in "Your wiki tasks";
   // everything else (mentions, replies) goes in "Notifications". Kept disjoint
   // so the two sections never show the same row twice.
+  // Dismissed rows are hidden locally (no delete mutation exists); a dismiss
+  // marks the notification read and drops it from this session's list.
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<
+    Set<string>
+  >(() => new Set());
   const otherNotifications = notifications
     .filter((n) => n.type !== 'automation')
+    .filter((n) => !dismissedNotificationIds.has(n.id))
     .slice(0, 6);
 
   const firstSpaceId = spaces[0]?.id;
@@ -462,6 +468,9 @@ export const WorkspaceHomeDashboard = () => {
                 node={nodeById.get(n.source_node_id)}
                 userId={workspace.userId}
                 onNavigate={handleNavigate}
+                onDismiss={(id) =>
+                  setDismissedNotificationIds((prev) => new Set(prev).add(id))
+                }
               />
             ))}
           </div>

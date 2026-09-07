@@ -5486,7 +5486,7 @@ export const WhiteboardCanvas = ({
         )}
 
       {/* bottom-right controls */}
-      <div className="absolute bottom-16 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur">
+      <div className="absolute bottom-16 right-3 z-20 flex items-center gap-1 rounded-lg border border-border bg-background/95 p-1 shadow-lg backdrop-blur max-md:inset-x-0 max-md:bottom-0 max-md:justify-center max-md:overflow-x-auto max-md:rounded-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[calc(env(safe-area-inset-bottom)+0.25rem)]">
         {showCollabControls && (
           <>
             <button
@@ -5782,6 +5782,7 @@ export const WhiteboardCanvas = ({
           onMove={moveInStack}
           onReorder={reorderElement}
           onReparent={reparentElement}
+          onGroupSelection={groupSelection}
           onClose={() => setLayersOpen(false)}
         />
       )}
@@ -5961,6 +5962,23 @@ const ElementHitArea = ({
         fill="none"
         stroke="transparent"
         strokeWidth={16}
+      />
+    );
+  }
+  if (element.type === 'frame') {
+    // Grab a frame by its border band (and its title), never by the whole
+    // interior — that keeps the elements inside it independently selectable
+    // while still making the frame itself easy to pick up and move.
+    return (
+      <rect
+        x={element.x}
+        y={element.y}
+        width={element.w}
+        height={element.h}
+        rx={4}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={24}
       />
     );
   }

@@ -860,6 +860,10 @@ export const BoardElementView = ({
           stroke={stroke}
           strokeWidth={strokeWidth}
           strokeDasharray={element.type === 'frame' ? '6 4' : dash}
+          // A frame is a container: its interior must not swallow clicks meant
+          // for the elements inside it, so only its border band + title (the
+          // hit area below) select the frame.
+          pointerEvents={element.type === 'frame' ? 'none' : undefined}
         />
       );
       break;

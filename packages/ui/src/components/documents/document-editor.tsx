@@ -387,6 +387,8 @@ export const DocumentEditor = ({
   const font = pageNode?.font ?? 'default';
   const smallText = pageNode?.smallText ?? false;
   const showToc = pageNode?.showToc ?? false;
+  const headingNumbering = pageNode?.headingNumbering ?? 'off';
+  const headingNumberDelimiter = pageNode?.headingNumberDelimiter ?? '.';
   const canSuggestEdits = (canSuggest ?? false) && supportsLock;
   const effectiveLockMode = (supportsLock ? lockMode : null) ?? 'open';
   const lockBannerText =
@@ -871,6 +873,20 @@ export const DocumentEditor = ({
       unregister();
     };
   }, [editor, node.id]);
+
+  // Mirror the page's persisted heading-numbering choice into the live editor.
+  // applyHeadingNumbering sets the mode + delimiter absolutely (no toggle) and
+  // is a no-op when the editor already matches, so re-runs are cheap. Record
+  // documents have no such attribute, so they keep the 'off' default.
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    editor.commands.applyHeadingNumbering(
+      headingNumbering,
+      headingNumberDelimiter
+    );
+  }, [editor, headingNumbering, headingNumberDelimiter]);
 
   // Publish the local caret/selection (throttled inside the publisher).
   useEffect(() => {

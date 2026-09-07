@@ -3,6 +3,7 @@
 import type { SelectNotification } from '@colanode/client/databases';
 import type { LocalNode } from '@colanode/client/types';
 import { timeAgo } from '@colanode/core';
+import { X } from 'lucide-react';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { usePageSuggestions } from '@colanode/ui/contexts/page-suggestions';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
@@ -78,6 +79,10 @@ interface NotificationItemProps {
   // Called with the source node id once the notification is marked read.
   // Navigation is the caller's job so this row stays route-agnostic.
   onNavigate?: (nodeId: string) => void;
+  // Called with the notification id when the user dismisses the row. The list
+  // has no delete mutation, so "dismiss" marks the notification read (via the
+  // existing mutation) and the caller removes it from the rendered list.
+  onDismiss?: (notificationId: string) => void;
   testId?: string;
 }
 
@@ -86,6 +91,7 @@ export const NotificationItem = ({
   node,
   userId,
   onNavigate,
+  onDismiss,
   testId,
 }: NotificationItemProps) => {
   const display = node ? getMentionNodeDisplay(node) : null;
@@ -127,13 +133,37 @@ export const NotificationItem = ({
     }
   };
 
+  // Dismiss: no delete mutation exists, so mark the notification read (the same
+  // mutation the row click and "mark all as read" use) and let the parent drop
+  // it from the list. Stop propagation so dismissing never also navigates.
+  const handleDismiss = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!notification.read_at) {
+      window.colanode
+        .executeMutation({
+          type: 'notification.read',
+          userId,
+          notificationId: notification.id,
+        })
+        .catch(() => {});
+    }
+    onDismiss?.(notification.id);
+  };
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       data-testid={testId ?? `notification-item-${notification.id}`}
       data-unread={unread}
       onClick={handleClick}
-      className="flex flex-row items-center gap-2 rounded-md p-1.5 text-left hover:bg-accent"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleClick();
+        }
+      }}
+      className="group flex flex-row items-center gap-2 rounded-md p-1.5 text-left hover:bg-accent cursor-pointer"
     >
       <Avatar
         size="small"
@@ -154,6 +184,15 @@ export const NotificationItem = ({
       <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
         {timeAgo(notification.created_at)}
       </span>
-    </button>
+      <button
+        type="button"
+        aria-label="Dismiss notification"
+        data-testid={`notification-dismiss-${notification.id}`}
+        onClick={handleDismiss}
+        className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
   );
 };

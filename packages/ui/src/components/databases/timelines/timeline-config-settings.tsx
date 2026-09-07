@@ -35,6 +35,13 @@ export const TimelineConfigSettings = () => {
     TIMELINE_DATE_FIELDS.includes(field.type)
   );
 
+  // A dependency source is a relation field pointing back at this same
+  // database; following it from a record yields that record's predecessors.
+  const dependencyFields = database.fields.filter(
+    (field) =>
+      field.type === 'relation' && field.databaseId === database.id
+  );
+
   const updateTimeline = (patch: Partial<DatabaseViewTimelineAttributes>) => {
     if (!canEdit) {
       return;
@@ -87,6 +94,44 @@ export const TimelineConfigSettings = () => {
         </div>
         <p className="text-xs text-muted-foreground">
           Records without an end date show as a single-day marker.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <p className="text-sm font-medium">Dependencies</p>
+        <div
+          aria-disabled={!canEdit}
+          className={cn(!canEdit && 'pointer-events-none opacity-50')}
+        >
+          {dependencyFields.length > 0 ? (
+            <select
+              aria-label="Dependency relation field"
+              value={timeline?.dependencyFieldId ?? ''}
+              disabled={!canEdit}
+              onChange={(event) =>
+                updateTimeline({
+                  dependencyFieldId:
+                    event.target.value === '' ? null : event.target.value,
+                })
+              }
+              className="w-full cursor-pointer rounded-md border bg-background p-2 text-sm outline-none"
+            >
+              <option value="">None</option>
+              {dependencyFields.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Add a relation field pointing back to this database (e.g.
+              &ldquo;Depends on&rdquo;) to draw arrows between tasks.
+            </p>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Draws an arrow from each related record (a predecessor) to this one.
         </p>
       </div>
 

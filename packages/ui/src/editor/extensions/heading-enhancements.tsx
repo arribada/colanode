@@ -25,9 +25,25 @@ declare module '@tiptap/core' {
        * Set the heading numbering style explicitly:
        *   'off'    – no numbers,
        *   'nested' – hierarchical 1, 1.1, 1.1.1,
-       *   'flat'   – a single running counter 1, 2, 3 across every heading.
+       *   'flat'   – a single running counter 1, 2, 3 across every heading,
+       *   'legal'  – mixed outline 1, 1.a, 1.a.i (decimal / alpha / roman).
        */
       setHeadingNumberingMode: (mode: HeadingNumberingMode) => ReturnType;
+      /**
+       * Set the character(s) rendered AFTER each heading number (the delimiter
+       * between the number and the heading text), e.g. '.' -> "1.1.", ')' ->
+       * "1)". An empty string renders no trailing mark.
+       */
+      setHeadingNumberingDelimiter: (delimiter: string) => ReturnType;
+      /**
+       * Apply an EXACT mode + delimiter without toggling. Used to mirror the
+       * page's persisted heading-numbering attribute into the live editor
+       * (on load and whenever the page setting changes).
+       */
+      applyHeadingNumbering: (
+        mode: HeadingNumberingMode,
+        delimiter: string
+      ) => ReturnType;
     };
   }
 }
@@ -36,13 +52,16 @@ declare module '@tiptap/core' {
 // hierarchical numbers (1, 1.1, 1.1.1) driven by heading level, and 'flat'
 // renders a single running counter (1, 2, 3) across every heading regardless of
 // its level.
-export type HeadingNumberingMode = 'off' | 'nested' | 'flat';
+export type HeadingNumberingMode = 'off' | 'nested' | 'flat' | 'legal';
 
 export interface HeadingEnhancementsStorage {
   // Session-level style: which numbering, if any, the plugin renders in front of
   // every top-level heading. Defaults to 'off' so existing documents are
   // unchanged.
   numberingMode: HeadingNumberingMode;
+  // The character(s) appended after each computed number (between the number and
+  // the heading text). Defaults to '.' for a nicer "1.1." look.
+  delimiter: string;
 }
 
 export const headingEnhancementsKey = new PluginKey<DecorationSet>(
@@ -55,6 +74,70 @@ const HEADING_LEVELS: Record<string, number> = {
   heading1: 1,
   heading2: 2,
   heading3: 3,
+};
+
+// 1 -> 'a', 2 -> 'b', … 26 -> 'z', 27 -> 'aa' (spreadsheet-style base-26).
+const toAlpha = (value: number): string => {
+  let n = value;
+  let out = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(97 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out || '1';
+};
+
+// 1 -> 'i', 4 -> 'iv', 9 -> 'ix' … (lowercase Roman numerals).
+const toRoman = (value: number): string => {
+  if (value <= 0) {
+    return String(value);
+  }
+  const table: [number, string][] = [
+    [1000, 'm'],
+    [900, 'cm'],
+    [500, 'd'],
+    [400, 'cd'],
+    [100, 'c'],
+    [90, 'xc'],
+    [50, 'l'],
+    [40, 'xl'],
+    [10, 'x'],
+    [9, 'ix'],
+    [5, 'v'],
+    [4, 'iv'],
+    [1, 'i'],
+  ];
+  let n = value;
+  let out = '';
+  for (const [num, sym] of table) {
+    while (n >= num) {
+      out += sym;
+      n -= num;
+    }
+  }
+  return out;
+};
+
+// Format one heading number for the given style. 'nested' joins every level
+// counter with '.', 'legal' formats level 1 as a decimal, level 2 as lower
+// alpha and level 3 as lower roman (1.a.i), also joined with '.'.
+const formatNumber = (
+  mode: HeadingNumberingMode,
+  counters: number[],
+  level: number
+): string => {
+  const parts = counters.slice(0, level);
+  if (mode === 'legal') {
+    return parts
+      .map((count, index) => {
+        if (index === 1) return toAlpha(count);
+        if (index >= 2) return toRoman(count);
+        return String(count);
+      })
+      .join('.');
+  }
+  return parts.join('.');
 };
 
 const chevronSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`;
@@ -133,6 +216,7 @@ interface TopLevelNode {
 const buildDecorations = (
   doc: ProseMirrorNode,
   numberingMode: HeadingNumberingMode,
+  delimiter: string,
   toggle: (id: string) => void
 ): DecorationSet => {
   const tops: TopLevelNode[] = [];
@@ -175,10 +259,11 @@ const buildDecorations = (
     );
 
     if (numberingMode !== 'off') {
-      const label =
+      const base =
         numberingMode === 'flat'
           ? String(flatCounter)
-          : counters.slice(0, level).join('.');
+          : formatNumber(numberingMode, counters, level);
+      const label = `${base}${delimiter}`;
       decorations.push(
         Decoration.widget(top.offset + 1, () => createNumber(label), {
           side: -1,
@@ -219,6 +304,7 @@ export const HeadingEnhancementsExtension = Extension.create<
   addStorage() {
     return {
       numberingMode: 'off',
+      delimiter: '.',
     };
   },
 
@@ -259,6 +345,32 @@ export const HeadingEnhancementsExtension = Extension.create<
           }
           return true;
         },
+      setHeadingNumberingDelimiter:
+        (delimiter: string) =>
+        ({ tr, dispatch }) => {
+          this.storage.delimiter = delimiter;
+          if (dispatch) {
+            tr.setMeta(headingEnhancementsKey, { recompute: true });
+            dispatch(tr);
+          }
+          return true;
+        },
+      applyHeadingNumbering:
+        (mode: HeadingNumberingMode, delimiter: string) =>
+        ({ tr, dispatch }) => {
+          const changed =
+            this.storage.numberingMode !== mode ||
+            this.storage.delimiter !== delimiter;
+          this.storage.numberingMode = mode;
+          this.storage.delimiter = delimiter;
+          // Only dispatch when something actually changed so the mirroring
+          // effect is a no-op once the editor already matches the page attr.
+          if (dispatch && changed) {
+            tr.setMeta(headingEnhancementsKey, { recompute: true });
+            dispatch(tr);
+          }
+          return true;
+        },
     };
   },
 
@@ -288,12 +400,18 @@ export const HeadingEnhancementsExtension = Extension.create<
         key: headingEnhancementsKey,
         state: {
           init: (_config, state) =>
-            buildDecorations(state.doc, storage.numberingMode, toggle),
+            buildDecorations(
+              state.doc,
+              storage.numberingMode,
+              storage.delimiter,
+              toggle
+            ),
           apply: (tr, value, _oldState, newState) => {
             if (tr.docChanged || tr.getMeta(headingEnhancementsKey)) {
               return buildDecorations(
                 newState.doc,
                 storage.numberingMode,
+                storage.delimiter,
                 toggle
               );
             }

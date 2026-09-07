@@ -578,6 +578,29 @@ const endOfLocalDay = (date: Date): string => {
   return d.toISOString();
 };
 
+// Both the stored date value AND a picked filter value are written as
+// toUTCDate(pickedDay).toISOString() -- i.e. the chosen calendar day encoded in
+// the ISO *date* portion at 00:00:00Z. Absolute date filters must therefore
+// bound the comparison on the UTC calendar day, not the viewer's local day:
+// deriving bounds with the local-day helpers above shifts the window by the
+// viewer's UTC offset and drops any stored value that is not exactly
+// UTC-midnight (imported rows, "is not empty" defaults, values with a time).
+const startOfUtcDay = (iso: string): string | null => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return `${date.toISOString().slice(0, 10)}T00:00:00.000Z`;
+};
+
+const endOfUtcDay = (iso: string): string | null => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return `${date.toISOString().slice(0, 10)}T23:59:59.999Z`;
+};
+
 const relativeDateRange = (
   operator: string
 ): { start: string; end: string } | null => {
@@ -633,19 +656,20 @@ const buildDateComparisonExpression = (
     ]);
   }
 
-  // Between stores a [start, end] ISO pair; either bound may be blank.
+  // Between stores a [start, end] ISO pair; either bound may be blank. Bound on
+  // the UTC calendar day of each endpoint (see startOfUtcDay/endOfUtcDay).
   if (filter.operator === 'is_between') {
     const range = Array.isArray(filter.value) ? filter.value : [];
     const startRaw = typeof range[0] === 'string' ? range[0] : '';
     const endRaw = typeof range[1] === 'string' ? range[1] : '';
-    const startDate = startRaw ? new Date(startRaw) : null;
-    const endDate = endRaw ? new Date(endRaw) : null;
+    const startBound = startRaw ? startOfUtcDay(startRaw) : null;
+    const endBound = endRaw ? endOfUtcDay(endRaw) : null;
     const bounds: BooleanExpression[] = [];
-    if (startDate && !Number.isNaN(startDate.getTime())) {
-      bounds.push(gte(valueRef, startOfLocalDay(startDate)));
+    if (startBound) {
+      bounds.push(gte(valueRef, startBound));
     }
-    if (endDate && !Number.isNaN(endDate.getTime())) {
-      bounds.push(lte(valueRef, endOfLocalDay(endDate)));
+    if (endBound) {
+      bounds.push(lte(valueRef, endBound));
     }
     return combineWithAnd(bounds);
   }
@@ -656,14 +680,14 @@ const buildDateComparisonExpression = (
   }
 
   // The stored value is a full ISO timestamp but the filter value is a single
-  // day. Compare against the whole [start-of-day, end-of-day] range so the
-  // time component never causes an exact-match miss or drops boundary days.
-  const day = new Date(filter.value as string);
-  if (Number.isNaN(day.getTime())) {
+  // day. Compare against the whole [start-of-day, end-of-day] UTC range so the
+  // time component never causes an exact-match miss or drops boundary days, and
+  // so the window is NOT shifted by the viewer's timezone (see startOfUtcDay).
+  const dayStart = startOfUtcDay(filter.value as string);
+  const dayEnd = endOfUtcDay(filter.value as string);
+  if (!dayStart || !dayEnd) {
     return null;
   }
-  const dayStart = startOfLocalDay(day);
-  const dayEnd = endOfLocalDay(day);
 
   switch (filter.operator) {
     case 'is_equal_to':

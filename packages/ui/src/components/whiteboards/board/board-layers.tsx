@@ -21,6 +21,7 @@ import {
   Group as GroupIcon,
   Lock,
   LockOpen,
+  Plus,
   SendToBack,
   BringToFront,
 } from 'lucide-react';
@@ -43,6 +44,7 @@ interface BoardLayersProps {
   onMove: (id: string, direction: 'up' | 'down') => void;
   onReorder: (id: string, toFront: boolean) => void;
   onReparent: (id: string, groupId: string | null, frameId: string | null) => void;
+  onGroupSelection: () => void;
   onClose: () => void;
 }
 
@@ -185,10 +187,17 @@ export const BoardLayers = ({
   onMove,
   onReorder,
   onReparent,
+  onGroupSelection,
   onClose,
 }: BoardLayersProps) => {
   const tree = buildTree(scene);
   const total = Object.keys(scene).length;
+  // A group needs at least two real elements; frames are containers, not
+  // members, so they do not count towards the pair.
+  const groupableCount = selection.filter(
+    (id) => scene[id] && scene[id]!.type !== 'frame'
+  ).length;
+  const canGroup = canEdit && groupableCount >= 2;
 
   // Containers start expanded so the tree is discoverable; the user can fold
   // any of them away.
@@ -261,7 +270,15 @@ export const BoardLayers = ({
           }}
           className={cn(
             'group flex items-center gap-1 rounded-md px-1.5 py-1 text-xs',
-            selected ? 'bg-primary/10 text-primary' : 'hover:bg-accent',
+            // Frames and groups read as header rows so the tree structure is
+            // obvious even before anything is nested under them.
+            isContainer && 'font-medium',
+            selected
+              ? 'bg-primary/10 text-primary'
+              : isContainer
+                ? 'bg-muted/60 hover:bg-muted'
+                : 'hover:bg-accent',
+            depth > 0 && 'border-l border-border/60',
             dropTarget === node.id && 'ring-1 ring-primary'
           )}
           style={{ paddingLeft: `${6 + depth * 14}px` }}
@@ -403,14 +420,33 @@ export const BoardLayers = ({
           Layers
           <span className="pl-1.5 text-muted-foreground">{total}</span>
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close layers"
-          className="rounded-md px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onGroupSelection}
+              disabled={!canGroup}
+              aria-label="New group from selection"
+              title={
+                canGroup
+                  ? 'New group from selection (Ctrl+G)'
+                  : 'Select two or more elements to group them'
+              }
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Plus className="size-3.5" />
+              <GroupIcon className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close layers"
+            className="rounded-md px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {total === 0 ? (

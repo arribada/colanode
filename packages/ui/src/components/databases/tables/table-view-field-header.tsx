@@ -98,6 +98,17 @@ export const TableViewFieldHeader = ({
   };
 
   const applyChangeFieldType = (newType: FieldType) => {
+    // Changing a bidirectional relation to any other type strands the mirror
+    // field on the target database (its relatedFieldId still points here). Clear
+    // that back-pointer before we drop the relation config below.
+    const previous = viewField.field;
+    if (
+      previous.type === 'relation' &&
+      previous.relatedFieldId &&
+      previous.databaseId
+    ) {
+      clearReverseRelation(previous.databaseId, previous.relatedFieldId);
+    }
     // Rewrite the field to the new type's base shape (dropping any type-specific
     // config). Existing record values are left in place -- the new renderer
     // reinterprets or ignores incompatible ones, and re-editing a cell fixes it.
@@ -150,16 +161,58 @@ export const TableViewFieldHeader = ({
     });
   };
 
+  // Clear the mirror field's back-pointer on `targetDatabaseId` so a reverse
+  // relation never dangles at a field that was deleted, re-typed, or is no
+  // longer its counterpart (used on delete / type-change / retarget).
+  const clearReverseRelation = (
+    targetDatabaseId: string,
+    reverseFieldId: string
+  ) => {
+    workspace.collections.nodes.update(targetDatabaseId, (draft) => {
+      if (draft.type !== 'database') {
+        return;
+      }
+      const reverse = draft.fields[reverseFieldId];
+      if (reverse && reverse.type === 'relation') {
+        reverse.relatedFieldId = null;
+      }
+    });
+  };
+
   const changeRelationTarget = (databaseId: string) => {
+    const current = viewField.field;
+    // Retargeting a bidirectional relation orphans the reverse field that lives
+    // on the OLD target database: it keeps pointing here, but this field now
+    // links elsewhere. Unlink the old mirror and reset this side to
+    // non-bidirectional (the user can re-enable it to build a fresh mirror on
+    // the new target).
+    if (
+      current.type === 'relation' &&
+      current.relatedFieldId &&
+      current.databaseId &&
+      current.databaseId !== databaseId
+    ) {
+      clearReverseRelation(current.databaseId, current.relatedFieldId);
+    }
+
     workspace.collections.nodes.update(database.id, (draft) => {
       if (draft.type !== 'database') {
         return;
       }
-      const current = draft.fields[viewField.field.id];
-      if (!current || current.type !== 'relation') {
+      const draftField = draft.fields[viewField.field.id];
+      if (!draftField || draftField.type !== 'relation') {
         return;
       }
-      current.databaseId = databaseId;
+      draftField.databaseId = databaseId;
+      // Drop the stale mirror link if we just retargeted away from it.
+      if (
+        current.type === 'relation' &&
+        current.relatedFieldId &&
+        current.databaseId &&
+        current.databaseId !== databaseId
+      ) {
+        draftField.relatedFieldId = null;
+      }
     });
   };
 
@@ -425,7 +478,7 @@ export const TableViewFieldHeader = ({
           <PopoverTrigger asChild>
             <div
               className={cn(
-                'flex h-8 w-full cursor-pointer flex-row items-center gap-1 p-1 text-sm hover:bg-accent',
+                'cn-table-field-header flex h-8 w-full cursor-pointer flex-row items-center gap-1 p-1 text-sm hover:bg-accent',
                 dropMonitor.isOver && dropMonitor.canDrop
                   ? 'border-r-2 border-blue-300 dark:border-blue-900'
                   : 'border-r'

@@ -47,6 +47,17 @@ export const pageAttributesSchema = z.object({
   smallText: z.boolean().nullable().optional(),
   // Show an auto table of contents at the top of the page. Null/absent => off.
   showToc: z.boolean().nullable().optional(),
+  // Document-wide heading auto-numbering. Null/absent => 'off' (every existing
+  // page). 'nested' = hierarchical 1 / 1.1 / 1.1.1; 'flat' = a single running
+  // 1, 2, 3 across every heading; 'legal' = mixed outline 1 / 1.a / 1.a.i.
+  // Rendered as display-only decorations; the stored content is never mutated.
+  headingNumbering: z
+    .enum(['off', 'nested', 'flat', 'legal'])
+    .nullable()
+    .optional(),
+  // The character(s) placed AFTER each heading number (e.g. '.' -> "1.1.",
+  // ')' -> "1)"). Null/absent => '.'. An empty string renders no trailing mark.
+  headingNumberDelimiter: z.string().nullable().optional(),
   // Git-like version tag for the page, e.g. "v1.2.0" (normalized by
   // @colanode/core/lib/versions). Set from the version control in the header.
   version: z.string().nullable().optional(),
