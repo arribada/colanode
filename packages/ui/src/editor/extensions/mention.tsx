@@ -355,6 +355,10 @@ export const MentionExtension = Node.create<MentionOptions>({
       Suggestion({
         editor: this.editor,
         char: '@',
+        // Allow spaces in the query so multi-word page names can be searched
+        // (e.g. "argos manufacturer - turtle whip antenna"). Without this the
+        // suggestion terminates at the first space and the search breaks.
+        allowSpaces: true,
         pluginKey: new PluginKey('mentionSuggestion'),
         command: ({
           editor,
