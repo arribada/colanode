@@ -64,6 +64,24 @@ interface PageSidebarItemProps {
 // make it into the tree.
 const PAGE_CHILD_TYPES = ['page', 'database', 'folder', 'whiteboard'];
 
+// A leading emoji typed into a page name (e.g. "🎯 Mission Tracker") predates
+// real page icons. splitLeadingEmoji peels it off so the row can show it AS the
+// icon and drop it from the displayed name — matching a page whose icon was set
+// from the menu. Handles a single pictographic plus skin-tone / variation-
+// selector / ZWJ sequences. Display only: the stored name is never changed.
+const LEADING_EMOJI =
+  /^(\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}\uFE0F\u200D]\p{Extended_Pictographic}?)*)\s*/u;
+
+const splitLeadingEmoji = (
+  name: string
+): { emoji: string | null; rest: string } => {
+  const match = name.match(LEADING_EMOJI);
+  if (!match || !match[1]) {
+    return { emoji: null, rest: name };
+  }
+  return { emoji: match[1], rest: name.slice(match[0].length) };
+};
+
 export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const workspace = useWorkspace();
   const tree = useSidebarTree();
@@ -88,6 +106,39 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
     .childrenOf(page.id)
     .filter((child) => PAGE_CHILD_TYPES.includes(child.type));
   const hasChildren = children.length > 0;
+
+  // Promote a leading name emoji to the icon slot, but only when a real name
+  // remains after it and no explicit avatar is set (an avatar always wins).
+  const { emoji: rawLeadingEmoji, rest: nameAfterEmoji } = splitLeadingEmoji(
+    page.name ?? ''
+  );
+  const nameEmoji =
+    !page.avatar && rawLeadingEmoji && nameAfterEmoji.trim().length > 0
+      ? rawLeadingEmoji
+      : null;
+  const displayName =
+    (nameEmoji ? nameAfterEmoji.trim() : page.name) || 'Unnamed';
+
+  // The row icon: the promoted emoji (rendered as the same native glyph it
+  // already was in the name) or the page's Avatar. `className` carries the
+  // per-branch sizing / hover behaviour.
+  const renderPageIcon = (className: string) =>
+    nameEmoji ? (
+      <span
+        aria-hidden
+        className={cn('flex items-center justify-center leading-none', className)}
+        style={{ fontSize: 13 }}
+      >
+        {nameEmoji}
+      </span>
+    ) : (
+      <Avatar
+        id={page.id}
+        avatar={page.avatar}
+        name={page.name}
+        className={className}
+      />
+    );
 
   // Resolve this page's effective role from the full ancestor chain
   // (root -> page), the way NodeProvider does, so gates honor node-level
@@ -203,22 +254,14 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                   aria-label={open ? 'Collapse subpages' : 'Expand subpages'}
                   className="flex shrink-0 items-center cursor-pointer rounded-sm hover:bg-sidebar-border"
                 >
-                  <Avatar
-                    id={page.id}
-                    avatar={page.avatar}
-                    name={page.name}
-                    className="group-hover/page-row:hidden size-4 shrink-0"
-                  />
+                  {renderPageIcon(
+                    'group-hover/page-row:hidden size-4 shrink-0'
+                  )}
                   <ChevronRight className="hidden transition-transform group-hover/page-row:block group-data-[state=open]/page-item:rotate-90 size-4 shrink-0" />
                 </button>
               </CollapsibleTrigger>
             ) : (
-              <Avatar
-                id={page.id}
-                avatar={page.avatar}
-                name={page.name}
-                className="size-4 shrink-0"
-              />
+              renderPageIcon('size-4 shrink-0')
             )}
             {isRenaming ? (
               <InlineRenameField
@@ -246,7 +289,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                     startRenaming();
                   }}
                 >
-                  {page.name || 'Unnamed'}
+                  {displayName}
                 </span>
               </Link>
             )}

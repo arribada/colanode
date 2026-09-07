@@ -4040,6 +4040,19 @@ export const WhiteboardCanvas = ({
       return;
     }
     const onPaste = (e: ClipboardEvent) => {
+      // A paste aimed at a text field — the inline element-text editor (a
+      // <textarea>), a rename box, any input — must paste TEXT natively.
+      // Without this the board's own element clipboard hijacked Ctrl+V whenever
+      // an element had been copied, so pasting external text into a shape did
+      // nothing. The board only claims a paste that lands on the canvas itself.
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable)
+      ) {
+        return;
+      }
       const container = containerRef.current;
       if (!container || !container.matches(':hover')) {
         return;
