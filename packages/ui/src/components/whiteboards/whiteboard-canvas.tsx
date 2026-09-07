@@ -100,6 +100,7 @@ import {
   Rect,
   rectCenter,
   rectsIntersect,
+  rotatePoint,
   resizeRect,
   ResizeHandle,
   RESIZE_HANDLES,
@@ -225,6 +226,21 @@ type Interaction =
       origin: Record<
         string,
         { x: number; y: number; w: number; h: number; points?: number[][] }
+      >;
+      before: BoardScene;
+    }
+  // Rotating a MULTI-selection about the group bbox centre. Each member keeps
+  // its untouched centre + rotation (+ points for freehand) so every move
+  // recomputes from the start rather than compounding. Connectors are excluded
+  // (they re-resolve from their anchors). Only offered when no member is
+  // already rotated, so the world-axis math stays clean.
+  | {
+      mode: 'multirotate';
+      center: Point;
+      startAngle: number;
+      origin: Record<
+        string,
+        { cx: number; cy: number; rotation: number; points?: number[][] }
       >;
       before: BoardScene;
     }
@@ -1589,6 +1605,41 @@ export const WhiteboardCanvas = ({
         };
         return;
       }
+      // Rotate the whole group about the bbox centre. Guarded to a selection
+      // where nothing is rotated yet (same rule as multiresize) so each
+      // member's world-axis rect stays valid through the transform.
+      if (
+        bbox &&
+        handleType === 'rotate' &&
+        ids.length > 0 &&
+        !ids.some((id) => (sceneRef.current[id]?.rotation ?? 0) !== 0)
+      ) {
+        const center = rectCenter(bbox);
+        const origin: Record<
+          string,
+          { cx: number; cy: number; rotation: number; points?: number[][] }
+        > = {};
+        for (const id of ids) {
+          const el = sceneRef.current[id];
+          if (el) {
+            const r = elementRect(el);
+            origin[id] = {
+              cx: r.x + r.w / 2,
+              cy: r.y + r.h / 2,
+              rotation: el.rotation ?? 0,
+              ...(el.points ? { points: el.points } : {}),
+            };
+          }
+        }
+        interactionRef.current = {
+          mode: 'multirotate',
+          center,
+          startAngle: Math.atan2(p.y - center.y, p.x - center.x),
+          origin,
+          before: cloneScene(sceneRef.current),
+        };
+        return;
+      }
     }
 
     // resize / rotate handles (single selection)
@@ -2160,6 +2211,56 @@ export const WhiteboardCanvas = ({
         schedulePersist(Object.keys(it.origin));
         break;
       }
+      case 'multirotate': {
+        // delta = current pointer angle - grab angle, both about the group
+        // centre. Shift snaps the delta to 15deg increments.
+        const angle = Math.atan2(p.y - it.center.y, p.x - it.center.x);
+        let deltaDeg = ((angle - it.startAngle) * 180) / Math.PI;
+        if (e.shiftKey) {
+          deltaDeg = Math.round(deltaDeg / 15) * 15;
+        }
+        const rad = (deltaDeg * Math.PI) / 180;
+        const next = { ...sceneRef.current };
+        for (const [id, o] of Object.entries(it.origin)) {
+          const el = next[id];
+          if (!el) {
+            continue;
+          }
+          // Spin each member's centre around the group centre, then re-derive
+          // its top-left from the (unchanged) width/height.
+          const c = rotatePoint({ x: o.cx, y: o.cy }, it.center, rad);
+          const updated: BoardElement = {
+            ...el,
+            x: c.x - el.w / 2,
+            y: c.y - el.h / 2,
+          };
+          if (o.points) {
+            // Freehand carries its shape as raw points — and the renderer does
+            // NOT apply `rotation` to a freehand — so every point orbits the
+            // group centre (recomputed from the captured origins) and the
+            // rotation field is left alone, exactly as multiresize does. This
+            // also keeps the "no rotated member" guard honest.
+            updated.points = o.points.map((pt) => {
+              const rp = rotatePoint(
+                { x: pt[0] ?? 0, y: pt[1] ?? 0 },
+                it.center,
+                rad
+              );
+              return [rp.x, rp.y];
+            });
+          } else {
+            // Bodied shapes spin via their own rotation transform; add the
+            // group delta to the (captured) origin and normalise to [0,360).
+            updated.rotation = Math.round(
+              (((o.rotation + deltaDeg) % 360) + 360) % 360
+            );
+          }
+          next[id] = updated;
+        }
+        applyLocal(next);
+        schedulePersist(Object.keys(it.origin));
+        break;
+      }
       case 'rotate': {
         const el = sceneRef.current[it.id];
         if (!el) {
@@ -2448,7 +2549,7 @@ export const WhiteboardCanvas = ({
       return;
     }
 
-    if (it.mode === 'multiresize') {
+    if (it.mode === 'multiresize' || it.mode === 'multirotate') {
       commit(it.before, sceneRef.current, Object.keys(it.origin));
       return;
     }
@@ -4693,6 +4794,29 @@ export const WhiteboardCanvas = ({
                       />
                     );
                   })}
+                  {/* Rotate the whole group about the bbox centre. Same
+                      position as the single-element grip; only present here
+                      (no member rotated) so it never overlaps the resize
+                      handle set. */}
+                  <line
+                    x1={tl.x + w / 2}
+                    y1={tl.y}
+                    x2={tl.x + w / 2}
+                    y2={tl.y - 24}
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                    pointerEvents="none"
+                  />
+                  <circle
+                    data-handle="rotate"
+                    cx={tl.x + w / 2}
+                    cy={tl.y - 24}
+                    r={GRIP_RADIUS}
+                    fill="#fff"
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                    style={{ cursor: 'grab' }}
+                  />
                 </g>
               );
             })()}

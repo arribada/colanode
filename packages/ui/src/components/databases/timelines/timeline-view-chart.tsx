@@ -12,7 +12,9 @@ import {
   buildTimelineBars,
   buildTimelinePeriods,
   dayDiff,
+  dependencyArrowPath,
   PX_PER_DAY,
+  ROW_HEIGHT,
   startOfUtcDay,
   TimelineBar,
   timelineRange,
@@ -27,7 +29,14 @@ import { cn } from '@colanode/ui/lib/utils';
 
 // The frozen left column holding record names.
 const NAME_WIDTH = 220;
-const ROW_HEIGHT = 32;
+
+// A group's swimlane header. Fixed on purpose: the arrow overlay lives in one
+// container spanning every group, so a record's Y is the running sum of the rows
+// rendered above it. A variable-height header (its content grew with py-*) made
+// that sum drift, which is why grouped views drew no arrows at all. Pinning the
+// height lets a cumulative walk stay exact -- and equal to what the DOM lays out,
+// since the header row below is given this same height.
+const GROUP_HEADER_HEIGHT = 28;
 
 // Enough to make a real project legible without turning a 5000-record database
 // into a page that never finishes laying out. The count is shown when it bites.
@@ -222,19 +231,29 @@ export const TimelineViewChart = () => {
     return ordered;
   }, [records, bars, groupField]);
 
-  // Vertical centre of every record row, in chart-body pixels. Only built for
-  // the flat layout: with swimlanes the group header rows are not a fixed
-  // height, so a single row-index * ROW_HEIGHT mapping would drift. Arrows in
-  // grouped views are deferred rather than drawn at the wrong Y.
+  // Vertical centre of every record row, in chart-body pixels, for BOTH layouts.
+  // The dependency overlay is a single SVG spanning every group, so a row's Y is
+  // the running height of everything rendered above it. Walking `groups` in the
+  // exact order the JSX renders them -- and adding GROUP_HEADER_HEIGHT for each
+  // swimlane header (rendered only when grouped) plus ROW_HEIGHT per record --
+  // keeps the map pixel-aligned with the DOM. With no group field there are no
+  // headers, so this reduces to the old flat `index * ROW_HEIGHT` mapping.
+  //
+  // A record only enters the map if its row is walked here; a group that is not
+  // rendered contributes nothing, so buildDependencyLinks already skips any edge
+  // touching a hidden/collapsed group rather than drawing it into empty space.
   const rowCenterY = useMemo(() => {
     const map = new Map<string, number>();
-    if (groupField || groups.length === 0) {
-      return map;
+    let y = 0;
+    for (const group of groups) {
+      if (groupField) {
+        y += GROUP_HEADER_HEIGHT;
+      }
+      for (const row of group.rows) {
+        map.set(row.record.id, y + ROW_HEIGHT / 2);
+        y += ROW_HEIGHT;
+      }
     }
-    const rows = groups[0]?.rows ?? [];
-    rows.forEach((row, index) => {
-      map.set(row.record.id, index * ROW_HEIGHT + ROW_HEIGHT / 2);
-    });
     return map;
   }, [groups, groupField]);
 
@@ -402,26 +421,19 @@ export const TimelineViewChart = () => {
                   <path d="M0,0 L8,4 L0,8 z" className="fill-muted-foreground" />
                 </marker>
               </defs>
-              {dependencyLinks.map((link) => {
-                // Elbow from the predecessor's end to the dependent's start:
-                // out a little, across, then into the target. A small forward
-                // stub keeps the arrow off the bar edge; when the dependent
-                // starts before its predecessor ends (a scheduling overlap) the
-                // path routes forward, down between the two rows, back, then in
-                // -- so it never runs straight through the bars.
-                const stub = 10;
-                const straight = `M ${link.fromX} ${link.fromY} H ${link.fromX + stub} V ${link.toY} H ${link.toX}`;
-                const around = `M ${link.fromX} ${link.fromY} H ${link.fromX + stub} V ${(link.fromY + link.toY) / 2} H ${link.toX - stub} V ${link.toY} H ${link.toX}`;
-                return (
-                  <path
-                    key={link.key}
-                    d={link.toX >= link.fromX + stub * 2 ? straight : around}
-                    className="fill-none stroke-muted-foreground/70"
-                    strokeWidth={1.5}
-                    markerEnd="url(#timeline-dep-arrow)"
-                  />
-                );
-              })}
+              {dependencyLinks.map((link) => (
+                // Route in the inter-row gutters with a small per-arrow lane
+                // offset (see dependencyArrowPath) so a segment never runs
+                // straight through an intervening bar and parallel arrows fan
+                // apart instead of stacking into a single line.
+                <path
+                  key={link.key}
+                  d={dependencyArrowPath(link)}
+                  className="fill-none stroke-muted-foreground/70"
+                  strokeWidth={1.5}
+                  markerEnd="url(#timeline-dep-arrow)"
+                />
+              ))}
             </svg>
           )}
 
@@ -430,8 +442,8 @@ export const TimelineViewChart = () => {
               {groupField && (
                 <div className="flex flex-row">
                   <div
-                    className="sticky left-0 z-20 flex shrink-0 flex-row items-center gap-2 border-r bg-background px-2 py-1"
-                    style={{ width: NAME_WIDTH }}
+                    className="sticky left-0 z-20 flex shrink-0 flex-row items-center gap-2 border-r bg-background px-2"
+                    style={{ width: NAME_WIDTH, height: GROUP_HEADER_HEIGHT }}
                   >
                     <span
                       className={cn(
@@ -448,7 +460,7 @@ export const TimelineViewChart = () => {
                   </div>
                   <div
                     className="shrink-0 bg-muted/30"
-                    style={{ width: chartWidth }}
+                    style={{ width: chartWidth, height: GROUP_HEADER_HEIGHT }}
                   />
                 </div>
               )}

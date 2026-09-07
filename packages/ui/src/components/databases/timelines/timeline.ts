@@ -13,6 +13,13 @@ export type TimelineScale = 'day' | 'week' | 'month';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
+// One record row's height, in pixels. Owned here rather than in the chart so the
+// cumulative row-centre walk (which turns a record id into a Y) and the arrow
+// router (which snaps its cross-runs onto row *boundaries*) measure against the
+// same grid. A boundary sits ROW_HEIGHT / 2 above or below a row centre; a bar is
+// ~18px tall, so a segment routed on a boundary clears every bar body by ~7px.
+export const ROW_HEIGHT = 32;
+
 // Column width per scale, in pixels per day. A day column is wide enough to
 // label; a month column is ~150px for a 30-day month, which fits "January".
 export const PX_PER_DAY: Record<TimelineScale, number> = {
@@ -462,4 +469,66 @@ export const barGeometry = (
     // bar keeps a floor that stays clickable.
     width: Math.max(span * pxPerDay, 8),
   };
+};
+
+// Stagger for parallel arrows. Two edges that share a source or target row would
+// otherwise draw their vertical legs on the exact same X and stack into one line;
+// nudging each by a small key-derived amount fans them apart without a full lane
+// allocator. Kept tiny so the fan reads as related arrows, not as noise.
+const ARROW_LANES = 4;
+const ARROW_LANE_STEP = 5;
+
+// A stable small integer from the link key, so a given edge always lands in the
+// same lane across re-renders (djb2; only the low bits matter here).
+const arrowLane = (key: string): number => {
+  let hash = 5381;
+  for (let i = 0; i < key.length; i++) {
+    hash = ((hash << 5) + hash + key.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % ARROW_LANES;
+};
+
+/**
+ * The SVG path for one dependency arrow, routed to avoid crossing bar bodies.
+ *
+ * The old route dropped its vertical leg to the midpoint between the two row
+ * centres; when the rows were an odd number apart that midpoint fell *inside* an
+ * intervening row and the line ran straight through that record's bar. This
+ * instead snaps the long cross-run onto a row BOUNDARY (the gutter immediately
+ * next to the target row), which by construction sits between bars, and offsets
+ * each arrow's vertical legs by a per-key lane so parallel arrows don't overlap.
+ *
+ * Shape: out a forward stub from the predecessor's end, down/up to the target's
+ * approach gutter, across, then a short half-row hop into the dependent's start.
+ * When the dependent starts before the predecessor ends the cross-run simply
+ * heads backwards -- still in a gutter, so it never grazes the bars it passes.
+ */
+export const dependencyArrowPath = (link: DependencyLink): string => {
+  const stub = 10;
+  const lane = arrowLane(link.key) * ARROW_LANE_STEP;
+
+  // Same-row edge (degenerate: distinct rows have distinct centres, but a caller
+  // could hand us a self-map). A flat stub reads fine and avoids a zero-height V.
+  if (link.toY === link.fromY) {
+    return `M ${link.fromX} ${link.fromY} H ${link.toX}`;
+  }
+
+  const sign = link.toY > link.fromY ? 1 : -1;
+  // The gutter hugging the target row on the side the arrow arrives from. Half a
+  // row off the target centre => a real row boundary => empty of bars.
+  const crossY = link.toY - sign * (ROW_HEIGHT / 2);
+
+  // Forward stub off the source, backward stub into the target, both fanned out
+  // by this arrow's lane so siblings separate.
+  const outX = link.fromX + stub + lane;
+  const inX = link.toX - stub - lane;
+
+  return (
+    `M ${link.fromX} ${link.fromY}` +
+    ` H ${outX}` +
+    ` V ${crossY}` +
+    ` H ${inX}` +
+    ` V ${link.toY}` +
+    ` H ${link.toX}`
+  );
 };

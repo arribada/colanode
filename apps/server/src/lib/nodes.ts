@@ -16,6 +16,7 @@ import {
   Node,
   NodeAttributes,
   MutationStatus,
+  RecordAttributes,
   UpdateNodeMutationData,
 } from '@colanode/core';
 import { decodeState, YDoc } from '@colanode/crdt';
@@ -32,6 +33,7 @@ import {
 } from '@colanode/server/lib/collaborations';
 import { eventBus } from '@colanode/server/lib/event-bus';
 import { createLogger } from '@colanode/server/lib/logger';
+import { reconcileBidirectionalRelations } from '@colanode/server/lib/relation-reconciler';
 import { storage } from '@colanode/server/lib/storage';
 import { jobService } from '@colanode/server/services/job-service';
 import { WorkspaceContext } from '@colanode/server/types/api';
@@ -803,6 +805,40 @@ const tryUpdateNodeFromMutation = async (
         nodeId: mutation.nodeId,
         workspaceId: workspace.id,
       });
+    }
+
+    // Authoritative bidirectional-relation reconcile. Runs AFTER the primary
+    // record update has committed and OUTSIDE its transaction: for every
+    // bidirectional relation field on this record's database, carry the
+    // add/remove of related ids onto each target record's reverse field via the
+    // same server node-update path. Idempotent + best-effort, so it can neither
+    // loop nor roll back the edit the user just made. A relocation is a
+    // parent/root move, not a fields change, so its diff is empty and this
+    // no-ops — we key the guard on the record type only.
+    if (node.type === 'record' && attributes.type === 'record') {
+      const prevAttributes =
+        (node.attributes as NodeAttributes).type === 'record'
+          ? (node.attributes as RecordAttributes)
+          : undefined;
+      const databaseId = attributes.databaseId ?? node.parent_id;
+      if (databaseId) {
+        try {
+          await reconcileBidirectionalRelations({
+            recordId: mutation.nodeId,
+            workspaceId: workspace.id,
+            userId: workspace.user.id,
+            databaseId,
+            prevAttributes,
+            nextAttributes: attributes,
+          });
+        } catch (error) {
+          // Never let a reconcile failure turn a successful edit into an error.
+          logger.error(
+            error,
+            `Failed to reconcile bidirectional relations for record ${mutation.nodeId}`
+          );
+        }
+      }
     }
 
     return { type: 'success', output: MutationStatus.OK };
