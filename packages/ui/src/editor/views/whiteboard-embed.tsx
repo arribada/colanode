@@ -1,4 +1,4 @@
-import { eq, useLiveQuery } from '@tanstack/react-db';
+import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { type NodeViewProps } from '@tiptap/core';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { NodeViewWrapper } from '@tiptap/react';
@@ -39,14 +39,12 @@ const WhiteboardEmbedContent = ({
   // ancestor-chain ROLE resolution NodeProvider gates on — and that gate is what
   // left the embed stuck on a "syncing" skeleton (a freshly created board, or one
   // whose ancestor role resolves late, never cleared it).
-  const nodeQuery = useLiveQuery(
-    (q) =>
-      q
-        .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => eq(nodes.id, id))
-        .findOne(),
-    [workspace.userId, id]
-  );
+  const nodeQuery = useLiveQuery({
+    type: 'node.list',
+    userId: workspace.userId,
+    filters: [{ field: ['id'], operator: 'in', value: [id] }],
+    sorts: [],
+  });
 
   if (nodeQuery.isLoading) {
     return (
@@ -56,7 +54,7 @@ const WhiteboardEmbedContent = ({
     );
   }
 
-  const node = nodeQuery.data as LocalWhiteboardNode | undefined;
+  const node = nodeQuery.data?.[0] as LocalWhiteboardNode | undefined;
   if (!node || node.type !== 'whiteboard') {
     return (
       <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
@@ -90,16 +88,14 @@ const WhiteboardEmbedPicker = ({
 }) => {
   const workspace = useWorkspace();
 
-  const whiteboardListQuery = useLiveQuery(
-    (q) =>
-      q
-        .from({ nodes: workspace.collections.nodes })
-        .where(({ nodes }) => eq(nodes.type, 'whiteboard'))
-        .orderBy(({ nodes }) => nodes.id, 'asc'),
-    []
-  );
+  const whiteboardListQuery = useLiveQuery({
+    type: 'node.list',
+    userId: workspace.userId,
+    filters: [{ field: ['type'], operator: 'in', value: ['whiteboard'] }],
+    sorts: [],
+  });
 
-  const whiteboards = whiteboardListQuery.data.map(
+  const whiteboards = (whiteboardListQuery.data ?? []).map(
     (node) => node as LocalWhiteboardNode
   );
 
