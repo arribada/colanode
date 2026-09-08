@@ -50,6 +50,26 @@ export const WhiteboardEmbedNode = Node.create<WhiteboardEmbedOptions>({
         },
         renderHTML: (attributes) => ({ 'data-height': attributes.height }),
       },
+      // The displayed view (pan/zoom) captured from the preview. JSON on a data
+      // attr; absent => the whole board is shown.
+      region: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-region');
+          if (!raw) {
+            return null;
+          }
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return null;
+          }
+        },
+        renderHTML: (attributes) =>
+          attributes.region
+            ? { 'data-region': JSON.stringify(attributes.region) }
+            : {},
+      },
     };
   },
 

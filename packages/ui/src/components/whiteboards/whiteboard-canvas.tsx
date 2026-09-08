@@ -298,6 +298,10 @@ interface WhiteboardCanvasProps {
   // `scene`; a page/folder opened as a board uses `boardScene`. Defaults to
   // `scene`, so real whiteboard nodes are unaffected.
   sceneField?: 'scene' | 'boardScene';
+  // Embed-only: the initial viewport to restore (a saved "view"), and a
+  // callback fired whenever the viewport changes so the embed can capture it.
+  initialViewport?: { x: number; y: number; zoom: number };
+  onViewport?: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 // A live reaction floating up on the canvas (local + remote), keyed for its
@@ -344,6 +348,8 @@ export const WhiteboardCanvas = ({
   role,
   embedded = false,
   sceneField = 'scene',
+  initialViewport,
+  onViewport,
 }: WhiteboardCanvasProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate();
@@ -379,7 +385,17 @@ export const WhiteboardCanvas = ({
   const [scene, setScene] = useState<BoardScene>(
     () => getSceneAttr(node, sceneField) ?? {}
   );
-  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  const [viewport, setViewport] = useState<Viewport>(
+    () => initialViewport ?? { x: 0, y: 0, zoom: 1 }
+  );
+  // Report viewport changes upward (embed "capture view"). The latest callback
+  // is kept in a ref so a parent re-render never re-fires the effect, and the
+  // effect only writes into a ref (no state) so there is no render loop.
+  const onViewportRef = useRef(onViewport);
+  onViewportRef.current = onViewport;
+  useEffect(() => {
+    onViewportRef.current?.(viewport);
+  }, [viewport]);
   const [tool, setTool] = useState<BoardTool>('select');
   const [selection, setSelection] = useState<string[]>([]);
   const [contextMenu, setContextMenu] = useState<{

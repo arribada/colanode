@@ -21,6 +21,8 @@ interface WhiteboardContainerProps {
   // page/folder `boardScene`). Forwarded to WhiteboardCanvas; defaults to
   // `scene`.
   sceneField?: 'scene' | 'boardScene';
+  initialViewport?: { x: number; y: number; zoom: number };
+  onViewport?: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 export const WhiteboardContainer = ({
@@ -28,6 +30,8 @@ export const WhiteboardContainer = ({
   role,
   embedded = false,
   sceneField = 'scene',
+  initialViewport,
+  onViewport,
 }: WhiteboardContainerProps) => {
   return (
     <Suspense
@@ -42,6 +46,8 @@ export const WhiteboardContainer = ({
         role={role}
         embedded={embedded}
         sceneField={sceneField}
+        initialViewport={initialViewport}
+        onViewport={onViewport}
       />
     </Suspense>
   );

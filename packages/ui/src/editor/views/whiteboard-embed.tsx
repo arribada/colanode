@@ -2,6 +2,7 @@ import { eq, useLiveQuery } from '@tanstack/react-db';
 import { type NodeViewProps } from '@tiptap/core';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { NodeViewWrapper } from '@tiptap/react';
+import { useRef } from 'react';
 import { ExternalLink, Plus, Presentation } from 'lucide-react';
 
 import { EditorContext, LocalWhiteboardNode } from '@colanode/client/types';
@@ -23,7 +24,15 @@ const EMBED_ROLE = 'viewer' as const;
 // NodeProvider/useNode path the database node view uses to render a node it
 // references (see editor/views/database.tsx). `embedded` makes the canvas yield
 // wheel/touch to the page and suppress the collaboration controls + presence.
-const WhiteboardEmbedContent = ({ id }: { id: string }) => {
+const WhiteboardEmbedContent = ({
+  id,
+  initialViewport,
+  onViewport,
+}: {
+  id: string;
+  initialViewport?: { x: number; y: number; zoom: number };
+  onViewport?: (viewport: { x: number; y: number; zoom: number }) => void;
+}) => {
   const workspace = useWorkspace();
   // Query the referenced board DIRECTLY rather than through NodeProvider: the
   // embed always renders read-only (EMBED_ROLE), so it does not need the
@@ -56,7 +65,15 @@ const WhiteboardEmbedContent = ({ id }: { id: string }) => {
     );
   }
 
-  return <WhiteboardContainer node={node} role={EMBED_ROLE} embedded />;
+  return (
+    <WhiteboardContainer
+      node={node}
+      role={EMBED_ROLE}
+      embedded
+      initialViewport={initialViewport}
+      onViewport={onViewport}
+    />
+  );
 };
 
 // Empty-state picker: create a brand-new board, or embed one of the workspace's
@@ -186,6 +203,15 @@ export const WhiteboardEmbedNodeView = ({
     (extension.options as { context?: EditorContext | null }).context ?? null;
   const id = node.attrs.id as string | null;
   const height = (node.attrs.height as number | null) ?? 480;
+  const region =
+    (node.attrs.region as { x: number; y: number; zoom: number } | null) ??
+    null;
+  // Latest viewport reported by the preview, saved into `region` on "Set view".
+  const latestViewportRef = useRef<{
+    x: number;
+    y: number;
+    zoom: number;
+  } | null>(region);
 
   if (!id) {
     if (!editor.isEditable) {
@@ -242,20 +268,44 @@ export const WhiteboardEmbedNodeView = ({
           Open board
         </button>
         {editor.isEditable && (
-          <select
-            value={height}
-            onMouseDown={(e) => e.stopPropagation()}
-            onChange={(e) =>
-              updateAttributes({ height: Number(e.target.value) })
-            }
-            className="rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs text-muted-foreground outline-none"
-          >
-            {HEIGHT_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}px
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() =>
+                updateAttributes({ region: latestViewportRef.current })
+              }
+              className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground"
+              title="Pan/zoom the preview (middle- or right-drag to pan, Ctrl+wheel to zoom), then save that framing as the displayed view"
+            >
+              Set this view
+            </button>
+            {region && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => updateAttributes({ region: null })}
+                className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground"
+                title="Show the whole board again"
+              >
+                Reset
+              </button>
+            )}
+            <select
+              value={height}
+              onMouseDown={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                updateAttributes({ height: Number(e.target.value) })
+              }
+              className="rounded border border-border/60 bg-background px-1.5 py-0.5 text-xs text-muted-foreground outline-none"
+            >
+              {HEIGHT_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}px
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
       <div
@@ -263,7 +313,13 @@ export const WhiteboardEmbedNodeView = ({
         className="select-none overflow-hidden rounded-md border border-border/60 bg-background"
         style={{ height }}
       >
-        <WhiteboardEmbedContent id={id} />
+        <WhiteboardEmbedContent
+          id={id}
+          initialViewport={region ?? undefined}
+          onViewport={(vp) => {
+            latestViewportRef.current = vp;
+          }}
+        />
       </div>
     </NodeViewWrapper>
   );
