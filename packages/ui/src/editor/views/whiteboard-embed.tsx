@@ -40,6 +40,7 @@ const WhiteboardEmbedPicker = ({
 }) => {
   const workspace = useWorkspace();
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
 
   const whiteboardListQuery = useLiveQuery({
     type: 'node.list',
@@ -52,6 +53,11 @@ const WhiteboardEmbedPicker = ({
     .map((node) => node as LocalWhiteboardNode)
     .filter((node) => node.type === 'whiteboard')
     .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+
+  const q = search.trim().toLowerCase();
+  const filteredWhiteboards = q
+    ? whiteboards.filter((w) => (w.name ?? '').toLowerCase().includes(q))
+    : whiteboards;
 
   // Create a new whiteboard parented to the space (rootId), exactly like the
   // standalone create flow, then swap the embed to reference it. Await the
@@ -130,21 +136,37 @@ const WhiteboardEmbedPicker = ({
           <p className="border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
             Or embed an existing whiteboard:
           </p>
+          <div className="border-b border-border/60 p-1.5">
+            <input
+              type="text"
+              value={search}
+              onMouseDown={(e) => e.stopPropagation()}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search boards…"
+              className="w-full rounded border border-border/60 bg-background px-2 py-1 text-sm text-foreground outline-none focus:border-primary"
+            />
+          </div>
           <div className="max-h-56 overflow-y-auto">
-            {whiteboards.map((whiteboard) => (
-              <button
-                key={whiteboard.id}
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => onPick(whiteboard.id)}
-                className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm text-foreground outline-none hover:bg-accent"
-              >
-                <Presentation className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">
-                  {whiteboard.name?.trim() ? whiteboard.name : 'Untitled'}
-                </span>
-              </button>
-            ))}
+            {filteredWhiteboards.length === 0 ? (
+              <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                No board matches your search.
+              </p>
+            ) : (
+              filteredWhiteboards.map((whiteboard) => (
+                <button
+                  key={whiteboard.id}
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => onPick(whiteboard.id)}
+                  className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm text-foreground outline-none hover:bg-accent"
+                >
+                  <Presentation className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">
+                    {whiteboard.name?.trim() ? whiteboard.name : 'Untitled'}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
