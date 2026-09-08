@@ -45,6 +45,12 @@ const WhiteboardEmbedContent = ({
     filters: [{ field: ['id'], operator: 'in', value: [id] }],
     sorts: [],
   });
+  const dbgAll = useLiveQuery({
+    type: 'node.list',
+    userId: workspace.userId,
+    filters: [{ field: ['type'], operator: 'in', value: ['whiteboard'] }],
+    sorts: [],
+  });
 
   if (nodeQuery.isLoading) {
     return (
@@ -57,8 +63,19 @@ const WhiteboardEmbedContent = ({
   const node = nodeQuery.data?.[0] as LocalWhiteboardNode | undefined;
   if (!node || node.type !== 'whiteboard') {
     return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-        Whiteboard unavailable
+      <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center text-xs text-muted-foreground">
+        <div>Whiteboard unavailable</div>
+        <div className="max-w-full break-all opacity-70">
+          dbg uid={String(workspace.userId ?? 'NONE').slice(0, 14)} · id=
+          {String(id ?? 'null').slice(0, 12)} · byId=
+          {nodeQuery.data?.length ?? -1} · allWB={dbgAll.data?.length ?? -1} ·
+          load={String(nodeQuery.isLoading)}/{String(dbgAll.isLoading)} · err=
+          {nodeQuery.error
+            ? String(nodeQuery.error).slice(0, 60)
+            : dbgAll.error
+              ? String(dbgAll.error).slice(0, 60)
+              : 'none'}
+        </div>
       </div>
     );
   }
