@@ -2,8 +2,9 @@ import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { type NodeViewProps } from '@tiptap/core';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { NodeViewWrapper } from '@tiptap/react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { ExternalLink, Plus, Presentation } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { EditorContext, LocalWhiteboardNode } from '@colanode/client/types';
 import { IdType, generateId } from '@colanode/core';
@@ -20,73 +21,25 @@ const HEIGHT_OPTIONS = [320, 480, 640, 800];
 // only from the board opened standalone (or via the "Open board" modal below).
 const EMBED_ROLE = 'viewer' as const;
 
-// Renders the referenced whiteboard by id, resolved through the same
-// NodeProvider/useNode path the database node view uses to render a node it
-// references (see editor/views/database.tsx). `embedded` makes the canvas yield
-// wheel/touch to the page and suppress the collaboration controls + presence.
-const WhiteboardEmbedContent = ({
-  id,
-  initialViewport,
-  onViewport,
-}: {
-  id: string;
-  initialViewport?: { x: number; y: number; zoom: number };
-  onViewport?: (viewport: { x: number; y: number; zoom: number }) => void;
-}) => {
-  const workspace = useWorkspace();
-  // Query the referenced board DIRECTLY rather than through NodeProvider: the
-  // embed always renders read-only (EMBED_ROLE), so it does not need the
-  // ancestor-chain ROLE resolution NodeProvider gates on — and that gate is what
-  // left the embed stuck on a "syncing" skeleton (a freshly created board, or one
-  // whose ancestor role resolves late, never cleared it).
-  const nodeQuery = useLiveQuery({
-    type: 'node.list',
-    userId: workspace.userId,
-    filters: [{ field: ['id'], operator: 'in', value: [id] }],
-    sorts: [],
-  });
-
-  if (nodeQuery.isLoading) {
-    return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-        Loading board&hellip;
-      </div>
-    );
-  }
-
-  const node = nodeQuery.data?.[0] as LocalWhiteboardNode | undefined;
-  if (!node || node.type !== 'whiteboard') {
-    return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-        Whiteboard unavailable
-      </div>
-    );
-  }
-
-  return (
-    <WhiteboardContainer
-      node={node}
-      role={EMBED_ROLE}
-      embedded
-      initialViewport={initialViewport}
-      onViewport={onViewport}
-    />
-  );
-};
-
 // Empty-state picker: create a brand-new board, or embed one of the workspace's
-// existing whiteboards (a live list, mirroring databases/database-select.tsx
-// filtered to type === 'whiteboard'). Create-new needs the containing page id +
-// rootId, threaded in via `context`; when it is absent (node rendered outside an
-// editable document) only the existing-board path is offered.
+// existing whiteboards (a live list filtered to type === 'whiteboard').
+// Create-new persists through the SAME mutation path the sidebar/standalone
+// flows ultimately use (`node.create` via executeMutation) — inserting into
+// `workspace.collections.nodes` does NOT work here because that tanstack-db
+// collection is on-demand-synced and seeded only with space/chat/database/
+// channel types, so a whiteboard insert never reached the server (a phantom id
+// that then read back as "Whiteboard unavailable").
 const WhiteboardEmbedPicker = ({
   context,
+  notFoundId,
   onPick,
 }: {
   context: EditorContext | null;
+  notFoundId?: string | null;
   onPick: (whiteboardId: string) => void;
 }) => {
   const workspace = useWorkspace();
+  const [creating, setCreating] = useState(false);
 
   const whiteboardListQuery = useLiveQuery({
     type: 'node.list',
@@ -95,48 +48,46 @@ const WhiteboardEmbedPicker = ({
     sorts: [],
   });
 
-  const whiteboards = (whiteboardListQuery.data ?? []).map(
-    (node) => node as LocalWhiteboardNode
-  );
+  const whiteboards = (whiteboardListQuery.data ?? [])
+    .map((node) => node as LocalWhiteboardNode)
+    .filter((node) => node.type === 'whiteboard')
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
 
-  // Create a new whiteboard parented to the page the embed lives on, then swap
-  // the embed to reference it (same body the old "/whiteboard" command ran).
+  // Create a new whiteboard parented to the space (rootId), exactly like the
+  // standalone create flow, then swap the embed to reference it. Await the
+  // mutation so the id is only written into the embed once the board really
+  // exists locally + is queued for the server.
   const createNewBoard = async () => {
-    if (!context) {
+    if (!context || creating) {
       return;
     }
-    const whiteboardId = generateId(IdType.Whiteboard);
-    const whiteboard: LocalWhiteboardNode = {
-      id: whiteboardId,
-      type: 'whiteboard',
-      name: 'Whiteboard',
-      // Parent the board to the space (rootId), exactly like the standalone
-      // WhiteboardCreateDialog — a whiteboard under a page node is an
-      // unexpected parent relationship the role/sync resolution chokes on,
-      // which left the fresh board stuck on "still downloading". The embed
-      // only references the board by id, so its parent can be the space.
-      avatar: null,
-      parentId: context.rootId,
-      rootId: context.rootId,
-      scene: {},
-      createdAt: new Date().toISOString(),
-      createdBy: workspace.userId,
-      updatedAt: null,
-      updatedBy: null,
-      localRevision: '0',
-      serverRevision: '0',
-    };
-    const tx = workspace.collections.nodes.insert(whiteboard);
-    // Wait for the create to actually PERSIST before swapping the embed to it:
-    // onPick unmounts this picker, and a synchronous unmount was dropping the
-    // pending insert mutation, so the board never reached the server — a phantom
-    // id that then read back as "Whiteboard unavailable".
+    setCreating(true);
     try {
-      await tx.isPersisted.promise;
-    } catch {
-      // Even a failed persist still points the embed at the new id.
+      const whiteboardId = generateId(IdType.Whiteboard);
+      const result = await window.colanode.executeMutation({
+        type: 'node.create',
+        userId: workspace.userId,
+        nodeId: whiteboardId,
+        attributes: {
+          type: 'whiteboard',
+          name: 'Whiteboard',
+          avatar: null,
+          parentId: context.rootId,
+          scene: {},
+        },
+      });
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
+      onPick(whiteboardId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to create whiteboard'
+      );
+    } finally {
+      setCreating(false);
     }
-    onPick(whiteboardId);
   };
 
   return (
@@ -148,46 +99,54 @@ const WhiteboardEmbedPicker = ({
         <Presentation className="size-4 shrink-0 text-muted-foreground" />
         Whiteboard
       </div>
+      {notFoundId && (
+        <p className="mb-2 text-sm text-muted-foreground">
+          The board this embed pointed to could not be found. Pick another one
+          below, or create a new board.
+        </p>
+      )}
       {context && (
         <button
           type="button"
+          disabled={creating}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={createNewBoard}
-          className="mb-2 flex w-full items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1.5 text-sm text-foreground outline-none hover:bg-accent"
+          className="mb-2 flex w-full items-center gap-1.5 rounded border border-border/60 bg-background px-2 py-1.5 text-sm text-foreground outline-none hover:bg-accent disabled:opacity-60"
         >
           <Plus className="size-4 shrink-0 text-muted-foreground" />
-          Create a new board
+          {creating ? 'Creating board…' : 'Create a new board'}
         </button>
       )}
       {whiteboards.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {context
-            ? 'Or embed an existing whiteboard — none in this workspace yet.'
-            : 'No whiteboards available in this workspace.'}
+          {whiteboardListQuery.isLoading
+            ? 'Loading existing whiteboards…'
+            : context
+              ? 'Or embed an existing whiteboard — none in this workspace yet.'
+              : 'No whiteboards available in this workspace.'}
         </p>
       ) : (
-        <select
-          defaultValue=""
-          onMouseDown={(e) => e.stopPropagation()}
-          onChange={(e) => {
-            const whiteboardId = e.target.value;
-            if (whiteboardId) {
-              onPick(whiteboardId);
-            }
-          }}
-          className="w-full rounded border border-border/60 bg-background px-2 py-1.5 text-sm text-foreground outline-none"
-        >
-          <option value="" disabled>
-            Embed an existing whiteboard&hellip;
-          </option>
-          {[...whiteboards]
-            .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-            .map((whiteboard) => (
-              <option key={whiteboard.id} value={whiteboard.id}>
-                {whiteboard.name ?? 'Untitled'}
-              </option>
+        <div className="rounded border border-border/60 bg-background">
+          <p className="border-b border-border/60 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+            Or embed an existing whiteboard:
+          </p>
+          <div className="max-h-56 overflow-y-auto">
+            {whiteboards.map((whiteboard) => (
+              <button
+                key={whiteboard.id}
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => onPick(whiteboard.id)}
+                className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm text-foreground outline-none hover:bg-accent"
+              >
+                <Presentation className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">
+                  {whiteboard.name?.trim() ? whiteboard.name : 'Untitled'}
+                </span>
+              </button>
             ))}
-        </select>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -219,6 +178,23 @@ export const WhiteboardEmbedNodeView = ({
     zoom: number;
   } | null>(region);
 
+  // Resolve the referenced board DIRECTLY via node.list rather than through
+  // NodeProvider: the embed always renders read-only (EMBED_ROLE), so it does
+  // not need the ancestor-chain ROLE resolution NodeProvider gates on — and
+  // that gate is what left the embed stuck on a "syncing" skeleton. Queried
+  // unconditionally (hooks) with a sentinel empty id when none is set.
+  const boardQuery = useLiveQuery({
+    type: 'node.list',
+    userId: workspace.userId,
+    filters: [{ field: ['id'], operator: 'in', value: [id ?? ''] }],
+    sorts: [],
+  });
+  const boardNode = boardQuery.data?.[0];
+  const board =
+    boardNode && boardNode.type === 'whiteboard'
+      ? (boardNode as LocalWhiteboardNode)
+      : undefined;
+
   if (!id) {
     if (!editor.isEditable) {
       return (
@@ -234,7 +210,36 @@ export const WhiteboardEmbedNodeView = ({
       <NodeViewWrapper data-type="whiteboard-embed" className="my-2">
         <WhiteboardEmbedPicker
           context={context}
-          onPick={(whiteboardId) => updateAttributes({ id: whiteboardId })}
+          onPick={(whiteboardId) =>
+            updateAttributes({ id: whiteboardId, region: null })
+          }
+        />
+      </NodeViewWrapper>
+    );
+  }
+
+  // The id points at a board that does not exist (deleted, or a phantom left
+  // behind by an earlier failed create). Instead of a dead "unavailable" box,
+  // drop straight back into the picker so the user can fix the embed in place.
+  if (!boardQuery.isLoading && !board) {
+    if (!editor.isEditable) {
+      return (
+        <NodeViewWrapper data-type="whiteboard-embed" className="my-2">
+          <div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+            Whiteboard unavailable
+          </div>
+        </NodeViewWrapper>
+      );
+    }
+
+    return (
+      <NodeViewWrapper data-type="whiteboard-embed" className="my-2">
+        <WhiteboardEmbedPicker
+          context={context}
+          notFoundId={id}
+          onPick={(whiteboardId) =>
+            updateAttributes({ id: whiteboardId, region: null })
+          }
         />
       </NodeViewWrapper>
     );
@@ -328,13 +333,21 @@ export const WhiteboardEmbedNodeView = ({
         className="select-none overflow-hidden rounded-md border border-border/60 bg-background"
         style={{ height }}
       >
-        <WhiteboardEmbedContent
-          id={id}
-          initialViewport={region ?? undefined}
-          onViewport={(vp) => {
-            latestViewportRef.current = vp;
-          }}
-        />
+        {board ? (
+          <WhiteboardContainer
+            node={board}
+            role={EMBED_ROLE}
+            embedded
+            initialViewport={region ?? undefined}
+            onViewport={(vp) => {
+              latestViewportRef.current = vp;
+            }}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+            Loading board&hellip;
+          </div>
+        )}
       </div>
     </NodeViewWrapper>
   );
