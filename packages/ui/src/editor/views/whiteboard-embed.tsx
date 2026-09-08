@@ -45,12 +45,6 @@ const WhiteboardEmbedContent = ({
     filters: [{ field: ['id'], operator: 'in', value: [id] }],
     sorts: [],
   });
-  const dbgAll = useLiveQuery({
-    type: 'node.list',
-    userId: workspace.userId,
-    filters: [{ field: ['type'], operator: 'in', value: ['whiteboard'] }],
-    sorts: [],
-  });
 
   if (nodeQuery.isLoading) {
     return (
@@ -63,19 +57,8 @@ const WhiteboardEmbedContent = ({
   const node = nodeQuery.data?.[0] as LocalWhiteboardNode | undefined;
   if (!node || node.type !== 'whiteboard') {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center text-xs text-muted-foreground">
-        <div>Whiteboard unavailable</div>
-        <div className="max-w-full break-all opacity-70">
-          dbg uid={String(workspace.userId ?? 'NONE').slice(0, 14)} · id=
-          {String(id ?? 'null').slice(0, 12)} · byId=
-          {nodeQuery.data?.length ?? -1} · allWB={dbgAll.data?.length ?? -1} ·
-          load={String(nodeQuery.isLoading)}/{String(dbgAll.isLoading)} · err=
-          {nodeQuery.error
-            ? String(nodeQuery.error).slice(0, 60)
-            : dbgAll.error
-              ? String(dbgAll.error).slice(0, 60)
-              : 'none'}
-        </div>
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+        Whiteboard unavailable
       </div>
     );
   }
@@ -118,7 +101,7 @@ const WhiteboardEmbedPicker = ({
 
   // Create a new whiteboard parented to the page the embed lives on, then swap
   // the embed to reference it (same body the old "/whiteboard" command ran).
-  const createNewBoard = () => {
+  const createNewBoard = async () => {
     if (!context) {
       return;
     }
@@ -143,7 +126,16 @@ const WhiteboardEmbedPicker = ({
       localRevision: '0',
       serverRevision: '0',
     };
-    workspace.collections.nodes.insert(whiteboard);
+    const tx = workspace.collections.nodes.insert(whiteboard);
+    // Wait for the create to actually PERSIST before swapping the embed to it:
+    // onPick unmounts this picker, and a synchronous unmount was dropping the
+    // pending insert mutation, so the board never reached the server — a phantom
+    // id that then read back as "Whiteboard unavailable".
+    try {
+      await tx.isPersisted.promise;
+    } catch {
+      // Even a failed persist still points the embed at the new id.
+    }
     onPick(whiteboardId);
   };
 
