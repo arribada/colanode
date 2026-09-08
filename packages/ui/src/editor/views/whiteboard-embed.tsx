@@ -119,11 +119,12 @@ const WhiteboardEmbedPicker = ({
       // unexpected parent relationship the role/sync resolution chokes on,
       // which left the fresh board stuck on "still downloading". The embed
       // only references the board by id, so its parent can be the space.
+      avatar: null,
       parentId: context.rootId,
       rootId: context.rootId,
       scene: {},
       createdAt: new Date().toISOString(),
-      createdBy: context.userId,
+      createdBy: workspace.userId,
       updatedAt: null,
       updatedBy: null,
       localRevision: '0',
@@ -269,6 +270,15 @@ export const WhiteboardEmbedNodeView = ({
         </button>
         {editor.isEditable && (
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => updateAttributes({ id: null, region: null })}
+              className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground"
+              title="Pick a different whiteboard for this embed"
+            >
+              Change board
+            </button>
             <button
               type="button"
               onMouseDown={(e) => e.stopPropagation()}
