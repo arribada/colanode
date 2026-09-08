@@ -6,9 +6,7 @@ import { ExternalLink, Plus, Presentation } from 'lucide-react';
 
 import { EditorContext, LocalWhiteboardNode } from '@colanode/client/types';
 import { IdType, generateId } from '@colanode/core';
-import { NodeProvider } from '@colanode/ui/components/nodes/node-provider';
 import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
-import { useNode } from '@colanode/ui/contexts/node';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 
 const HEIGHT_OPTIONS = [320, 480, 640, 800];
@@ -25,13 +23,35 @@ const EMBED_ROLE = 'viewer' as const;
 // NodeProvider/useNode path the database node view uses to render a node it
 // references (see editor/views/database.tsx). `embedded` makes the canvas yield
 // wheel/touch to the page and suppress the collaboration controls + presence.
-const WhiteboardEmbedContent = () => {
-  const { node } = useNode<LocalWhiteboardNode>();
+const WhiteboardEmbedContent = ({ id }: { id: string }) => {
+  const workspace = useWorkspace();
+  // Query the referenced board DIRECTLY rather than through NodeProvider: the
+  // embed always renders read-only (EMBED_ROLE), so it does not need the
+  // ancestor-chain ROLE resolution NodeProvider gates on — and that gate is what
+  // left the embed stuck on a "syncing" skeleton (a freshly created board, or one
+  // whose ancestor role resolves late, never cleared it).
+  const nodeQuery = useLiveQuery(
+    (q) =>
+      q
+        .from({ nodes: workspace.collections.nodes })
+        .where(({ nodes }) => eq(nodes.id, id))
+        .findOne(),
+    [workspace.userId, id]
+  );
 
-  if (node.type !== 'whiteboard') {
+  if (nodeQuery.isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-        Not a whiteboard
+        Loading board&hellip;
+      </div>
+    );
+  }
+
+  const node = nodeQuery.data as LocalWhiteboardNode | undefined;
+  if (!node || node.type !== 'whiteboard') {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+        Whiteboard unavailable
       </div>
     );
   }
@@ -243,9 +263,7 @@ export const WhiteboardEmbedNodeView = ({
         className="select-none overflow-hidden rounded-md border border-border/60 bg-background"
         style={{ height }}
       >
-        <NodeProvider nodeId={id}>
-          <WhiteboardEmbedContent />
-        </NodeProvider>
+        <WhiteboardEmbedContent id={id} />
       </div>
     </NodeViewWrapper>
   );
