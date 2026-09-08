@@ -2873,8 +2873,43 @@ export const WhiteboardCanvas = ({
     if (ids.length === 0) {
       return;
     }
+    const delSet = new Set(ids);
     const before = cloneScene(sceneRef.current);
     const next = { ...sceneRef.current };
+    // Freeze any connector attached to a deleted element at its CURRENT
+    // position: bake the live endpoints into its points and drop the now-
+    // dangling anchor, so the arrow stays put instead of snapping back to its
+    // stale stored points. The other end keeps its anchor and still tracks its
+    // element.
+    for (const el of Object.values(next)) {
+      if (el.type !== 'connector' || !el.connector) {
+        continue;
+      }
+      const c = el.connector;
+      const fromGone = !!c.fromId && delSet.has(c.fromId);
+      const toGone = !!c.toId && delSet.has(c.toId);
+      if (!fromGone && !toGone) {
+        continue;
+      }
+      const { start, end } = resolveConnectorEndpoints(el, sceneRef.current);
+      const nextConn = { ...c };
+      if (fromGone) {
+        delete nextConn.fromId;
+        delete nextConn.fromAnchor;
+      }
+      if (toGone) {
+        delete nextConn.toId;
+        delete nextConn.toAnchor;
+      }
+      next[el.id] = {
+        ...el,
+        points: [
+          [start.x, start.y],
+          [end.x, end.y],
+        ],
+        connector: nextConn,
+      };
+    }
     for (const id of ids) {
       delete next[id];
     }
