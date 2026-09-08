@@ -263,6 +263,7 @@ type Interaction =
       quick?: { sourceId: string; side: QuickSide };
     }
   | { mode: 'connector-bend'; id: string; index: number; before: BoardScene }
+  | { mode: 'connector-label'; id: string; before: BoardScene }
   // Dragging one END of an existing connector to re-attach it.
   | {
       mode: 'connector-endpoint';
@@ -556,6 +557,7 @@ export const WhiteboardCanvas = ({
         it.mode === 'create' ||
         it.mode === 'connector' ||
         it.mode === 'connector-bend' ||
+        it.mode === 'connector-label' ||
         it.mode === 'connector-endpoint' ||
         it.mode === 'connector-segment' ||
         it.mode === 'pen'
@@ -1754,6 +1756,22 @@ export const WhiteboardCanvas = ({
       }
     }
 
+    // connector label: drag it along the wire.
+    const labelEl = target.closest('[data-connector-label]');
+    if (labelEl) {
+      const id = labelEl.getAttribute('data-connector-label')!;
+      const el = sceneRef.current[id];
+      if (el && el.type === 'connector' && !isLockedForMe(id)) {
+        setSelection([id]);
+        interactionRef.current = {
+          mode: 'connector-label',
+          id,
+          before: cloneScene(sceneRef.current),
+        };
+        return;
+      }
+    }
+
     const t = toolRef.current;
 
     if (t === 'connector') {
@@ -2400,6 +2418,36 @@ export const WhiteboardCanvas = ({
           [it.id]: {
             ...el,
             connector: { ...el.connector, bends: nextBends, bend: undefined },
+          },
+        };
+        applyLocal(next);
+        schedulePersist([it.id]);
+        break;
+      }
+      case 'connector-label': {
+        const el = sceneRef.current[it.id];
+        if (!el || el.type !== 'connector') {
+          break;
+        }
+        const { start, end } = resolveConnectorEndpoints(el, sceneRef.current);
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const len2 = dx * dx + dy * dy;
+        const t =
+          len2 === 0
+            ? 0.5
+            : Math.max(
+                0,
+                Math.min(
+                  1,
+                  ((p.x - start.x) * dx + (p.y - start.y) * dy) / len2
+                )
+              );
+        const next = {
+          ...sceneRef.current,
+          [it.id]: {
+            ...el,
+            connector: { ...el.connector, labelT: t },
           },
         };
         applyLocal(next);

@@ -129,6 +129,9 @@ export const boardConnectorSchema = z.object({
     .enum(['none', 'arrow', 'triangle', 'circle', 'diamond'])
     .optional(),
   label: z.string().optional(),
+  // Where the label sits ALONG the wire, 0..1 (0 = start, 1 = end). Absent =
+  // the routed midpoint. Set by dragging the label.
+  labelT: z.number().min(0).max(1).optional(),
   // Line shape: straight segment (default), an orthogonal rounded elbow, or a
   // quadratic curve. Optional + backward-compatible — absent reads as
   // 'straight'.

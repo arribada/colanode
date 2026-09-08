@@ -701,6 +701,16 @@ export const BoardElementView = ({
     // A named dependency labels itself, unless the user wrote their own text.
     const lineLabel = c.label || (c.kind ? DEPENDENCY_LABEL[c.kind] : '');
     const labelWidth = lineLabel ? Math.max(24, lineLabel.length * 7 + 12) : 0;
+    // Label position along the wire: connector.labelT (0..1, dragged) lerped on
+    // the straight chord, else the routed midpoint.
+    const labelT = c.labelT;
+    const labelPos =
+      labelT != null
+        ? {
+            x: start.x + (end.x - start.x) * labelT,
+            y: start.y + (end.y - start.y) * labelT,
+          }
+        : mid;
     return (
       <g opacity={opacity}>
         <path
@@ -719,10 +729,13 @@ export const BoardElementView = ({
         <ArrowHeadMark shape={head} color={style.stroke ?? '#334155'} />
         <ArrowHeadMark shape={tail} color={style.stroke ?? '#334155'} />
         {lineLabel && (
-          <g style={{ userSelect: 'none' }}>
+          <g
+            data-connector-label={element.id}
+            style={{ userSelect: 'none', cursor: 'move' }}
+          >
             <rect
-              x={mid.x - labelWidth / 2}
-              y={mid.y - 10}
+              x={labelPos.x - labelWidth / 2}
+              y={labelPos.y - 10}
               width={labelWidth}
               height={20}
               rx={5}
@@ -731,8 +744,8 @@ export const BoardElementView = ({
               opacity={0.95}
             />
             <text
-              x={mid.x}
-              y={mid.y + 4}
+              x={labelPos.x}
+              y={labelPos.y + 4}
               textAnchor="middle"
               fontSize={12}
               fontWeight={500}
