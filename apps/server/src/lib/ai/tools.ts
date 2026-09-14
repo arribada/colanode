@@ -38,7 +38,6 @@ import {
   RichTextContent,
   WorkspaceRole,
 } from '@colanode/core';
-
 import { database } from '@colanode/server/data/database';
 import { SelectNode } from '@colanode/server/data/schema';
 import {
@@ -181,6 +180,51 @@ const applyLeafMarks = (leaf: BlockLeaf): string => {
 const leafText = (block: Block): string =>
   (block.content ?? []).map(applyLeafMarks).join('');
 
+const attrString = (block: Block, key: string): string => {
+  const value = (block.attrs ?? {})[key];
+  return typeof value === 'string' ? value : '';
+};
+
+// Block types markdown cannot carry. A replace-mode edit round-trips the whole
+// document through markdown, so these would be silently deleted -- 215 of the
+// wiki's 935 documents hold at least one. edit_page refuses instead of eating
+// them, because the model cannot even SEE them in what get_page returned.
+const UNREPRESENTABLE_BLOCK_TYPES = new Set([
+  'database',
+  'whiteboardEmbed',
+  'planeEmbed',
+  'planeIssueLink',
+  'embed',
+  'bookmark',
+  'chart',
+  'columns',
+  'column',
+  'tableOfContents',
+  'referenceList',
+  'toggle',
+  'toggleSummary',
+  'toggleContent',
+  'file',
+  'page',
+  'folder',
+  'mathBlock',
+  'mathInline',
+  'poll',
+]);
+
+export const unrepresentableBlockTypes = (
+  content: RichTextContent | null | undefined
+): string[] => {
+  const blocks = content && content.blocks ? Object.values(content.blocks) : [];
+  const found = new Set<string>();
+  for (const block of blocks) {
+    if (UNREPRESENTABLE_BLOCK_TYPES.has(block.type)) {
+      found.add(block.type);
+    }
+  }
+  return [...found].sort();
+};
+
 // Converts a page/record rich-text document into plain markdown for the model.
 export const richTextToMarkdown = (
   documentId: string,
@@ -195,6 +239,46 @@ export const richTextToMarkdown = (
     blocks
       .filter((block) => block.parentId === parentId)
       .sort((a, b) => compareString(a.index, b.index));
+
+  // A cell holds paragraphs; a pipe inside one would break the row.
+  const cellText = (cell: Block): string =>
+    childrenOf(cell.id)
+      .map((child) => leafText(child))
+      .join(' ')
+      .replace(/\|/g, '\\|')
+      .trim();
+
+  const tableLines = (table: Block, indent: string): string[] => {
+    const rows = childrenOf(table.id).filter((row) => row.type === 'tableRow');
+    if (rows.length === 0) {
+      return [];
+    }
+    const matrix = rows.map((row) =>
+      childrenOf(row.id)
+        .filter((c) => c.type === 'tableHeader' || c.type === 'tableCell')
+        .map((c) => cellText(c))
+    );
+    const width = Math.max(...matrix.map((row) => row.length));
+    const pad = (row: string[]): string[] => {
+      const copy = [...row];
+      while (copy.length < width) {
+        copy.push('');
+      }
+      return copy;
+    };
+    const out: string[] = [];
+    out.push(indent + '| ' + pad(matrix[0] ?? []).join(' | ') + ' |');
+    out.push(
+      indent +
+        '| ' +
+        Array.from({ length: width }, () => '---').join(' | ') +
+        ' |'
+    );
+    for (const row of matrix.slice(1)) {
+      out.push(indent + '| ' + pad(row).join(' | ') + ' |');
+    }
+    return out;
+  };
 
   const walk = (parentId: string, indent: string, ordered: boolean): string[] => {
     const lines: string[] = [];
@@ -215,10 +299,42 @@ export const richTextToMarkdown = (
         case 'paragraph':
           lines.push(indent + text);
           break;
-        case 'codeBlock':
-          lines.push(indent + '```');
+        case 'codeBlock': {
+          // The language was dropped on the way out, so a round-trip turned
+          // every annotated block into plaintext.
+          const language = attrString(block, 'language');
+          lines.push(indent + '```' + (language === 'plaintext' ? '' : language));
           lines.push(indent + text);
           lines.push(indent + '```');
+          break;
+        }
+        case 'mermaid': {
+          // Fenced as ```mermaid, which the parser turns back into a real
+          // diagram rather than a code block.
+          lines.push(indent + '```mermaid');
+          for (const sourceLine of attrString(block, 'source').split('\n')) {
+            lines.push(sourceLine);
+          }
+          lines.push(indent + '```');
+          break;
+        }
+        case 'callout': {
+          const colour = attrString(block, 'color');
+          lines.push(
+            indent + '> [!NOTE]' + (colour && colour !== 'default' ? ' ' + colour : '')
+          );
+          for (const line of walk(block.id, '', false)) {
+            lines.push(indent + '> ' + line);
+          }
+          break;
+        }
+        case 'table':
+          lines.push(...tableLines(block, indent));
+          break;
+        case 'tableRow':
+        case 'tableHeader':
+        case 'tableCell':
+          // Consumed by the 'table' case above.
           break;
         case 'horizontalRule':
           lines.push(indent + '---');
@@ -380,17 +496,75 @@ export const markdownToBlocks = (
     return block;
   };
 
-  let currentList:
-    | { block: Block; kind: 'bullet' | 'ordered' | 'task'; lastItemIndex: string | null }
-    | null = null;
+  const addChild = (
+    parentId: string,
+    type: string,
+    after: string | null
+  ): Block => {
+    const block = newBlock(type, parentId, generateFractionalIndex(after, null));
+    blocks[block.id] = block;
+    return block;
+  };
+
+  const addParagraph = (parentId: string, text: string): Block => {
+    const para = addChild(parentId, 'paragraph', null);
+    para.content = parseInline(text);
+    return para;
+  };
+
+  // GitHub callout keywords mapped onto the palette the callout block actually
+  // stores. Anything unknown stays neutral rather than guessing a colour.
+  const CALLOUT_COLOURS: Record<string, string> = {
+    note: 'blue',
+    info: 'blue',
+    tip: 'green',
+    success: 'green',
+    warning: 'orange',
+    caution: 'orange',
+    important: 'purple',
+    danger: 'red',
+    error: 'red',
+  };
+
+  // One entry per open list level, so indentation can nest instead of being
+  // flattened. The old parser read `trimmed` only, which made every sub-list a
+  // sibling of its parent.
+  type ListLevel = {
+    indent: number;
+    list: Block;
+    kind: 'bullet' | 'ordered' | 'task';
+    lastItemIndex: string | null;
+    lastItem: Block | null;
+    lastItemChildIndex: string | null;
+  };
+  let stack: ListLevel[] = [];
+  const resetLists = () => {
+    stack = [];
+  };
+
+  const isTableDelimiter = (value: string): boolean =>
+    /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(value.trim());
+
+  const splitRow = (value: string): string[] => {
+    let row = value.trim();
+    if (row.startsWith('|')) {
+      row = row.slice(1);
+    }
+    if (row.endsWith('|')) {
+      row = row.slice(0, -1);
+    }
+    return row.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+  };
 
   let i = 0;
   while (i < lines.length) {
     const line = (lines[i] ?? '').replace(/\s+$/, '');
     const trimmed = line.trim();
+    const indentWidth = line.length - line.trimStart().length;
 
     if (trimmed.startsWith('```')) {
-      currentList = null;
+      resetLists();
+      const info = trimmed.slice(3).trim().toLowerCase();
       i += 1;
       const codeLines: string[] = [];
       while (i < lines.length && !(lines[i] ?? '').trim().startsWith('```')) {
@@ -398,21 +572,68 @@ export const markdownToBlocks = (
         i += 1;
       }
       i += 1; // skip closing fence
-      const block = pushTop('codeBlock');
-      block.content = [{ type: 'text', text: codeLines.join('\n') }];
+      if (info === 'mermaid') {
+        // A real diagram, not a code block: editable afterwards and themed.
+        const block = pushTop('mermaid');
+        block.attrs = { source: codeLines.join('\n') };
+      } else {
+        const block = pushTop('codeBlock');
+        block.content = [{ type: 'text', text: codeLines.join('\n') }];
+        block.attrs = { language: info || 'plaintext' };
+      }
       continue;
     }
 
     if (trimmed === '') {
-      currentList = null;
+      resetLists();
       i += 1;
       continue;
     }
 
-    const heading = /^(#{1,3})\s+(.*)$/.exec(trimmed);
+    // A GFM table is a row followed by a delimiter row. Without this branch
+    // every line landed as a paragraph of literal pipes.
+    if (trimmed.includes('|') && isTableDelimiter(lines[i + 1] ?? '')) {
+      resetLists();
+      const header = splitRow(trimmed);
+      i += 2;
+      const bodyRows: string[][] = [];
+      while (i < lines.length) {
+        const candidate = (lines[i] ?? '').trim();
+        if (candidate === '' || !candidate.includes('|')) {
+          break;
+        }
+        bodyRows.push(splitRow(candidate));
+        i += 1;
+      }
+
+      const table = pushTop('table');
+      table.attrs = { colorRules: [] };
+      let rowAfter: string | null = null;
+      const emitRow = (cells: string[], cellType: string) => {
+        const row = addChild(table.id, 'tableRow', rowAfter);
+        rowAfter = row.index;
+        let cellAfter: string | null = null;
+        const width = Math.max(header.length, cells.length);
+        for (let c = 0; c < width; c++) {
+          const cell = addChild(row.id, cellType, cellAfter);
+          cellAfter = cell.index;
+          cell.attrs = { colspan: 1, rowspan: 1 };
+          addParagraph(cell.id, cells[c] ?? '');
+        }
+      };
+      emitRow(header, 'tableHeader');
+      for (const row of bodyRows) {
+        emitRow(row, 'tableCell');
+      }
+      continue;
+    }
+
+    // The editor has three heading levels; deeper ones used to fall through and
+    // render their own hashes as text.
+    const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
-      currentList = null;
-      const level = (heading[1] ?? '#').length;
+      resetLists();
+      const level = Math.min(3, (heading[1] ?? '#').length);
       const type =
         level === 1 ? 'heading1' : level === 2 ? 'heading2' : 'heading3';
       const block = pushTop(type);
@@ -422,29 +643,58 @@ export const markdownToBlocks = (
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
-      currentList = null;
+      resetLists();
       pushTop('horizontalRule');
       i += 1;
       continue;
     }
 
+    const callout = /^>\s*\[!([A-Za-z]+)\]\s*(.*)$/.exec(trimmed);
+    if (callout) {
+      resetLists();
+      const block = pushTop('callout');
+      block.attrs = {
+        color: CALLOUT_COLOURS[(callout[1] ?? '').toLowerCase()] ?? 'default',
+      };
+      let after: string | null = null;
+      const firstLine = (callout[2] ?? '').trim();
+      if (firstLine) {
+        const para = addChild(block.id, 'paragraph', after);
+        para.content = parseInline(firstLine);
+        after = para.index;
+      }
+      i += 1;
+      while (i < lines.length && /^>\s?/.test((lines[i] ?? '').trim())) {
+        const inner = (lines[i] ?? '').trim().replace(/^>\s?/, '');
+        const para = addChild(block.id, 'paragraph', after);
+        para.content = parseInline(inner);
+        after = para.index;
+        i += 1;
+      }
+      continue;
+    }
+
     const quote = /^>\s?(.*)$/.exec(trimmed);
     if (quote) {
-      currentList = null;
+      resetLists();
       const block = pushTop('blockquote');
-      const para = newBlock(
-        'paragraph',
-        block.id,
-        generateFractionalIndex(null, null)
-      );
-      para.content = parseInline(quote[1] ?? '');
-      blocks[para.id] = para;
-      i += 1;
+      let after: string | null = null;
+      let current: RegExpExecArray | null = quote;
+      while (current) {
+        const para = addChild(block.id, 'paragraph', after);
+        para.content = parseInline(current[1] ?? '');
+        after = para.index;
+        i += 1;
+        current =
+          i < lines.length
+            ? /^>\s?(.*)$/.exec((lines[i] ?? '').trim())
+            : null;
+      }
       continue;
     }
 
     const task = /^[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(trimmed);
-    const ordered = /^(\d+)\.\s+(.*)$/.exec(trimmed);
+    const ordered = /^(\d+)[.)]\s+(.*)$/.exec(trimmed);
     const bullet = /^[-*+]\s+(.*)$/.exec(trimmed);
 
     if (task || ordered || bullet) {
@@ -453,43 +703,67 @@ export const markdownToBlocks = (
         : ordered
           ? 'ordered'
           : 'bullet';
-      const text = task ? (task[2] ?? '') : ordered ? (ordered[2] ?? '') : bullet ? (bullet[1] ?? '') : '';
+      const text = task
+        ? (task[2] ?? '')
+        : ordered
+          ? (ordered[2] ?? '')
+          : (bullet?.[1] ?? '');
+      const listType =
+        kind === 'ordered'
+          ? 'orderedList'
+          : kind === 'task'
+            ? 'taskList'
+            : 'bulletList';
 
-      if (!currentList || currentList.kind !== kind) {
-        const listType: string =
-          kind === 'ordered'
-            ? 'orderedList'
-            : kind === 'task'
-              ? 'taskList'
-              : 'bulletList';
-        currentList = { block: pushTop(listType), kind, lastItemIndex: null };
+      while (stack.length > 1 && indentWidth < (stack[stack.length - 1]?.indent ?? 0)) {
+        stack.pop();
+      }
+
+      let level = stack[stack.length - 1];
+      const openLevel = (parent: ListLevel | undefined) => {
+        const parentItem = parent?.lastItem ?? null;
+        const list = parentItem
+          ? addChild(parentItem.id, listType, parent?.lastItemChildIndex ?? null)
+          : pushTop(listType);
+        if (parentItem && parent) {
+          parent.lastItemChildIndex = list.index;
+        }
+        const created: ListLevel = {
+          indent: indentWidth,
+          list,
+          kind,
+          lastItemIndex: null,
+          lastItem: null,
+          lastItemChildIndex: null,
+        };
+        stack.push(created);
+        return created;
+      };
+
+      if (!level) {
+        level = openLevel(undefined);
+      } else if (indentWidth > level.indent && level.lastItem) {
+        level = openLevel(level);
+      } else if (level.kind !== kind) {
+        stack.pop();
+        level = openLevel(stack[stack.length - 1]);
       }
 
       const itemType = kind === 'task' ? 'taskItem' : 'listItem';
-      const item = newBlock(
-        itemType,
-        currentList.block.id,
-        generateFractionalIndex(currentList.lastItemIndex, null)
-      );
+      const item = addChild(level.list.id, itemType, level.lastItemIndex);
       if (kind === 'task') {
         item.attrs = { checked: task ? task[1]?.toLowerCase() === 'x' : false };
       }
-      currentList.lastItemIndex = item.index;
-      blocks[item.id] = item;
-
-      const para = newBlock(
-        'paragraph',
-        item.id,
-        generateFractionalIndex(null, null)
-      );
-      para.content = parseInline(text);
-      blocks[para.id] = para;
+      level.lastItemIndex = item.index;
+      level.lastItem = item;
+      const para = addParagraph(item.id, text);
+      level.lastItemChildIndex = para.index;
 
       i += 1;
       continue;
     }
 
-    currentList = null;
+    resetLists();
     const paragraph = pushTop('paragraph');
     paragraph.content = parseInline(trimmed);
     i += 1;
@@ -864,6 +1138,18 @@ export const editPage = async (
           type: 'rich_text',
           blocks: { ...existing, ...newBlocks },
         };
+      }
+
+      // A replace round-trips the whole document through markdown. get_page
+      // already dropped these on the way out, so the model is rewriting a page
+      // it never saw in full -- refusing is the only honest outcome.
+      const lost = unrepresentableBlockTypes(current as RichTextContent);
+      if (lost.length > 0) {
+        throw new WikiToolError(
+          `This page contains blocks markdown cannot carry (${lost.join(', ')}), ` +
+            `and a replace would delete them. Use mode 'append' to add to the end, ` +
+            `or edit the page in the wiki.`
+        );
       }
 
       return {
