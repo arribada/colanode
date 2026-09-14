@@ -542,8 +542,17 @@ export const markdownToBlocks = (
     stack = [];
   };
 
-  const isTableDelimiter = (value: string): boolean =>
-    /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(value.trim());
+  const isTableDelimiter = (value: string): boolean => {
+    const line = value.trim();
+    // A delimiter MUST contain a pipe. Without this check the pattern also
+    // matches a bare '---', so any paragraph that happened to contain a pipe
+    // and was followed by a horizontal rule was swallowed as a one-row table —
+    // which is exactly what a real page with 57 tables turned into 58.
+    if (!line.includes('|')) {
+      return false;
+    }
+    return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line);
+  };
 
   const splitRow = (value: string): string[] => {
     let row = value.trim();

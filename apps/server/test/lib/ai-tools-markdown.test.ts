@@ -72,6 +72,15 @@ describe('markdownToBlocks — tables', () => {
   it('does not mistake a horizontal rule for a table delimiter', () => {
     expect(typesOf('text\n\n---\n\nmore')).toContain('horizontalRule');
   });
+
+  it('does not read a rule after a line containing a pipe as a table', () => {
+    // Caught on a real page: a paragraph mentioning "a | b" followed by a rule
+    // was swallowed as a one-row table, turning 57 tables into 58. A delimiter
+    // has to contain a pipe of its own.
+    const types = typesOf('see the a | b column\n---\nnext');
+    expect(types).not.toContain('table');
+    expect(types).toContain('horizontalRule');
+  });
 });
 
 describe('markdownToBlocks — code and diagrams', () => {
