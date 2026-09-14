@@ -5,10 +5,11 @@ import { collections } from '@colanode/ui/collections';
 import { Container } from '@colanode/ui/components/layouts/containers/container';
 import { Checkbox } from '@colanode/ui/components/ui/checkbox';
 import { Separator } from '@colanode/ui/components/ui/separator';
+import { WorkspaceAiSettings } from '@colanode/ui/components/workspaces/workspace-ai-settings';
 import { WorkspaceCloud } from '@colanode/ui/components/workspaces/workspace-cloud';
 import { WorkspaceDelete } from '@colanode/ui/components/workspaces/workspace-delete';
-import { WorkspaceAiSettings } from '@colanode/ui/components/workspaces/workspace-ai-settings';
 import { WorkspaceForm } from '@colanode/ui/components/workspaces/workspace-form';
+import { WorkspaceMcpTokens } from '@colanode/ui/components/workspaces/workspace-mcp-tokens';
 import { WorkspaceNotFound } from '@colanode/ui/components/workspaces/workspace-not-found';
 import { WorkspaceSettingsBreadcrumb } from '@colanode/ui/components/workspaces/workspace-settings-breadcrumb';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -106,6 +107,8 @@ export const WorkspaceSettingsContainer = () => {
         </div>
 
         <WorkspaceAiSettings />
+
+        <WorkspaceMcpTokens />
 
         <WorkspaceCloud />
 
