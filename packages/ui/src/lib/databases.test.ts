@@ -8,6 +8,7 @@ import {
   getEffectiveFilterOperator,
   getGalleryCoverColorClass,
   getSetFilterMode,
+  healFilterOperator,
   withEffectiveOperator,
 } from './databases';
 
@@ -124,5 +125,54 @@ describe('withEffectiveOperator', () => {
     expect(resolved.value).toEqual(['a']);
     expect(resolved.fieldId).toBe('f1');
     expect(filter.operator).toBe('equals');
+  });
+});
+
+describe('healFilterOperator', () => {
+  const fields = [
+    { id: 'f_sel', type: 'select', name: 'Technical Leader', index: 'a0' },
+    { id: 'f_txt', type: 'text', name: 'Notes', index: 'a1' },
+  ] as unknown as Parameters<typeof healFilterOperator>[1];
+
+  const fieldFilter = (fieldId: string, operator: string) =>
+    ({
+      type: 'field',
+      id: 'flt1',
+      fieldId,
+      operator,
+      value: ['opt1'],
+    }) as unknown as Parameters<typeof healFilterOperator>[0];
+
+  it('stores the operator the panel was already displaying', () => {
+    const healed = healFilterOperator(fieldFilter('f_sel', 'equals'), fields);
+    expect(healed).toMatchObject({ operator: 'is_in', value: ['opt1'] });
+  });
+
+  it('leaves a valid filter untouched, object identity included', () => {
+    const filter = fieldFilter('f_sel', 'is_not_in');
+    expect(healFilterOperator(filter, fields)).toBe(filter);
+  });
+
+  it('leaves a group filter alone', () => {
+    // A group carries no fieldId and no operator of its own; reaching into it
+    // would rewrite the wrong thing.
+    const group = {
+      type: 'group',
+      id: 'g1',
+      operator: 'and',
+      filters: {},
+    } as unknown as Parameters<typeof healFilterOperator>[0];
+    expect(healFilterOperator(group, fields)).toBe(group);
+  });
+
+  it('leaves a filter on an unknown field alone', () => {
+    // The name filter, and any field deleted since the view was saved.
+    const filter = fieldFilter('name', 'is_equal_to');
+    expect(healFilterOperator(filter, fields)).toBe(filter);
+  });
+
+  it('resolves against the field type, not the value shape', () => {
+    const healed = healFilterOperator(fieldFilter('f_txt', 'is_in'), fields);
+    expect(healed).toMatchObject({ operator: 'contains' });
   });
 });

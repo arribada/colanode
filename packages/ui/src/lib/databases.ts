@@ -747,6 +747,35 @@ export const getSetFilterMode = (operator: string): SetFilterMode => {
   return null;
 };
 
+/**
+ * The same filter, carrying an operator its field type actually declares.
+ *
+ * Resolving at read time keeps a stale filter behaving the way its panel draws
+ * it, but the write path still dragged the stale operator forward: every
+ * popover writes `{ ...filter, value }` when an option is toggled, so the
+ * stored view never converged. Healing on write fixes that, and with it the
+ * paths that do NOT resolve -- prefilling a new record from the active filters
+ * checks for 'is_in' literally, so a record created in a filtered view used to
+ * come out with the grouped field empty.
+ */
+export const healFilterOperator = (
+  filter: DatabaseViewFilterAttributes,
+  fields: FieldAttributes[]
+): DatabaseViewFilterAttributes => {
+  if (filter.type !== 'field') {
+    return filter;
+  }
+
+  const field = fields.find((candidate) => candidate.id === filter.fieldId);
+  if (!field) {
+    // The name filter, or a field that has since been deleted: nothing to
+    // resolve against, so the filter is left untouched.
+    return filter;
+  }
+
+  return withEffectiveOperator(filter, field.type);
+};
+
 export const filterRecords = (
   records: LocalRecordNode[],
   filter: DatabaseViewFilterAttributes,

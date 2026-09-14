@@ -3,8 +3,10 @@ import { useCallback } from 'react';
 
 import { LocalNode } from '@colanode/client/types';
 import { DatabaseViewFilterAttributes } from '@colanode/core';
+import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
+import { healFilterOperator } from '@colanode/ui/lib/databases';
 import { applyNodeTransaction } from '@colanode/ui/lib/nodes';
 
 interface Input {
@@ -14,6 +16,7 @@ interface Input {
 
 export const useViewFilter = ({ viewId, filterId }: Input) => {
   const workspace = useWorkspace();
+  const database = useDatabase();
   const scope = useViewScope(viewId);
 
   const mutate = usePacedMutations<
@@ -44,12 +47,17 @@ export const useViewFilter = ({ viewId, filterId }: Input) => {
 
   const updateFilter = useCallback(
     (nextFilter: DatabaseViewFilterAttributes) => {
+      // Every popover displays `operators.find(...) ?? operators[0]` and
+      // none of them wrote that fallback back, so a view saved by an older
+      // build kept storing an operator the engine does not know. Whoever
+      // touches the filter next now stores what they were shown.
+      const healed = healFilterOperator(nextFilter, database.fields ?? []);
       if (scope.mode === 'personal') {
-        return scope.setFilter(filterId, nextFilter);
+        return scope.setFilter(filterId, healed);
       }
-      return mutate(nextFilter);
+      return mutate(healed);
     },
-    [scope, filterId, mutate]
+    [scope, filterId, mutate, database.fields]
   );
 
   const removeFilter = useCallback(() => {
