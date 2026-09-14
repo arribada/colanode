@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // fork). The hook is mocked so each test can pin the state it needs without
 // running the metadata collection.
 const chatVisibility = vi.hoisted(() => ({ visible: true }));
+const appType = vi.hoisted(() => ({ value: 'web' as 'web' | 'desktop' }));
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => () => {},
@@ -26,6 +27,12 @@ vi.mock('@colanode/ui/contexts/workspace', () => ({
     userId: 'user-1',
     collections: { uploads: {} },
   }),
+}));
+
+// Offering a desktop download inside the desktop app would be nonsense, so the
+// entry is web-only and the build type has to be steerable from a test.
+vi.mock('@colanode/ui/contexts/app', () => ({
+  useApp: () => ({ type: appType.value }),
 }));
 
 vi.mock('@colanode/ui/contexts/radar', () => ({
@@ -73,6 +80,7 @@ import { SidebarMenu } from '@colanode/ui/components/layouts/sidebars/sidebar-me
 describe('SidebarMenu', () => {
   beforeEach(() => {
     chatVisibility.visible = true;
+    appType.value = 'web';
   });
 
   it('labels the settings control with the correctly spelled "Settings"', () => {
@@ -123,5 +131,23 @@ describe('SidebarMenu', () => {
     expect(markup).toContain('aria-label="Spaces"');
     expect(markup).toContain('aria-label="Inbox"');
     expect(markup).toContain('aria-label="Settings"');
+  });
+});
+
+describe('SidebarMenu — desktop download', () => {
+  it('offers the desktop app on the web build', () => {
+    appType.value = 'web';
+    const markup = renderToStaticMarkup(
+      <SidebarMenu value="spaces" onChange={() => {}} />
+    );
+    expect(markup).toContain('Download the desktop app');
+  });
+
+  it('does not offer it inside the desktop app itself', () => {
+    appType.value = 'desktop';
+    const markup = renderToStaticMarkup(
+      <SidebarMenu value="spaces" onChange={() => {}} />
+    );
+    expect(markup).not.toContain('Download the desktop app');
   });
 });

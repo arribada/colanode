@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Bell,
   Boxes,
+  Download,
   FolderKanban,
   Github,
   Home,
@@ -27,6 +28,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import { useApp } from '@colanode/ui/contexts/app';
 import { useRadar } from '@colanode/ui/contexts/radar';
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -58,6 +60,12 @@ const ARRIBADA_APPS = [
   },
 ] as const;
 
+// Where the desktop builds land. The workflow publishes one GitHub release per
+// version to this public repository, so /latest stays correct on its own and
+// nobody has to come back and edit a version number here.
+const DESKTOP_DOWNLOAD_URL =
+  'https://github.com/arribada/colanode/releases/latest';
+
 interface SidebarMenuProps {
   value: SidebarMenuType;
   onChange: (value: SidebarMenuType) => void;
@@ -71,6 +79,7 @@ export const SidebarMenu = ({
   collapsed = false,
   onToggleCollapsed,
 }: SidebarMenuProps) => {
+  const app = useApp();
   const workspace = useWorkspace();
   const radar = useRadar();
   const search = useSearch();
@@ -196,6 +205,13 @@ export const SidebarMenu = ({
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="mt-auto" />
+        {app.type === 'web' && (
+          <SidebarMenuIcon
+            icon={Download}
+            label="Download the desktop app"
+            onClick={() => window.colanode.openExternalUrl(DESKTOP_DOWNLOAD_URL)}
+          />
+        )}
         {onToggleCollapsed && (
           <SidebarMenuIcon
             icon={collapsed ? PanelLeftOpen : PanelLeftClose}
