@@ -165,6 +165,17 @@ const LEAF_TEXT_TYPES = new Set([
 ]);
 
 const applyLeafMarks = (leaf: BlockLeaf): string => {
+  // A mention carries no text of its own -- its label is resolved from the
+  // target node when it renders. Without a case here it fell straight through
+  // the empty-text guard below and came back as nothing, so a replace-mode
+  // edit DELETED every internal link on the page it rewrote.
+  if (leaf.type === 'mention') {
+    const target = (leaf.attrs ?? {}).target;
+    return typeof target === 'string' && target.length > 0
+      ? `[](node:${target})`
+      : '';
+  }
+
   let text = leaf.text ?? '';
   if (!text) {
     return '';
@@ -417,6 +428,25 @@ const inlinePatterns: { re: RegExp; make: (match: RegExpExecArray) => BlockLeaf 
             },
           },
         ],
+      }),
+    },
+    {
+      // An internal wiki link becomes a real mention rather than a link mark.
+      // Mentions are what the backlink index and the knowledge graph are built
+      // from, and they render the target's CURRENT title instead of a copy
+      // frozen at the moment somebody wrote the link.
+      //
+      // Three spellings are accepted: node:<id>, the /{workspace}/{node} path,
+      // and the full URL that "Copy link" puts on the clipboard -- each with an
+      // optional #block fragment. Ids are long lowercase alphanumerics, which
+      // is what keeps an ordinary external link from matching here.
+      re: /^\[([^\]]*)\]\((?:node:([a-z0-9]{20,})|(?:https?:\/\/[^/)\s]+)?\/[a-z0-9]{20,}\/([a-z0-9]{20,}))(?:#[a-z0-9]{20,})?\)/,
+      make: (m) => ({
+        type: 'mention',
+        attrs: {
+          id: generateId(IdType.Mention),
+          target: (m[2] ?? m[3]) as string,
+        },
       }),
     },
     {

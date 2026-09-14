@@ -214,3 +214,75 @@ describe('images', () => {
     ).toEqual([]);
   });
 });
+
+describe('internal links become mentions', () => {
+  const WS = '01ky60b09cad2nyfk7c75e6555wc';
+  const PAGE = '01ky60x9fb8x1856afmmf01sw1pg';
+
+  const leavesOf = (markdown: string) =>
+    Object.values(markdownToBlocks(DOC, markdown))[0]?.content ?? [];
+
+  it('turns node:<id> into a mention, not a link', () => {
+    const leaves = leavesOf(`see [Hardware Catalog](node:${PAGE})`);
+    const mention = leaves.find((leaf) => leaf.type === 'mention');
+    expect(mention).toBeDefined();
+    expect(mention!.attrs).toMatchObject({ target: PAGE });
+    expect(mention!.attrs!.id).toMatch(/me$/);
+    expect(leaves.some((leaf) => leaf.marks?.[0]?.type === 'link')).toBe(false);
+  });
+
+  it('accepts the link the Copy link action puts on the clipboard', () => {
+    const leaves = leavesOf(`[x](https://docs.arribada.org/${WS}/${PAGE})`);
+    expect(leaves[0]?.attrs).toMatchObject({ target: PAGE });
+  });
+
+  it('accepts the bare workspace path, and a block anchor on the end', () => {
+    expect(leavesOf(`[x](/${WS}/${PAGE})`)[0]?.attrs).toMatchObject({
+      target: PAGE,
+    });
+    const anchored = leavesOf(
+      `[x](https://docs.arribada.org/${WS}/${PAGE}#01kzjt1mn5keseg529m93mcvbqbl)`
+    );
+    expect(anchored[0]?.attrs).toMatchObject({ target: PAGE });
+  });
+
+  it('leaves an ordinary external link exactly as it was', () => {
+    // The guard is that ids are long lowercase alphanumerics. A normal URL
+    // path has neither the length nor the shape, so it must not match.
+    const leaves = leavesOf('[Arribada](https://arribada.org/about/team)');
+    expect(leaves[0]?.type).toBe('text');
+    expect(leaves[0]?.marks?.[0]?.type).toBe('link');
+    expect(leaves.some((leaf) => leaf.type === 'mention')).toBe(false);
+  });
+
+  it('stops deleting the mentions on every page it rewrites', () => {
+    // This is the one that mattered. A mention has no text, so it used to fall
+    // through the empty-text guard and serialise to nothing -- an edit_page in
+    // replace mode silently dropped every internal link the page had.
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        b1: {
+          id: 'b1',
+          type: 'paragraph',
+          parentId: DOC,
+          index: 'a0',
+          content: [
+            { type: 'text', text: 'Detail lives in ' },
+            { type: 'mention', attrs: { id: 'm1me', target: PAGE } },
+            { type: 'text', text: '.' },
+          ],
+        },
+      },
+    };
+
+    const markdown = richTextToMarkdown(DOC, content);
+    expect(markdown).toContain(`[](node:${PAGE})`);
+
+    // ...and it survives the trip back, which is what makes replace safe.
+    const back = Object.values(markdownToBlocks(DOC, markdown))[0]?.content ?? [];
+    expect(back.find((leaf) => leaf.type === 'mention')?.attrs).toMatchObject({
+      target: PAGE,
+    });
+  });
+});
