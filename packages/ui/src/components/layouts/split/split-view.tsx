@@ -1,14 +1,17 @@
 // ABOUTME: Recursive renderer for the split view — branches become resizable
 // ABOUTME: flex rows/columns, leaves mount their pane's router with a chrome bar.
 import { RouterProvider } from '@tanstack/react-router';
-import { Columns2, Rows2, X } from 'lucide-react';
-import { Fragment, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 
+import { SplitPaneControls } from '@colanode/ui/components/layouts/split/split-pane-controls';
 import { SplitPaneContext } from '@colanode/ui/contexts/split-pane';
 import { useSplitView } from '@colanode/ui/contexts/split-view';
-import type { SplitBranch, SplitLeaf, SplitNode } from '@colanode/ui/lib/split-layout';
+import type {
+  SplitBranch,
+  SplitLeaf,
+  SplitNode,
+} from '@colanode/ui/lib/split-layout';
 import { cn } from '@colanode/ui/lib/utils';
-
 
 const SplitNodeView = ({ node }: { node: SplitNode }) => {
   if (node.type === 'leaf') {
@@ -83,76 +86,63 @@ const SplitPane = ({ leaf }: { leaf: SplitLeaf }) => {
     useSplitView();
   const paneRouter = getPaneRouter(leaf.id);
   const focused = focusedLeafId === leaf.id;
+  // Set as soon as a page header renders the controls for us. Until then the
+  // pane floats its own copy, which is all a Container-less route ever gets.
+  const [headerClaims, setHeaderClaims] = useState(0);
+
+  const claimHeaderSlot = useCallback(() => {
+    setHeaderClaims((n) => n + 1);
+    return () => setHeaderClaims((n) => Math.max(0, n - 1));
+  }, []);
+
   // Identity must be stable or every pane re-renders its whole router subtree
-  // on each parent render.
-  const paneValue = useMemo(() => ({ leafId: leaf.id }), [leaf.id]);
+  // on each parent render. The location is read inside the handlers, never
+  // captured at render time, so a stale href can never be split.
+  const paneValue = useMemo(
+    () => ({
+      leafId: leaf.id,
+      splitRight: () =>
+        openInSplit(paneRouter.state.location.href, 'horizontal'),
+      splitDown: () => openInSplit(paneRouter.state.location.href, 'vertical'),
+      close: () => closePane(leaf.id),
+      claimHeaderSlot,
+    }),
+    [leaf.id, openInSplit, closePane, paneRouter, claimHeaderSlot]
+  );
 
   return (
-    <div
-      onMouseDownCapture={() => focusPane(leaf.id)}
-      className={cn(
-        // `relative` is what lets a pane-scoped overlay anchor to the pane. It
-        // does NOT capture `position: fixed` children — only transform/filter/
-        // contain do that — so overlays that must follow their pane switch to
-        // `absolute` via useSplitPane() rather than being trapped wholesale,
-        // which would also have caged deliberately full-window surfaces.
-        'group/pane relative flex h-full w-full flex-col',
-        focused && 'ring-1 ring-inset ring-primary/40'
-      )}
-    >
-      {/* These controls used to own a 24px row of their own, stacked directly
-          above the page header Container already draws — two bars per pane. They
-          now float over the content and reserve no height. z-30 clears
-          Container's z-20 blurred header, which creates its own stacking
-          context. They stay visible on the focused pane so a touch user, who has
-          no hover, always has a way to close it. */}
+    <SplitPaneContext.Provider value={paneValue}>
       <div
+        onMouseDownCapture={() => focusPane(leaf.id)}
         className={cn(
-          'absolute right-1 top-1 z-30 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 text-muted-foreground shadow-sm backdrop-blur transition-opacity',
-          // Hover-only on a pointer device: the page header underneath already
-          // ends in its own actions (version chip, settings), and keeping these
-          // permanently on top of them hid two controls outright. Where there is
-          // no hover at all, show them always or a touch user could never close
-          // a pane.
-          'opacity-0 focus-within:opacity-100 group-hover/pane:opacity-100',
-          '[@media(hover:none)]:opacity-100'
+          // `relative` is what lets a pane-scoped overlay anchor to the pane. It
+          // does NOT capture `position: fixed` children — only transform/filter/
+          // contain do that — so overlays that must follow their pane switch to
+          // `absolute` via useSplitPane() rather than being trapped wholesale,
+          // which would also have caged deliberately full-window surfaces.
+          'group/pane relative flex h-full w-full flex-col',
+          focused && 'ring-1 ring-inset ring-primary/40'
         )}
       >
-        <button
-          type="button"
-          title="Split right"
-          onClick={() =>
-            openInSplit(paneRouter.state.location.href, 'horizontal')
-          }
-          className="flex size-5 items-center justify-center rounded hover:bg-accent hover:text-foreground"
-        >
-          <Columns2 className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          title="Split down"
-          onClick={() =>
-            openInSplit(paneRouter.state.location.href, 'vertical')
-          }
-          className="flex size-5 items-center justify-center rounded hover:bg-accent hover:text-foreground"
-        >
-          <Rows2 className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          title="Close pane"
-          onClick={() => closePane(leaf.id)}
-          className="flex size-5 items-center justify-center rounded hover:bg-accent hover:text-foreground"
-        >
-          <X className="size-3.5" />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1">
-        <SplitPaneContext.Provider value={paneValue}>
+        {headerClaims === 0 && (
+          // Fallback only. A page header claims these as soon as one is on screen,
+          // because floating them over the header covered its own buttons and made
+          // them unclickable. What is left here is the case with no header at all.
+          <div
+            className={cn(
+              'absolute right-1 top-1 z-30 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 text-muted-foreground shadow-sm backdrop-blur transition-opacity',
+              'opacity-0 focus-within:opacity-100 group-hover/pane:opacity-100',
+              '[@media(hover:none)]:opacity-100'
+            )}
+          >
+            <SplitPaneControls />
+          </div>
+        )}
+        <div className="min-h-0 flex-1">
           <RouterProvider router={paneRouter} />
-        </SplitPaneContext.Provider>
+        </div>
       </div>
-    </div>
+    </SplitPaneContext.Provider>
   );
 };
 

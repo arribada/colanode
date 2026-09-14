@@ -2,6 +2,7 @@ import { Fullscreen } from 'lucide-react';
 import { useRef } from 'react';
 
 import { SidebarMobile } from '@colanode/ui/components/layouts/sidebars/sidebar-mobile';
+import { SplitPaneHeaderControls } from '@colanode/ui/components/layouts/split/split-pane-controls';
 import {
   ScrollArea,
   ScrollBar,
@@ -70,7 +71,14 @@ export const Container = ({
             <div className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap">
               {type === 'full' ? breadcrumb : null}
             </div>
-            <div className="flex shrink-0 items-center">{actions}</div>
+            <div className="flex shrink-0 items-center">
+              {actions}
+              {/* Inside a split pane the pane controls live here rather than
+                  floating over this row, where they covered the buttons to
+                  their left. Full containers only: a modal nests a second
+                  Container and would otherwise show them twice. */}
+              {type === 'full' && <SplitPaneHeaderControls />}
+            </div>
           </div>
         </div>
         {fill ? (

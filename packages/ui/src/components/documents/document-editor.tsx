@@ -173,6 +173,7 @@ import {
 import { getRandomSelectOptionColor } from '@colanode/ui/lib/databases';
 import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
 import { cn } from '@colanode/ui/lib/utils';
+import { getWorkspaceUserId } from '@colanode/ui/routes/utils';
 
 interface DocumentEditorProps {
   node: LocalNode;
@@ -487,13 +488,18 @@ export const DocumentEditor = ({
   };
 
   const navigateToNode = useCallback(
-    (nodeId: string, mode: 'same' | 'newtab' | 'modal', anchor: string) => {
+    (
+      nodeId: string,
+      mode: 'same' | 'newtab' | 'modal',
+      anchor: string,
+      userIdOverride?: string
+    ) => {
       const {
         router: appRouter,
         layout: appLayout,
         userId,
       } = linkNavRef.current;
-      const path = `/workspace/${userId}/${nodeId}${anchor}`;
+      const path = `/workspace/${userIdOverride ?? userId}/${nodeId}${anchor}`;
       if (mode === 'newtab') {
         if (appLayout?.openInNewTab) {
           appLayout.openInNewTab(path);
@@ -538,6 +544,28 @@ export const DocumentEditor = ({
       if (isNodeRoute) {
         navigateToNode(segments[2]!, mode, url.hash);
         return true;
+      }
+      // The address bar shows the MASKED form /{workspaceId}/{nodeId}, so
+      // every link anyone copies out of it — 985 of them across 269 pages —
+      // has that shape and not the internal /workspace/{userId}/{nodeId} one.
+      // They matched neither branch, fell through to the imported-markdown
+      // resolver, failed to resolve a node id as a slug, and ended up in
+      // window.open: a plain click on an internal wiki link opened a browser
+      // window. Resolving the workspace id is also what disambiguates the two
+      // segments, since a workspace id and a node id look alike.
+      const maskedWorkspaceId = segments[0];
+      const maskedNodeId = segments[1];
+      if (
+        maskedWorkspaceId &&
+        maskedNodeId &&
+        /^[0-9a-z]{18,}$/i.test(maskedWorkspaceId) &&
+        /^[0-9a-z]{18,}$/i.test(maskedNodeId)
+      ) {
+        const maskedUserId = getWorkspaceUserId(maskedWorkspaceId);
+        if (maskedUserId) {
+          navigateToNode(maskedNodeId, mode, url.hash, maskedUserId);
+          return true;
+        }
       }
       // Internal but not a node route -> an imported markdown link. Resolve
       // the slug to a real page and navigate; fall back to a new tab if it
