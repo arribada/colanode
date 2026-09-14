@@ -186,9 +186,10 @@ const initApp = async (): Promise<AppInitOutput> => {
     await app.metadata.delete('app', 'theme.mode');
   }
 
-  // add default Colanode servers
-  await app.createServer(new URL('https://eu.colanode.com/config'));
-  await app.createServer(new URL('https://us.colanode.com/config'));
+  // The Arribada wiki is the only server this build knows about. Upstream
+  // ships eu/us.colanode.com here; pointing a member of our team at those
+  // would offer them an account on somebody else's deployment.
+  await app.createServer(new URL('https://docs.arribada.org/config'));
 
   return 'success';
 };

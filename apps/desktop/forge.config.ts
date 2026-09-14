@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
@@ -49,23 +50,30 @@ const config: ForgeConfig = {
       return true;
     },
     extraResource: ['assets'],
-    osxSign: {
-      type: 'distribution',
-      keychain: process.env.KEYCHAIN!,
-      optionsForFile: (_) => {
-        return {
-          hardenedRuntime: true,
-          entitlements: 'entitlements.mac.plist',
-          entitlementsInherit: 'entitlements.mac.plist',
-        };
-      },
-    },
-    osxNotarize: {
-      appleId: process.env.APPLE_ID!,
-      appleIdPassword: process.env.APPLE_ID_PASSWORD!,
-      teamId: process.env.APPLE_TEAM_ID!,
-      keychain: process.env.KEYCHAIN!,
-    },
+    // Signing and notarisation only happen when the credentials are
+    // actually present. They used to be declared unconditionally, so a
+    // build without an Apple Developer account did not produce an
+    // unsigned app -- it failed outright, which is not a useful default
+    // for a self-hosted deployment that has no certificate.
+    ...(process.env.KEYCHAIN && process.env.APPLE_ID
+      ? {
+          osxSign: {
+            type: 'distribution' as const,
+            keychain: process.env.KEYCHAIN,
+            optionsForFile: () => ({
+              hardenedRuntime: true,
+              entitlements: 'entitlements.mac.plist',
+              entitlementsInherit: 'entitlements.mac.plist',
+            }),
+          },
+          osxNotarize: {
+            appleId: process.env.APPLE_ID,
+            appleIdPassword: process.env.APPLE_ID_PASSWORD ?? '',
+            teamId: process.env.APPLE_TEAM_ID ?? '',
+            keychain: process.env.KEYCHAIN,
+          },
+        }
+      : {}),
   },
   rebuildConfig: {},
   makers: [
@@ -80,9 +88,20 @@ const config: ForgeConfig = {
       icon: 'assets/colanode-logo.png',
       title: 'Colanode',
     }),
+    // Debian package for Linux, and a plain zip everywhere. The zip is
+    // what makes an unsigned Windows build usable: it needs no installer
+    // and no certificate, so it can be produced without paying for one.
+    new MakerDeb({
+      options: {
+        name: 'colanode',
+        productName: 'Arribada Wiki',
+        icon: 'assets/colanode-logo.png',
+        categories: ['Office'],
+      },
+    }),
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
+      platforms: ['darwin', 'linux', 'win32'],
       config: {},
     },
   ],
@@ -91,7 +110,7 @@ const config: ForgeConfig = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: 'colanode',
+          owner: 'arribada',
           name: 'colanode',
         },
         prerelease: false,
