@@ -27,6 +27,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@colanode/ui/components/ui/tooltip';
 import { WhiteboardContainer } from '@colanode/ui/components/whiteboards/whiteboard-container';
 import { ContainerType } from '@colanode/ui/contexts/container';
 import { useNode } from '@colanode/ui/contexts/node';
@@ -38,6 +43,30 @@ interface NodeContainerProps {
   nodeId: string;
   onFullscreen?: () => void;
 }
+// Icon-only so the row stops eating the header, with a tooltip that says what
+// each view actually is. Declared outside the component so the array identity is
+// stable across renders.
+const VIEW_MODES = [
+  {
+    mode: 'document' as const,
+    icon: FileText,
+    label: 'Document',
+    hint: 'The page itself',
+  },
+  {
+    mode: 'board' as const,
+    icon: LayoutDashboard,
+    label: 'Board',
+    hint: 'A free-form canvas saved on this page',
+  },
+  {
+    mode: 'graph' as const,
+    icon: Share2,
+    label: 'Graph',
+    hint: 'How this page connects to the rest of the wiki',
+  },
+];
+
 interface NodeContentProps {
   type: ContainerType;
   onFullscreen?: () => void;
@@ -71,36 +100,28 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
         <div className="flex flex-row items-center gap-2">
           {canToggleView && (
             <div className="flex flex-row items-center gap-0.5 rounded-md border border-border p-0.5">
-              <Button
-                type="button"
-                variant={viewMode === 'document' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 gap-1.5 px-2"
-                onClick={() => setViewMode('document')}
-              >
-                <FileText className="size-4" />
-                {!isMobile && 'Document'}
-              </Button>
-              <Button
-                type="button"
-                variant={viewMode === 'board' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 gap-1.5 px-2"
-                onClick={() => setViewMode('board')}
-              >
-                <LayoutDashboard className="size-4" />
-                {!isMobile && 'Board'}
-              </Button>
-              <Button
-                type="button"
-                variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 gap-1.5 px-2"
-                onClick={() => setViewMode('graph')}
-              >
-                <Share2 className="size-4" />
-                {!isMobile && 'Graph'}
-              </Button>
+              {VIEW_MODES.map((entry) => (
+                <Tooltip delayDuration={300} key={entry.mode}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={viewMode === entry.mode ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="size-7 p-0"
+                      aria-label={entry.label}
+                      onClick={() => setViewMode(entry.mode)}
+                    >
+                      <entry.icon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <span className="font-medium">{entry.label}</span>
+                    <span className="block text-muted-foreground">
+                      {entry.hint}
+                    </span>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
             </div>
           )}
           {isMobile ? (

@@ -1,6 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
-  Baseline,
   ClipboardCopy,
   Copy,
   FileDown,
@@ -28,12 +27,13 @@ import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { NodeCollaboratorsDialog } from '@colanode/ui/components/collaborators/node-collaborators-dialog';
 import { DocumentHistoryDialog } from '@colanode/ui/components/documents/document-history';
+import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
+import { PagePresentOverlay } from '@colanode/ui/components/pages/page-present-overlay';
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
-import { PagePresentOverlay } from '@colanode/ui/components/pages/page-present-overlay';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -48,6 +48,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@colanode/ui/components/ui/tooltip';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 import {
@@ -55,7 +60,6 @@ import {
   getDocumentExporter,
   safeFileName,
 } from '@colanode/ui/lib/document-export';
-import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 
 interface PageSettingsProps {
   page: LocalPageNode;
@@ -125,9 +129,22 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   return (
     <Fragment>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Settings className="size-4 cursor-pointer text-muted-foreground hover:text-foreground" />
-        </DropdownMenuTrigger>
+        {/* The gear was a bare icon: no label, no tooltip, nothing for a screen
+            reader either. Radix composes the two triggers through asChild. */}
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Page settings"
+                className="flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
+              >
+                <Settings className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Page settings</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent side="bottom" className="mr-2 w-80">
           <DropdownMenuLabel>{page.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
