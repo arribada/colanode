@@ -24,6 +24,8 @@ import {
   DatabaseAttributes,
   extractNodeRole,
   FieldAttributes,
+  FileAttributes,
+  FileStatus,
   FieldValue,
   generateFractionalIndex,
   generateId,
@@ -41,6 +43,11 @@ import {
 import { database } from '@colanode/server/data/database';
 import { SelectNode } from '@colanode/server/data/schema';
 import {
+  loadImageFromBase64,
+  loadImageFromUrl,
+  MAX_IMAGE_BYTES,
+} from '@colanode/server/lib/ai/wiki-image';
+import {
   createDocument,
   updateDocument,
 } from '@colanode/server/lib/documents';
@@ -52,6 +59,7 @@ import {
   updateNode,
 } from '@colanode/server/lib/nodes';
 import { fetchAllRecords, searchRecords } from '@colanode/server/lib/records';
+import { storage } from '@colanode/server/lib/storage';
 
 // ---------------------------------------------------------------------------
 // Context + errors
@@ -204,7 +212,6 @@ const UNREPRESENTABLE_BLOCK_TYPES = new Set([
   'toggle',
   'toggleSummary',
   'toggleContent',
-  'file',
   'page',
   'folder',
   'mathBlock',
@@ -328,6 +335,11 @@ export const richTextToMarkdown = (
           }
           break;
         }
+        case 'file':
+          // A file block carries no attrs: the BLOCK's own id is the file
+          // node id. An image renders inline, anything else as a file card.
+          lines.push(indent + '![](file:' + block.id + ')');
+          break;
         case 'table':
           lines.push(...tableLines(block, indent));
           break;
@@ -387,6 +399,26 @@ export const richTextToMarkdown = (
 
 const inlinePatterns: { re: RegExp; make: (match: RegExpExecArray) => BlockLeaf }[] =
   [
+    {
+      // An image that is not one of ours cannot be displayed — the wiki has no
+      // image node, only file nodes. Render it as a link rather than leaving a
+      // stray '!' in the text, which is what used to happen.
+      re: /^!\[([^\]]*)\]\(([^)\s]+)\)/,
+      make: (m) => ({
+        type: 'text',
+        text: m[1] || m[2],
+        marks: [
+          {
+            type: 'link',
+            attrs: {
+              href: m[2],
+              target: '_blank',
+              rel: 'noopener noreferrer nofollow',
+            },
+          },
+        ],
+      }),
+    },
     {
       re: /^\[([^\]]+)\]\(([^)\s]+)\)/,
       make: (m) => ({
@@ -639,6 +671,24 @@ export const markdownToBlocks = (
 
     // The editor has three heading levels; deeper ones used to fall through and
     // render their own hashes as text.
+    // An uploaded image is placed by writing ![caption](file:<id>) on its own
+    // line. The block's id must BE the file node id — file blocks carry no
+    // attrs at all, which is the one detail that makes this work.
+    const image = /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)$/.exec(trimmed);
+    if (image && image[1]) {
+      resetLists();
+      const index = generateFractionalIndex(prevTopIndex, null);
+      prevTopIndex = index;
+      blocks[image[1]] = {
+        id: image[1],
+        type: 'file',
+        parentId: documentId,
+        index,
+      };
+      i += 1;
+      continue;
+    }
+
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
       resetLists();
@@ -1541,6 +1591,115 @@ const searchPagesInput = z.object({
 const getPageInput = z.object({
   id: z.string().describe('The node id of the page/record to read.'),
 });
+export const uploadImage = async (
+  ctx: WikiToolContext,
+  input: { pageId: string; name: string; url?: string; data?: string }
+): Promise<{ fileId: string; name: string; size: number; markdown: string }> => {
+  const { tree } = await requireAccessibleNode(input.pageId, ctx);
+  const user = await fetchWorkspaceUser(ctx);
+
+  if (!input.url && !input.data) {
+    throw new WikiToolError('Provide either `url` or `data` (base64).');
+  }
+
+  let loaded;
+  try {
+    loaded = input.data
+      ? loadImageFromBase64(input.data)
+      : await loadImageFromUrl(input.url ?? '');
+  } catch (error) {
+    throw new WikiToolError(
+      error instanceof Error ? error.message : 'Could not load the image.'
+    );
+  }
+
+  const fileId = generateId(IdType.File);
+  const version = generateId(IdType.Version);
+  const given = input.name.trim();
+  const name =
+    given.length > 0
+      ? given.toLowerCase().endsWith(loaded.extension)
+        ? given
+        : given + loaded.extension
+      : `image${loaded.extension}`;
+
+  const attributes: FileAttributes = {
+    type: 'file',
+    subtype: 'image',
+    parentId: input.pageId,
+    name,
+    originalName: name,
+    mimeType: loaded.mimeType,
+    extension: loaded.extension,
+    size: loaded.buffer.length,
+    version,
+    status: FileStatus.Ready,
+  };
+
+  const model = getNodeModel('file');
+  const canCreateContext: CanCreateNodeContext = {
+    user: {
+      id: user.id,
+      role: user.role,
+      workspaceId: user.workspaceId,
+      accountId: user.accountId,
+    },
+    tree: tree.map(mapNode),
+    attributes,
+  };
+
+  if (!model.canCreate(canCreateContext)) {
+    throw new WikiToolError(
+      'You do not have permission to add a file to this page.'
+    );
+  }
+
+  // Written straight to storage: tus exists for resumable uploads from a
+  // browser, and we are already inside the server.
+  await storage.upload(
+    `files/${ctx.workspaceId}/${fileId}_${version}${loaded.extension}`,
+    loaded.buffer,
+    loaded.mimeType,
+    BigInt(loaded.buffer.length)
+  );
+
+  const created = await createNode({
+    nodeId: fileId,
+    rootId: tree[0]?.id ?? input.pageId,
+    attributes,
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+  });
+
+  if (!created) {
+    throw new WikiToolError('Failed to register the image.');
+  }
+
+  return {
+    fileId,
+    name,
+    size: loaded.buffer.length,
+    markdown: `![${name}](file:${fileId})`,
+  };
+};
+
+const uploadImageInput = z.object({
+  pageId: z
+    .string()
+    .describe('Id of the page the image belongs to. It becomes its parent.'),
+  name: z.string().describe('File name, e.g. "power-chain.png".'),
+  url: z
+    .string()
+    .optional()
+    .describe(
+      'Public http(s) URL to fetch. Private and reserved addresses are refused, and redirects are not followed.'
+    ),
+  data: z
+    .string()
+    .optional()
+    .describe('Base64 image data, with or without a data: URL prefix.'),
+});
+
 const createPageInput = z.object({
   parentId: z
     .string()
@@ -1646,6 +1805,18 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
         input.mode === 'append'
           ? 'Appended content to the page'
           : 'Replaced the page content',
+    }),
+  }),
+  defineTool({
+    name: 'upload_image',
+    description:
+      `Upload an image into the wiki and get the markdown that displays it. Give a public https url OR base64 data (max ${MAX_IMAGE_BYTES / 1024 / 1024}MB, png/jpeg/gif/webp/avif). Returns { fileId, markdown }; write that markdown on its own line through create_page or edit_page to place the image. For a diagram prefer a \`\`\`mermaid block instead: it stays editable.`,
+    inputSchema: uploadImageInput,
+    run: uploadImage,
+    action: (input, result) => ({
+      type: 'upload_image',
+      nodeId: result.fileId,
+      summary: `Uploaded image "${input.name}"`,
     }),
   }),
   defineTool({

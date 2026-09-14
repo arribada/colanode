@@ -175,3 +175,42 @@ describe('unrepresentableBlockTypes', () => {
     expect(unrepresentableBlockTypes(content)).toEqual(['chart', 'database']);
   });
 });
+
+describe('images', () => {
+  it('turns ![x](file:<id>) into a file block whose id IS the file id', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    const blocks = markdownToBlocks(DOC, `![power chain](file:${id})`);
+    const block = blocks[id];
+    expect(block).toBeDefined();
+    expect(block!.type).toBe('file');
+    expect(block!.parentId).toBe(DOC);
+  });
+
+  it('round-trips a file block', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    const md = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: markdownToBlocks(DOC, `![x](file:${id})`),
+    });
+    expect(md.trim()).toBe(`![](file:${id})`);
+  });
+
+  it('no longer leaves a stray ! for an image it cannot display', () => {
+    const blocks = Object.values(
+      markdownToBlocks(DOC, '![schema](https://example.com/y.png)')
+    );
+    const leaves = blocks[0]!.content ?? [];
+    expect(leaves.map((l) => l.text)).toEqual(['schema']);
+    expect(leaves[0]!.marks?.[0]?.type).toBe('link');
+  });
+
+  it('stops treating a file block as unrepresentable', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    expect(
+      unrepresentableBlockTypes({
+        type: 'rich_text',
+        blocks: markdownToBlocks(DOC, `![x](file:${id})`),
+      })
+    ).toEqual([]);
+  });
+});
