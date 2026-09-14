@@ -30,6 +30,30 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[Web] Unhandled promise rejection', event.reason);
 });
 
+// A deploy replaces every content-hashed chunk, so a tab left open across one
+// asks for chunk names that no longer exist the moment it lazy-loads anything
+// -- the editor, a database view. Vite raises this event for exactly that
+// case. Reload once to pick up the new entry; the session flag makes a reload
+// loop impossible if the chunk is missing for any other reason.
+const PRELOAD_RELOAD_FLAG = 'colanode.preload-reload';
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  let alreadyReloaded = false;
+  try {
+    alreadyReloaded = sessionStorage.getItem(PRELOAD_RELOAD_FLAG) === '1';
+    sessionStorage.setItem(PRELOAD_RELOAD_FLAG, '1');
+  } catch {
+    // Private windows can refuse sessionStorage. Reloading once is still
+    // better than leaving the user on a broken page.
+  }
+  if (alreadyReloaded) {
+    console.error('[Web] chunk still missing after a reload, giving up');
+    return;
+  }
+  console.warn('[Web] stale chunk after a deploy, reloading once');
+  window.location.reload();
+});
+
 const initializeApp = async () => {
   // Phones and narrow viewports are supported by the responsive mobile
   // layout (useIsMobile, SidebarMobile, LayoutMobile, comments-sheet -- see

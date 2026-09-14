@@ -39,6 +39,31 @@ registerRoute(
 // serve a cached 200 for /share-api/:token/data even after the share is revoked
 // or expired (silently defeating revocation), and stale /api|/client responses
 // must never be replayed — those always go to the network.
+// Never store an HTML body under a script or stylesheet URL. Until the nginx
+// rule above it, a hashed chunk removed by a deploy was answered with the SPA
+// shell and a 200, and this cache happily kept it: every later load then got
+// HTML where it expected a module, and no reload could clear it because the
+// poison lived in the cache, not in the page.
+const rejectShellForAssets = {
+  cacheWillUpdate: async ({
+    request,
+    response,
+  }: {
+    request: Request;
+    response: Response;
+  }): Promise<Response | null> => {
+    if (!response || response.status !== 200) {
+      return null;
+    }
+    const destination = request.destination;
+    if (destination !== 'script' && destination !== 'style') {
+      return response;
+    }
+    const type = response.headers.get('content-type') ?? '';
+    return type.includes('text/html') ? null : response;
+  },
+};
+
 registerRoute(
   ({ url, request }) =>
     url.origin === self.location.origin &&
@@ -48,6 +73,7 @@ registerRoute(
     !url.pathname.startsWith('/client'),
   new StaleWhileRevalidate({
     cacheName: 'same-origin-assets',
+    plugins: [rejectShellForAssets],
   })
 );
 
@@ -87,6 +113,31 @@ export const downloadIcons = async () => {
 
 self.addEventListener('install', (event: ExtendableEvent) => {
   event.waitUntil(Promise.all([downloadDbs(), self.skipWaiting()]));
+});
+
+// One-time repair for caches poisoned before the guard above existed. Bump
+// the marker only to force another purge; every already-repaired browser
+// skips it, so this costs one cache lookup per activation.
+const CACHE_PURGE_MARKER = '/__cache-purge/2026-09-14-html-under-js';
+
+self.addEventListener('activate', (event: ExtendableEvent) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const markers = await caches.open('purge-markers');
+        const done = await markers.match(CACHE_PURGE_MARKER);
+        if (!done) {
+          await caches.delete('same-origin-assets');
+          await caches.delete('html');
+          await markers.put(CACHE_PURGE_MARKER, new Response('done'));
+        }
+      } catch {
+        // A browser that refuses the Cache API still gets a working app; it
+        // just goes to the network for everything.
+      }
+      await self.clients.claim();
+    })()
+  );
 });
 
 self.addEventListener('push', (event: PushEvent) => {

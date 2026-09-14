@@ -63,6 +63,15 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # A hashed asset that no longer exists must 404, never fall through to
+    # the SPA shell. Answering index.html under a .js URL makes the browser
+    # try to execute HTML as a module, and - far worse - lets the service
+    # worker cache that HTML under the .js URL, after which no reload,
+    # however hard, can recover the tab.
+    location /assets/ {
+        try_files $uri =404;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
