@@ -109,9 +109,13 @@ const SplitPane = ({ leaf }: { leaf: SplitLeaf }) => {
       <div
         className={cn(
           'absolute right-1 top-1 z-30 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 text-muted-foreground shadow-sm backdrop-blur transition-opacity',
-          focused
-            ? 'opacity-100'
-            : 'opacity-0 focus-within:opacity-100 group-hover/pane:opacity-100'
+          // Hover-only on a pointer device: the page header underneath already
+          // ends in its own actions (version chip, settings), and keeping these
+          // permanently on top of them hid two controls outright. Where there is
+          // no hover at all, show them always or a touch user could never close
+          // a pane.
+          'opacity-0 focus-within:opacity-100 group-hover/pane:opacity-100',
+          '[@media(hover:none)]:opacity-100'
         )}
       >
         <button
