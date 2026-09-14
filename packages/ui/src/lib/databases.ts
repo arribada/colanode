@@ -688,6 +688,65 @@ export const getFieldFilterOperators = (
   }
 };
 
+/**
+ * The operator a stored filter EFFECTIVELY runs with.
+ *
+ * Every filter popover renders `operators.find((o) => o.value === stored) ??
+ * operators[0]`, but not one of them stores that fallback back. A view saved by
+ * an older build therefore DISPLAYS "Is In" while still STORING an operator the
+ * engine has never heard of, so a filter that reads as active quietly matches
+ * nothing at all. Resolving it at read time keeps what runs identical to what
+ * the panel draws, without rewriting anybody's saved view.
+ */
+export const getEffectiveFilterOperator = (
+  type: FieldType,
+  operator: string
+): string => {
+  const operators = getFieldFilterOperators(type);
+  const first = operators[0];
+  if (!first) {
+    // Types with no declared operators (updated_at, updated_by) have nothing to
+    // resolve against, so the stored operator is left exactly as it is.
+    return operator;
+  }
+
+  return operators.some((candidate) => candidate.value === operator)
+    ? operator
+    : first.value;
+};
+
+/** The same filter, with its operator resolved. Identity when already valid. */
+export const withEffectiveOperator = <T extends { operator: string }>(
+  filter: T,
+  type: FieldType
+): T => {
+  const operator = getEffectiveFilterOperator(type, filter.operator);
+  return operator === filter.operator ? filter : { ...filter, operator };
+};
+
+/**
+ * How a set-membership filter (select, created by, updated by) treats its
+ * values: match them, match everything else, or do nothing.
+ *
+ * The third case is the whole point. Those builders used to end with
+ * `operator === 'is_in' ? combined : not(combined)`, so ANY other operator
+ * returned the INVERSE of what was asked. That is the failure mode that hides
+ * best: the view stays full instead of going empty, and looks unfiltered.
+ */
+export type SetFilterMode = 'include' | 'exclude' | null;
+
+export const getSetFilterMode = (operator: string): SetFilterMode => {
+  if (operator === 'is_in') {
+    return 'include';
+  }
+
+  if (operator === 'is_not_in') {
+    return 'exclude';
+  }
+
+  return null;
+};
+
 export const filterRecords = (
   records: LocalRecordNode[],
   filter: DatabaseViewFilterAttributes,
@@ -1801,7 +1860,6 @@ export const buildRecordAiContext = (
 
   return lines.join('\n');
 };
-
 
 // Field types computed from the record itself (not stored in `record.fields`),
 // so they always have a value to show on a card.

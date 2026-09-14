@@ -30,6 +30,10 @@ import {
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import {
+  getSetFilterMode,
+  withEffectiveOperator,
+} from '@colanode/ui/lib/databases';
 
 const RECORDS_PER_PAGE = 100;
 
@@ -42,20 +46,10 @@ type OrderByDefinition = {
 };
 
 type FieldValuePrimitive =
-  | string
-  | number
-  | boolean
-  | string[]
-  | null
-  | undefined;
+  string | number | boolean | string[] | null | undefined;
 
 type ExpressionValue<T> =
-  | T
-  | Ref<T>
-  | Ref<T | null>
-  | Ref<T | undefined>
-  | null
-  | undefined;
+  T | Ref<T> | Ref<T | null> | Ref<T | undefined> | null | undefined;
 
 type StringValueExpression = Parameters<typeof ilike>[0];
 type NumberValueExpression = ExpressionValue<number>;
@@ -350,19 +344,24 @@ const buildFilterGroupExpression = (
 };
 
 const buildFieldFilterExpression = (
-  filter: DatabaseViewFieldFilterAttributes,
+  rawFilter: DatabaseViewFieldFilterAttributes,
   fieldsById: Record<string, FieldAttributes>,
   currentUserId: string,
   record: RecordRef
 ): BooleanExpression | null => {
-  if (filter.fieldId === SpecialId.Name) {
-    return buildStringFilterExpression(filter, record.name);
+  if (rawFilter.fieldId === SpecialId.Name) {
+    return buildStringFilterExpression(rawFilter, record.name);
   }
 
-  const field = fieldsById[filter.fieldId];
+  const field = fieldsById[rawFilter.fieldId];
   if (!field) {
     return null;
   }
+
+  // A view saved by an older build can carry an operator this engine never
+  // knew. Resolving it against the field type makes the filter behave the
+  // way its panel draws it instead of silently doing nothing.
+  const filter = withEffectiveOperator(rawFilter, field.type);
 
   switch (field.type) {
     case 'boolean':
@@ -524,7 +523,12 @@ const buildCreatedByFilterExpression = (
     return null;
   }
 
-  return filter.operator === 'is_in' ? combined : not(combined);
+  const mode = getSetFilterMode(filter.operator);
+  if (!mode) {
+    return null;
+  }
+
+  return mode === 'include' ? combined : not(combined);
 };
 
 const buildUpdatedByFilterExpression = (
@@ -559,7 +563,12 @@ const buildUpdatedByFilterExpression = (
     return null;
   }
 
-  return filter.operator === 'is_in' ? combined : not(combined);
+  const mode = getSetFilterMode(filter.operator);
+  if (!mode) {
+    return null;
+  }
+
+  return mode === 'include' ? combined : not(combined);
 };
 
 // The relative date operators (Is Today / This Week / This Month) carry no
@@ -852,7 +861,12 @@ const buildSelectFilterExpression = (
     return null;
   }
 
-  return filter.operator === 'is_in' ? combined : not(combined);
+  const mode = getSetFilterMode(filter.operator);
+  if (!mode) {
+    return null;
+  }
+
+  return mode === 'include' ? combined : not(combined);
 };
 
 const getFieldValue = <T = FieldValuePrimitive,>(
