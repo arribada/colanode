@@ -247,6 +247,16 @@ const BoardImage = ({ element }: { element: BoardElement }) => {
 // sub-pages list use; while it is missing / still loading a neutral placeholder
 // card is shown. Kept as its own component so the hooks live at a stable top
 // level (mirrors BoardImage).
+/**
+ * SVG <text> does not wrap or clip, so a long name would run straight out of
+ * the card and across the board. ~7.2px per character at 14px Inter is close
+ * enough for a caption.
+ */
+const truncateCaption = (caption: string, width: number): string => {
+  const max = Math.max(8, Math.floor((width - 24) / 7.2));
+  return caption.length > max ? `${caption.slice(0, max - 1)}\u2026` : caption;
+};
+
 const BoardNodeCard = ({
   element,
   canEdit,
@@ -282,19 +292,46 @@ const BoardNodeCard = ({
   );
 
   if (!node) {
+    // A target that was deleted, trashed or simply is not shared with this
+    // member never arrives, so the card used to sit on "Loading..." forever.
+    // Once the query has settled, say what actually happened -- and name the
+    // page, which is all that survives of a target that is gone.
+    const settled = !nodeQuery.isLoading;
+    const remembered = element.nodeName?.trim();
+    const caption = !settled
+      ? 'Loading...'
+      : remembered
+        ? `${remembered} - unavailable`
+        : 'Target unavailable';
+
     return (
       <g>
-        {card}
+        <rect
+          x={element.x}
+          y={element.y}
+          width={element.w}
+          height={element.h}
+          rx={8}
+          fill={fill}
+          stroke={settled ? '#fca5a5' : stroke}
+          strokeWidth={strokeWidth}
+          strokeDasharray={settled ? '6 4' : undefined}
+        />
         <text
           x={element.x + 12}
           y={element.y + element.h / 2 + 5}
-          fill="#94a3b8"
+          fill={settled ? '#ef4444' : '#94a3b8'}
           fontSize={style.fontSize ?? 14}
           fontFamily="Inter, system-ui, sans-serif"
           style={{ userSelect: 'none' }}
         >
-          Loading...
+          {truncateCaption(caption, element.w)}
         </text>
+        <title>
+          {settled
+            ? 'This page was deleted, or is not shared with you.'
+            : 'Loading...'}
+        </title>
       </g>
     );
   }

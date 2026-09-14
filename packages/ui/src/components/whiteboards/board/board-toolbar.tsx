@@ -384,7 +384,7 @@ interface BoardToolbarProps {
   onToolChange: (tool: BoardTool) => void;
   // Drops a card that references an existing node. Not a tool: it needs a
   // target picked first, so the toolbar owns the picker and hands back an id.
-  onAddNodeCard?: (nodeId: string) => void;
+  onAddNodeCard?: (nodeId: string, nodeName: string) => void;
   style: BoardStyleState;
   onStyleChange: (patch: Partial<BoardStyleState>) => void;
   hasSelection: boolean;
@@ -1707,7 +1707,7 @@ export const BoardToolbar = ({
         <BoardNodeCardPicker
           open={nodeCardPickerOpen}
           onOpenChange={setNodeCardPickerOpen}
-          onPick={(pick) => onAddNodeCard(pick.id)}
+          onPick={(pick) => onAddNodeCard(pick.id, pick.name)}
         />
       )}
     </div>

@@ -3648,7 +3648,7 @@ export const WhiteboardCanvas = ({
    * board already seeds one card per child, and 31 of them are live today.
    * All that was missing was a way to make one on purpose.
    */
-  const addNodeCard = (nodeId: string) => {
+  const addNodeCard = (nodeId: string, nodeName: string) => {
     const rect = svgRef.current?.getBoundingClientRect();
     const centre = clientToScene(
       (rect?.left ?? 0) + (rect?.width ?? 0) / 2,
@@ -3661,6 +3661,7 @@ export const WhiteboardCanvas = ({
       y: centre.y - size.h / 2,
       z: topZ(sceneRef.current),
       nodeId,
+      nodeName,
     });
     const before = cloneScene(sceneRef.current);
     commit(before, { ...sceneRef.current, [card.id]: card }, [card.id]);

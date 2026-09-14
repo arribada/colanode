@@ -204,6 +204,7 @@ export interface CreateElementInput {
   frameId?: string;
   fileId?: string;
   nodeId?: string;
+  nodeName?: string;
 }
 
 export const createElement = (input: CreateElementInput): BoardElement => {
@@ -224,6 +225,7 @@ export const createElement = (input: CreateElementInput): BoardElement => {
     ...(input.frameId ? { frameId: input.frameId } : {}),
     ...(input.fileId ? { fileId: input.fileId } : {}),
     ...(input.nodeId ? { nodeId: input.nodeId } : {}),
+    ...(input.nodeName ? { nodeName: input.nodeName } : {}),
   };
 };
 

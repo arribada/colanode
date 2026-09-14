@@ -225,6 +225,10 @@ export const boardElementSchema = z.object({
   // etc. shown as a card). Optional + absent on non-card elements and on
   // legacy boards, so it is fully backward-compatible.
   nodeId: z.string().optional(),
+  // The target's name as it was when the card was created. A deleted or
+  // newly-inaccessible target never syncs, so without this the card can only
+  // say that something is missing, not what.
+  nodeName: z.string().optional(),
   frameId: z.string().optional(),
   // Elements sharing a groupId select and move as one unit (Miro-style).
   groupId: z.string().optional(),
