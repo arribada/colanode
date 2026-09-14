@@ -8,15 +8,16 @@ import {
   Copy,
   Diamond,
   Download,
-  FileCode,
   Eraser,
   Eye,
   EyeOff,
+  FileCode,
   Frame,
   Hand,
   Highlighter,
   Layers,
   LayoutTemplate,
+  Link2,
   Lock,
   LockOpen,
   MessageSquare,
@@ -50,6 +51,12 @@ import {
   PopoverTrigger,
 } from '@colanode/ui/components/ui/popover';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@colanode/ui/components/ui/tooltip';
+import { BoardNodeCardPicker } from '@colanode/ui/components/whiteboards/board/board-node-card-picker';
+import {
   readCustomColors,
   rememberCustomColor,
 } from '@colanode/ui/lib/board/custom-colors';
@@ -64,6 +71,7 @@ import { emojiFromUnified } from '@colanode/ui/lib/board/emoji';
 import { BOARD_SHAPES } from '@colanode/ui/lib/board/shapes';
 import { BOARD_TEMPLATES } from '@colanode/ui/lib/board/templates';
 import { cn } from '@colanode/ui/lib/utils';
+
 
 import { BoardStyleState, BoardTool, ConnectorRouting } from './board-types';
 
@@ -308,6 +316,12 @@ interface ToolbarButtonProps {
   children: React.ReactNode;
 }
 
+// Every tool in this bar is an icon, and the browser's own tooltip is slow and
+// unstyled — which is why the labels read as missing even though every button
+// has always carried one. The real tooltip goes on here rather than at each of
+// the ~30 call sites, and `title` is dropped so the native one does not show up
+// underneath it. delayDuration is explicit: the wrapper defaults its provider to
+// 0ms, which would flash a pill under the cursor on every traverse of the row.
 const ToolbarButton = ({
   active,
   disabled,
@@ -315,23 +329,27 @@ const ToolbarButton = ({
   onClick,
   children,
 }: ToolbarButtonProps) => (
-  <button
-    type="button"
-    title={title}
-    aria-label={title}
-    disabled={disabled}
-    onClick={onClick}
-    className={cn(
-      'flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-      // Touch (coarse pointer) devices get a bigger tap target and icon; the
-      // toolbar row already scrolls horizontally so the extra width is fine.
-      'pointer-coarse:size-11 pointer-coarse:[&_svg]:size-5',
-      active && 'bg-primary/10 text-primary hover:bg-primary/15',
-      disabled && 'pointer-events-none opacity-40'
-    )}
-  >
-    {children}
-  </button>
+  <Tooltip delayDuration={300}>
+    <TooltipTrigger asChild>
+      <button
+        type="button"
+        aria-label={title}
+        disabled={disabled}
+        onClick={onClick}
+        className={cn(
+          'flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+          // Touch (coarse pointer) devices get a bigger tap target and icon; the
+          // toolbar row already scrolls horizontally so the extra width is fine.
+          'pointer-coarse:size-11 pointer-coarse:[&_svg]:size-5',
+          active && 'bg-primary/10 text-primary hover:bg-primary/15',
+          disabled && 'pointer-events-none opacity-40'
+        )}
+      >
+        {children}
+      </button>
+    </TooltipTrigger>
+    <TooltipContent>{title}</TooltipContent>
+  </Tooltip>
 );
 
 const Swatch = ({
@@ -364,6 +382,9 @@ const Swatch = ({
 interface BoardToolbarProps {
   tool: BoardTool;
   onToolChange: (tool: BoardTool) => void;
+  // Drops a card that references an existing node. Not a tool: it needs a
+  // target picked first, so the toolbar owns the picker and hands back an id.
+  onAddNodeCard?: (nodeId: string) => void;
   style: BoardStyleState;
   onStyleChange: (patch: Partial<BoardStyleState>) => void;
   hasSelection: boolean;
@@ -451,6 +472,7 @@ interface BoardToolbarProps {
 export const BoardToolbar = ({
   tool,
   onToolChange,
+  onAddNodeCard,
   style,
   onStyleChange,
   hasSelection,
@@ -577,6 +599,7 @@ export const BoardToolbar = ({
         'mindmap',
       ].includes(tool));
 
+  const [nodeCardPickerOpen, setNodeCardPickerOpen] = useState(false);
   const isStickyContext = tool === 'sticky';
   const isFrameContext = tool === 'frame';
   // Shown while a drawing tool is armed, or when the selection is drawn
@@ -743,6 +766,15 @@ export const BoardToolbar = ({
                 <t.icon className="size-4" />
               </ToolbarButton>
             ))}
+
+            {onAddNodeCard && !readOnly && (
+              <ToolbarButton
+                title="Link card — drop a box that IS a page, database or board"
+                onClick={() => setNodeCardPickerOpen(true)}
+              >
+                <Link2 className="size-4" />
+              </ToolbarButton>
+            )}
 
             {TOOL_GROUPS.map((group) => {
               // The group shows the tool you last picked from it, so the row
@@ -1669,6 +1701,14 @@ export const BoardToolbar = ({
             </div>
           </StyleGroup>
         </div>
+      )}
+
+      {onAddNodeCard && (
+        <BoardNodeCardPicker
+          open={nodeCardPickerOpen}
+          onOpenChange={setNodeCardPickerOpen}
+          onPick={(pick) => onAddNodeCard(pick.id)}
+        />
       )}
     </div>
   );

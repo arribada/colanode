@@ -73,7 +73,7 @@ interface ElementDefault {
   text?: string;
 }
 
-const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
+export const ELEMENT_DEFAULTS: Record<BoardElementType, ElementDefault> = {
   sticky: {
     w: 180,
     h: 140,

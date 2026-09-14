@@ -71,6 +71,7 @@ import {
   createElement,
   createElementId,
   defaultForType,
+  ELEMENT_DEFAULTS,
   elementRect,
   frameChildIds,
   frameOrder,
@@ -3637,6 +3638,35 @@ export const WhiteboardCanvas = ({
     return el;
   };
 
+  /**
+   * Drops a card referencing another node in the middle of what you are
+   * currently looking at.
+   *
+   * Unlike every other element this one is not drawn with a tool: it needs a
+   * target before it exists at all, so the toolbar asks for one and calls back
+   * here. The element type itself is not new — a page or folder opened as a
+   * board already seeds one card per child, and 31 of them are live today.
+   * All that was missing was a way to make one on purpose.
+   */
+  const addNodeCard = (nodeId: string) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    const centre = clientToScene(
+      (rect?.left ?? 0) + (rect?.width ?? 0) / 2,
+      (rect?.top ?? 0) + (rect?.height ?? 0) / 2
+    );
+    const size = ELEMENT_DEFAULTS.nodeCard;
+    const card = newElement({
+      type: 'nodeCard',
+      x: centre.x - size.w / 2,
+      y: centre.y - size.h / 2,
+      z: topZ(sceneRef.current),
+      nodeId,
+    });
+    const before = cloneScene(sceneRef.current);
+    commit(before, { ...sceneRef.current, [card.id]: card }, [card.id]);
+    setSelection([card.id]);
+  };
+
   const togglePrivateMode = () => {
     const next = !privateModeRef.current;
     privateModeRef.current = next;
@@ -5609,6 +5639,7 @@ export const WhiteboardCanvas = ({
       {!presenting && <BoardToolbar
         tool={tool}
         onToolChange={setTool}
+        onAddNodeCard={addNodeCard}
         style={style}
         onStyleChange={onStyleChange}
         hasSelection={selection.length > 0}
