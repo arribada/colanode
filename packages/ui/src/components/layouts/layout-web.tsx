@@ -50,7 +50,22 @@ export const LayoutWeb = () => {
 // router object itself is memoized — as soon as the last pane is closed. The
 // two are mutually exclusive, exactly as on desktop, so the same route is never
 // mounted twice at once.
+//
+// The split branch needs the full-height flex column that layout-desktop gives
+// it around <TabsHeader /> + <LayoutBody />: SplitView is `flex-1`, so without
+// a flex parent it collapses to its content height and the panes only fill the
+// top of the window. The unsplit branch is left exactly as it was — the router
+// renders straight into AppLayout's sized box, as before.
 const SplitOrBrowserRouter = ({ children }: { children: ReactNode }) => {
   const { tree } = useSplitView();
-  return tree ? <SplitView /> : <>{children}</>;
+
+  if (!tree) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <SplitView />
+    </div>
+  );
 };
