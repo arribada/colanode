@@ -44,6 +44,7 @@ export * from './nodes/node-list';
 export * from './nodes/node-search';
 export * from './nodes/node-mention-search';
 export * from './nodes/node-backlink-list';
+export * from './nodes/node-graph-get';
 export * from './nodes/node-snapshot-get';
 export * from './nodes/node-snapshot-list';
 export * from './nodes/node-trash-list';

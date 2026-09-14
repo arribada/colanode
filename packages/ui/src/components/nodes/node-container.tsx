@@ -1,5 +1,5 @@
 import { Outlet } from '@tanstack/react-router';
-import { FileText, LayoutDashboard, MoreHorizontal } from 'lucide-react';
+import { FileText, LayoutDashboard, MoreHorizontal, Share2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { ChannelContainer } from '@colanode/ui/components/channels/channel-container';
@@ -8,6 +8,7 @@ import { PageCommentsButton } from '@colanode/ui/components/comments/page-commen
 import { DatabaseContainer } from '@colanode/ui/components/databases/database-container';
 import { FileContainer } from '@colanode/ui/components/files/file-container';
 import { FolderContainer } from '@colanode/ui/components/folders/folder-container';
+import { GraphView } from '@colanode/ui/components/graph/graph-view';
 import { Container } from '@colanode/ui/components/layouts/containers/container';
 import { MessageContainer } from '@colanode/ui/components/messages/message-container';
 import { NodeBreadcrumb } from '@colanode/ui/components/nodes/node-breadcrumb';
@@ -51,14 +52,20 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
   // Document<->Board toggle). Whiteboard nodes always render the board.
   const canToggleView =
     data.node.type === 'page' || data.node.type === 'folder';
-  const [viewMode, setViewMode] = useState<'document' | 'board'>('document');
+  const [viewMode, setViewMode] = useState<'document' | 'board' | 'graph'>(
+    'document'
+  );
   const isMobile = useIsMobile();
   const boardActive = canToggleView && viewMode === 'board';
+  // The graph is a DERIVED view: it is recomputed from the mention index on
+  // every change and never written back, unlike the board, whose scene is
+  // persisted on the node. They share this toggle, not their storage.
+  const graphActive = canToggleView && viewMode === 'graph';
 
   return (
     <Container
       type={type}
-      fill={data.node.type === 'whiteboard' || boardActive}
+      fill={data.node.type === 'whiteboard' || boardActive || graphActive}
       breadcrumb={<NodeBreadcrumb nodes={data.breadcrumb} />}
       actions={
         <div className="flex flex-row items-center gap-2">
@@ -83,6 +90,16 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
               >
                 <LayoutDashboard className="size-4" />
                 {!isMobile && 'Board'}
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 gap-1.5 px-2"
+                onClick={() => setViewMode('graph')}
+              >
+                <Share2 className="size-4" />
+                {!isMobile && 'Graph'}
               </Button>
             </div>
           )}
@@ -149,7 +166,9 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
         <ChannelContainer channel={data.node} role={data.role} />
       )}
       {data.node.type === 'page' &&
-        (boardActive ? (
+        (graphActive ? (
+          <GraphView focusNodeId={data.node.id} />
+        ) : boardActive ? (
           <WhiteboardContainer
             node={data.node}
             role={data.role}
@@ -168,7 +187,9 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
         <ChatContainer node={data.node} role={data.role} />
       )}
       {data.node.type === 'folder' &&
-        (boardActive ? (
+        (graphActive ? (
+          <GraphView focusNodeId={data.node.id} />
+        ) : boardActive ? (
           <WhiteboardContainer
             node={data.node}
             role={data.role}

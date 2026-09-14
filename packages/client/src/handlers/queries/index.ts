@@ -10,8 +10,6 @@ import { MetadataListQueryHandler } from './apps/metadata-list';
 import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
 import { DocumentGetQueryHandler } from './documents/document-get';
-import { NodeSnapshotGetQueryHandler } from './nodes/node-snapshot-get';
-import { NodeSnapshotListQueryHandler } from './nodes/node-snapshot-list';
 import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
 import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
@@ -35,10 +33,13 @@ import { IconSvgGetQueryHandler } from './icons/icon-svg-get';
 import { NodeInteractionGetQueryHandler } from './interactions/node-interaction-get';
 import { RadarDataGetQueryHandler } from './interactions/radar-data-get';
 import { NodeBacklinkListQueryHandler } from './nodes/node-backlink-list';
+import { NodeGraphGetQueryHandler } from './nodes/node-graph-get';
 import { NodeListQueryHandler } from './nodes/node-list';
 import { NodeMentionSearchQueryHandler } from './nodes/node-mention-search';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
 import { NodeSearchQueryHandler } from './nodes/node-search';
+import { NodeSnapshotGetQueryHandler } from './nodes/node-snapshot-get';
+import { NodeSnapshotListQueryHandler } from './nodes/node-snapshot-list';
 import { NodeTrashListQueryHandler } from './nodes/node-trash-list';
 import { NotificationListQueryHandler } from './notifications/notification-list';
 import { NotificationMuteGetQueryHandler } from './notifications/notification-mute-get';
@@ -76,6 +77,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'node.search': new NodeSearchQueryHandler(app),
     'node.mention.search': new NodeMentionSearchQueryHandler(app),
     'node.backlink.list': new NodeBacklinkListQueryHandler(app),
+    'node.graph.get': new NodeGraphGetQueryHandler(app),
     'node.trash.list': new NodeTrashListQueryHandler(app),
     'record.field.value.count': new RecordFieldValueCountQueryHandler(app),
     'user.search': new UserSearchQueryHandler(app),
