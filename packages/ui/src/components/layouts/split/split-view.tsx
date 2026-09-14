@@ -2,8 +2,9 @@
 // ABOUTME: flex rows/columns, leaves mount their pane's router with a chrome bar.
 import { RouterProvider } from '@tanstack/react-router';
 import { Columns2, Rows2, X } from 'lucide-react';
-import { Fragment, useRef } from 'react';
+import { Fragment, useMemo, useRef } from 'react';
 
+import { SplitPaneContext } from '@colanode/ui/contexts/split-pane';
 import { useSplitView } from '@colanode/ui/contexts/split-view';
 import type { SplitBranch, SplitLeaf, SplitNode } from '@colanode/ui/lib/split-layout';
 import { cn } from '@colanode/ui/lib/utils';
@@ -82,16 +83,37 @@ const SplitPane = ({ leaf }: { leaf: SplitLeaf }) => {
     useSplitView();
   const paneRouter = getPaneRouter(leaf.id);
   const focused = focusedLeafId === leaf.id;
+  // Identity must be stable or every pane re-renders its whole router subtree
+  // on each parent render.
+  const paneValue = useMemo(() => ({ leafId: leaf.id }), [leaf.id]);
 
   return (
     <div
       onMouseDownCapture={() => focusPane(leaf.id)}
       className={cn(
-        'flex h-full w-full flex-col',
+        // `relative` is what lets a pane-scoped overlay anchor to the pane. It
+        // does NOT capture `position: fixed` children — only transform/filter/
+        // contain do that — so overlays that must follow their pane switch to
+        // `absolute` via useSplitPane() rather than being trapped wholesale,
+        // which would also have caged deliberately full-window surfaces.
+        'group/pane relative flex h-full w-full flex-col',
         focused && 'ring-1 ring-inset ring-primary/40'
       )}
     >
-      <div className="flex h-6 shrink-0 items-center justify-end gap-0.5 border-b bg-muted/40 px-1 text-muted-foreground">
+      {/* These controls used to own a 24px row of their own, stacked directly
+          above the page header Container already draws — two bars per pane. They
+          now float over the content and reserve no height. z-30 clears
+          Container's z-20 blurred header, which creates its own stacking
+          context. They stay visible on the focused pane so a touch user, who has
+          no hover, always has a way to close it. */}
+      <div
+        className={cn(
+          'absolute right-1 top-1 z-30 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 text-muted-foreground shadow-sm backdrop-blur transition-opacity',
+          focused
+            ? 'opacity-100'
+            : 'opacity-0 focus-within:opacity-100 group-hover/pane:opacity-100'
+        )}
+      >
         <button
           type="button"
           title="Split right"
@@ -122,7 +144,9 @@ const SplitPane = ({ leaf }: { leaf: SplitLeaf }) => {
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        <RouterProvider router={paneRouter} />
+        <SplitPaneContext.Provider value={paneValue}>
+          <RouterProvider router={paneRouter} />
+        </SplitPaneContext.Provider>
       </div>
     </div>
   );

@@ -5,13 +5,16 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { useDatabase } from '@colanode/ui/contexts/database';
+import { useSplitPane } from '@colanode/ui/contexts/split-pane';
 import { useTableSelection } from '@colanode/ui/contexts/table-selection';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { cn } from '@colanode/ui/lib/utils';
 
 export const TableSelectionBar = () => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const selection = useTableSelection();
+  const inSplitPane = useSplitPane() !== null;
   const [confirming, setConfirming] = useState(false);
 
   if (!selection || selection.selectedIds.size === 0) {
@@ -36,7 +39,15 @@ export const TableSelectionBar = () => {
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg">
+    <div
+      className={cn(
+        'bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg',
+        // Same escape as the reading-progress rail: a fixed bar would float at
+        // the bottom of the window, detached from the table it belongs to and
+        // on top of the neighbouring pane.
+        inSplitPane ? 'absolute' : 'fixed'
+      )}
+    >
       <span className="px-1 text-sm font-medium">{count} selected</span>
       {canDelete && (
         <button

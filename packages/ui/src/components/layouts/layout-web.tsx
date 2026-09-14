@@ -1,15 +1,13 @@
-// ABOUTME: Web shell — a single browser-history router for normal browsing,
-// ABOUTME: wrapped in the split view so panes can be opened side by side.
+// ABOUTME: Web shell — one browser-history router that stays mounted, with the
+// ABOUTME: split living inside the workspace render area rather than over it.
 import {
   createBrowserHistory,
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo } from 'react';
 
-import { SplitView } from '@colanode/ui/components/layouts/split/split-view';
 import { SplitViewProvider } from '@colanode/ui/components/layouts/split/split-view-provider';
-import { useSplitView } from '@colanode/ui/contexts/split-view';
 import { routeTree } from '@colanode/ui/routes';
 import { routeMasks } from '@colanode/ui/routes/masks';
 
@@ -28,44 +26,30 @@ export const LayoutWeb = () => {
   }, []);
 
   // The first split keeps whatever is on screen on one side. Desktop reads that
-  // from the active tab; the web shell has no tabs, so without this the
-  // provider would fall back to '/' and the left pane would lose the page the
-  // user was actually reading.
+  // from the active tab; the web shell has no tabs, so without this the provider
+  // would fall back to '/' and the left pane would lose the page being read.
   const resolveCurrentLocation = useCallback(
     () => router.state.location.href,
     [router]
   );
 
-  return (
-    <SplitViewProvider resolveCurrentLocation={resolveCurrentLocation}>
-      <SplitOrBrowserRouter>
-        <RouterProvider router={router} />
-      </SplitOrBrowserRouter>
-    </SplitViewProvider>
+  // Panes navigate their own memory routers, so nothing touches the address bar
+  // while a split is open. When the split ends, the surviving pane's location
+  // has to be pushed back here, otherwise this router is still sitting on the
+  // pre-split URL and every navigation made inside the panes is thrown away.
+  const handleExitSplit = useCallback(
+    (location: string) => {
+      void router.navigate({ href: location, replace: true });
+    },
+    [router]
   );
-};
-
-// Split panes own their own memory routers, so the browser router is unmounted
-// while a split is open and remounted — with its history intact, because the
-// router object itself is memoized — as soon as the last pane is closed. The
-// two are mutually exclusive, exactly as on desktop, so the same route is never
-// mounted twice at once.
-//
-// The split branch needs the full-height flex column that layout-desktop gives
-// it around <TabsHeader /> + <LayoutBody />: SplitView is `flex-1`, so without
-// a flex parent it collapses to its content height and the panes only fill the
-// top of the window. The unsplit branch is left exactly as it was — the router
-// renders straight into AppLayout's sized box, as before.
-const SplitOrBrowserRouter = ({ children }: { children: ReactNode }) => {
-  const { tree } = useSplitView();
-
-  if (!tree) {
-    return <>{children}</>;
-  }
 
   return (
-    <div className="flex h-full flex-col">
-      <SplitView />
-    </div>
+    <SplitViewProvider
+      resolveCurrentLocation={resolveCurrentLocation}
+      onExitSplit={handleExitSplit}
+    >
+      <RouterProvider router={router} />
+    </SplitViewProvider>
   );
 };

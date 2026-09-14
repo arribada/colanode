@@ -6,24 +6,48 @@ import { AiChatToggle } from '@colanode/ui/components/layouts/ai-chat-toggle';
 import { CommentsPanel } from '@colanode/ui/components/layouts/comments-panel';
 import { CommentsSheet } from '@colanode/ui/components/layouts/comments-sheet';
 import { SidebarDesktop } from '@colanode/ui/components/layouts/sidebars/sidebar-desktop';
+import { SplitView } from '@colanode/ui/components/layouts/split/split-view';
 import { SuggestionsPanel } from '@colanode/ui/components/layouts/suggestions-panel';
 import { ThreadPanel } from '@colanode/ui/components/layouts/thread-panel';
 import { ThreadSheet } from '@colanode/ui/components/layouts/thread-sheet';
 import { SearchDialog } from '@colanode/ui/components/search/search-dialog';
 import { WorkspaceSyncIndicator } from '@colanode/ui/components/workspaces/workspace-sync-indicator';
 import { AiChatPanelContext } from '@colanode/ui/contexts/ai-chat-panel';
+import { useApp } from '@colanode/ui/contexts/app';
 import { NodeUndoContext } from '@colanode/ui/contexts/node-undo';
 import { PageCommentsContext } from '@colanode/ui/contexts/page-comments';
 import { PageSuggestionsContext } from '@colanode/ui/contexts/page-suggestions';
 import { SearchContext } from '@colanode/ui/contexts/search';
+import { useSplitPane } from '@colanode/ui/contexts/split-pane';
+import { useSplitView } from '@colanode/ui/contexts/split-view';
 import { ThreadPanelContext } from '@colanode/ui/contexts/thread-panel';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { useMetadata } from '@colanode/ui/hooks/use-metadata';
 
+// A split pane mounts the whole route tree, so it reaches this component again.
+// Rendering the chrome there is what produced two icon rails, two sidebars, one
+// Cmd/Ctrl-K listener per pane (so one keypress opened N stacked search
+// dialogs), one Ctrl-Z undo stack per pane, and N floating AI/sync buttons piled
+// on the same viewport pixel. Inside a pane we render the content and nothing
+// else: the chrome is already on screen once, wrapped around the split itself,
+// and its contexts reach the pane because RouterProvider is a plain context
+// provider, so the React tree is continuous across it.
 export const WorkspaceLayout = () => {
+  const pane = useSplitPane();
+
+  if (pane) {
+    return <Outlet />;
+  }
+
+  return <WorkspaceChrome />;
+};
+
+const WorkspaceChrome = () => {
+  const app = useApp();
   const isMobile = useIsMobile();
   const workspace = useWorkspace();
+  const splitView = useSplitView();
   const [aiOpen, setAiOpen] = useMetadata<boolean>(
     workspace.userId,
     'ai.chat.open'
@@ -39,6 +63,13 @@ export const WorkspaceLayout = () => {
   );
   const [composeBlockId, setComposeBlockId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Only the web shell hosts the split inside its render area. On desktop the
+  // split is swapped in above the tabs by layout-desktop, and TabsContent mounts
+  // every tab router at once, so hosting it here as well would mount the same
+  // pane router from several RouterProviders simultaneously, which TanStack does
+  // not support.
+  const splitActive = app.type === 'web' && splitView.tree !== null;
 
   // Track the current suggestions target so the route-change reset effect below
   // can tell whether a navigation is *arriving at* the page a suggestion
@@ -230,7 +261,16 @@ export const WorkspaceLayout = () => {
                 <div className="w-full h-full flex">
                   {!isMobile && <SidebarDesktop />}
                   <section className="min-w-0 flex-1">
-                    <Outlet />
+                    {splitActive ? (
+                      // SplitView's root is `flex-1`; it needs a height-bounded
+                      // flex column or the panes collapse to their content
+                      // height and fill only the top of the window.
+                      <div className="flex h-full flex-col">
+                        <SplitView />
+                      </div>
+                    ) : (
+                      <Outlet />
+                    )}
                   </section>
                   {!isMobile && <ThreadPanel />}
                   {!isMobile && <CommentsPanel />}

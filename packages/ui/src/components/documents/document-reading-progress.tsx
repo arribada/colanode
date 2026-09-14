@@ -3,6 +3,7 @@
 import { type Editor } from '@tiptap/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useSplitPane } from '@colanode/ui/contexts/split-pane';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface HeadingItem {
@@ -69,6 +70,7 @@ const lineWidth = (level: number) =>
 export const DocumentReadingProgress = ({
   editor,
 }: DocumentReadingProgressProps) => {
+  const inSplitPane = useSplitPane() !== null;
   const [headings, setHeadings] = useState<HeadingItem[]>(() =>
     scanHeadings(editor)
   );
@@ -193,7 +195,16 @@ export const DocumentReadingProgress = ({
     // Fixed to the right gutter, hidden below xl so it never crowds the text
     // column. The wrapper takes no pointer events; only the strip and (on
     // hover) the panel do, so it can never block clicks on the page beneath it.
-    <div className="pointer-events-none fixed right-1 top-1/2 z-20 hidden -translate-y-1/2 xl:block">
+    <div
+      className={cn(
+        'pointer-events-none right-1 top-1/2 z-20 hidden -translate-y-1/2 xl:block',
+        // A split pane is a normal flow box, so `fixed` resolves against the
+        // viewport: in a vertical split this rail parked itself at the middle
+        // of the window, 4px from the right edge - exactly where the lower
+        // pane's controls sit. Inside a pane, anchor to the pane instead.
+        inSplitPane ? 'absolute' : 'fixed'
+      )}
+    >
       <div className="group/toc pointer-events-auto relative flex max-h-[85vh] flex-col items-end gap-1.5 overflow-y-auto overscroll-contain py-2 pl-6 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {headings.map((heading, index) => (
           <span

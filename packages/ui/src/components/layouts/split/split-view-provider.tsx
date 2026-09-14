@@ -5,6 +5,7 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 
 import { collections } from '@colanode/ui/collections';
 import { SplitViewContext } from '@colanode/ui/contexts/split-view';
+import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import {
   closePane as closePaneOp,
   collectLeaves,
@@ -38,14 +39,28 @@ interface SplitViewProviderProps {
   // tab; the web shell has no tabs and passes its browser router's current
   // location instead, so the left pane keeps the page being read.
   resolveCurrentLocation?: () => string;
+  // Called when the last real split ends, with the surviving pane's current
+  // location. Panes navigate memory routers, so the host router is still on
+  // the pre-split URL; without this every in-pane navigation is discarded.
+  onExitSplit?: (location: string) => void;
 }
 
 export const SplitViewProvider = ({
   children,
   resolveCurrentLocation,
+  onExitSplit,
 }: SplitViewProviderProps) => {
+  const isMobile = useIsMobile();
   const [tree, setTree] = useState<SplitNode | null>(null);
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
+
+  // Mirrors of render-time values so closePane can compute outside a setState
+  // updater: React may run an updater twice or discard it, and the ref
+  // bookkeeping plus the exit callback must happen exactly once.
+  const treeRef = useRef<SplitNode | null>(null);
+  treeRef.current = tree;
+  const onExitSplitRef = useRef(onExitSplit);
+  onExitSplitRef.current = onExitSplit;
 
   const routersRef = useRef<Map<string, typeof router>>(new Map());
   // leaf id -> the initial location its router was seeded with.
@@ -127,28 +142,50 @@ export const SplitViewProvider = ({
   );
 
   const closePane = useCallback((leafId: string) => {
-    setTree((current) => {
-      if (!current) {
-        return current;
+    const current = treeRef.current;
+    if (!current) {
+      return;
+    }
+
+    const next = closePaneOp(current, leafId);
+    routersRef.current.delete(leafId);
+    locationsRef.current.delete(leafId);
+
+    // A one-pane "split" is not a split. The pure tree op correctly collapses
+    // a two-leaf tree to the surviving leaf (two tests pin that), but the
+    // provider used to treat any non-null tree as "still split": the survivor
+    // kept its chrome and its focus ring, so Close looked broken and had to be
+    // clicked twice. The policy belongs here, not in the tree primitive.
+    const leaves = next ? collectLeaves(next) : [];
+    if (!next || leaves.length === 1) {
+      const survivor = leaves[0];
+      // The survivor's CURRENT location, not the seed it was created with:
+      // locationsRef would send the user back to where that pane started
+      // rather than where they actually navigated to.
+      const location = survivor
+        ? (routersRef.current.get(survivor.id)?.state.location.href ??
+          locationsRef.current.get(survivor.id))
+        : undefined;
+
+      routersRef.current.clear();
+      locationsRef.current.clear();
+      setFocusedLeafId(null);
+      // Hand the location back BEFORE the tree flips: the host router renders
+      // again in the same commit, so pushing first lands on the right page in
+      // one paint instead of flashing the stale pre-split location.
+      if (location) {
+        onExitSplitRef.current?.(location);
       }
-      const next = closePaneOp(current, leafId);
-      routersRef.current.delete(leafId);
-      locationsRef.current.delete(leafId);
-      if (!next) {
-        // Last pane closed: leave split mode and hand control back to the tabs.
-        routersRef.current.clear();
-        locationsRef.current.clear();
-        setFocusedLeafId(null);
-        return null;
-      }
-      setFocusedLeafId((prev) => {
-        if (prev && collectLeaves(next).some((l) => l.id === prev)) {
-          return prev;
-        }
-        return collectLeaves(next)[0]?.id ?? null;
-      });
-      return next;
-    });
+      setTree(null);
+      return;
+    }
+
+    setFocusedLeafId((prev) =>
+      prev && leaves.some((l) => l.id === prev)
+        ? prev
+        : (leaves[0]?.id ?? null)
+    );
+    setTree(next);
   }, []);
 
   const resizePane = useCallback(
@@ -167,7 +204,9 @@ export const SplitViewProvider = ({
   return (
     <SplitViewContext.Provider
       value={{
-        isSplitAvailable: true,
+        // Two panes inside a phone-width window are unusable, and the mobile
+        // shell has no room for the pane controls either.
+        isSplitAvailable: !isMobile,
         tree,
         focusedLeafId,
         openInSplit,
