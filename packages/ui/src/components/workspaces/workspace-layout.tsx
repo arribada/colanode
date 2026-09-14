@@ -241,6 +241,40 @@ const WorkspaceChrome = () => {
     [searchOpen]
   );
 
+  // While a split is open the outer router's Outlet is not on screen, so a
+  // sidebar link would navigate a router nobody can see and the page would
+  // simply appear not to open. Send it to the focused pane instead: the pane you
+  // last clicked in is the one that loads, the way an editor group works.
+  // Modified clicks are left alone so Ctrl/Cmd-click still opens a real tab.
+  const handleSidebarClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!splitActive || !splitView.focusedLeafId) {
+        return;
+      }
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest?.('a[href]');
+      const href = anchor?.getAttribute('href');
+      if (!href || !href.startsWith('/')) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const paneRouter = splitView.getPaneRouter(splitView.focusedLeafId);
+      void paneRouter.navigate({ href });
+    },
+    [splitActive, splitView]
+  );
+
   const aiPanelValue = useMemo(
     () => ({
       isOpen: isAiOpen,
@@ -259,7 +293,14 @@ const WorkspaceChrome = () => {
             <PageCommentsContext.Provider value={commentsValue}>
               <PageSuggestionsContext.Provider value={suggestionsValue}>
                 <div className="w-full h-full flex">
-                  {!isMobile && <SidebarDesktop />}
+                  {!isMobile && (
+                    // `display: contents` so the wrapper generates no box and
+                    // the sidebar stays a direct flex child; it exists only to
+                    // catch clicks in the capture phase.
+                    <div className="contents" onClickCapture={handleSidebarClick}>
+                      <SidebarDesktop />
+                    </div>
+                  )}
                   <section className="min-w-0 flex-1">
                     {splitActive ? (
                       // SplitView's root is `flex-1`; it needs a height-bounded
