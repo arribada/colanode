@@ -845,6 +845,7 @@ export const ActionMenu = ({
             {pageId && (
               <CopyLinkAction
                 nodeId={pageId}
+                blockId={menuState.pmNode?.attrs?.id as string | undefined}
                 item={DropdownMenuItem}
                 label="Copy link to block"
               />

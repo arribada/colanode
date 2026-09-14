@@ -16,6 +16,10 @@ interface CopyLinkMenuItemProps {
 
 interface CopyLinkActionProps {
   nodeId: string;
+  // When given, the link points at one block inside the node rather than
+  // at the node itself. Blocks already render their id as data-id, which
+  // is what the document scrolls to when it opens on such a link.
+  blockId?: string;
   item: ComponentType<CopyLinkMenuItemProps>;
   label?: string;
   // Optional trailing node (e.g. a <DropdownMenuShortcut>) pushed to the right
@@ -30,6 +34,7 @@ interface CopyLinkActionProps {
 // is a file:// / app:// URL rather than the deployment's web address.
 export const CopyLinkAction = ({
   nodeId,
+  blockId,
   item: MenuItem,
   label = 'Copy link',
   shortcut,
@@ -44,9 +49,13 @@ export const CopyLinkAction = ({
           window.location.protocol === 'https:')
           ? window.location.origin
           : 'https://docs.arribada.org';
-      const link = `${origin}/${workspace.workspaceId}/${nodeId}`;
+      const link = `${origin}/${workspace.workspaceId}/${nodeId}${
+        blockId ? `#${blockId}` : ''
+      }`;
       await navigator.clipboard.writeText(link);
-      toast.success('Link copied to clipboard');
+      toast.success(
+        blockId ? 'Link to block copied' : 'Link copied to clipboard'
+      );
     } catch {
       toast.error('Could not copy the link.');
     }

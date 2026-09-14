@@ -377,6 +377,64 @@ export const DocumentEditor = ({
   const workspace = useWorkspace();
   const { openComments } = usePageComments();
   const { openSuggest } = usePageSuggestions();
+
+  // A link copied with "Copy link to block" carries #<blockId>. The document
+  // streams in from the local database, so the block usually does not exist on
+  // the first frame -- poll briefly instead of missing it, and give up quietly
+  // rather than hunting forever for a block that was since deleted. The
+  // highlight is written inline: Tailwind only emits classes it can see
+  // literally in the source, so a generated class name would paint nothing.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const blockId = window.location.hash.replace(/^#/, '');
+    if (!blockId) {
+      return;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const look = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const selector =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? `[data-id="${CSS.escape(blockId)}"]`
+          : `[data-id="${blockId}"]`;
+      const target = document.querySelector<HTMLElement>(selector);
+
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const previous = target.style.backgroundColor;
+        target.style.transition = 'background-color 900ms ease';
+        target.style.backgroundColor = 'rgba(250, 204, 21, 0.35)';
+        timer = setTimeout(() => {
+          target.style.backgroundColor = previous;
+        }, 1800);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 40) {
+        timer = setTimeout(look, 100);
+      }
+    };
+
+    look();
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    };
+  }, [node.id]);
   // Inline comments only make sense on page documents (comments are `message`
   // nodes parented to the page). Record documents opt out.
   const isPage = node.type === 'page';
