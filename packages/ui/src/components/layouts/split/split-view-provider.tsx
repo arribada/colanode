@@ -32,7 +32,18 @@ const activeTabLocation = (): string => {
 let paneSeq = 0;
 const nextPaneId = (): string => `pane-${++paneSeq}`;
 
-export const SplitViewProvider = ({ children }: { children: ReactNode }) => {
+interface SplitViewProviderProps {
+  children: ReactNode;
+  // Where the first split starts from. Desktop derives it from the active
+  // tab; the web shell has no tabs and passes its browser router's current
+  // location instead, so the left pane keeps the page being read.
+  resolveCurrentLocation?: () => string;
+}
+
+export const SplitViewProvider = ({
+  children,
+  resolveCurrentLocation,
+}: SplitViewProviderProps) => {
   const [tree, setTree] = useState<SplitNode | null>(null);
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
 
@@ -72,7 +83,10 @@ export const SplitViewProvider = ({ children }: { children: ReactNode }) => {
     (location: string, direction: SplitDirection) => {
       setTree((current) => {
         if (!current) {
-          const first = singleLeaf(activeTabLocation(), nextPaneId);
+          const first = singleLeaf(
+            resolveCurrentLocation?.() ?? activeTabLocation(),
+            nextPaneId
+          );
           const built = splitPane(
             first,
             first.id,
@@ -109,7 +123,7 @@ export const SplitViewProvider = ({ children }: { children: ReactNode }) => {
         return built;
       });
     },
-    [focusedLeafId, registerLocations]
+    [focusedLeafId, registerLocations, resolveCurrentLocation]
   );
 
   const closePane = useCallback((leafId: string) => {
