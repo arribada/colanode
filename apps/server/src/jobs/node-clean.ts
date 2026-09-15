@@ -1,3 +1,5 @@
+import { sql } from 'kysely';
+
 import { getIdType, IdType } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { CreateNodeTombstone } from '@colanode/server/data/schema';
@@ -91,10 +93,22 @@ const cleanDescendants = async (nodeId: string, userId: string) => {
     await cleanNodeFiles(nodeIds);
 
     await database.transaction().execute(async (trx) => {
+      // A node moved across spaces already has a tombstone with its id, left in
+      // the OLD root so that space's clients drop it. Doing nothing on conflict
+      // kept this delete there too, and clients of the space the node now lives
+      // in never received it: the deleted pages stayed on them as orphans.
+      // Re-home the tombstone to the node's current root with a new revision.
       await trx
         .insertInto('node_tombstones')
         .values(nodeTombstonesToCreate)
-        .onConflict((b) => b.columns(['id']).doNothing())
+        .onConflict((oc) =>
+          oc.column('id').doUpdateSet((eb) => ({
+            root_id: eb.ref('excluded.root_id'),
+            deleted_at: eb.ref('excluded.deleted_at'),
+            deleted_by: eb.ref('excluded.deleted_by'),
+            revision: sql`nextval('node_tombstones_revision_sequence')`,
+          }))
+        )
         .execute();
 
       await trx.deleteFrom('nodes').where('id', 'in', nodeIds).execute();
