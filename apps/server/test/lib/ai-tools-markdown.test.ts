@@ -112,6 +112,48 @@ describe('markdownToBlocks — code and diagrams', () => {
     expect(blocks.find((b) => b.type === 'codeBlock')).toBeUndefined();
   });
 
+  it('fences code that itself contains a fence with a longer one', () => {
+    // A code block documenting markdown: its ``` line used to close the
+    // fence, and the rest of the code spilled out as paragraphs.
+    const code = 'Write:\n```js\nconst a = 1;\n```\nthen ````nested````.';
+    const markdown = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: {
+        c1: {
+          id: 'c1',
+          type: 'codeBlock',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { language: 'markdown' },
+          content: [{ type: 'text', text: code }],
+        },
+        p1: {
+          id: 'p1',
+          type: 'paragraph',
+          parentId: DOC,
+          index: 'a1',
+          content: [{ type: 'text', text: 'after' }],
+        },
+      },
+    });
+    expect(markdown.split('\n')[0]).toBe('`````markdown');
+
+    const back = Object.values(markdownToBlocks(DOC, markdown)).sort((a, b) =>
+      a.index < b.index ? -1 : 1
+    );
+    expect(back.map((b) => b.type)).toEqual(['codeBlock', 'paragraph']);
+    expect(back[0]!.content?.[0]?.text).toBe(code);
+    expect(back[0]!.attrs).toMatchObject({ language: 'markdown' });
+  });
+
+  it('does not close a fence on a longer info line or a shorter fence', () => {
+    const blocks = Object.values(
+      markdownToBlocks(DOC, '````\n```js\n```\n````')
+    );
+    expect(blocks.map((b) => b.type)).toEqual(['codeBlock']);
+    expect(blocks[0]!.content?.[0]?.text).toBe('```js\n```');
+  });
+
   it('round-trips a diagram back to a mermaid fence', () => {
     const out = roundTrip('```mermaid\ngraph TD\n  A-->B\n```');
     expect(out).toContain('```mermaid');

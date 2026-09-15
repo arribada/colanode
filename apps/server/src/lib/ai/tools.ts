@@ -630,6 +630,18 @@ export const unrepresentableBlockTypes = (
   return [...found].sort();
 };
 
+// A fence one backtick longer than the longest backtick run inside the code,
+// and never shorter than three. A plain ``` fence was closed early by a
+// ``` line inside the code -- a code block documenting markdown, say -- and
+// everything after it spilled out as paragraphs.
+const codeFence = (code: string): string => {
+  let longest = 0;
+  for (const run of code.match(/`+/g) ?? []) {
+    longest = Math.max(longest, run.length);
+  }
+  return '`'.repeat(Math.max(3, longest + 1));
+};
+
 // Converts a page/record rich-text document into plain markdown for the model.
 export const richTextToMarkdown = (
   documentId: string,
@@ -716,19 +728,22 @@ export const richTextToMarkdown = (
           // The language was dropped on the way out, so a round-trip turned
           // every annotated block into plaintext.
           const language = attrString(block, 'language');
-          lines.push(indent + '```' + (language === 'plaintext' ? '' : language));
+          const fence = codeFence(text);
+          lines.push(indent + fence + (language === 'plaintext' ? '' : language));
           lines.push(indent + text);
-          lines.push(indent + '```');
+          lines.push(indent + fence);
           break;
         }
         case 'mermaid': {
           // Fenced as ```mermaid, which the parser turns back into a real
           // diagram rather than a code block.
-          lines.push(indent + '```mermaid');
-          for (const sourceLine of attrString(block, 'source').split('\n')) {
+          const source = attrString(block, 'source');
+          const fence = codeFence(source);
+          lines.push(indent + fence + 'mermaid');
+          for (const sourceLine of source.split('\n')) {
             lines.push(sourceLine);
           }
-          lines.push(indent + '```');
+          lines.push(indent + fence);
           break;
         }
         case 'callout': {
@@ -750,9 +765,11 @@ export const richTextToMarkdown = (
           // These used to come out as nothing at all, and a page holding one
           // could not be edited in replace mode.
           const spec = EMBED_BLOCKS[block.type]!;
-          lines.push(indent + '```' + spec.fence);
-          lines.push(indent + embedJson(block, spec, options));
-          lines.push(indent + '```');
+          const json = embedJson(block, spec, options);
+          const fence = codeFence(json);
+          lines.push(indent + fence + spec.fence);
+          lines.push(indent + json);
+          lines.push(indent + fence);
           break;
         }
         case 'table':
@@ -1041,12 +1058,20 @@ export const markdownToBlocks = (
     const trimmed = line.trim();
     const indentWidth = line.length - line.trimStart().length;
 
-    if (trimmed.startsWith('```')) {
+    const fenceOpen = /^(`{3,})([^`]*)$/.exec(trimmed);
+    if (fenceOpen) {
       resetLists();
-      const info = trimmed.slice(3).trim().toLowerCase();
+      const fenceLength = (fenceOpen[1] ?? '').length;
+      const info = (fenceOpen[2] ?? '').trim().toLowerCase();
+      // Only a line of backticks at least as long as the opening fence closes
+      // it, as in CommonMark; any line starting with ``` used to.
+      const closes = (value: string): boolean => {
+        const candidate = value.trim();
+        return /^`+$/.test(candidate) && candidate.length >= fenceLength;
+      };
       i += 1;
       const codeLines: string[] = [];
-      while (i < lines.length && !(lines[i] ?? '').trim().startsWith('```')) {
+      while (i < lines.length && !closes(lines[i] ?? '')) {
         codeLines.push(lines[i] ?? '');
         i += 1;
       }
