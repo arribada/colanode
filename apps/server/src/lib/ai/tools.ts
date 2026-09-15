@@ -1705,8 +1705,10 @@ export const uploadImage = async (
 
   // Written straight to storage: tus exists for resumable uploads from a
   // browser, and we are already inside the server.
+  const storagePath = `files/${ctx.workspaceId}/${fileId}_${version}${loaded.extension}`;
+  const rootId = tree[0]?.id ?? input.pageId;
   await storage.upload(
-    `files/${ctx.workspaceId}/${fileId}_${version}${loaded.extension}`,
+    storagePath,
     loaded.buffer,
     loaded.mimeType,
     BigInt(loaded.buffer.length)
@@ -1714,7 +1716,7 @@ export const uploadImage = async (
 
   const created = await createNode({
     nodeId: fileId,
-    rootId: tree[0]?.id ?? input.pageId,
+    rootId,
     attributes,
     userId: ctx.userId,
     workspaceId: ctx.workspaceId,
@@ -1723,6 +1725,28 @@ export const uploadImage = async (
   if (!created) {
     throw new WikiToolError('Failed to register the image.');
   }
+
+  // Bypassing tus also bypassed the uploads row it writes, and the download
+  // route serves a file only through that row: every image stored here
+  // answered 400, and the page sat on "Loading image…" until the client gave
+  // up. Record the upload exactly as a completed browser upload would.
+  const uploadedAt = new Date();
+  await database
+    .insertInto('uploads')
+    .values({
+      file_id: fileId,
+      upload_id: generateId(IdType.Upload),
+      workspace_id: ctx.workspaceId,
+      root_id: rootId,
+      mime_type: loaded.mimeType,
+      size: loaded.buffer.length,
+      path: storagePath,
+      version_id: version,
+      created_at: uploadedAt,
+      created_by: user.id,
+      uploaded_at: uploadedAt,
+    })
+    .execute();
 
   return {
     fileId,

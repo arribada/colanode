@@ -237,6 +237,16 @@ export const fileUploadTusRoute: FastifyPluginCallbackZod = (
             }
           }
 
+          // The cleaned file is smaller than what was sent; keep the upload's
+          // record of the stored bytes true.
+          if (cleanedSize !== null) {
+            await database
+              .updateTable('uploads')
+              .set({ size: cleanedSize })
+              .where('file_id', '=', fileId)
+              .execute();
+          }
+
           const result = await updateNode({
             nodeId: fileId,
             userId: request.workspace.user.id,
