@@ -2406,6 +2406,23 @@ const writeTrashState = (
     },
   });
 
+// Whether the caller can open a node, for deciding what may be said about
+// something they reach only indirectly.
+const canAccessNode = async (
+  nodeId: string,
+  ctx: WikiToolContext
+): Promise<boolean> => {
+  try {
+    await requireAccessibleNode(nodeId, ctx);
+    return true;
+  } catch (error) {
+    if (error instanceof WikiToolError) {
+      return false;
+    }
+    throw error;
+  }
+};
+
 export const trashNode = async (
   ctx: WikiToolContext,
   input: { id: string }
@@ -2414,12 +2431,14 @@ export const trashNode = async (
   if (!isSoftDeletableNodeType(node.type)) {
     throw new WikiToolError(`Node type '${node.type}' cannot be trashed.`);
   }
+  // The permission comes first: "already in the trash" told someone who may
+  // only view what another person had just deleted.
+  const user = await fetchWorkspaceUser(ctx);
+  assertCanSetTrashState(user, tree, true);
   if (isTrashed(node)) {
     return { id: input.id, trashed: true, type: node.type };
   }
 
-  const user = await fetchWorkspaceUser(ctx);
-  assertCanSetTrashState(user, tree, true);
   if (!(await writeTrashState(ctx, node.id, true))) {
     throw new WikiToolError(`Could not move node ${input.id} to the trash.`);
   }
@@ -2432,15 +2451,21 @@ export const restoreNode = async (
   input: { id: string }
 ): Promise<RestoreNodeResult> => {
   if (!(await fetchNode(input.id))) {
-    // "Delete forever" removes the row and leaves a tombstone.
+    // "Delete forever" removes the row and leaves a tombstone. That is said
+    // only to someone who can open the space it was deleted from: to anyone
+    // else it confirmed a deletion they could never have seen. For them the
+    // node is not found, like an id that never existed.
     const tombstone = await database
       .selectFrom('node_tombstones')
-      .select('id')
+      .select(['id', 'root_id'])
       .where('id', '=', input.id)
       .where('workspace_id', '=', ctx.workspaceId)
       .executeTakeFirst();
+    const canOpenSpace = tombstone
+      ? await canAccessNode(tombstone.root_id, ctx)
+      : false;
     throw new WikiToolError(
-      tombstone
+      canOpenSpace
         ? `Node ${input.id} was permanently deleted and cannot be restored.`
         : `Node ${input.id} was not found.`
     );
