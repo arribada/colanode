@@ -1,4 +1,4 @@
-import { sql } from 'kysely';
+import { sql, Transaction } from 'kysely';
 import { cloneDeep } from 'lodash-es';
 
 import {
@@ -23,6 +23,7 @@ import { decodeState, YDoc } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
 import {
   CreateCollaboration,
+  DatabaseSchema,
   SelectCollaboration,
   SelectNode,
   SelectNodeUpdate,
@@ -211,6 +212,180 @@ export const createNode = async (input: CreateNodeInput): Promise<boolean> => {
   }
 };
 
+// Thrown from inside the update transaction when a move would put a node inside
+// its own subtree. It has to be an exception rather than an early return because
+// the check only becomes trustworthy once the transaction holds the space lock —
+// by which point we are already committed to a transaction body.
+class NodeCycleError extends Error {}
+
+/** The parentId an attribute bag carries, when it carries one at all. */
+const readParentId = (attributes: unknown): string | undefined => {
+  if (!attributes || typeof attributes !== 'object') return undefined;
+  const value = (attributes as { parentId?: unknown }).parentId;
+  return typeof value === 'string' ? value : undefined;
+};
+
+/**
+ * Carries a subtree into another root (space).
+ *
+ * Sync is streamed per root in revision order, and a client can only build a
+ * node from the first update it receives for it — the create, which carries
+ * the type. Re-homing an update row bumps its revision (the node_updates
+ * trigger), so this must run BEFORE the move itself is recorded, and one row
+ * at a time in revision order: a single UPDATE assigns the new revisions in
+ * whatever order the scan visits the rows. Done the other way round, a client
+ * of the new space received the move before the create, could not build the
+ * node from it, and then stored the create under the old parent — an orphan
+ * no sidebar shows.
+ */
+const relocateSubtree = async (
+  trx: Transaction<DatabaseSchema>,
+  input: {
+    nodeId: string;
+    oldRootId: string;
+    newRootId: string;
+    workspaceId: string;
+    userId: string;
+  }
+): Promise<void> => {
+  // node_paths carries the self row at level 0, so ancestor_id = X yields the
+  // whole subtree. A move does not change who is below the moved node, so this
+  // is right whether or not the new parent_id has been written yet.
+  const subtree = await trx
+    .selectFrom('node_paths')
+    .select('descendant_id')
+    .where('ancestor_id', '=', input.nodeId)
+    .execute();
+  const subtreeIds = subtree.map((row) => row.descendant_id);
+  if (subtreeIds.length === 0) {
+    return;
+  }
+
+  await trx
+    .updateTable('nodes')
+    .set({ root_id: input.newRootId })
+    .where('id', 'in', subtreeIds)
+    .execute();
+
+  const nodeUpdates = await trx
+    .selectFrom('node_updates')
+    .select('id')
+    .where('node_id', 'in', subtreeIds)
+    .orderBy('revision', 'asc')
+    .execute();
+  for (const row of nodeUpdates) {
+    await trx
+      .updateTable('node_updates')
+      .set({ root_id: input.newRootId })
+      .where('id', '=', row.id)
+      .execute();
+  }
+
+  // Documents are streamed per root too, and nothing re-homed them: a moved
+  // page kept its body in the old space, invisible to anyone who only has the
+  // new one. document_updates has no revision trigger any more (migration
+  // 00028), so the new revision is assigned here, in the same order.
+  const documentUpdates = await trx
+    .selectFrom('document_updates')
+    .select('id')
+    .where('document_id', 'in', subtreeIds)
+    .orderBy('revision', 'asc')
+    .execute();
+  for (const row of documentUpdates) {
+    await sql`
+      update document_updates
+      set root_id = ${input.newRootId},
+          revision = nextval('document_updates_revision_sequence')
+      where id = ${row.id}
+    `.execute(trx);
+  }
+
+  // A user who can see the OLD space but NOT the new one never receives the
+  // re-homed updates (their synchronizer is scoped to the old root), so they
+  // would keep a stale copy forever. Drop a tombstone in the old root for each
+  // subtree node so their node-tombstones synchronizer removes it. The client
+  // tombstone apply is root-guarded, so a user who has BOTH spaces ignores this
+  // (their local copy already carries the new root) — see syncServerNodeDelete.
+  // onConflict keeps this idempotent and lets a later real delete re-tombstone
+  // the same id.
+  const now = new Date();
+  for (const id of subtreeIds) {
+    await trx
+      .insertInto('node_tombstones')
+      .values({
+        id,
+        root_id: input.oldRootId,
+        workspace_id: input.workspaceId,
+        deleted_at: now,
+        deleted_by: input.userId,
+      })
+      .onConflict((oc) =>
+        oc.column('id').doUpdateSet({
+          root_id: input.oldRootId,
+          deleted_at: now,
+          deleted_by: input.userId,
+          revision: sql`nextval('node_tombstones_revision_sequence')`,
+        })
+      )
+      .execute();
+  }
+};
+
+/**
+ * Everything a re-parenting needs before its update row is written: the space
+ * lock, the cycle check, and — when the new parent lives in another root — the
+ * relocation of the subtree. Returns the new root id when the node changed
+ * root, null otherwise.
+ */
+const prepareMove = async (
+  trx: Transaction<DatabaseSchema>,
+  input: {
+    nodeId: string;
+    parentId: string;
+    oldRootId: string;
+    workspaceId: string;
+    userId: string;
+  }
+): Promise<string | null> => {
+  // Serialise the moves inside one space. READ COMMITTED alone would let both
+  // transactions read a node_paths that predates the other, and moves are rare
+  // enough that a lock costs nothing.
+  await sql`select pg_advisory_xact_lock(hashtext(${input.oldRootId}))`.execute(
+    trx
+  );
+
+  // node_paths carries the self row at level 0, so this single lookup rejects
+  // "into itself" and "into its own descendant" alike.
+  const wouldLoop = await trx
+    .selectFrom('node_paths')
+    .select('descendant_id')
+    .where('ancestor_id', '=', input.nodeId)
+    .where('descendant_id', '=', input.parentId)
+    .executeTakeFirst();
+  if (wouldLoop) {
+    throw new NodeCycleError();
+  }
+
+  // Read the destination's root under the lock.
+  const newParent = await trx
+    .selectFrom('nodes')
+    .select('root_id')
+    .where('id', '=', input.parentId)
+    .executeTakeFirst();
+  if (!newParent || newParent.root_id === input.oldRootId) {
+    return null;
+  }
+
+  await relocateSubtree(trx, {
+    nodeId: input.nodeId,
+    oldRootId: input.oldRootId,
+    newRootId: newParent.root_id,
+    workspaceId: input.workspaceId,
+    userId: input.userId,
+  });
+  return newParent.root_id;
+};
+
 export const updateNode = async (input: UpdateNodeInput): Promise<boolean> => {
   for (let count = 0; count < UPDATE_RETRIES_LIMIT; count++) {
     const result = await tryUpdateNode(input);
@@ -264,66 +439,99 @@ export const tryUpdateNode = async (
     attributes
   );
 
+  // Server-side callers (the wiki tools among them) move nodes through here too,
+  // so a re-parenting gets the same lock, cycle check and relocation as a
+  // client mutation does.
+  const nextParentId = readParentId(attributes);
+  const isMove =
+    nextParentId !== undefined &&
+    nextParentId !== readParentId(node.attributes);
+
   try {
-    const { updatedNode, createdCollaborations, updatedCollaborations } =
-      await database.transaction().execute(async (trx) => {
-        const createdNodeUpdate = await trx
-          .insertInto('node_updates')
-          .returningAll()
-          .values({
-            id: updateId,
-            node_id: input.nodeId,
-            root_id: node.root_id,
-            workspace_id: node.workspace_id,
-            data: update,
-            created_at: date,
-            created_by: input.userId,
-          })
-          .executeTakeFirst();
+    const {
+      updatedNode,
+      createdCollaborations,
+      updatedCollaborations,
+      relocatedToRoot,
+    } = await database.transaction().execute(async (trx) => {
+      const relocatedToRoot =
+        isMove && nextParentId !== undefined
+          ? await prepareMove(trx, {
+              nodeId: input.nodeId,
+              parentId: nextParentId,
+              oldRootId: node.root_id,
+              workspaceId: node.workspace_id,
+              userId: input.userId,
+            })
+          : null;
 
-        if (!createdNodeUpdate) {
-          throw new Error('Failed to create node update');
-        }
+      const createdNodeUpdate = await trx
+        .insertInto('node_updates')
+        .returningAll()
+        .values({
+          id: updateId,
+          node_id: input.nodeId,
+          root_id: relocatedToRoot ?? node.root_id,
+          workspace_id: node.workspace_id,
+          data: update,
+          created_at: date,
+          created_by: input.userId,
+        })
+        .executeTakeFirst();
 
-        const updatedNode = await trx
-          .updateTable('nodes')
-          .returningAll()
-          .set({
-            attributes: attributesJson,
-            updated_at: date,
-            updated_by: input.userId,
-            revision: createdNodeUpdate.revision,
-          })
-          .where('id', '=', input.nodeId)
-          .where('revision', '=', node.revision)
-          .executeTakeFirst();
+      if (!createdNodeUpdate) {
+        throw new Error('Failed to create node update');
+      }
 
-        if (!updatedNode) {
-          throw new Error('Failed to update node');
-        }
+      const updatedNode = await trx
+        .updateTable('nodes')
+        .returningAll()
+        .set({
+          attributes: attributesJson,
+          updated_at: date,
+          updated_by: input.userId,
+          revision: createdNodeUpdate.revision,
+        })
+        .where('id', '=', input.nodeId)
+        .where('revision', '=', node.revision)
+        .executeTakeFirst();
 
-        const { createdCollaborations, updatedCollaborations } =
-          await applyCollaboratorUpdates(
-            trx,
-            input.nodeId,
-            input.userId,
-            input.workspaceId,
-            collaboratorChanges
-          );
+      if (!updatedNode) {
+        throw new Error('Failed to update node');
+      }
 
-        return {
-          updatedNode,
-          createdCollaborations,
-          updatedCollaborations,
-        };
-      });
+      const { createdCollaborations, updatedCollaborations } =
+        await applyCollaboratorUpdates(
+          trx,
+          input.nodeId,
+          input.userId,
+          input.workspaceId,
+          collaboratorChanges
+        );
+
+      return {
+        updatedNode,
+        createdCollaborations,
+        updatedCollaborations,
+        relocatedToRoot,
+      };
+    });
 
     eventBus.publish({
       type: 'node.updated',
       nodeId: input.nodeId,
-      rootId: node.root_id,
+      rootId: relocatedToRoot ?? node.root_id,
       workspaceId: input.workspaceId,
     });
+
+    if (relocatedToRoot) {
+      eventBus.publish({
+        type: 'node.deleted',
+        nodeId: input.nodeId,
+        rootId: node.root_id,
+        workspaceId: input.workspaceId,
+      });
+    }
 
     for (const createdCollaboration of createdCollaborations) {
       eventBus.publish({
@@ -347,7 +555,14 @@ export const tryUpdateNode = async (
       type: 'success',
       output: updatedNode,
     };
-  } catch {
+  } catch (error) {
+    // A cycle is a decision, not a lost race: retrying cannot change it.
+    if (error instanceof NodeCycleError) {
+      return {
+        type: 'error',
+        error: 'A node cannot be moved into its own subtree',
+      };
+    }
     return { type: 'retry' };
   }
 };
@@ -491,19 +706,6 @@ export const createNodeFromMutation = async (
   }
 };
 
-// Thrown from inside the update transaction when a move would put a node inside
-// its own subtree. It has to be an exception rather than an early return because
-// the check only becomes trustworthy once the transaction holds the space lock —
-// by which point we are already committed to a transaction body.
-class NodeCycleError extends Error {}
-
-/** The parentId an attribute bag carries, when it carries one at all. */
-const readParentId = (attributes: unknown): string | undefined => {
-  if (!attributes || typeof attributes !== 'object') return undefined;
-  const value = (attributes as { parentId?: unknown }).parentId;
-  return typeof value === 'string' ? value : undefined;
-};
-
 export const updateNodeFromMutation = async (
   workspace: WorkspaceContext,
   mutation: UpdateNodeMutationData
@@ -616,26 +818,21 @@ const tryUpdateNodeFromMutation = async (
   try {
     const { createdCollaborations, updatedCollaborations, relocatedToRoot } =
       await database.transaction().execute(async (trx) => {
-        if (isMove) {
-          // Serialise the moves inside one space. READ COMMITTED alone would let
-          // both transactions read a node_paths that predates the other, and
-          // moves are rare enough that a lock costs nothing.
-          await sql`select pg_advisory_xact_lock(hashtext(${node.root_id}))`.execute(
-            trx
-          );
-          // node_paths carries the self row at level 0, so this single lookup
-          // rejects "into itself" and "into its own descendant" alike.
-          const wouldLoop = await trx
-            .selectFrom('node_paths')
-            .select('descendant_id')
-            .where('ancestor_id', '=', mutation.nodeId)
-            .where('descendant_id', '=', nextParentId)
-            .executeTakeFirst();
-
-          if (wouldLoop) {
-            throw new NodeCycleError();
-          }
-        }
+        // Cross-space relocation happens FIRST: re-homing bumps the revision of
+        // every historical update, and the move has to come after all of them
+        // in the new root's stream (see relocateSubtree). The node_paths
+        // rebuild for the new parent still comes from the attributes update
+        // below (trg_update_node_path); root_id is what no trigger touches.
+        const relocatedToRoot =
+          isMove && nextParentId !== undefined
+            ? await prepareMove(trx, {
+                nodeId: mutation.nodeId,
+                parentId: nextParentId,
+                oldRootId,
+                workspaceId: workspace.id,
+                userId: workspace.user.id,
+              })
+            : null;
 
         const createdNodeUpdate = await trx
           .insertInto('node_updates')
@@ -643,7 +840,7 @@ const tryUpdateNodeFromMutation = async (
           .values({
             id: mutation.updateId,
             node_id: mutation.nodeId,
-            root_id: node.root_id,
+            root_id: relocatedToRoot ?? node.root_id,
             workspace_id: workspace.id,
             data: update,
             created_at: new Date(mutation.createdAt),
@@ -670,85 +867,6 @@ const tryUpdateNodeFromMutation = async (
 
         if (!updatedNode) {
           throw new Error('Failed to update node');
-        }
-
-        // Cross-space relocation. The attributes update above already changed
-        // the node's generated parent_id, which fired trg_update_node_path and
-        // rebuilt node_paths for the whole subtree — so the closure table is
-        // correct regardless of root. What is left is root_id, which no trigger
-        // touches. Re-read the destination parent's root under the same lock and
-        // if it differs, carry root_id down the subtree.
-        let relocatedToRoot: string | null = null;
-        if (isMove && nextParentId) {
-          const newParent = await trx
-            .selectFrom('nodes')
-            .select('root_id')
-            .where('id', '=', nextParentId)
-            .executeTakeFirst();
-
-          if (newParent && newParent.root_id !== oldRootId) {
-            const newRootId = newParent.root_id;
-
-            // Subtree = the moved node + every descendant. node_paths carries the
-            // self row at level 0, so ancestor_id = X yields the whole subtree.
-            const subtree = await trx
-              .selectFrom('node_paths')
-              .select('descendant_id')
-              .where('ancestor_id', '=', mutation.nodeId)
-              .execute();
-            const subtreeIds = subtree.map((row) => row.descendant_id);
-
-            // Move the nodes into the new space. This UPDATE does not touch
-            // parent_id, so trg_update_node_path is a no-op here (no second path
-            // rebuild).
-            await trx
-              .updateTable('nodes')
-              .set({ root_id: newRootId })
-              .where('id', 'in', subtreeIds)
-              .execute();
-
-            // Re-home every update row too. The BEFORE-UPDATE revision trigger on
-            // node_updates bumps each row's revision, so the destination root's
-            // node-updates synchronizer re-sends the subtree and every client
-            // with access to the new space relocates (or creates) it.
-            await trx
-              .updateTable('node_updates')
-              .set({ root_id: newRootId })
-              .where('node_id', 'in', subtreeIds)
-              .execute();
-
-            // A user who can see the OLD space but NOT the new one never receives
-            // the re-homed updates (their synchronizer is scoped to the old root),
-            // so they would keep a stale copy forever. Drop a tombstone in the old
-            // root for each subtree node so their node-tombstones synchronizer
-            // removes it. The client tombstone apply is root-guarded, so a user
-            // who has BOTH spaces ignores this (their local copy already carries
-            // the new root) — see syncServerNodeDelete. onConflict keeps this
-            // idempotent and lets a later real delete re-tombstone the same id.
-            const now = new Date();
-            for (const id of subtreeIds) {
-              await trx
-                .insertInto('node_tombstones')
-                .values({
-                  id,
-                  root_id: oldRootId,
-                  workspace_id: workspace.id,
-                  deleted_at: now,
-                  deleted_by: workspace.user.id,
-                })
-                .onConflict((oc) =>
-                  oc.column('id').doUpdateSet({
-                    root_id: oldRootId,
-                    deleted_at: now,
-                    deleted_by: workspace.user.id,
-                    revision: sql`nextval('node_tombstones_revision_sequence')`,
-                  })
-                )
-                .execute();
-            }
-
-            relocatedToRoot = newRootId;
-          }
         }
 
         const { createdCollaborations, updatedCollaborations } =

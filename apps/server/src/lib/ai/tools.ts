@@ -1355,8 +1355,17 @@ export const moveNode = async (
   if (!hasNodeRole(role, 'editor')) {
     throw new WikiToolError('You need editor access to move this node.');
   }
-  // Ensure the destination parent exists in this workspace and is accessible.
-  const { node: parent } = await requireAccessibleNode(input.parentId, ctx);
+  // The destination must be in this workspace, and the caller must be able to
+  // write there: a move adds a child to it.
+  const { role: parentRole } = await requireAccessibleNode(
+    input.parentId,
+    ctx
+  );
+  if (!hasNodeRole(parentRole, 'editor')) {
+    throw new WikiToolError(
+      'You need editor access to the destination to move a node there.'
+    );
+  }
 
   // Cycle guard: never move a node into itself or its own descendant.
   if (input.parentId === input.id) {
@@ -1385,30 +1394,14 @@ export const moveNode = async (
     },
   });
 
+  // A cross-space move is carried out by updateNode itself: it re-homes the
+  // subtree inside the same transaction, before the move is recorded. Doing it
+  // here, afterwards, gave the old updates newer revisions than the move and
+  // left the subtree's documents and tombstones behind.
   if (!updated) {
     throw new WikiToolError(
       `Could not move node ${input.id} (permission denied or the type cannot be re-parented).`
     );
-  }
-
-  // Cross-space move: updateNode does not touch root_id, so recompute it for the
-  // whole moved subtree (nodes + node_updates) to match the destination space,
-  // otherwise the subtree keeps answering to the old space's access/root.
-  if (node.root_id !== parent.root_id) {
-    const rows = await database
-      .selectFrom('node_paths')
-      .select('descendant_id')
-      .where('ancestor_id', '=', input.id)
-      .execute();
-    const ids = rows.map((r) => r.descendant_id);
-    if (ids.length > 0) {
-      await sql`UPDATE nodes SET root_id = ${parent.root_id} WHERE id = ANY(${ids})`.execute(
-        database
-      );
-      await sql`UPDATE node_updates SET root_id = ${parent.root_id} WHERE node_id = ANY(${ids})`.execute(
-        database
-      );
-    }
   }
 
   return { id: input.id, parentId: input.parentId, type: node.type };
