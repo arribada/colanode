@@ -74,7 +74,7 @@ const PAGE_CHILD_TYPES = ['page', 'database', 'folder', 'whiteboard'];
 // from the menu. Handles a single pictographic plus skin-tone / variation-
 // selector / ZWJ sequences. Display only: the stored name is never changed.
 const LEADING_EMOJI =
-  /^(\p{Extended_Pictographic}(?:[\u{1F3FB}-\u{1F3FF}\uFE0F\u200D]\p{Extended_Pictographic}?)*)\s*/u;
+  /^(\p{Extended_Pictographic}(?:(?:[\u{1F3FB}-\u{1F3FF}\uFE0F]|\u200D)\p{Extended_Pictographic}?)*)\s*/u;
 
 const splitLeadingEmoji = (
   name: string
