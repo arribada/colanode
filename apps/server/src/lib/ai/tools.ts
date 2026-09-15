@@ -1956,23 +1956,50 @@ const buildEmbedHints = async (
   return hints;
 };
 
+// The settings an embed block carries (EMBED_BLOCKS), as they would be
+// written: equal when a model kept the fence it was given.
+const sameEmbedAttrs = (type: string, a: Block, b: Block): boolean => {
+  const keys = Object.keys(EMBED_BLOCKS[type]?.attrs ?? {});
+  const settings = (block: Block) =>
+    JSON.stringify(keys.map((key) => (block.attrs ?? {})[key] ?? null));
+  return settings(a) === settings(b);
+};
+
 // Writing a block that embeds a node shows that node to everyone who can read
 // the page, so the caller must be able to read it -- and it must be the kind
-// of node the block draws. Nodes the page already embeds are left alone: a
-// page showing something the caller cannot see stays editable.
+// of node the block draws.
+//
+// An embed the page already has, kept exactly as it is -- same block type,
+// same settings -- needs no read access: a page showing something the caller
+// cannot see stays editable. Anything else about it is a change and is
+// checked like a new embed; the exemption used to cover any id the page
+// already embedded, so a caller could re-filter a database view it cannot
+// read, or turn that database into a page block. A kept embed's node is still
+// checked to be of the block's kind, without naming what kind it really is.
 const assertEmbeddableNodes = async (
   ctx: WikiToolContext,
   blocks: Record<string, Block>,
-  alreadyEmbedded: ReadonlySet<string>
+  existing: Readonly<Record<string, Block>>
 ): Promise<void> => {
   for (const embed of embeddedNodeIds(blocks)) {
-    if (alreadyEmbedded.has(embed.id)) {
+    const before = existing[embed.id];
+    const kept =
+      before !== undefined &&
+      before.type === embed.type &&
+      sameEmbedAttrs(embed.type, before, blocks[embed.id]!);
+    if (!kept) {
+      const { node } = await requireAccessibleNode(embed.id, ctx);
+      if (node.type !== embed.nodeType) {
+        throw new WikiToolError(
+          `Node ${embed.id} is a ${node.type}; a ${embed.type} block can only show a ${embed.nodeType}.`
+        );
+      }
       continue;
     }
-    const { node } = await requireAccessibleNode(embed.id, ctx);
-    if (node.type !== embed.nodeType) {
+    const node = await fetchNode(embed.id);
+    if (!node || node.workspace_id !== ctx.workspaceId || node.type !== embed.nodeType) {
       throw new WikiToolError(
-        `Node ${embed.id} is a ${node.type}; a ${embed.type} block can only show a ${embed.nodeType}.`
+        `Node ${embed.id} cannot be shown by a ${embed.type} block.`
       );
     }
   }
@@ -2155,7 +2182,7 @@ export const createPage = async (
     await assertEmbeddableNodes(
       ctx,
       markdownToBlocks('pending', input.content),
-      new Set()
+      {}
     );
   }
 
@@ -2247,9 +2274,13 @@ export const editPage = async (
         `The ${repeated.type} ${repeated.id} is already on this page.`
       );
     }
-    await assertEmbeddableNodes(ctx, incoming, new Set());
+    await assertEmbeddableNodes(ctx, incoming, {});
   } else {
-    await assertEmbeddableNodes(ctx, incoming, alreadyEmbedded);
+    await assertEmbeddableNodes(
+      ctx,
+      incoming,
+      (current?.content as RichTextContent | undefined)?.blocks ?? {}
+    );
   }
 
   const updated = await updateDocument({
