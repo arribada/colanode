@@ -9,6 +9,15 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme.mode}
       className="toaster group"
+      toastOptions={{
+        classNames: {
+          // Sonner paints titles and descriptions in its own fixed greys, which
+          // went near-black on the brand navy of the dark theme. Follow the
+          // popover's foreground, like the rest of the toast.
+          title: '!text-popover-foreground',
+          description: '!text-popover-foreground/80',
+        },
+      }}
       style={
         {
           '--normal-bg': 'var(--popover)',
