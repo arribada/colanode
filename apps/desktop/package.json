@@ -1,10 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@colanode/desktop",
-  "productName": "Colanode",
+  "productName": "Arribada Wiki",
   "version": "1.0.0",
-  "author": "Colanode",
-  "description": "Colanode desktop application",
+  "author": "Arribada Initiative",
+  "description": "Arribada Wiki desktop application",
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "DEBUG=colanode:* electron-forge start",

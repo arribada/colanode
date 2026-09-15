@@ -48,8 +48,13 @@ let appBadge: AppBadge | null = null;
 
 const debug = createDebugger('desktop:main');
 
-electronApp.setName('Colanode');
-electronApp.setAppUserModelId('com.colanode.desktop');
+// The name picks the user-data folder, so this build keeps its local database
+// apart from an upstream Colanode install on the same machine.
+electronApp.setName('Arribada Wiki');
+// Must equal the id Squirrel stamps on the Start-menu shortcut
+// (com.squirrel.<package id>.<exe>), or Windows drops the notifications and
+// groups the window under a generic taskbar entry.
+electronApp.setAppUserModelId('com.squirrel.ArribadaWiki.ArribadaWiki');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -79,7 +84,7 @@ const createWindow = async () => {
     fullscreenable: true,
     minWidth: 800,
     minHeight: 600,
-    icon: path.join(pathService.assets, 'colanode-logo.png'),
+    icon: path.join(pathService.assets, 'arribada-logo.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },

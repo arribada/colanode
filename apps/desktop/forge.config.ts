@@ -11,10 +11,13 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    name: 'Colanode',
-    executableName: process.platform === 'linux' ? 'colanode' : 'Colanode',
-    icon: 'assets/colanode-logo',
-    appBundleId: 'com.colanode.desktop',
+    name: 'Arribada Wiki',
+    // No space in the executable: Squirrel derives the package id and the
+    // Start-menu shortcut from it, and a space breaks both.
+    executableName:
+      process.platform === 'linux' ? 'arribada-wiki' : 'ArribadaWiki',
+    icon: 'assets/arribada-logo',
+    appBundleId: 'org.arribada.wiki',
     ...(process.platform === 'win32' && {
       certificateFile: process.env.CERTIFICATE_PATH,
       certificatePassword: process.env.CERTIFICATE_PASSWORD,
@@ -78,24 +81,31 @@ const config: ForgeConfig = {
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({
-      name: 'Colanode',
+      // The NuGet package id, so no spaces; the display name is `title`.
+      name: 'ArribadaWiki',
+      title: 'Arribada Wiki',
+      setupIcon: 'assets/arribada-logo.ico',
+      // Windows reads the Programs-and-Features icon from a URL rather
+      // than from the installer, so it points at the file in the fork.
+      iconUrl:
+        'https://raw.githubusercontent.com/arribada/colanode/refs/heads/arribada/features/assets/images/arribada-desktop.ico',
       ...(process.platform === 'win32' && {
         certificateFile: process.env.CERTIFICATE_PATH,
         certificatePassword: process.env.CERTIFICATE_PASSWORD,
       }),
     }),
     new MakerDMG({
-      icon: 'assets/colanode-logo.png',
-      title: 'Colanode',
+      icon: 'assets/arribada-logo.icns',
+      title: 'Arribada Wiki',
     }),
     // Debian package for Linux, and a plain zip everywhere. The zip is
     // what makes an unsigned Windows build usable: it needs no installer
     // and no certificate, so it can be produced without paying for one.
     new MakerDeb({
       options: {
-        name: 'colanode',
+        name: 'arribada-wiki',
         productName: 'Arribada Wiki',
-        icon: 'assets/colanode-logo.png',
+        icon: 'assets/arribada-logo.png',
         categories: ['Office'],
       },
     }),
