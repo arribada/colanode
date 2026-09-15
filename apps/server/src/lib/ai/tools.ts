@@ -1501,6 +1501,51 @@ export interface RestoreNodeResult {
   restored: string[];
 }
 
+export interface BoardElementSummary {
+  id: string;
+  type: string;
+  text?: string;
+  shape?: string;
+  badge?: string;
+  frameId?: string;
+  groupId?: string;
+  mindmapParentId?: string;
+  geometry?: { x: number; y: number; w: number; h: number; rotation?: number };
+  nodeCard?: { nodeId: string; name: string; accessible: boolean };
+  image?: { fileId: string };
+}
+
+export interface BoardConnectorSummary {
+  id: string;
+  fromId?: string;
+  toId?: string;
+  label?: string;
+  kind?: string;
+  arrowStart: boolean;
+  arrowEnd: boolean;
+}
+
+export interface BoardFrameSummary {
+  id: string;
+  text: string;
+  childIds: string[];
+}
+
+export interface BoardSceneSummary {
+  // Everything the caller would see on the board, connectors and frames
+  // included.
+  elementCount: number;
+  elements: BoardElementSummary[];
+  connectors: BoardConnectorSummary[];
+  frames: BoardFrameSummary[];
+}
+
+export interface GetWhiteboardResult extends BoardSceneSummary {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export interface NodePathEntry {
   id: string;
   name: string;
@@ -2284,6 +2329,182 @@ export const restoreNode = async (
   return { id: input.id, restored };
 };
 
+// ---------------------------------------------------------------------------
+// Whiteboards
+// ---------------------------------------------------------------------------
+
+const readText = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.length > 0 ? value : undefined;
+
+const readNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+const readObject = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+// The node ids a board's node cards point at, for resolveNodeLabels.
+export const boardNodeCardIds = (scene: unknown): string[] =>
+  Object.values(readObject(scene)).flatMap((value) => {
+    const element = readObject(value);
+    const nodeId = readText(element.nodeId);
+    return element.type === 'nodeCard' && nodeId ? [nodeId] : [];
+  });
+
+// A board scene (whiteboard.ts boardElementSchema) read for a model: what each
+// element says and how elements relate, without the styling. Read leniently --
+// one malformed element, or a type a newer client added, must not hide the
+// rest of the board. Private elements of other people are left out: the
+// canvas does not draw them for anyone but their author.
+export const summariseBoardScene = (
+  scene: unknown,
+  labels: ReadonlyMap<string, string>,
+  options: {
+    userId: string;
+    includeGeometry?: boolean;
+    includeHidden?: boolean;
+  }
+): BoardSceneSummary => {
+  const visible: { id: string; z: string; raw: Record<string, unknown> }[] =
+    [];
+  for (const [key, value] of Object.entries(readObject(scene))) {
+    const raw = readObject(value);
+    if (!readText(raw.type)) {
+      continue;
+    }
+    const privateBy = readText(raw.privateBy);
+    if (privateBy && privateBy !== options.userId) {
+      continue;
+    }
+    if (raw.hidden === true && !options.includeHidden) {
+      continue;
+    }
+    visible.push({
+      id: readText(raw.id) ?? key,
+      z: typeof raw.z === 'string' ? raw.z : '',
+      raw,
+    });
+  }
+  // Paint order: z is a fractional index, back to front.
+  visible.sort((a, b) => compareString(a.z, b.z) || compareString(a.id, b.id));
+
+  const elements: BoardElementSummary[] = [];
+  const connectors: BoardConnectorSummary[] = [];
+  const frames: BoardFrameSummary[] = [];
+
+  for (const { id, raw } of visible) {
+    const type = raw.type as string;
+
+    if (type === 'connector') {
+      const connector = readObject(raw.connector);
+      const startType = readText(connector.arrowStartType);
+      const endType = readText(connector.arrowEndType);
+      connectors.push({
+        id,
+        ...(readText(connector.fromId) ? { fromId: connector.fromId as string } : {}),
+        ...(readText(connector.toId) ? { toId: connector.toId as string } : {}),
+        ...(readText(connector.label) ? { label: connector.label as string } : {}),
+        ...(readText(connector.kind) ? { kind: connector.kind as string } : {}),
+        // As the canvas draws them: a head type outranks the older booleans,
+        // and without either a line has no start head and an end head.
+        arrowStart: startType ? startType !== 'none' : connector.arrowStart === true,
+        arrowEnd: endType ? endType !== 'none' : connector.arrowEnd !== false,
+      });
+      continue;
+    }
+
+    if (type === 'frame') {
+      frames.push({ id, text: readText(raw.text) ?? '', childIds: [] });
+      continue;
+    }
+
+    const summary: BoardElementSummary = { id, type };
+    for (const key of ['text', 'shape', 'badge', 'frameId', 'groupId'] as const) {
+      const value = readText(raw[key]);
+      if (value) {
+        summary[key] = value;
+      }
+    }
+    const mindmapParentId = readText(readObject(raw.mindmap).parentId);
+    if (mindmapParentId) {
+      summary.mindmapParentId = mindmapParentId;
+    }
+
+    if (options.includeGeometry) {
+      const [x, y, w, h] = [raw.x, raw.y, raw.w, raw.h].map(readNumber);
+      if (x !== undefined && y !== undefined && w !== undefined && h !== undefined) {
+        const rotation = readNumber(raw.rotation);
+        summary.geometry = {
+          x,
+          y,
+          w,
+          h,
+          ...(rotation !== undefined ? { rotation } : {}),
+        };
+      }
+    }
+
+    const nodeId = type === 'nodeCard' ? readText(raw.nodeId) : undefined;
+    if (nodeId) {
+      // The stored name is what the card itself shows once its target is out
+      // of reach, so it is no more than the board already tells its readers.
+      const label = labels.get(nodeId);
+      summary.nodeCard = {
+        nodeId,
+        name: label ?? readText(raw.nodeName) ?? '',
+        accessible: label !== undefined,
+      };
+    }
+
+    const fileId = type === 'image' ? readText(raw.fileId) : undefined;
+    if (fileId) {
+      summary.image = { fileId };
+    }
+
+    elements.push(summary);
+  }
+
+  for (const frame of frames) {
+    frame.childIds = elements
+      .filter((element) => element.frameId === frame.id)
+      .map((element) => element.id);
+  }
+
+  return { elementCount: visible.length, elements, connectors, frames };
+};
+
+export const getWhiteboard = async (
+  ctx: WikiToolContext,
+  input: { id: string; includeGeometry?: boolean; includeHidden?: boolean }
+): Promise<GetWhiteboardResult> => {
+  const { node } = await requireAccessibleNode(input.id, ctx);
+  const attributes = node.attributes as { scene?: unknown; boardScene?: unknown };
+
+  // A page or folder can open as a board too; it keeps its scene apart.
+  const scene =
+    node.type === 'whiteboard'
+      ? attributes.scene
+      : node.type === 'page' || node.type === 'folder'
+        ? attributes.boardScene
+        : undefined;
+  if (node.type !== 'whiteboard' && scene === undefined) {
+    throw new WikiToolError(`Node ${input.id} is a ${node.type} with no board.`);
+  }
+
+  const labels = await resolveNodeLabels(ctx, boardNodeCardIds(scene));
+  return {
+    id: node.id,
+    name: nodeName(node),
+    type: node.type,
+    ...summariseBoardScene(scene, labels, {
+      userId: ctx.userId,
+      includeGeometry: input.includeGeometry,
+      includeHidden: input.includeHidden,
+    }),
+  };
+};
+
 export const LIST_TRASH_DEFAULT_LIMIT = 50;
 export const LIST_TRASH_MAX_LIMIT = 200;
 
@@ -2993,6 +3214,23 @@ const listTrashInput = z.object({
 const restoreNodeInput = z.object({
   id: z.string().describe('The id of the trashed node to restore.'),
 });
+const getWhiteboardInput = z.object({
+  id: z
+    .string()
+    .describe(
+      'The id of a whiteboard, or of a page or folder that has a board view.'
+    ),
+  includeGeometry: z
+    .boolean()
+    .optional()
+    .describe(
+      "Also return each element's position and size (x, y, w, h, rotation). Default false."
+    ),
+  includeHidden: z
+    .boolean()
+    .optional()
+    .describe('Also return elements hidden on the board. Default false.'),
+});
 const moveNodeInput = z.object({
   id: z.string().describe('The node id to move.'),
   parentId: z
@@ -3071,6 +3309,18 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
       type: 'list_children',
       nodeId: input.nodeId ?? null,
       summary: input.nodeId ? 'Listed the children of a node' : 'Listed spaces',
+    }),
+  }),
+  defineTool({
+    name: 'get_whiteboard',
+    description:
+      "Read a whiteboard, or the board view of a page or folder, back to front: elements with their text, shape, badge, frame, group, mind-map parent, node cards (with the linked node's current name when you can read it) and images; connectors with their ends, label, kind and arrow heads; frames with the elements inside them. Read-only; other people's private elements are left out. Returns { id, name, type, elementCount, elements, connectors, frames }.",
+    inputSchema: getWhiteboardInput,
+    run: getWhiteboard,
+    action: (input, result) => ({
+      type: 'get_whiteboard',
+      nodeId: input.id,
+      summary: `Read the board "${result.name}"`,
     }),
   }),
   defineTool({
