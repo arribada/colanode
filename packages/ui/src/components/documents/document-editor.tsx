@@ -884,8 +884,13 @@ export const DocumentEditor = ({
     [node.id]
   );
 
+  // Every effect below checks isDestroyed as well: TipTap destroys an editor
+  // whose mount has not happened within a millisecond, and a destroyed editor
+  // has a null schema and view. An effect of that render still holds it, and
+  // touching it threw ("reading 'nodes'", "reading 'commands'") into React,
+  // which blanked the page.
   useEffect(() => {
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
 
@@ -941,7 +946,7 @@ export const DocumentEditor = ({
   // Expose Markdown / rendered-HTML export of the live document to the page
   // ⋯ menu (a different subtree), and keep a live word count for the footer.
   useEffect(() => {
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
     const unregister = registerDocumentExporter(node.id, {
@@ -983,7 +988,7 @@ export const DocumentEditor = ({
   // is a no-op when the editor already matches, so re-runs are cheap. Record
   // documents have no such attribute, so they keep the 'off' default.
   useEffect(() => {
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
     editor.commands.applyHeadingNumbering(
@@ -994,11 +999,14 @@ export const DocumentEditor = ({
 
   // Publish the local caret/selection (throttled inside the publisher).
   useEffect(() => {
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
 
     const publishSelection = () => {
+      if (editor.isDestroyed) {
+        return;
+      }
       const { from, to } = editor.state.selection;
       publishPresence({ anchor: from, head: to });
     };
@@ -1015,7 +1023,7 @@ export const DocumentEditor = ({
 
   // Render remote collaborators' carets/selections.
   useEffect(() => {
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
 
@@ -1038,11 +1046,16 @@ export const DocumentEditor = ({
   // truly ready to avoid an intermittent crash.
   useEffect(() => {
     setViewReady(false);
-    if (!editor) {
+    if (!editor || editor.isDestroyed) {
       return;
     }
     let raf = 0;
     const check = () => {
+      // A destroyed editor never gets a view: stop instead of polling every
+      // frame for as long as the page stays open.
+      if (editor.isDestroyed) {
+        return;
+      }
       let ready = false;
       try {
         ready = Boolean(editor.view?.dom);
