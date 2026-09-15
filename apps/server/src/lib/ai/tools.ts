@@ -52,6 +52,10 @@ import {
   updateDocument,
 } from '@colanode/server/lib/documents';
 import {
+  isSvgMimeType,
+  sanitizeSvg,
+} from '@colanode/server/lib/files/svg-safety';
+import {
   createNode,
   fetchNode,
   fetchNodeTree,
@@ -1643,6 +1647,21 @@ export const uploadImage = async (
     );
   }
 
+  // An SVG can carry script. Only a cleaned copy is ever stored, so the file a
+  // page displays is inert whoever opens it, and however.
+  if (isSvgMimeType(loaded.mimeType)) {
+    try {
+      loaded = {
+        ...loaded,
+        buffer: Buffer.from(sanitizeSvg(loaded.buffer.toString('utf8')), 'utf8'),
+      };
+    } catch {
+      throw new WikiToolError(
+        'This SVG could not be made safe, so it was not uploaded.'
+      );
+    }
+  }
+
   const fileId = generateId(IdType.File);
   const version = generateId(IdType.Version);
   const given = input.name.trim();
@@ -1840,7 +1859,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'upload_image',
     description:
-      `Upload an image into the wiki and get the markdown that displays it. Give a public https url OR base64 data (max ${MAX_IMAGE_BYTES / 1024 / 1024}MB, png/jpeg/gif/webp/avif). Returns { fileId, markdown }; write that markdown on its own line through create_page or edit_page to place the image. For a diagram prefer a \`\`\`mermaid block instead: it stays editable.`,
+      `Upload an image into the wiki and get the markdown that displays it. Give a public https url OR base64 data (max ${MAX_IMAGE_BYTES / 1024 / 1024}MB, png/jpeg/gif/webp/avif/svg; an SVG is cleaned of scripts before it is stored). Returns { fileId, markdown }; write that markdown on its own line through create_page or edit_page to place the image. For a diagram prefer a \`\`\`mermaid block instead: it stays editable.`,
     inputSchema: uploadImageInput,
     run: uploadImage,
     action: (input, result) => ({

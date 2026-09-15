@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { FileReadStream, FileSystem } from '@colanode/client/services';
+import { bytesToDataUrl, isSvgFileName, SVG_MIME_TYPE } from '@colanode/core';
 
 export class WebFileSystem implements FileSystem {
   private root: FileSystemDirectoryHandle | null = null;
@@ -225,6 +226,16 @@ export class WebFileSystem implements FileSystem {
       }
 
       const file = await fileHandle.getFile();
+      // A blob URL lives in the wiki's own origin: opened as a page ("Open
+      // image in new tab") an SVG runs its script with the wiki's session.
+      // A data: URL cannot be opened as a top-level page and has no origin,
+      // and an <img> displays it exactly the same.
+      if (isSvgFileName(name)) {
+        return bytesToDataUrl(
+          new Uint8Array(await file.arrayBuffer()),
+          SVG_MIME_TYPE
+        );
+      }
       return URL.createObjectURL(file);
     } catch {
       return null;

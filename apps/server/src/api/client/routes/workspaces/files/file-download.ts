@@ -9,6 +9,7 @@ import {
 } from '@colanode/core';
 import { toSafeLogFields } from '@colanode/server/api/client/lib/log-error';
 import { database } from '@colanode/server/data/database';
+import { fileSafetyHeaders } from '@colanode/server/lib/files/svg-safety';
 import { createLogger } from '@colanode/server/lib/logger';
 import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 import { storage } from '@colanode/server/lib/storage';
@@ -95,6 +96,11 @@ export const fileDownloadRoute: FastifyPluginCallbackZod = (
         const resolvedContentType = contentType ?? upload.mime_type;
         if (resolvedContentType) {
           reply.header('Content-Type', resolvedContentType);
+        }
+        for (const [name, value] of Object.entries(
+          fileSafetyHeaders(resolvedContentType)
+        )) {
+          reply.header(name, value);
         }
 
         return reply.send(stream);

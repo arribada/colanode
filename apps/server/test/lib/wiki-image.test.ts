@@ -84,7 +84,7 @@ describe('loadImageFromBase64', () => {
 
   it('refuses a type it cannot display', () => {
     expect(() =>
-      loadImageFromBase64(`data:image/svg+xml;base64,${PNG_BASE64}`)
+      loadImageFromBase64(`data:text/html;base64,${PNG_BASE64}`)
     ).toThrow(WikiImageError);
     expect(() =>
       loadImageFromBase64(`data:application/pdf;base64,${PNG_BASE64}`)

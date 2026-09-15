@@ -121,3 +121,21 @@ const mimeTypeNames: Record<string, string> = {
 export const formatMimeType = (mimeType: string) => {
   return mimeTypeNames[mimeType] || 'File';
 };
+
+export const SVG_MIME_TYPE = 'image/svg+xml';
+
+/** True for a file name or path ending in .svg, whatever its case. */
+export const isSvgFileName = (name: string): boolean => /\.svg$/i.test(name);
+
+/**
+ * Encodes bytes as a data: URL. Built in chunks, because spreading a
+ * multi-megabyte array into String.fromCharCode overflows the call stack.
+ */
+export const bytesToDataUrl = (bytes: Uint8Array, mimeType: string): string => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
+};

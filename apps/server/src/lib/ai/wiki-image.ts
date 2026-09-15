@@ -5,9 +5,9 @@ import net from 'node:net';
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-// Rendered through <img src>, so no scripting surface. SVG is deliberately out:
-// it is a document, not a bitmap, and a diagram belongs in a mermaid block where
-// it stays editable.
+// Rendered through <img src>. SVG is accepted but is a document, not a bitmap:
+// the upload tool cleans it before storing it (lib/files/svg-safety). For a
+// diagram a mermaid block is still better -- it stays editable.
 const ALLOWED_MIME: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -15,6 +15,7 @@ const ALLOWED_MIME: Record<string, string> = {
   'image/gif': '.gif',
   'image/webp': '.webp',
   'image/avif': '.avif',
+  'image/svg+xml': '.svg',
 };
 
 export class WikiImageError extends Error {}

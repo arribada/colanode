@@ -14,6 +14,10 @@ import { database } from '@colanode/server/data/database';
 import { redis } from '@colanode/server/data/redis';
 import { config } from '@colanode/server/lib/config';
 import { generateUrl } from '@colanode/server/lib/fastify';
+import {
+  isSvgMimeType,
+  sanitizeStoredSvg,
+} from '@colanode/server/lib/files/svg-safety';
 import { createLogger } from '@colanode/server/lib/logger';
 import { mapNode, updateNode } from '@colanode/server/lib/nodes';
 import { storage } from '@colanode/server/lib/storage';
@@ -210,6 +214,29 @@ export const fileUploadTusRoute: FastifyPluginCallbackZod = (
             };
           }
 
+          // An SVG is a document, not a bitmap: it can carry script. It is
+          // cleaned here, before the file is marked ready, so the only copy
+          // anyone can ever download is already inert.
+          let cleanedSize: number | null = null;
+          if (isSvgMimeType(file.mimeType)) {
+            try {
+              cleanedSize = await sanitizeStoredSvg(path);
+            } catch (error) {
+              logger.warn(
+                toSafeLogFields(error),
+                `Refused an SVG that could not be made safe (file ${fileId})`
+              );
+              throw {
+                status_code: 400,
+                body: JSON.stringify({
+                  code: ApiErrorCode.FileUploadCompleteFailed,
+                  message:
+                    'This SVG could not be made safe, so it was not uploaded.',
+                }),
+              };
+            }
+          }
+
           const result = await updateNode({
             nodeId: fileId,
             userId: request.workspace.user.id,
@@ -219,6 +246,9 @@ export const fileUploadTusRoute: FastifyPluginCallbackZod = (
                 throw new Error('Node is not a file');
               }
               attributes.status = FileStatus.Ready;
+              if (cleanedSize !== null) {
+                attributes.size = cleanedSize;
+              }
               return attributes;
             },
           });

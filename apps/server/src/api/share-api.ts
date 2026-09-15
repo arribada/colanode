@@ -3,6 +3,7 @@
 import { FastifyPluginCallback } from 'fastify';
 
 import { verifyPassword } from '@colanode/server/lib/accounts';
+import { fileSafetyHeaders } from '@colanode/server/lib/files/svg-safety';
 import {
   isShareDataRateLimited,
   isShareSuggestRateLimited,
@@ -149,6 +150,13 @@ export const shareApiRoute: FastifyPluginCallback = (instance, _, done) => {
     }
     if (result.contentType) {
       reply.header('Content-Type', result.contentType);
+    }
+    // This URL needs no login, so it is the one place an active file could be
+    // opened straight in the wiki's origin. Never let it run as a page.
+    for (const [name, value] of Object.entries(
+      fileSafetyHeaders(result.contentType)
+    )) {
+      reply.header(name, value);
     }
     reply.header('Cache-Control', 'private, max-age=300');
     return reply.send(result.stream);
