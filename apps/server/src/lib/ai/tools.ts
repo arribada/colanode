@@ -3425,7 +3425,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'list_databases',
     description:
-      'List the databases in the workspace with their fields (id, name, type).',
+      'List the databases in the workspace with their fields. Returns [{ id, name, fields: [{ id, name, type }] }].',
     inputSchema: listDatabasesInput,
     run: listDatabases,
     action: () => ({
@@ -3461,7 +3461,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'update_record',
     description:
-      'Update fields on an existing record. fields maps field name (or id) to new value.',
+      'Update fields on an existing record. fields maps field name (or id) to new value. Returns { id, name, applied, skipped }.',
     inputSchema: updateRecordInput,
     run: updateRecord,
     action: (input, result) => ({
