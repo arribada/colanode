@@ -674,11 +674,29 @@ export const richTextToMarkdown = (
     return out;
   };
 
-  const walk = (parentId: string, indent: string, ordered: boolean): string[] => {
+  // `spaced`: a blank line between sibling blocks. Without one a callout, a
+  // quote, a table or a list runs on into whatever is written after it: two
+  // callouts came back as one, a line with a pipe after a table as one more
+  // row, two lists as one. The items of a list stay on consecutive lines.
+  const walk = (
+    parentId: string,
+    indent: string,
+    ordered: boolean,
+    spaced: boolean
+  ): string[] => {
     const lines: string[] = [];
     let counter = 1;
 
+    // A callout's or a quote's children, each line behind a `>` -- every
+    // line: a code block or a paragraph with hard breaks is one entry here
+    // but several lines, and a line without its `>` ends the quote.
+    const quoted = (containerId: string): string[] =>
+      walk(containerId, '', false, true)
+        .flatMap((entry) => entry.split('\n'))
+        .map((line) => indent + (line ? '> ' + line : '>'));
+
     for (const block of childrenOf(parentId)) {
+      const own: string[] = [];
       // A heading's text follows its hashes; anything else starts a line,
       // where a leading `#`, `>`, `-` or `1.` would be read as a block.
       const text =
@@ -687,31 +705,33 @@ export const richTextToMarkdown = (
           : leafText(block, !block.type.startsWith('heading'));
       switch (block.type) {
         case 'heading1':
-          lines.push(indent + '# ' + text);
+          own.push(indent + '# ' + text);
           break;
         case 'heading2':
-          lines.push(indent + '## ' + text);
+          own.push(indent + '## ' + text);
           break;
         case 'heading3':
-          lines.push(indent + '### ' + text);
+          own.push(indent + '### ' + text);
           break;
         case 'heading4':
-          lines.push(indent + '#### ' + text);
+          own.push(indent + '#### ' + text);
           break;
         case 'heading5':
-          lines.push(indent + '##### ' + text);
+          own.push(indent + '##### ' + text);
           break;
         case 'paragraph':
-          lines.push(indent + text);
+          // An empty paragraph is spacing somebody put there. Between blocks
+          // that are already a blank line apart, a blank line cannot say so.
+          own.push(indent + (text.trim() === '' ? EMPTY_PARAGRAPH : text));
           break;
         case 'codeBlock': {
           // The language was dropped on the way out, so a round-trip turned
           // every annotated block into plaintext.
           const language = attrString(block, 'language');
           const fence = codeFence(text);
-          lines.push(indent + fence + (language === 'plaintext' ? '' : language));
-          lines.push(indent + text);
-          lines.push(indent + fence);
+          own.push(indent + fence + (language === 'plaintext' ? '' : language));
+          own.push(indent + text);
+          own.push(indent + fence);
           break;
         }
         case 'mermaid': {
@@ -719,24 +739,20 @@ export const richTextToMarkdown = (
           // diagram rather than a code block.
           const source = attrString(block, 'source');
           const fence = codeFence(source);
-          lines.push(indent + fence + 'mermaid');
+          own.push(indent + fence + 'mermaid');
           for (const sourceLine of source.split('\n')) {
-            lines.push(sourceLine);
+            own.push(sourceLine);
           }
-          lines.push(indent + fence);
+          own.push(indent + fence);
           break;
         }
-        case 'callout': {
-          lines.push(indent + calloutHeader(block));
-          for (const line of walk(block.id, '', false)) {
-            lines.push(indent + '> ' + line);
-          }
+        case 'callout':
+          own.push(indent + calloutHeader(block), ...quoted(block.id));
           break;
-        }
         case 'file':
           // A file block carries no attrs: the BLOCK's own id is the file
           // node id. An image renders inline, anything else as a file card.
-          lines.push(indent + '![](file:' + block.id + ')');
+          own.push(indent + '![](file:' + block.id + ')');
           break;
         case 'database':
         case 'whiteboardEmbed':
@@ -747,13 +763,13 @@ export const richTextToMarkdown = (
           const spec = EMBED_BLOCKS[block.type]!;
           const json = embedJson(block, spec, options);
           const fence = codeFence(json);
-          lines.push(indent + fence + spec.fence);
-          lines.push(indent + json);
-          lines.push(indent + fence);
+          own.push(indent + fence + spec.fence);
+          own.push(indent + json);
+          own.push(indent + fence);
           break;
         }
         case 'table':
-          lines.push(...tableLines(block, indent));
+          own.push(...tableLines(block, indent));
           break;
         case 'tableRow':
         case 'tableHeader':
@@ -761,57 +777,70 @@ export const richTextToMarkdown = (
           // Consumed by the 'table' case above.
           break;
         case 'horizontalRule':
-          lines.push(indent + '---');
+          own.push(indent + '---');
           break;
         case 'blockquote':
-          for (const line of walk(block.id, '', false)) {
-            lines.push(indent + '> ' + line);
-          }
+          own.push(...quoted(block.id));
           break;
         case 'bulletList':
-          lines.push(...walk(block.id, indent, false));
+          own.push(...walk(block.id, indent, false, false));
           break;
         case 'orderedList':
-          lines.push(...walk(block.id, indent, true));
+          own.push(...walk(block.id, indent, true, false));
           break;
         case 'taskList':
-          lines.push(...walk(block.id, indent, false));
+          own.push(...walk(block.id, indent, false, false));
           break;
         case 'listItem': {
-          const inner = walk(block.id, indent + '  ', false);
+          const inner = walk(block.id, indent + '  ', false, false);
           const first = inner.shift() ?? indent + '  ';
           const marker = ordered ? `${counter}. ` : '- ';
-          lines.push(indent + marker + first.trimStart());
-          lines.push(...inner);
+          own.push(indent + marker + first.trimStart());
+          own.push(...inner);
           counter += 1;
           break;
         }
         case 'taskItem': {
           const checked = block.attrs && block.attrs.checked ? 'x' : ' ';
-          const inner = walk(block.id, indent + '  ', false);
+          const inner = walk(block.id, indent + '  ', false, false);
           const first = inner.shift() ?? '';
-          lines.push(indent + `- [${checked}] ` + first.trimStart());
-          lines.push(...inner);
+          own.push(indent + `- [${checked}] ` + first.trimStart());
+          own.push(...inner);
           break;
         }
         default:
           if (text) {
-            lines.push(indent + text);
+            own.push(indent + text);
           } else {
-            lines.push(...walk(block.id, indent, false));
+            own.push(...walk(block.id, indent, false, false));
           }
+      }
+
+      if (own.length > 0) {
+        if (spaced && lines.length > 0) {
+          lines.push('');
+        }
+        lines.push(...own);
       }
     }
 
     return lines;
   };
 
-  return walk(documentId, '', false).join('\n');
+  return walk(documentId, '', false, true).join('\n');
 };
 
 // An odd number of trailing backslashes: the last one is not escaped.
 const endsWithHardBreak = (line: string): boolean =>
   ((/\\+$/.exec(line)?.[0].length ?? 0) & 1) === 1;
+
+// How an empty paragraph is written. Blank lines separate blocks, so a blank
+// line cannot also stand for a paragraph with nothing in it. Written as text,
+// the same characters are escaped and never read as this.
+const EMPTY_PARAGRAPH = '<p></p>';
+
+const paragraphContent = (text: string): BlockLeaf[] =>
+  text.trim() === EMPTY_PARAGRAPH ? [] : parseInline(text);
 
 const newBlock = (type: string, parentId: string, index: string): Block => ({
   id: generateId(IdType.Block),
@@ -820,6 +849,16 @@ const newBlock = (type: string, parentId: string, index: string): Block => ({
   index,
   content: LEAF_TEXT_TYPES.has(type) ? [] : undefined,
 });
+
+// Quotes, callouts and lists nest by recursion. Markdown nesting deeper than
+// this is refused rather than allowed to exhaust the stack.
+const MAX_BLOCK_NESTING = 32;
+
+// A quote or callout line without its `>` and the one space after it. The
+// rest keeps its indentation, which a code block inside the quote needs.
+const unquote = (line: string): string => line.replace(/^\s*>[ ]?/, '');
+
+const isQuoteLine = (line: string): boolean => /^\s*>/.test(line);
 
 // Converts markdown/plain text into a rich-text block record whose top-level
 // blocks are parented on `documentId`. `afterIndex` places the first top-level
@@ -830,15 +869,53 @@ export const markdownToBlocks = (
   afterIndex: string | null = null
 ): Record<string, Block> => {
   const blocks: Record<string, Block> = {};
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  parseBlockLines(
+    markdown.replace(/\r\n/g, '\n').split('\n'),
+    documentId,
+    afterIndex,
+    blocks,
+    0
+  );
+  return blocks;
+};
 
+// Reads `lines` as the children of `parentId`, into `blocks`, and returns how
+// many children it created. A callout or a quote reads its own lines, less
+// their `>`, the same way, so anything a page holds may sit inside one. The
+// old parser made each quoted line a paragraph, and a quote or callout
+// written right after another one ran into it.
+const parseBlockLines = (
+  lines: string[],
+  parentId: string,
+  afterIndex: string | null,
+  blocks: Record<string, Block>,
+  depth: number
+): number => {
+  if (depth > MAX_BLOCK_NESTING) {
+    throw new WikiToolError(
+      `The markdown nests quotes, callouts or lists more than ${MAX_BLOCK_NESTING} levels deep.`
+    );
+  }
+
+  let created = 0;
   let prevTopIndex = afterIndex;
-  const pushTop = (type: string): Block => {
+  const nextIndex = (): string => {
     const index = generateFractionalIndex(prevTopIndex, null);
     prevTopIndex = index;
-    const block = newBlock(type, documentId, index);
+    created += 1;
+    return index;
+  };
+  const pushTop = (type: string): Block => {
+    const block = newBlock(type, parentId, nextIndex());
     blocks[block.id] = block;
     return block;
+  };
+
+  // A quote or callout holds at least a paragraph, as the editor's do.
+  const parseQuoted = (container: Block, quoted: string[]): void => {
+    if (parseBlockLines(quoted, container.id, null, blocks, depth + 1) === 0) {
+      addParagraph(container.id, '');
+    }
   };
 
   const addChild = (
@@ -853,7 +930,7 @@ export const markdownToBlocks = (
 
   const addParagraph = (parentId: string, text: string): Block => {
     const para = addChild(parentId, 'paragraph', null);
-    para.content = parseInline(text);
+    para.content = paragraphContent(text);
     return para;
   };
 
@@ -964,14 +1041,12 @@ export const markdownToBlocks = (
               `The ${embed.type} ${embed.id} is embedded twice; a page can show it once.`
             );
           }
-          const index = generateFractionalIndex(prevTopIndex, null);
-          prevTopIndex = index;
           const id = embed.id ?? generateId(IdType.Block);
           blocks[id] = {
             id,
             type: embed.type,
-            parentId: documentId,
-            index,
+            parentId,
+            index: nextIndex(),
             ...(embed.attrs ? { attrs: embed.attrs } : {}),
           };
           continue;
@@ -1041,13 +1116,11 @@ export const markdownToBlocks = (
     const image = /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)$/.exec(trimmed);
     if (image && image[1]) {
       resetLists();
-      const index = generateFractionalIndex(prevTopIndex, null);
-      prevTopIndex = index;
       blocks[image[1]] = {
         id: image[1],
         type: 'file',
-        parentId: documentId,
-        index,
+        parentId,
+        index: nextIndex(),
       };
       i += 1;
       continue;
@@ -1092,40 +1165,29 @@ export const markdownToBlocks = (
         }
       }
       block.attrs = attrs;
-      let after: string | null = null;
+      const quoted: string[] = [];
       const firstLine = (callout[3] ?? '').trim();
       if (firstLine) {
-        const para = addChild(block.id, 'paragraph', after);
-        para.content = parseInline(firstLine);
-        after = para.index;
+        quoted.push(firstLine);
       }
       i += 1;
-      while (i < lines.length && /^>\s?/.test((lines[i] ?? '').trim())) {
-        const inner = (lines[i] ?? '').trim().replace(/^>\s?/, '');
-        const para = addChild(block.id, 'paragraph', after);
-        para.content = parseInline(inner);
-        after = para.index;
+      while (i < lines.length && isQuoteLine(lines[i] ?? '')) {
+        quoted.push(unquote(lines[i] ?? ''));
         i += 1;
       }
+      parseQuoted(block, quoted);
       continue;
     }
 
-    const quote = /^>\s?(.*)$/.exec(trimmed);
-    if (quote) {
+    if (isQuoteLine(line)) {
       resetLists();
       const block = pushTop('blockquote');
-      let after: string | null = null;
-      let current: RegExpExecArray | null = quote;
-      while (current) {
-        const para = addChild(block.id, 'paragraph', after);
-        para.content = parseInline(current[1] ?? '');
-        after = para.index;
+      const quoted: string[] = [];
+      while (i < lines.length && isQuoteLine(lines[i] ?? '')) {
+        quoted.push(unquote(lines[i] ?? ''));
         i += 1;
-        current =
-          i < lines.length
-            ? /^>\s?(.*)$/.exec((lines[i] ?? '').trim())
-            : null;
       }
+      parseQuoted(block, quoted);
       continue;
     }
 
@@ -1202,11 +1264,11 @@ export const markdownToBlocks = (
     resetLists();
     const paragraph = pushTop('paragraph');
     const { text, next } = takeHardBreakLines(trimmed, i);
-    paragraph.content = parseInline(text);
+    paragraph.content = paragraphContent(text);
     i = next;
   }
 
-  return blocks;
+  return created;
 };
 
 const maxTopLevelIndex = (

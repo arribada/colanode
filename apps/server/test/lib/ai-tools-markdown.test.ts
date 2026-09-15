@@ -410,6 +410,187 @@ describe('hard line breaks', () => {
   });
 });
 
+type TestBlock = {
+  id: string;
+  type: string;
+  parentId: string;
+  index: string;
+  attrs?: Record<string, unknown> | null;
+  content?: TestLeaf[] | null;
+};
+
+// The block tree under a parent: type, plain text, children, in order.
+type TreeNode = { type: string; text: string; children: TreeNode[] };
+const treeOf = (
+  blocks: Record<string, TestBlock>,
+  parentId: string = DOC
+): TreeNode[] =>
+  Object.values(blocks)
+    .filter((block) => block.parentId === parentId)
+    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0))
+    .map((block) => ({
+      type: block.type,
+      text: (block.content ?? [])
+        .map((leaf) => (leaf.type === 'hardBreak' ? '\n' : (leaf.text ?? '')))
+        .join(''),
+      children: treeOf(blocks, block.id),
+    }));
+
+const textBlock = (
+  id: string,
+  parentId: string,
+  index: string,
+  text: string,
+  type = 'paragraph'
+): TestBlock => ({
+  id,
+  type,
+  parentId,
+  index,
+  content: [{ type: 'text', text }],
+});
+
+const container = (
+  id: string,
+  type: string,
+  parentId: string,
+  index: string,
+  attrs?: Record<string, unknown>
+): TestBlock => ({ id, type, parentId, index, ...(attrs ? { attrs } : {}) });
+
+const byId = (...list: TestBlock[]) =>
+  Object.fromEntries(list.map((block) => [block.id, block]));
+
+const treeRoundTrip = (blocks: Record<string, TestBlock>) => {
+  const markdown = richTextToMarkdown(DOC, {
+    type: 'rich_text',
+    blocks: blocks as never,
+  });
+  return {
+    markdown,
+    tree: treeOf(markdownToBlocks(DOC, markdown) as never),
+  };
+};
+
+describe('blocks written one after another', () => {
+  it('keeps a callout, another callout and a quote apart', () => {
+    const blocks = byId(
+      container('c1', 'callout', DOC, 'a0', { color: 'red' }),
+      textBlock('p1', 'c1', 'a0', 'first'),
+      container('c2', 'callout', DOC, 'a1', { color: 'blue' }),
+      textBlock('p2', 'c2', 'a0', 'second'),
+      container('q1', 'blockquote', DOC, 'a2'),
+      textBlock('p3', 'q1', 'a0', 'quoted')
+    );
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+  });
+
+  it('ends a table before a line with a pipe and before the next table', () => {
+    const table = (id: string, index: string, cells: [string, string]) => [
+      container(id, 'table', DOC, index),
+      container(`${id}r0`, 'tableRow', id, 'a0'),
+      container(`${id}h0`, 'tableHeader', `${id}r0`, 'a0'),
+      textBlock(`${id}h0p`, `${id}h0`, 'a0', cells[0]),
+      container(`${id}r1`, 'tableRow', id, 'a1'),
+      container(`${id}c0`, 'tableCell', `${id}r1`, 'a0'),
+      textBlock(`${id}c0p`, `${id}c0`, 'a0', cells[1]),
+    ];
+    const blocks = byId(
+      ...table('t1', 'a0', ['Pin', 'VBAT']),
+      textBlock('p1', DOC, 'a1', 'a | b'),
+      ...table('t2', 'a2', ['Error State', 'none']),
+      ...table('t3', 'a3', ['Driver status', 'ok'])
+    );
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+  });
+
+  it('keeps two lists in a row two lists', () => {
+    const blocks = byId(
+      container('l1', 'bulletList', DOC, 'a0'),
+      container('i1', 'listItem', 'l1', 'a0'),
+      textBlock('i1p', 'i1', 'a0', 'one'),
+      container('l2', 'bulletList', DOC, 'a1'),
+      container('i2', 'listItem', 'l2', 'a0'),
+      textBlock('i2p', 'i2', 'a0', 'two')
+    );
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+  });
+
+  it('reads anything a page holds inside a callout or a quote', () => {
+    const blocks = byId(
+      container('c1', 'callout', DOC, 'a0', { color: 'orange' }),
+      textBlock('p1', 'c1', 'a0', 'Before you flash:'),
+      textBlock('p2', 'c1', 'a1', 'check the battery.'),
+      container('l1', 'bulletList', 'c1', 'a2'),
+      container('i1', 'listItem', 'l1', 'a0'),
+      textBlock('i1p', 'i1', 'a0', 'charged'),
+      container('i2', 'listItem', 'l1', 'a1'),
+      textBlock('i2p', 'i2', 'a0', 'connected'),
+      {
+        ...textBlock('code', 'c1', 'a3', 'west flash\n  --runner nrfjprog', 'codeBlock'),
+        attrs: { language: 'bash' },
+      },
+      container('q1', 'blockquote', 'c1', 'a4'),
+      textBlock('q1p', 'q1', 'a0', 'quoted inside')
+    );
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+  });
+
+  it('keeps empty paragraphs, in a page, a callout and a list item', () => {
+    const empty = (id: string, parentId: string, index: string): TestBlock => ({
+      id,
+      type: 'paragraph',
+      parentId,
+      index,
+      content: [],
+    });
+    const blocks = byId(
+      textBlock('p1', DOC, 'a0', 'first'),
+      empty('e1', DOC, 'a1'),
+      empty('e2', DOC, 'a2'),
+      textBlock('p2', DOC, 'a3', 'second'),
+      container('c1', 'callout', DOC, 'a4', { color: 'blue' }),
+      textBlock('c1a', 'c1', 'a0', 'Scope.'),
+      empty('c1b', 'c1', 'a1'),
+      textBlock('c1c', 'c1', 'a2', 'Read the whole page.'),
+      container('l1', 'bulletList', DOC, 'a5'),
+      container('i1', 'listItem', 'l1', 'a0'),
+      empty('i1p', 'i1', 'a0')
+    );
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+  });
+
+  it('reads <p></p> as written text when it is part of a sentence', () => {
+    const back = paragraphBack(
+      richTextToMarkdown(DOC, paragraphOf([{ type: 'text', text: '<p></p>' }]))
+    );
+    expect(shapeOf(back.leaves)).toEqual([
+      { type: 'text', text: '<p></p>', marks: [] },
+    ]);
+  });
+
+  it('gives an empty quote or callout the paragraph the editor needs', () => {
+    for (const markdown of ['>', '> [!NOTE]']) {
+      const tree = treeOf(markdownToBlocks(DOC, markdown) as never);
+      expect(tree, markdown).toHaveLength(1);
+      expect(tree[0]!.children.map((child) => child.type), markdown).toEqual([
+        'paragraph',
+      ]);
+    }
+  });
+
+  it('refuses markdown nested deeper than it reads', () => {
+    expect(() => markdownToBlocks(DOC, `${'>'.repeat(200)} deep`)).toThrow(
+      /levels deep/
+    );
+  });
+});
+
 describe('markdownToBlocks — tables', () => {
   const table = [
     '| Tracker | Use case |',
@@ -779,9 +960,11 @@ describe('embedded blocks', () => {
         [ADR_DB, { _name: '🧭 ADR', _filter: 'Project = 📸 Insight 360' }],
       ]),
     });
+    // A blank line separates blocks, so neither can run into the other.
     expect(markdown).toBe(
       [
         'Decisions',
+        '',
         '```colanode-database',
         JSON.stringify({
           id: ADR_DB,
