@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   ClipboardCopy,
   Copy,
+  FileCode,
   FileDown,
   FileStack,
   FolderInput,
@@ -30,6 +31,7 @@ import { DocumentHistoryDialog } from '@colanode/ui/components/documents/documen
 import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
+import { PageMarkdownDialog } from '@colanode/ui/components/pages/page-markdown-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PagePresentOverlay } from '@colanode/ui/components/pages/page-present-overlay';
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
@@ -80,6 +82,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showMarkdownDialog, setShowMarkdownDialog] = useState(false);
   const [showPresentOverlay, setShowPresentOverlay] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
@@ -487,6 +490,13 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
           </DropdownMenuItem>
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setShowMarkdownDialog(true)}
+          >
+            <FileCode className="size-4" />
+            View as Markdown
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex items-center gap-2 cursor-pointer"
             onClick={() => setShowPrintDialog(true)}
           >
             <Printer className="size-4" />
@@ -595,6 +605,12 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
         page={page}
         open={showPrintDialog}
         onOpenChange={setShowPrintDialog}
+      />
+      <PageMarkdownDialog
+        pageId={page.id}
+        name={page.name}
+        open={showMarkdownDialog}
+        onOpenChange={setShowMarkdownDialog}
       />
       {showPresentOverlay && (
         <PagePresentOverlay
