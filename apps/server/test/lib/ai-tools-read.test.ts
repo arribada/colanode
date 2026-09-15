@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { generateId, IdType, NodeAttributes } from '@colanode/core';
+import {
+  generateFractionalIndex,
+  generateId,
+  IdType,
+  NodeAttributes,
+} from '@colanode/core';
 import {
   editPage,
   getPage,
+  listChildren,
   resolveNodeLabels,
 } from '@colanode/server/lib/ai/tools';
 import { createDocument } from '@colanode/server/lib/documents';
-import { createNode } from '@colanode/server/lib/nodes';
+import { createNode, updateNode } from '@colanode/server/lib/nodes';
 
 import {
   createAccount,
@@ -278,5 +284,130 @@ describe('embedded blocks through get_page and edit_page', () => {
         content: pageAsDatabase,
       })
     ).rejects.toThrow(/is a page/);
+  });
+});
+
+describe('list_children and where a page sits', () => {
+  it('lists children in sidebar order, leaving out trash and templates', async () => {
+    const data = await seedTwoSpaces();
+    const ctx = data.ctxA;
+    const base = {
+      workspaceId: data.workspace.id,
+      userId: data.userA.id,
+      rootId: data.spaceA,
+      parentId: data.spaceA,
+    };
+    const second = await createPageNode({ ...base, name: 'Second' });
+    const third = await createPageNode({ ...base, name: 'Third' });
+    const trashed = await createPageNode({ ...base, name: 'Trashed' });
+    await createPageNode({ ...base, parentId: second, name: 'Grandchild' });
+
+    const template = generateId(IdType.Page);
+    await createNode({
+      nodeId: template,
+      rootId: data.spaceA,
+      workspaceId: data.workspace.id,
+      userId: data.userA.id,
+      attributes: {
+        type: 'page',
+        name: 'Template',
+        parentId: data.spaceA,
+        isTemplate: true,
+      },
+    });
+    await updateNode({
+      nodeId: trashed,
+      userId: data.userA.id,
+      workspaceId: data.workspace.id,
+      updater: (attributes) => ({
+        ...attributes,
+        deletedAt: new Date().toISOString(),
+        deletedBy: data.userA.id,
+      }),
+    });
+    // Dragged above everything else, as the sidebar writes it.
+    await updateNode({
+      nodeId: third,
+      userId: data.userA.id,
+      workspaceId: data.workspace.id,
+      updater: (attributes) => ({
+        ...attributes,
+        index: generateFractionalIndex(
+          null,
+          generateFractionalIndex(null, null)
+        ),
+      }),
+    });
+
+    const listed = await listChildren(ctx, { nodeId: data.spaceA });
+    expect(listed.parent).toEqual({
+      id: data.spaceA,
+      type: 'space',
+      name: 'Test Space',
+    });
+    expect(listed.items.map((item) => item.id)).toEqual([
+      third,
+      ...[data.pageA, second].sort(),
+    ]);
+    expect(listed.total).toBe(3);
+    expect(listed.items.find((item) => item.id === second)?.hasChildren).toBe(
+      true
+    );
+    expect(listed.items.find((item) => item.id === third)?.hasChildren).toBe(
+      false
+    );
+
+    const firstPage = await listChildren(ctx, {
+      nodeId: data.spaceA,
+      limit: 2,
+    });
+    expect(firstPage.nextCursor).toBe(firstPage.items[1]!.id);
+    const rest = await listChildren(ctx, {
+      nodeId: data.spaceA,
+      limit: 2,
+      cursor: firstPage.nextCursor!,
+    });
+    expect(rest.items.map((item) => item.id)).toEqual(
+      listed.items.slice(2).map((item) => item.id)
+    );
+    expect(rest.nextCursor).toBeNull();
+
+    const folders = await listChildren(ctx, {
+      nodeId: data.spaceA,
+      types: ['folder'],
+    });
+    expect(folders.total).toBe(0);
+  });
+
+  it('lists the spaces the caller can open when no node is given', async () => {
+    const data = await seedTwoSpaces();
+
+    const spaces = await listChildren(data.ctxA, {});
+
+    expect(spaces.parent).toBeNull();
+    expect(spaces.items.map((item) => item.id)).toEqual([data.spaceA]);
+  });
+
+  it('tells get_page where a page sits and what is under it', async () => {
+    const data = await seedTwoSpaces();
+    const child = await createPageNode({
+      workspaceId: data.workspace.id,
+      userId: data.userA.id,
+      rootId: data.spaceA,
+      parentId: data.pageA,
+      name: 'Child',
+    });
+
+    const page = await getPage(data.ctxA, { id: child });
+    expect(page.parentId).toBe(data.pageA);
+    expect(page.rootId).toBe(data.spaceA);
+    expect(page.path).toEqual([
+      { id: data.spaceA, type: 'space', name: 'Test Space' },
+      { id: data.pageA, type: 'page', name: 'Visible page' },
+    ]);
+    expect(page.childCounts).toEqual({});
+
+    const parent = await getPage(data.ctxA, { id: data.pageA });
+    expect(parent.childCounts).toEqual({ page: 1 });
   });
 });

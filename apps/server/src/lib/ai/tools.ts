@@ -144,6 +144,61 @@ const nodeAccessCondition = (userId: string, alias = 'n') =>
 
 const NODE_ID_PATTERN = /^[a-z0-9]{20,}$/;
 
+// Neither trashed nor a template: what the wiki's browsing views show.
+const visibleNodeCondition = (alias = 'n') =>
+  sql<SqlBool>`(
+    coalesce(${sql.ref(`${alias}.attributes`)}->>'deletedAt', '') = ''
+    and coalesce(${sql.ref(`${alias}.attributes`)}->>'isTemplate', 'false') <> 'true'
+  )`;
+
+const nodeName = (row: SelectNode): string => {
+  const name = (row.attributes as { name?: unknown }).name;
+  return typeof name === 'string' ? name : '';
+};
+
+// ---------------------------------------------------------------------------
+// Sibling order
+// ---------------------------------------------------------------------------
+
+// Every node type the sidebar draws (packages/ui sidebar-tree-provider).
+const SIDEBAR_NODE_TYPES = new Set<string>([
+  'space',
+  'channel',
+  'chat',
+  'page',
+  'database',
+  'database_view',
+  'folder',
+  'whiteboard',
+]);
+
+export interface SiblingRow {
+  id: string;
+  index?: string | null;
+}
+
+// The order the sidebar shows a group of siblings in, replicated exactly from
+// SidebarTreeProvider: sort by id, hand each sibling a sequential default
+// fractional key, let a node's own `index` (written when it was dragged)
+// override that key, then sort by the effective key. Array.sort is stable, so
+// equal keys keep id order there as here.
+export const orderSiblings = <T extends SiblingRow>(rows: readonly T[]): T[] => {
+  const siblings = [...rows].sort((a, b) => compareString(a.id, b.id));
+  const keyById = new Map<string, string>();
+  let lastDefault: string | null = null;
+  for (const sibling of siblings) {
+    lastDefault = generateFractionalIndex(lastDefault, null);
+    const custom =
+      typeof sibling.index === 'string' && sibling.index.length > 0
+        ? sibling.index
+        : null;
+    keyById.set(sibling.id, custom ?? lastDefault);
+  }
+  return siblings.sort((a, b) =>
+    compareString(keyById.get(a.id) ?? a.id, keyById.get(b.id) ?? b.id)
+  );
+};
+
 // Display labels for mention targets and embedded nodes: the node's current
 // name when the caller can read the node, `@name` for a workspace user. A
 // target the caller cannot see gets no entry at all -- a label is a read.
@@ -1385,11 +1440,41 @@ export interface SearchPageResult {
   type: string;
 }
 
+export interface NodePathEntry {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export interface GetPageResult {
   id: string;
   name: string;
   type: string;
+  parentId: string | null;
+  rootId: string;
+  // Ancestors from the space down to the parent. An ancestor the caller could
+  // not open on its own keeps an empty name.
+  path: NodePathEntry[];
+  // Children per node type, trashed ones and templates left out; list_children
+  // lists them.
+  childCounts: Record<string, number>;
   content: string;
+}
+
+export interface ChildSummary {
+  id: string;
+  type: string;
+  name: string;
+  parentId: string | null;
+  index: string | null;
+  hasChildren: boolean;
+}
+
+export interface ListChildrenResult {
+  parent: { id: string; type: string; name: string } | null;
+  items: ChildSummary[];
+  nextCursor: string | null;
+  total: number;
 }
 
 export interface CreatePageResult {
@@ -1545,11 +1630,94 @@ const assertEmbeddableNodes = async (
   }
 };
 
+export const LIST_CHILDREN_DEFAULT_LIMIT = 100;
+export const LIST_CHILDREN_MAX_LIMIT = 500;
+
+export const listChildren = async (
+  ctx: WikiToolContext,
+  input: { nodeId?: string; types?: string[]; limit?: number; cursor?: string }
+): Promise<ListChildrenResult> => {
+  const limit = Math.min(
+    Math.max(1, Math.floor(input.limit ?? LIST_CHILDREN_DEFAULT_LIMIT)),
+    LIST_CHILDREN_MAX_LIMIT
+  );
+
+  let parent: ListChildrenResult['parent'] = null;
+  let query = database
+    .selectFrom('nodes as n')
+    .select([
+      'n.id as id',
+      'n.type as type',
+      'n.parent_id as parentId',
+      sql<string | null>`n.attributes->>'name'`.as('name'),
+      sql<string | null>`n.attributes->>'index'`.as('index'),
+      sql<boolean>`exists (
+        select 1 from nodes child
+        where child.parent_id = n.id and ${visibleNodeCondition('child')}
+      )`.as('hasChildren'),
+    ])
+    .where('n.workspace_id', '=', ctx.workspaceId)
+    .where(visibleNodeCondition());
+
+  if (input.nodeId) {
+    // Children are readable by whoever can read the parent: a role only ever
+    // widens further down the tree.
+    const { node } = await requireAccessibleNode(input.nodeId, ctx);
+    parent = { id: node.id, type: node.type, name: nodeName(node) };
+    query = query.where('n.parent_id', '=', node.id);
+  } else {
+    query = query
+      .where('n.type', '=', 'space')
+      .where(nodeAccessCondition(ctx.userId));
+  }
+
+  const rows = await query.execute();
+
+  // The sidebar orders the node types it draws; anything else (records,
+  // files, messages) follows, ordered by the same rule among itself.
+  const ordered = [
+    ...orderSiblings(rows.filter((row) => SIDEBAR_NODE_TYPES.has(row.type))),
+    ...orderSiblings(rows.filter((row) => !SIDEBAR_NODE_TYPES.has(row.type))),
+  ];
+  const wanted =
+    input.types && input.types.length > 0 ? new Set(input.types) : null;
+  const filtered = wanted
+    ? ordered.filter((row) => wanted.has(row.type))
+    : ordered;
+
+  let start = 0;
+  if (input.cursor) {
+    const at = filtered.findIndex((row) => row.id === input.cursor);
+    if (at < 0) {
+      throw new WikiToolError(
+        'The cursor is no longer a child here (it was moved or trashed); list again without it.'
+      );
+    }
+    start = at + 1;
+  }
+
+  const page = filtered.slice(start, start + limit);
+  const last = page[page.length - 1];
+  return {
+    parent,
+    items: page.map((row) => ({
+      id: row.id,
+      type: row.type,
+      name: row.name ?? '',
+      parentId: row.parentId,
+      index: row.index,
+      hasChildren: Boolean(row.hasChildren),
+    })),
+    nextCursor: start + limit < filtered.length && last ? last.id : null,
+    total: filtered.length,
+  };
+};
+
 export const getPage = async (
   ctx: WikiToolContext,
   input: { id: string }
 ): Promise<GetPageResult> => {
-  const { node } = await requireAccessibleNode(input.id, ctx);
+  const { tree, node } = await requireAccessibleNode(input.id, ctx);
   const model = getNodeModel(node.type);
   const name = model.extractText(node.id, node.attributes)?.name ?? '';
 
@@ -1570,7 +1738,36 @@ export const getPage = async (
     ? richTextToMarkdown(input.id, richText, { labels, embedHints })
     : '';
 
-  return { id: node.id, name, type: node.type, content };
+  const mappedTree = tree.map(mapNode);
+  const path = tree.slice(0, -1).map((ancestor, i) => ({
+    id: ancestor.id,
+    type: ancestor.type,
+    name: extractNodeRole(mappedTree.slice(0, i + 1), ctx.userId)
+      ? nodeName(ancestor)
+      : '',
+  }));
+
+  const childRows = await database
+    .selectFrom('nodes as n')
+    .select(['n.type as type', sql<string>`count(*)`.as('count')])
+    .where('n.parent_id', '=', node.id)
+    .where(visibleNodeCondition())
+    .groupBy('n.type')
+    .execute();
+  const childCounts = Object.fromEntries(
+    childRows.map((row) => [row.type, Number(row.count)])
+  );
+
+  return {
+    id: node.id,
+    name,
+    type: node.type,
+    parentId: node.parent_id,
+    rootId: node.root_id,
+    path,
+    childCounts,
+    content,
+  };
 };
 
 export const createPage = async (
@@ -2135,6 +2332,46 @@ const searchPagesInput = z.object({
 const getPageInput = z.object({
   id: z.string().describe('The node id of the page/record to read.'),
 });
+
+const LISTABLE_NODE_TYPES = [
+  'space',
+  'channel',
+  'chat',
+  'page',
+  'database',
+  'database_view',
+  'folder',
+  'whiteboard',
+  'record',
+  'file',
+  'message',
+] as const satisfies readonly NodeType[];
+
+const listChildrenInput = z.object({
+  nodeId: z
+    .string()
+    .regex(NODE_ID_PATTERN)
+    .optional()
+    .describe('The node whose children to list. Omit it to list your spaces.'),
+  types: z
+    .array(z.enum(LISTABLE_NODE_TYPES))
+    .optional()
+    .describe('Only children of these node types, e.g. ["page", "database"].'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(LIST_CHILDREN_MAX_LIMIT)
+    .optional()
+    .describe(
+      `Children per page, default ${LIST_CHILDREN_DEFAULT_LIMIT}, at most ${LIST_CHILDREN_MAX_LIMIT}.`
+    ),
+  cursor: z
+    .string()
+    .regex(NODE_ID_PATTERN)
+    .optional()
+    .describe('The nextCursor of the previous page, to read the page after it.'),
+});
 export const uploadImage = async (
   ctx: WikiToolContext,
   input: { pageId: string; name: string; url?: string; data?: string }
@@ -2368,13 +2605,25 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'get_page',
     description:
-      'Read a page or record by id and return its title and body as markdown text. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). Returns { id, name, type, content }.',
+      'Read a page or record by id and return its title and body as markdown text, where it sits (parentId, rootId, and path from the space down to the parent) and how many children of each type it has. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). Returns { id, name, type, parentId, rootId, path: [{ id, name, type }], childCounts, content }.',
     inputSchema: getPageInput,
     run: getPage,
     action: (input, result) => ({
       type: 'get_page',
       nodeId: input.id,
       summary: `Read "${result.name}"`,
+    }),
+  }),
+  defineTool({
+    name: 'list_children',
+    description:
+      'List the children of a node in the order the sidebar shows them -- pages, folders, databases, views, whiteboards, then records, files and messages -- or, with nodeId omitted, the spaces you can open. Trashed nodes and templates are left out. Returns { parent, items: [{ id, type, name, parentId, index, hasChildren }], nextCursor, total }.',
+    inputSchema: listChildrenInput,
+    run: listChildren,
+    action: (input) => ({
+      type: 'list_children',
+      nodeId: input.nodeId ?? null,
+      summary: input.nodeId ? 'Listed the children of a node' : 'Listed spaces',
     }),
   }),
   defineTool({
