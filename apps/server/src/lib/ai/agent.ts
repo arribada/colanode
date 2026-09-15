@@ -25,7 +25,10 @@ const SYSTEM_PROMPT =
   'or is on a page (a pageId is provided), operate in that context: treat ' +
   '"this page" as that page id. Prefer reading a page (get_page) or searching ' +
   '(search_pages) before editing so your edits are grounded. Page and record ' +
-  'content is markdown. After you have made the requested change, reply with ' +
+  'content is markdown. Tools that return a list return one page of it as ' +
+  '{ items, nextCursor }: when nextCursor is not null there are more results, ' +
+  'and calling the same tool again with cursor set to it returns the next ' +
+  'page. After you have made the requested change, reply with ' +
   'a short, plain summary of exactly what you did (names and where), or answer ' +
   'the question if no change was required. Keep answers concise.';
 

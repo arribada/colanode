@@ -1070,6 +1070,11 @@ export interface DatabaseRecordResult {
   fields: Record<string, unknown>;
 }
 
+export interface QueryDatabaseResult {
+  items: DatabaseRecordResult[];
+  nextCursor: string | null;
+}
+
 export interface MutateRecordResult {
   id: string;
   name: string;
@@ -1434,10 +1439,18 @@ export const listDatabases = async (
   });
 };
 
+export const QUERY_DATABASE_DEFAULT_LIMIT = 50;
+export const QUERY_DATABASE_MAX_LIMIT = 200;
+
 export const queryDatabase = async (
   ctx: WikiToolContext,
-  input: { databaseId: string; filter?: string }
-): Promise<DatabaseRecordResult[]> => {
+  input: {
+    databaseId: string;
+    filter?: string;
+    limit?: number;
+    cursor?: string;
+  }
+): Promise<QueryDatabaseResult> => {
   const { node } = await requireAccessibleNode(input.databaseId, ctx);
   if (node.type !== 'database') {
     throw new WikiToolError(`Node ${input.databaseId} is not a database.`);
@@ -1445,15 +1458,33 @@ export const queryDatabase = async (
 
   const dbAttributes = node.attributes as DatabaseAttributes;
   const fieldById = dbAttributes.fields ?? {};
+  const limit = Math.min(
+    Math.max(1, Math.floor(input.limit ?? QUERY_DATABASE_DEFAULT_LIMIT)),
+    QUERY_DATABASE_MAX_LIMIT
+  );
 
+  // One row more than the page tells whether another page exists, without a
+  // count query. The old slice(0, 50) silently cut every larger database.
+  const options = {
+    limit: limit + 1,
+    afterId: input.cursor,
+    visibleOnly: true,
+  };
   const records =
     input.filter && input.filter.trim().length > 0
       ? await searchRecords(input.databaseId, ctx.workspaceId, ctx.userId, {
+          ...options,
           searchQuery: input.filter,
         })
-      : await fetchAllRecords(input.databaseId, ctx.workspaceId, ctx.userId);
+      : await fetchAllRecords(
+          input.databaseId,
+          ctx.workspaceId,
+          ctx.userId,
+          options
+        );
 
-  return records.slice(0, 50).map((record) => {
+  const page = records.slice(0, limit);
+  const items = page.map((record) => {
     const attributes = record.attributes as RecordAttributes;
     const readable: Record<string, unknown> = {};
     for (const [fieldId, value] of Object.entries(attributes.fields ?? {})) {
@@ -1463,6 +1494,12 @@ export const queryDatabase = async (
     }
     return { id: record.id, name: attributes.name, fields: readable };
   });
+
+  const last = page[page.length - 1];
+  return {
+    items,
+    nextCursor: records.length > limit && last ? last.id : null,
+  };
 };
 
 export const createRecord = async (
@@ -1818,7 +1855,21 @@ const queryDatabaseInput = z.object({
   filter: z
     .string()
     .optional()
-    .describe('Optional free-text search across record fields.'),
+    .describe('Optional free-text search across record names and field values.'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(QUERY_DATABASE_MAX_LIMIT)
+    .optional()
+    .describe(
+      `Records per page, default ${QUERY_DATABASE_DEFAULT_LIMIT}, at most ${QUERY_DATABASE_MAX_LIMIT}.`
+    ),
+  cursor: z
+    .string()
+    .regex(/^[a-z0-9]{20,}$/)
+    .optional()
+    .describe('The nextCursor of the previous page, to read the page after it.'),
 });
 const createRecordInput = z.object({
   databaseId: z.string().describe('The id of the database.'),
@@ -1950,7 +2001,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'query_database',
     description:
-      'Return records from a database, optionally filtered by a free-text search across record fields.',
+      'Return one page of records from a database, ordered by id, optionally filtered by a free-text search across record names and field values; trashed records and templates are left out. Returns { items: [{ id, name, fields }], nextCursor }.',
     inputSchema: queryDatabaseInput,
     run: queryDatabase,
     action: (input) => ({

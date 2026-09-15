@@ -27,9 +27,17 @@ type FilterInput = {
   count: number;
 };
 
-type SearchInput = {
-  searchQuery: string;
+export type RecordListOptions = {
   exclude?: string[];
+  // Keyset pagination: only records whose id sorts after this one.
+  afterId?: string;
+  limit?: number;
+  // Leave out trashed records and templates, which the database views hide.
+  visibleOnly?: boolean;
+};
+
+type SearchInput = RecordListOptions & {
+  searchQuery: string;
 };
 
 type TextBasedFieldAttributes =
@@ -37,6 +45,41 @@ type TextBasedFieldAttributes =
   | EmailFieldAttributes
   | PhoneFieldAttributes
   | UrlFieldAttributes;
+
+// Access is checked with EXISTS rather than a join. A join on collaborations
+// yields one row per collaborator of the space, so any condition that escaped
+// the collaborator filter returned every record once per member.
+const recordAccessCondition = (userId: string) =>
+  sql<SqlBool>`exists (
+    select 1 from collaborations c
+    where c.node_id = n.root_id
+      and c.collaborator_id = ${userId}
+      and c.deleted_at is null
+  )`;
+
+const visibleRecordCondition = sql<SqlBool>`(
+    coalesce(n.attributes->>'deletedAt', '') = ''
+    and coalesce(n.attributes->>'isTemplate', 'false') <> 'true'
+  )`;
+
+const recordsQuery = (
+  databaseId: string,
+  workspaceId: string,
+  userId: string,
+  options: RecordListOptions = {}
+) => {
+  const { exclude, afterId, limit, visibleOnly } = options;
+  return database
+    .selectFrom('nodes as n')
+    .where('n.parent_id', '=', databaseId)
+    .where('n.type', '=', 'record')
+    .where('n.workspace_id', '=', workspaceId)
+    .where(recordAccessCondition(userId))
+    .$if(!!exclude?.length, (qb) => qb.where('n.id', 'not in', exclude!))
+    .$if(!!visibleOnly, (qb) => qb.where(visibleRecordCondition))
+    .$if(afterId !== undefined, (qb) => qb.where('n.id', '>', afterId!))
+    .$if(limit !== undefined, (qb) => qb.limit(limit!));
+};
 
 export const retrieveByFilters = async (
   databaseId: string,
@@ -54,27 +97,54 @@ export const retrieveByFilters = async (
 
   const offset = (input.page - 1) * input.count;
 
-  const query = database
-    .selectFrom('nodes as n')
-    .innerJoin('collaborations as c', 'c.node_id', 'n.root_id')
-    .where('n.parent_id', '=', databaseId)
-    .where('n.type', '=', 'record')
-    .where('n.workspace_id', '=', workspaceId)
-    .where('c.collaborator_id', '=', userId)
-    .where('c.deleted_at', 'is', null);
+  let query = recordsQuery(databaseId, workspaceId, userId);
 
+  // Kysely builders are immutable: the filter used to be added to a copy that
+  // was thrown away, so every "filtered" retrieval returned the whole database.
   if (filterQuery) {
-    query.where(filterQuery);
+    query = query.where(filterQuery);
   }
 
   const result = await query
     .orderBy(sql.raw(orderByQuery))
     .limit(input.count)
     .offset(offset)
-    .selectAll()
+    .selectAll('n')
     .execute();
 
   return result;
+};
+
+export const buildSearchRecordsQuery = (
+  databaseId: string,
+  workspaceId: string,
+  userId: string,
+  input: SearchInput
+) => {
+  // Parenthesised on purpose. Kysely does not wrap a raw sql fragment, so the
+  // bare "name OR fields" was compiled as "… AND collaborator AND name OR
+  // fields": the OR branch escaped the database, workspace and access
+  // constraints and returned records from anywhere, once per collaboration row.
+  //
+  // Field values are matched on their `value` only. Matching the whole stored
+  // JSON also matched its keys, so searching "text" or "string" hit every
+  // record that had a text field.
+  const searchCondition = sql<SqlBool>`(
+      to_tsvector('english', coalesce(n.attributes->>'name', '')) @@ plainto_tsquery('english', ${input.searchQuery})
+      or exists (
+        select 1
+        from jsonb_each(
+          case when jsonb_typeof(n.attributes->'fields') = 'object'
+            then n.attributes->'fields' else '{}'::jsonb end
+        ) as f
+        where to_tsvector('english', coalesce(f.value->>'value', '')) @@ plainto_tsquery('english', ${input.searchQuery})
+      )
+    )`;
+
+  return recordsQuery(databaseId, workspaceId, userId, input)
+    .where(searchCondition)
+    .orderBy('n.id', 'asc')
+    .selectAll('n');
 };
 
 export const searchRecords = async (
@@ -84,51 +154,26 @@ export const searchRecords = async (
   input: SearchInput
 ) => {
   if (!input.searchQuery) {
-    return fetchAllRecords(databaseId, workspaceId, userId, input.exclude);
+    return fetchAllRecords(databaseId, workspaceId, userId, input);
   }
 
-  const searchCondition = sql<SqlBool>`
-      to_tsvector('english', n.attributes->>'name') @@ plainto_tsquery('english', ${input.searchQuery})
-      OR EXISTS (
-        SELECT 1
-        FROM jsonb_each_text(n.attributes->'fields') fields
-        WHERE to_tsvector('english', fields.value::text) @@ plainto_tsquery('english', ${input.searchQuery})
-      )
-    `;
-
-  const query = database
-    .selectFrom('nodes as n')
-    .innerJoin('collaborations as c', 'c.node_id', 'n.root_id')
-    .where('n.parent_id', '=', databaseId)
-    .where('n.type', '=', 'record')
-    .where('n.workspace_id', '=', workspaceId)
-    .where('c.collaborator_id', '=', userId)
-    .where('c.deleted_at', 'is', null)
-    .where(searchCondition);
-
-  if (input.exclude?.length) {
-    query.where('n.id', 'not in', input.exclude);
-  }
-
-  return query.selectAll().execute();
+  return buildSearchRecordsQuery(
+    databaseId,
+    workspaceId,
+    userId,
+    input
+  ).execute();
 };
 
 export const fetchAllRecords = async (
   databaseId: string,
   workspaceId: string,
   userId: string,
-  exclude?: string[]
+  options: RecordListOptions = {}
 ) => {
-  return database
-    .selectFrom('nodes as n')
-    .innerJoin('collaborations as c', 'c.node_id', 'n.root_id')
-    .where('n.parent_id', '=', databaseId)
-    .where('n.type', '=', 'record')
-    .where('n.workspace_id', '=', workspaceId)
-    .where('c.collaborator_id', '=', userId)
-    .where('c.deleted_at', 'is', null)
-    .$if(!!exclude?.length, (qb) => qb.where('n.id', 'not in', exclude!))
-    .selectAll()
+  return recordsQuery(databaseId, workspaceId, userId, options)
+    .orderBy('n.id', 'asc')
+    .selectAll('n')
     .execute();
 };
 
