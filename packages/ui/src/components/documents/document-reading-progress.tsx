@@ -1,9 +1,15 @@
 // ABOUTME: Right-edge reading-progress minimap for a page — one short line per
-// ABOUTME: heading with scrollspy; hover expands a clickable table of contents.
+// ABOUTME: heading with scrollspy; hovering a line names its chapter, a click jumps.
 import { type Editor } from '@tiptap/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@colanode/ui/components/ui/tooltip';
 import { useSplitPane } from '@colanode/ui/contexts/split-pane';
+import { headingLevel } from '@colanode/ui/lib/headings';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface HeadingItem {
@@ -21,19 +27,18 @@ interface DocumentReadingProgressProps {
 // the "current" section for scrollspy purposes.
 const ACTIVE_OFFSET = 88;
 
-// Reuses the heading-scan of DocumentToc: walk the doc collecting heading1/2/3
-// with {level, text, pos}. Re-run on editor updates so added/removed/renamed
-// headings stay in sync.
+// Walk the doc collecting every heading with {level, text, pos}. Re-run on
+// editor updates so added/removed/renamed headings stay in sync.
 const scanHeadings = (editor: Editor): HeadingItem[] => {
   const headings: HeadingItem[] = [];
   editor.state.doc.descendants((node, pos) => {
-    const name = node.type.name;
-    if (name === 'heading1' || name === 'heading2' || name === 'heading3') {
+    const level = headingLevel(node.type.name);
+    if (level > 0) {
       const text = node.textContent.trim();
       if (text.length > 0) {
         headings.push({
           id: typeof node.attrs.id === 'string' ? node.attrs.id : null,
-          level: name === 'heading1' ? 1 : name === 'heading2' ? 2 : 3,
+          level,
           text,
           pos,
         });
@@ -64,8 +69,17 @@ const findScrollContainer = (start: HTMLElement | null): HTMLElement | null => {
   return null;
 };
 
+// A deeper heading draws a shorter line, so the rail reads as an outline.
 const lineWidth = (level: number) =>
-  level === 1 ? 'w-6' : level === 2 ? 'w-4' : 'w-3';
+  level === 1
+    ? 'w-6'
+    : level === 2
+      ? 'w-5'
+      : level === 3
+        ? 'w-4'
+        : level === 4
+          ? 'w-3'
+          : 'w-2';
 
 export const DocumentReadingProgress = ({
   editor,
@@ -193,8 +207,8 @@ export const DocumentReadingProgress = ({
 
   return (
     // Fixed to the right gutter, hidden below xl so it never crowds the text
-    // column. The wrapper takes no pointer events; only the strip and (on
-    // hover) the panel do, so it can never block clicks on the page beneath it.
+    // column. The wrapper takes no pointer events; only the rail does, so it
+    // can never block clicks on the page beneath it.
     <div
       className={cn(
         'pointer-events-none right-1 top-1/2 z-20 hidden -translate-y-1/2 xl:block',
@@ -205,40 +219,35 @@ export const DocumentReadingProgress = ({
         inSplitPane ? 'absolute' : 'fixed'
       )}
     >
-      <div className="group/toc pointer-events-auto relative flex max-h-[85vh] flex-col items-end gap-1.5 overflow-y-auto overscroll-contain py-2 pl-6 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Hovering a line used to unfold a panel listing every heading, which
+          read as the page itself changing. Now only the line under the pointer
+          grows, and its chapter is named before anyone clicks. */}
+      <div className="pointer-events-auto flex max-h-[85vh] flex-col items-end overflow-y-auto overscroll-contain py-2 pl-2 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {headings.map((heading, index) => (
-          <span
-            key={`line-${heading.pos}-${index}`}
-            className={cn(
-              'h-0.5 rounded-full bg-muted-foreground/45 transition-colors',
-              lineWidth(heading.level),
-              index === activeIndex && 'bg-foreground/80'
-            )}
-          />
-        ))}
-
-        <nav
-          aria-label="Reading progress"
-          className="pointer-events-none absolute right-0 top-1/2 max-h-[70vh] w-64 -translate-y-1/2 overflow-y-auto rounded-md border border-border/60 bg-popover p-2 text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover/toc:pointer-events-auto group-hover/toc:opacity-100"
-        >
-          <div className="flex flex-col gap-0.5">
-            {headings.map((heading, index) => (
+          <Tooltip key={`line-${heading.pos}-${index}`} delayDuration={80}>
+            <TooltipTrigger asChild>
               <button
-                key={`row-${heading.pos}-${index}`}
                 type="button"
+                aria-label={heading.text}
+                aria-current={index === activeIndex ? 'location' : undefined}
                 onClick={() => scrollTo(heading, index)}
-                className={cn(
-                  'truncate rounded px-2 py-1 text-left text-sm text-foreground/80 transition-colors hover:bg-accent hover:text-foreground',
-                  heading.level === 2 && 'pl-4',
-                  heading.level === 3 && 'pl-7',
-                  index === activeIndex && 'font-medium text-foreground'
-                )}
+                className="group/line flex h-3 w-10 cursor-pointer items-center justify-end outline-none"
               >
-                {heading.text}
+                <span
+                  className={cn(
+                    'h-0.5 rounded-full bg-muted-foreground/45 transition-all duration-150',
+                    lineWidth(heading.level),
+                    index === activeIndex && 'bg-foreground/80',
+                    'group-hover/line:h-1 group-hover/line:w-8 group-hover/line:bg-foreground group-focus-visible/line:h-1 group-focus-visible/line:w-8 group-focus-visible/line:bg-foreground'
+                  )}
+                />
               </button>
-            ))}
-          </div>
-        </nav>
+            </TooltipTrigger>
+            <TooltipContent side="left" sideOffset={8} className="max-w-64">
+              <span className="block truncate">{heading.text}</span>
+            </TooltipContent>
+          </Tooltip>
+        ))}
       </div>
     </div>
   );
