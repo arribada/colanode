@@ -1,0 +1,136 @@
+name: Arribada Wiki - desktop app
+
+# Upstream's desktop-build-and-publish.yml needs a Windows code-signing
+# certificate and an Apple Developer account, and fails outright without them.
+# This one produces UNSIGNED builds on the stock runners, so it needs no secrets
+# at all. Windows will show a SmartScreen warning on first launch and macOS
+# needs right-click -> Open the first time; that is the price of not paying for
+# certificates, and it is stated on the download page rather than hidden.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, e.g. 1.0.0'
+        required: true
+        default: '1.0.0'
+  push:
+    tags:
+      - 'desktop-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: ubuntu-latest
+            name: linux
+          - os: macos-latest
+            name: macos
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # A tag push carries the version; a manual run takes it from the input.
+      - name: Resolve the version
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/desktop-v}" ]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/desktop-v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Stamp the version and commit into the build
+        shell: bash
+        run: |
+          cat > packages/core/src/types/build.ts <<EOF
+          // This file is auto-generated during CI/CD
+          const VERSION = "${VERSION}";
+          const SHA = "${GITHUB_SHA}";
+
+          export const build = {
+              version: VERSION,
+              sha: SHA
+          };
+          EOF
+
+      # fakeroot and dpkg are what maker-deb shells out to.
+      - name: Install the Debian packaging tools
+        if: matrix.name == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set the app version
+        working-directory: apps/desktop
+        shell: bash
+        run: npm version "${VERSION}" --no-git-tag-version --allow-same-version
+
+      - name: Build the app
+        working-directory: apps/desktop
+        env:
+          NODE_ENV: production
+        run: npm run make
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arribada-wiki-${{ matrix.name }}
+          path: apps/desktop/out/make/**/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Resolve the version
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/desktop-v}" ]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/desktop-v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          fi
+
+      # Flattened, because the release page shows file names and the nested
+      # maker directories would otherwise collide on identically named files.
+      - name: Collect the installers
+        shell: bash
+        run: |
+          mkdir -p release
+          find artifacts -type f \
+            \( -name '*.exe' -o -name '*.zip' -o -name '*.deb' \
+               -o -name '*.rpm' -o -name '*.dmg' -o -name '*.nupkg' \) \
+            -print0 | while IFS= read -r -d '' file; do
+              platform=$(echo "$file" | sed -n 's#artifacts/arribada-wiki-\([a-z]*\)/.*#\1#p')
+              cp "$file" "release/${platform}-$(basename "$file")"
+            done
+          ls -la release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "desktop-v${VERSION}" release/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Arribada Wiki desktop ${VERSION}" \
+            --notes "Unsigned builds. Windows shows a SmartScreen warning on first launch (More info -> Run anyway); macOS needs right-click -> Open the first time." \
+            || gh release upload "desktop-v${VERSION}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
