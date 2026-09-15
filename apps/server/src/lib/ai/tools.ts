@@ -3072,9 +3072,40 @@ const defineTool = <I, R>(config: {
     config.action(config.inputSchema.parse(input), result as R),
 });
 
+// Sizes past which input is refused before any work is done. Nothing capped
+// them: a 200,000-character search query ran 8.5 s of ILIKE on production.
+// Each sits far above real use -- the largest page is 83,000 characters of
+// markdown.
+const MAX_QUERY_LENGTH = 500;
+const MAX_NAME_LENGTH = 500;
+const MAX_MARKDOWN_LENGTH = 2_000_000;
+const MAX_URL_LENGTH = 2048;
+// Base64 of the largest image upload_image takes, with room for a data: URL
+// prefix.
+const MAX_IMAGE_DATA_LENGTH = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 256;
+
+const nameInput = (description: string) =>
+  z
+    .string()
+    .max(MAX_NAME_LENGTH, `A name is at most ${MAX_NAME_LENGTH} characters.`)
+    .describe(description);
+
+const markdownInput = (description: string) =>
+  z
+    .string()
+    .max(
+      MAX_MARKDOWN_LENGTH,
+      "At most 2 MB of markdown at once: write a longer page in parts with mode 'append'."
+    )
+    .describe(description);
+
 const searchPagesInput = z.object({
   query: z
     .string()
+    .max(
+      MAX_QUERY_LENGTH,
+      `A search query is at most ${MAX_QUERY_LENGTH} characters.`
+    )
     .describe(
       'Text to find in names, case-insensitive; % and _ match themselves. An empty query matches every name.'
     ),
@@ -3299,15 +3330,20 @@ const uploadImageInput = z.object({
   pageId: z
     .string()
     .describe('Id of the page the image belongs to. It becomes its parent.'),
-  name: z.string().describe('File name, e.g. "power-chain.png".'),
+  name: nameInput('File name, e.g. "power-chain.png".'),
   url: z
     .string()
+    .max(MAX_URL_LENGTH, `A URL is at most ${MAX_URL_LENGTH} characters.`)
     .optional()
     .describe(
       'Public http(s) URL to fetch. Private and reserved addresses are refused, and redirects are not followed.'
     ),
   data: z
     .string()
+    .max(
+      MAX_IMAGE_DATA_LENGTH,
+      'This is more base64 data than the largest image upload_image accepts.'
+    )
     .optional()
     .describe('Base64 image data, with or without a data: URL prefix.'),
 });
@@ -3316,15 +3352,12 @@ const createPageInput = z.object({
   parentId: z
     .string()
     .describe('The id of the parent node (space, folder or page).'),
-  name: z.string().describe('Title of the new page.'),
-  content: z
-    .string()
-    .optional()
-    .describe('Initial page body, in markdown.'),
+  name: nameInput('Title of the new page.'),
+  content: markdownInput('Initial page body, in markdown.').optional(),
 });
 const editPageInput = z.object({
   id: z.string().describe('The node id of the page to edit.'),
-  content: z.string().describe('Markdown content.'),
+  content: markdownInput('Markdown content.'),
   mode: z
     .enum(['replace', 'append'])
     .describe("'replace' overwrites the document; 'append' adds to the end."),
@@ -3339,7 +3372,7 @@ const renameNodeInput = z.object({
   id: z
     .string()
     .describe('The node id of the page, folder, database or whiteboard to rename.'),
-  name: z.string().describe('The new name/title.'),
+  name: nameInput('The new name/title.'),
 });
 const trashNodeInput = z.object({
   id: z.string().describe('The node id of the page/folder/database/whiteboard to move to trash.'),
@@ -3400,6 +3433,10 @@ const queryDatabaseInput = z.object({
   databaseId: z.string().describe('The id of the database to query.'),
   filter: z
     .string()
+    .max(
+      MAX_QUERY_LENGTH,
+      `A filter is at most ${MAX_QUERY_LENGTH} characters.`
+    )
     .optional()
     .describe('Optional free-text search across record names and field values.'),
   limit: z
