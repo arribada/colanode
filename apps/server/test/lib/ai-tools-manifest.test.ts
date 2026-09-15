@@ -30,6 +30,16 @@ describe('wiki tool manifest', () => {
     }
   });
 
+  it('describes the shape create_page and list_databases really return', () => {
+    const description = (name: string) =>
+      wikiToolDefinitions.find((definition) => definition.name === name)!
+        .description;
+    // create_page returns the name it was given too; list_databases is the
+    // one list that is a plain array rather than { items, nextCursor }.
+    expect(description('create_page')).toMatch(/Returns \{ id, name \}/);
+    expect(description('list_databases')).toMatch(/Returns \[\{/);
+  });
+
   it('converts every input schema to JSON Schema with each field described', () => {
     for (const definition of wikiToolDefinitions) {
       const schema = z.toJSONSchema(definition.inputSchema) as {

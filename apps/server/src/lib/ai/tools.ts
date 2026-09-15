@@ -3484,7 +3484,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'create_page',
     description:
-      'Create a new page under a parent node (space, folder or page), with optional initial markdown content. Returns { id }.',
+      'Create a new page under a parent node (space, folder or page), with optional initial markdown content. Returns { id, name }.',
     inputSchema: createPageInput,
     run: createPage,
     action: (input, result) => ({
