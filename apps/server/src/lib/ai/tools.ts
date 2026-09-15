@@ -1231,7 +1231,9 @@ const parseBlockLines = (
       continue;
     }
 
-    const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+    // A heading with no text yet is written `## `; trimmed to `##`, it used
+    // to come back as a paragraph reading "##".
+    const heading = /^(#{1,6})(?:\s+(.*))?$/.exec(trimmed);
     if (heading) {
       const level = Math.min(5, (heading[1] ?? '#').length);
       const type = `heading${level}`;

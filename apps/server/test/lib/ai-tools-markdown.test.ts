@@ -1026,6 +1026,19 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
     }
   });
 
+  it('keeps a heading that has no text yet a heading', () => {
+    const blocks = byId(
+      textBlock('h1', DOC, 'a0', '', 'heading2'),
+      textBlock('p1', DOC, 'a1', 'below')
+    );
+    blocks.h1!.content = [];
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+    // ...while a hash with text glued to it is still text.
+    expect(treeOf(markdownToBlocks(DOC, '#hashtag') as never)[0]?.type).toBe(
+      'paragraph'
+    );
+  });
 
   it('lands a sixth level on the fifth instead of leaving its hashes as text', () => {
     const blocks = Object.values(markdownToBlocks(DOC, '###### deeper'));
