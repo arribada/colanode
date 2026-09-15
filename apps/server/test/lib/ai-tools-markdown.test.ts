@@ -129,6 +129,103 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
     expect(blocks.find((b) => b.type === 'blockquote')).toBeUndefined();
   });
 
+  it('keeps a callout colour and icon through a round-trip, for the whole palette', () => {
+    const palette = [
+      'default',
+      'gray',
+      'blue',
+      'green',
+      'yellow',
+      'orange',
+      'red',
+      'purple',
+      'pink',
+    ];
+    for (const color of palette) {
+      for (const icon of [null, '01jz5p1fe3m7c4x0v2k9bq8r6tem']) {
+        const attrs = icon ? { color, icon } : { color };
+        const markdown = richTextToMarkdown(DOC, {
+          type: 'rich_text',
+          blocks: {
+            c1: {
+              id: 'c1',
+              type: 'callout',
+              parentId: DOC,
+              index: 'a0',
+              attrs,
+            },
+            p1: {
+              id: 'p1',
+              type: 'paragraph',
+              parentId: 'c1',
+              index: 'a0',
+              content: [{ type: 'text', text: 'Mind the gap' }],
+            },
+          },
+        });
+
+        const blocks = Object.values(markdownToBlocks(DOC, markdown));
+        const top = blocks.filter((b) => b.parentId === DOC);
+        const label = `${color}${icon ? ' + icon' : ''}: ${markdown}`;
+        expect(
+          top.map((b) => b.type),
+          label
+        ).toEqual(['callout']);
+        expect(top[0]!.attrs, label).toEqual(attrs);
+        expect(
+          blocks
+            .filter((b) => b.parentId === top[0]!.id)
+            .map((b) => b.content?.[0]?.text),
+          label
+        ).toEqual(['Mind the gap']);
+      }
+    }
+  });
+
+  it('no longer writes the colour as a line of text', () => {
+    // A red callout came back blue, with a paragraph reading "red" in it.
+    const markdown = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: {
+        c1: {
+          id: 'c1',
+          type: 'callout',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { color: 'red' },
+        },
+        p1: {
+          id: 'p1',
+          type: 'paragraph',
+          parentId: 'c1',
+          index: 'a0',
+          content: [{ type: 'text', text: 'Do not flash over the air' }],
+        },
+      },
+    });
+    expect(markdown).toBe('> [!CAUTION]\n> Do not flash over the air');
+    const texts = Object.values(markdownToBlocks(DOC, markdown)).map(
+      (b) => b.content?.[0]?.text
+    );
+    expect(texts).not.toContain('red');
+  });
+
+  it('reads the common alert aliases', () => {
+    for (const [keyword, color] of [
+      ['INFO', 'blue'],
+      ['SUCCESS', 'green'],
+      ['CAUTION', 'red'],
+      ['DANGER', 'red'],
+      ['ERROR', 'red'],
+      ['SOMETHING', 'default'],
+    ] as const) {
+      const callout = Object.values(
+        markdownToBlocks(DOC, `> [!${keyword}]\n> text`)
+      ).find((b) => b.type === 'callout');
+      expect(callout?.attrs, keyword).toEqual({ color });
+    }
+  });
+
   it('keeps a plain quote a quote', () => {
     const types = typesOf('> just a quote');
     expect(types).toContain('blockquote');

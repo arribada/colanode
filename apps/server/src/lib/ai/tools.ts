@@ -296,6 +296,50 @@ const attrString = (block: Block, key: string): string => {
   return typeof value === 'string' ? value : '';
 };
 
+// The callout palette of the editor (packages/ui callout extension).
+const CALLOUT_PALETTE = new Set([
+  'default',
+  'gray',
+  'blue',
+  'green',
+  'yellow',
+  'orange',
+  'red',
+  'purple',
+  'pink',
+]);
+
+// The colours a GitHub alert keyword carries on its own. Every other colour,
+// and an icon, travel as metadata inside the brackets:
+// `> [!NOTE|color=gray|icon=<emoji id>]`.
+const CALLOUT_KEYWORD_BY_COLOUR: Record<string, string> = {
+  blue: 'NOTE',
+  green: 'TIP',
+  purple: 'IMPORTANT',
+  orange: 'WARNING',
+  red: 'CAUTION',
+};
+
+const CALLOUT_META_VALUE = /^[^|\]\s]+$/;
+
+// Every callout used to come out as `> [!NOTE]` with its colour as trailing
+// text, which the parser read back as a blue callout plus a stray paragraph
+// saying "red" -- so a replace edit repainted and polluted every red callout
+// of the page. The header is now lossless for the whole palette.
+const calloutHeader = (block: Block): string => {
+  const colour = attrString(block, 'color') || 'default';
+  const icon = attrString(block, 'icon');
+  const keyword = CALLOUT_KEYWORD_BY_COLOUR[colour];
+  const meta: string[] = [];
+  if (!keyword && CALLOUT_META_VALUE.test(colour)) {
+    meta.push(`color=${colour}`);
+  }
+  if (icon && CALLOUT_META_VALUE.test(icon)) {
+    meta.push(`icon=${icon}`);
+  }
+  return `> [!${keyword ?? 'NOTE'}${meta.map((item) => `|${item}`).join('')}]`;
+};
+
 // Block types markdown cannot carry. A replace-mode edit round-trips the whole
 // document through markdown, so these would be silently deleted -- 215 of the
 // wiki's 935 documents hold at least one. edit_page refuses instead of eating
@@ -437,10 +481,7 @@ export const richTextToMarkdown = (
           break;
         }
         case 'callout': {
-          const colour = attrString(block, 'color');
-          lines.push(
-            indent + '> [!NOTE]' + (colour && colour !== 'default' ? ' ' + colour : '')
-          );
+          lines.push(indent + calloutHeader(block));
           for (const line of walk(block.id, '', false)) {
             lines.push(indent + '> ' + line);
           }
@@ -678,14 +719,15 @@ export const markdownToBlocks = (
   };
 
   // GitHub callout keywords mapped onto the palette the callout block actually
-  // stores. Anything unknown stays neutral rather than guessing a colour.
+  // stores -- the inverse of calloutHeader, plus a few common aliases.
+  // Anything unknown stays neutral rather than guessing a colour.
   const CALLOUT_COLOURS: Record<string, string> = {
     note: 'blue',
     info: 'blue',
     tip: 'green',
     success: 'green',
     warning: 'orange',
-    caution: 'orange',
+    caution: 'red',
     important: 'purple',
     danger: 'red',
     error: 'red',
@@ -840,15 +882,28 @@ export const markdownToBlocks = (
       continue;
     }
 
-    const callout = /^>\s*\[!([A-Za-z]+)\]\s*(.*)$/.exec(trimmed);
+    const callout =
+      /^>\s*\[!([A-Za-z]+)((?:\|[a-z]+=[^|\]\s]+)*)\]\s*(.*)$/.exec(trimmed);
     if (callout) {
       resetLists();
       const block = pushTop('callout');
-      block.attrs = {
+      const attrs: Record<string, unknown> = {
         color: CALLOUT_COLOURS[(callout[1] ?? '').toLowerCase()] ?? 'default',
       };
+      // Metadata outranks the keyword: `[!NOTE|color=gray]` is gray.
+      for (const pair of (callout[2] ?? '').split('|').slice(1)) {
+        const separator = pair.indexOf('=');
+        const key = pair.slice(0, separator);
+        const value = pair.slice(separator + 1);
+        if (key === 'color' && CALLOUT_PALETTE.has(value)) {
+          attrs.color = value;
+        } else if (key === 'icon') {
+          attrs.icon = value;
+        }
+      }
+      block.attrs = attrs;
       let after: string | null = null;
-      const firstLine = (callout[2] ?? '').trim();
+      const firstLine = (callout[3] ?? '').trim();
       if (firstLine) {
         const para = addChild(block.id, 'paragraph', after);
         para.content = parseInline(firstLine);
