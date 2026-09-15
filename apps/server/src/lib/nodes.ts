@@ -35,6 +35,11 @@ import {
 import { eventBus } from '@colanode/server/lib/event-bus';
 import { createLogger } from '@colanode/server/lib/logger';
 import { reconcileBidirectionalRelations } from '@colanode/server/lib/relation-reconciler';
+import {
+  lockRootsExclusive,
+  readNodeRootId,
+  RootChangedError,
+} from '@colanode/server/lib/root-locks';
 import { storage } from '@colanode/server/lib/storage';
 import { jobService } from '@colanode/server/services/job-service';
 import { WorkspaceContext } from '@colanode/server/types/api';
@@ -347,12 +352,34 @@ const prepareMove = async (
     userId: string;
   }
 ): Promise<string | null> => {
-  // Serialise the moves inside one space. READ COMMITTED alone would let both
-  // transactions read a node_paths that predates the other, and moves are rare
-  // enough that a lock costs nothing.
-  await sql`select pg_advisory_xact_lock(hashtext(${input.oldRootId}))`.execute(
-    trx
+  // Serialise moves against each other, in the space the node leaves AND the
+  // one it enters. READ COMMITTED alone lets two moves each read a node_paths
+  // that predates the other, and locking only the old space still let A (in
+  // one space) go under B while B (in another) went under A: both passed the
+  // cycle check and the two nodes became each other's ancestors. Moves are rare
+  // enough that the locks cost nothing. See root-locks.ts for the ordering.
+  //
+  // The destination's root read here is not trusted yet -- a move can carry
+  // the parent elsewhere before we hold the locks -- so both roots are read
+  // again under them, and a change starts the update over.
+  const destinationRootId = await readNodeRootId(trx, input.parentId);
+  await lockRootsExclusive(
+    trx,
+    destinationRootId ? [input.oldRootId, destinationRootId] : [input.oldRootId]
   );
+
+  const currentRootId = await readNodeRootId(trx, input.nodeId);
+  if (currentRootId !== null && currentRootId !== input.oldRootId) {
+    throw new RootChangedError(input.nodeId, input.oldRootId, currentRootId);
+  }
+  const currentDestinationRootId = await readNodeRootId(trx, input.parentId);
+  if (currentDestinationRootId !== destinationRootId) {
+    throw new RootChangedError(
+      input.parentId,
+      destinationRootId,
+      currentDestinationRootId
+    );
+  }
 
   // node_paths carries the self row at level 0, so this single lookup rejects
   // "into itself" and "into its own descendant" alike.
@@ -366,24 +393,21 @@ const prepareMove = async (
     throw new NodeCycleError();
   }
 
-  // Read the destination's root under the lock.
-  const newParent = await trx
-    .selectFrom('nodes')
-    .select('root_id')
-    .where('id', '=', input.parentId)
-    .executeTakeFirst();
-  if (!newParent || newParent.root_id === input.oldRootId) {
+  if (
+    currentDestinationRootId === null ||
+    currentDestinationRootId === input.oldRootId
+  ) {
     return null;
   }
 
   await relocateSubtree(trx, {
     nodeId: input.nodeId,
     oldRootId: input.oldRootId,
-    newRootId: newParent.root_id,
+    newRootId: currentDestinationRootId,
     workspaceId: input.workspaceId,
     userId: input.userId,
   });
-  return newParent.root_id;
+  return currentDestinationRootId;
 };
 
 export const updateNode = async (input: UpdateNodeInput): Promise<boolean> => {
