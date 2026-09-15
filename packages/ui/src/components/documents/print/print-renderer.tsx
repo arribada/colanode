@@ -7,9 +7,10 @@ import { LocalNode } from '@colanode/client/types';
 import { Document } from '@colanode/ui/components/documents/document';
 import { getDocumentExporter } from '@colanode/ui/lib/document-export';
 
-// Content width the hidden pages lay out at, matching the print column so wide
-// tables/embeds overflow measurably here and can be tagged for landscape.
-const PRINT_WIDTH = 820;
+// Hidden pages lay out at the editor column's width (max-w-3xl), so an image an
+// author resized keeps the width the export scales from. Measuring for the
+// page is done later, in the print document itself.
+const RENDER_WIDTH = 768;
 
 export interface RenderedPage {
   id: string;
@@ -34,17 +35,12 @@ const hasContent = (id: string): boolean => {
   }
 };
 
-// Tag tables / database embeds that are wider than the page so the assembled
-// document can drop them onto a landscape page.
-const markWideElements = (container: HTMLElement) => {
-  container
-    .querySelectorAll('table, [data-id], .overflow-auto, .overflow-x-auto')
-    .forEach((el) => {
-      const he = el as HTMLElement;
-      if (he.scrollWidth > he.clientWidth + 4 || he.scrollWidth > PRINT_WIDTH) {
-        he.classList.add('print-landscape');
-      }
-    });
+// A caption field keeps its text in the value PROPERTY, which innerHTML never
+// serializes. Mirror it into the attribute so the exported copy still has it.
+const mirrorFieldValues = () => {
+  document
+    .querySelectorAll<HTMLInputElement>('figcaption input')
+    .forEach((input) => input.setAttribute('value', input.value));
 };
 
 export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
@@ -59,6 +55,7 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
   const preloadedRef = useRef<Map<string, string> | null>(null);
   if (preloadedRef.current === null) {
     const map = new Map<string, string>();
+    mirrorFieldValues();
     for (const page of pages) {
       if (hasContent(page.id)) {
         const html = getDocumentExporter(page.id)?.getRenderedHtml() ?? '';
@@ -81,14 +78,7 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
       if (cancelled) {
         return;
       }
-      const container = containerRef.current;
-      if (container) {
-        try {
-          markWideElements(container);
-        } catch {
-          // ignore measurement failures — export still works, just portrait
-        }
-      }
+      mirrorFieldValues();
       const rendered = pages.map((p) => ({
         id: p.id,
         title: (('name' in p && p.name) || 'Untitled') as string,
@@ -134,14 +124,14 @@ export const PrintRenderer = ({ pages, onReady }: PrintRendererProps) => {
         position: 'fixed',
         left: -100000,
         top: 0,
-        width: PRINT_WIDTH,
+        width: RENDER_WIDTH,
         opacity: 0,
         pointerEvents: 'none',
         zIndex: -1,
       }}
     >
       {pendingPages.map((page) => (
-        <div key={page.id} style={{ width: PRINT_WIDTH }}>
+        <div key={page.id} style={{ width: RENDER_WIDTH }}>
           <Document node={page} canEdit={false} />
         </div>
       ))}

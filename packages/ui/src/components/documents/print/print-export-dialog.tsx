@@ -1,6 +1,6 @@
 // ABOUTME: "Print / PDF" options dialog — pick sub-pages / appendix / TOC /
 // ABOUTME: cover, render the pages off-screen, assemble one document, print it.
-import { eq, useLiveQuery } from '@tanstack/react-db';
+import { eq, inArray, useLiveQuery } from '@tanstack/react-db';
 import { Loader2, Printer } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
@@ -20,6 +20,8 @@ import {
   DialogTitle,
 } from '@colanode/ui/components/ui/dialog';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useLiveQuery as useColanodeLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import { getCoverClass, isImageCover } from '@colanode/ui/lib/covers';
 import { printHtmlDocument } from '@colanode/ui/lib/print';
 import {
   assemblePrintHtml,
@@ -27,7 +29,13 @@ import {
   extractMentionTargets,
   PRINT_EXPORT_CSS,
   PrintChapter,
+  PrintCover,
 } from '@colanode/ui/lib/print-export';
+import {
+  buildDocumentLink,
+  buildRevisionRows,
+} from '@colanode/ui/lib/print-layout';
+import { applyPrintLayout } from '@colanode/ui/lib/print-layout-dom';
 
 interface PrintExportDialogProps {
   page: LocalPageNode | LocalRecordNode;
@@ -63,6 +71,11 @@ const Option = ({
     </span>
   </button>
 );
+
+const formatDate = (iso: string): string => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
+};
 
 export const PrintExportDialog = ({
   page,
@@ -107,23 +120,49 @@ export const PrintExportDialog = ({
   );
   const subCount = tree.length - 1;
 
-  // Cover metadata: the page's cut version tag, and the person who cut the
-  // most recent version (resolved to a display name).
+  // Version history: the page's cut tags and who cut each one, resolved to
+  // display names together with the page's creator.
   const pageAsPage = page as LocalPageNode;
-  const coverVersion = pageAsPage.version ?? '';
-  const versionLog = pageAsPage.versionLog ?? [];
-  const lastVersionBy =
-    versionLog.length > 0 ? (versionLog[versionLog.length - 1]?.by ?? null) : null;
-  const authorQuery = useLiveQuery(
+  const versionLog = useMemo(
+    () => pageAsPage.versionLog ?? [],
+    [pageAsPage.versionLog]
+  );
+  const authorIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [page.createdBy, ...versionLog.map((entry) => entry.by)].filter(
+            Boolean
+          )
+        )
+      ),
+    [page.createdBy, versionLog]
+  );
+  const authorsQuery = useLiveQuery(
     (q) =>
       q
         .from({ users: workspace.collections.users })
-        .where(({ users }) => eq(users.id, lastVersionBy ?? ''))
-        .select(({ users }) => ({ id: users.id, name: users.name }))
-        .findOne(),
-    [workspace.userId, lastVersionBy]
+        .where(({ users }) => inArray(users.id, authorIds))
+        .select(({ users }) => ({ id: users.id, name: users.name })),
+    [workspace.userId, authorIds.join(',')]
   );
-  const coverAuthor = lastVersionBy ? (authorQuery.data?.name ?? '') : '';
+
+  // The page cover, printed once on the cover page. An uploaded image is an
+  // avatar id resolved through the local asset cache; a preset is a class.
+  const pageCover = pageAsPage.cover ?? null;
+  const coverImageValue = isImageCover(pageCover) ? pageCover.value : null;
+  const coverAvatarId =
+    coverImageValue && !/^https?:\/\//.test(coverImageValue)
+      ? coverImageValue
+      : null;
+  const coverAvatarQuery = useColanodeLiveQuery(
+    {
+      type: 'avatar.get',
+      accountId: workspace.accountId,
+      avatarId: coverAvatarId ?? '',
+    },
+    { enabled: coverAvatarId !== null }
+  );
 
   const busy = phase !== 'idle';
 
@@ -139,11 +178,43 @@ export const PrintExportDialog = ({
   };
 
   const finalize = (appendixChapters: PrintChapter[]) => {
+    const names = new Map(
+      (authorsQuery.data ?? []).map((user) => [user.id, user.name])
+    );
+    const revisions = buildRevisionRows({
+      versionLog,
+      currentVersion: pageAsPage.version,
+      createdAt: page.createdAt,
+      createdBy: page.createdBy,
+      authorName: (userId) => names.get(userId) ?? 'Unknown',
+      formatDate,
+    });
+    const lastAuthorId = versionLog.at(-1)?.by ?? page.createdBy;
+
+    const printCover: PrintCover | null =
+      pageCover === null
+        ? null
+        : {
+            imageUrl: coverAvatarId
+              ? (coverAvatarQuery.data?.url ?? null)
+              : coverImageValue,
+            className: isImageCover(pageCover)
+              ? null
+              : getCoverClass(pageCover),
+          };
+
     const body = assemblePrintHtml({
       documentTitle: page.name || 'Document',
       date: new Date().toLocaleDateString(),
-      author: coverAuthor,
-      version: coverVersion,
+      author: names.get(lastAuthorId) ?? '',
+      version: pageAsPage.version ?? revisions[0]?.version ?? '',
+      cover: printCover,
+      documentLink: buildDocumentLink(
+        typeof window !== 'undefined' ? window.location.origin : null,
+        workspace.workspaceId,
+        page.id
+      ),
+      revisions,
       chapters: chaptersRef.current,
       appendix: appendixChapters,
       options: { subpages, appendix, toc, cover },
@@ -152,6 +223,8 @@ export const PrintExportDialog = ({
       title: page.name || 'Document',
       bodyHtml: body,
       css: PRINT_EXPORT_CSS,
+      withAppStyles: true,
+      beforePrint: applyPrintLayout,
     });
     setPhase('idle');
     setActivePages([]);
@@ -232,14 +305,14 @@ export const PrintExportDialog = ({
               checked={cover}
               onChange={setCover}
               label="Cover page"
-              desc="Title, date and workspace name."
+              desc="The page's cover, title, version, date and author."
             />
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Tip: enable &ldquo;Headers and footers&rdquo; in the print dialog to
-            add page numbers. Wide tables and database embeds print on their own
-            landscape pages.
+            Page numbers and a document control page with the revision history
+            are added automatically. Wide tables and large images get a
+            landscape page of their own.
           </p>
 
           <DialogFooter>

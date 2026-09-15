@@ -2,19 +2,29 @@
 // document via a hidden iframe, so the browser's native "Save as PDF" flow
 // produces a clean page free of the app chrome (sidebar, toolbars, menus).
 // DOM-only, so it lives outside the unit-tested pure helpers.
+import { getThemeVariables } from '@colanode/ui/lib/themes';
 
 interface PrintOptions {
   title: string;
   bodyHtml: string;
   // Extra CSS appended to the print document <head>.
   css?: string;
+  // Carry the app's own stylesheets and its light theme into the print
+  // document, so blocks print the way they look on screen -- callout colours,
+  // dividers, badges -- instead of as unstyled markup.
+  withAppStyles?: boolean;
+  // Runs inside the print document once its styles, fonts and images have
+  // loaded and before the dialog opens: the one moment real layout can be
+  // measured.
+  beforePrint?: (doc: Document) => void;
 }
 
 const escapeHtml = (value: string): string =>
   value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 const BASE_CSS = `
   * { box-sizing: border-box; }
@@ -40,19 +50,50 @@ const BASE_CSS = `
   @page { margin: 16mm; }
 `;
 
+// Wait for something that may never arrive -- a stylesheet that fails, an image
+// that never loads -- without ever holding the print dialog back for long.
+const settle = (promise: Promise<unknown>, ms: number): Promise<unknown> =>
+  Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(resolve, ms)),
+  ]);
+
+const whenLoaded = (el: HTMLLinkElement | HTMLImageElement): Promise<void> =>
+  new Promise((resolve) => {
+    el.addEventListener('load', () => resolve(), { once: true });
+    el.addEventListener('error', () => resolve(), { once: true });
+  });
+
+const appStylesHtml = (): string =>
+  Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map((el) => el.outerHTML)
+    .join('');
+
+// The app applies its theme variables to <html> from script, which the print
+// document never runs; without them every themed colour resolves to nothing.
+const lightThemeStyle = (): string =>
+  Object.entries(getThemeVariables('light', undefined))
+    .map(([name, value]) => `${name}:${value}`)
+    .join(';');
+
 export const printHtmlDocument = ({
   title,
   bodyHtml,
   css,
+  withAppStyles = false,
+  beforePrint,
 }: PrintOptions): void => {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
+  // Laid out off-screen at a real A4 width instead of collapsed to 0x0, so the
+  // document can be measured before it is printed.
   iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '794px';
+  iframe.style.height = '1123px';
   iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
   document.body.appendChild(iframe);
 
   const doc = iframe.contentWindow?.document;
@@ -61,11 +102,19 @@ export const printHtmlDocument = ({
     return;
   }
 
+  const rootStyle = withAppStyles
+    ? ` style="${escapeHtml(lightThemeStyle())}"`
+    : '';
+
   doc.open();
   doc.write(
-    '<!doctype html><html><head><meta charset="utf-8"><title>' +
+    '<!doctype html><html' +
+      rootStyle +
+      '><head><meta charset="utf-8"><title>' +
       escapeHtml(title) +
-      '</title><style>' +
+      '</title>' +
+      (withAppStyles ? appStylesHtml() : '') +
+      '<style>' +
       BASE_CSS +
       (css ?? '') +
       '</style></head><body><div class="print-root">' +
@@ -73,6 +122,25 @@ export const printHtmlDocument = ({
       '</div></body></html>'
   );
   doc.close();
+
+  const prepare = async () => {
+    const links = Array.from(
+      doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+    ).filter((link) => !link.sheet);
+    await settle(Promise.all(links.map(whenLoaded)), 5000);
+    await settle(doc.fonts?.ready ?? Promise.resolve(), 3000);
+    const images = Array.from(doc.images).filter((img) => !img.complete);
+    await settle(Promise.all(images.map(whenLoaded)), 8000);
+
+    if (beforePrint) {
+      try {
+        beforePrint(doc);
+      } catch (error) {
+        // A failed measurement must not cost the export: print it as laid out.
+        console.warn('[print] layout pass failed, printing as is', error);
+      }
+    }
+  };
 
   const trigger = () => {
     const win = iframe.contentWindow;
@@ -90,6 +158,8 @@ export const printHtmlDocument = ({
     }
   };
 
-  // Let images / fonts / SVG settle before printing.
-  setTimeout(trigger, 350);
+  // Let the document parse before looking for what it still has to load.
+  setTimeout(() => {
+    void prepare().then(trigger, trigger);
+  }, 50);
 };

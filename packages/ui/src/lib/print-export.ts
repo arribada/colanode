@@ -1,6 +1,10 @@
 // ABOUTME: Pure-ish helpers that assemble a multi-page PDF export — chapter
 // ABOUTME: ordering, mention extraction, TOC building and final HTML assembly.
 import { LocalNode } from '@colanode/client/types';
+import {
+  RevisionRow,
+  ruleStyleFromClasses,
+} from '@colanode/ui/lib/print-layout';
 
 export interface PrintChapter {
   id: string;
@@ -16,6 +20,13 @@ export interface PrintOptions {
   cover: boolean;
 }
 
+// What the page shows as its cover: an image, or a colour / gradient preset
+// given by its class.
+export interface PrintCover {
+  imageUrl?: string | null;
+  className?: string | null;
+}
+
 const escapeHtml = (value: string): string =>
   value
     .replace(/&/g, '&amp;')
@@ -23,16 +34,93 @@ const escapeHtml = (value: string): string =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-// Strip editor-only controls that must never appear on paper — notably the
-// toggle chevron button, which is inert once printed — and force every toggle
-// open so its content prints instead of staying collapsed.
+// Turn the live editor's HTML into something fit for paper. The editor that is
+// open on screen is editable, so what it hands over still carries its controls:
+// pickers, grips, chevrons and resize handles, none of which mean anything once
+// printed and all of which print as stray buttons.
 const sanitizeForExport = (html: string): string => {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('[data-toggle-button]').forEach((el) => el.remove());
-  doc
+  const body = doc.body;
+
+  // Toggle blocks: the chevron is inert on paper, and the content must print.
+  body.querySelectorAll('[data-toggle-button]').forEach((el) => el.remove());
+  body
     .querySelectorAll('[data-type="toggle"]')
     .forEach((el) => el.setAttribute('data-open', 'true'));
-  return doc.body.innerHTML;
+
+  // Collapsible headings: drop the fold chevron (it pushed the title sideways),
+  // and print a section even if it was collapsed on screen -- collapsing hides
+  // the top-level blocks that follow the heading with a class.
+  body.querySelectorAll('[data-heading-collapse]').forEach((el) => el.remove());
+  Array.from(body.children).forEach((el) => el.classList.remove('hidden'));
+
+  // Callouts: keep the icon, drop the icon and colour pickers wrapped around it.
+  body.querySelectorAll('[data-type="callout"]').forEach((callout) => {
+    callout
+      .querySelectorAll('[aria-label="Change callout color"]')
+      .forEach((el) => el.remove());
+    const pickers = callout.querySelectorAll('[aria-label="Change callout icon"]');
+    pickers.forEach((picker) => {
+      const icon = doc.createElement('span');
+      icon.className = 'print-callout-icon';
+      while (picker.firstChild) {
+        icon.appendChild(picker.firstChild);
+      }
+      picker.replaceWith(icon);
+    });
+    if (pickers.length === 0) {
+      callout
+        .querySelector(':scope > [contenteditable="false"] > div')
+        ?.classList.add('print-callout-icon');
+    }
+  });
+
+  // Dividers: keep the rule, drop the style picker, remember which rule it is.
+  body.querySelectorAll('[data-type="divider"]').forEach((divider) => {
+    const line = divider.firstElementChild;
+    Array.from(divider.children).forEach((child) => {
+      if (child !== line) {
+        child.remove();
+      }
+    });
+    line?.setAttribute(
+      'data-print-rule',
+      ruleStyleFromClasses(line.getAttribute('class') ?? '')
+    );
+  });
+
+  // Images: remember the width the author chose, drop the resize handles, and
+  // turn an editable caption field back into its text.
+  body.querySelectorAll('img').forEach((img) => {
+    const frame = img.parentElement as HTMLElement | null;
+    const width = frame ? Number.parseFloat(frame.style.width) : Number.NaN;
+    if (Number.isFinite(width) && width > 0) {
+      img.setAttribute('data-print-width', String(Math.round(width)));
+    }
+  });
+  body
+    .querySelectorAll('[class*="cn-img-resize-handle"]')
+    .forEach((el) => el.remove());
+  body.querySelectorAll('figcaption input').forEach((input) => {
+    const text = doc.createElement('span');
+    text.className = 'italic';
+    text.textContent = input.getAttribute('value') ?? '';
+    input.replaceWith(text);
+  });
+
+  // Tables: the widths set for the screen column never suit a page. The print
+  // layout pass sizes them against the real printable width instead.
+  body.querySelectorAll('table').forEach((table) => {
+    table.style.removeProperty('min-width');
+    table.style.removeProperty('width');
+  });
+  body.querySelectorAll('col').forEach((col) => col.style.removeProperty('width'));
+
+  // Nothing interactive belongs on paper: row and column grips, copy buttons,
+  // embed toolbars. Last, so the callout icon has already left its button.
+  body.querySelectorAll('button').forEach((el) => el.remove());
+
+  return body.innerHTML;
 };
 
 // Depth-first list of a page and its page descendants, in sidebar order
@@ -100,7 +188,7 @@ const injectHeadingIds = (
 const chapterNumber = (index: number): string => `${index + 1}`;
 
 // Build the table of contents. Multi-chapter → a chapter list; single page →
-// that page's heading outline.
+// that page's heading outline. It carries no document title: the cover has it.
 const buildToc = (
   chapters: PrintChapter[],
   singleHeadings: { id: string; text: string; level: number }[],
@@ -128,7 +216,50 @@ const buildToc = (
   if (rows.length === 0) {
     return '';
   }
-  return `<nav class="toc"><h2>Contents</h2><ul>${rows.join('')}</ul></nav>`;
+  return `<nav class="toc"><h2 class="section-heading">Contents</h2><ul>${rows.join('')}</ul></nav>`;
+};
+
+// The page between the cover and the contents: what this document is, where it
+// lives, and every version it went through. It replaces the title and link the
+// browser used to stamp on top of every page.
+const buildDocumentControl = (params: {
+  documentTitle: string;
+  version: string;
+  date: string;
+  documentLink: string;
+  revisions: RevisionRow[];
+}): string => {
+  const { documentTitle, version, date, documentLink, revisions } = params;
+  const info = [
+    ['Document', escapeHtml(documentTitle)],
+    ['Current version', escapeHtml(version)],
+    [
+      'Link',
+      documentLink
+        ? `<a href="${escapeHtml(documentLink)}">${escapeHtml(documentLink)}</a>`
+        : '',
+    ],
+    ['Exported', escapeHtml(date)],
+  ]
+    .filter(([, value]) => value)
+    .map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`)
+    .join('');
+
+  const rows = revisions
+    .map(
+      (r) =>
+        `<tr><td class="rev-version">${escapeHtml(r.version)}</td><td class="rev-date">${escapeHtml(r.date)}</td><td>${escapeHtml(r.author)}</td><td>${escapeHtml(r.changes)}</td></tr>`
+    )
+    .join('');
+
+  return (
+    `<section class="doc-control">` +
+    `<h2 class="section-heading">Document control</h2>` +
+    `<table class="doc-info"><tbody>${info}</tbody></table>` +
+    `<h3 class="section-subheading">Revision history</h3>` +
+    `<table class="revision-table"><thead><tr><th>Version</th><th>Date</th><th>Author</th><th>Changes</th></tr></thead><tbody>${rows}</tbody></table>` +
+    `</section>`
+  );
 };
 
 export const assemblePrintHtml = (params: {
@@ -136,12 +267,25 @@ export const assemblePrintHtml = (params: {
   date: string;
   author: string;
   version: string;
+  cover?: PrintCover | null;
+  documentLink?: string;
+  revisions?: RevisionRow[];
   chapters: PrintChapter[];
   appendix: PrintChapter[];
   options: PrintOptions;
 }): string => {
-  const { documentTitle, date, author, version, chapters, appendix, options } =
-    params;
+  const {
+    documentTitle,
+    date,
+    author,
+    version,
+    cover,
+    documentLink,
+    revisions,
+    chapters,
+    appendix,
+    options,
+  } = params;
 
   // Single page: inject heading ids so the TOC can anchor to them.
   let singleHeadings: { id: string; text: string; level: number }[] = [];
@@ -156,16 +300,37 @@ export const assemblePrintHtml = (params: {
 
   const parts: string[] = [];
 
+  // The cover is the one place the page's cover image and its title appear.
   if (options.cover) {
+    const visual = cover?.imageUrl
+      ? `<div class="cover-visual"><img src="${escapeHtml(cover.imageUrl)}" alt=""></div>`
+      : cover?.className
+        ? `<div class="cover-visual ${escapeHtml(cover.className)}"></div>`
+        : '';
+    const meta = [date, author].filter(Boolean).map(escapeHtml).join(' · ');
     parts.push(
-      `<section class="cover"><div class="cover-inner">` +
+      `<section class="cover${visual ? ' cover-with-visual' : ''}">` +
+        visual +
+        `<div class="cover-body">` +
         `<h1 class="cover-title">${escapeHtml(documentTitle)}</h1>` +
+        `<div class="cover-rule"></div>` +
         (version
-          ? `<p class="cover-meta cover-version">${escapeHtml(version)}</p>`
+          ? `<p class="cover-version">${escapeHtml(version)}</p>`
           : '') +
-        (date ? `<p class="cover-meta">${escapeHtml(date)}</p>` : '') +
-        (author ? `<p class="cover-meta">${escapeHtml(author)}</p>` : '') +
+        (meta ? `<p class="cover-meta">${meta}</p>` : '') +
         `</div></section>`
+    );
+  }
+
+  if (revisions && revisions.length > 0) {
+    parts.push(
+      buildDocumentControl({
+        documentTitle,
+        version: version || revisions[0]?.version || '',
+        date,
+        documentLink: documentLink ?? '',
+        revisions,
+      })
     );
   }
 
@@ -178,12 +343,16 @@ export const assemblePrintHtml = (params: {
 
   preparedChapters.forEach((c, i) => {
     const isChapter = preparedChapters.length > 1;
+    // A single page's title is already on the cover; repeat it only when there
+    // is no cover to carry it.
     const heading = isChapter
       ? `<h1 class="chapter-title">${chapterNumber(i)}. ${escapeHtml(c.title)}</h1>`
-      : `<h1 class="doc-title">${escapeHtml(c.title)}</h1>`;
+      : options.cover
+        ? ''
+        : `<h1 class="doc-title">${escapeHtml(c.title)}</h1>`;
     const cls = i === 0 ? 'chapter chapter-first' : 'chapter';
     parts.push(
-      `<section class="${cls}" id="chap-${c.id}">${heading}${sanitizeForExport(c.html)}</section>`
+      `<section class="${cls}" id="chap-${c.id}">${heading}<div class="print-body">${sanitizeForExport(c.html)}</div></section>`
     );
   });
 
@@ -191,7 +360,7 @@ export const assemblePrintHtml = (params: {
     const inner = appendix
       .map(
         (a, i) =>
-          `<section class="appendix-item" id="app-${a.id}"><h2 class="appendix-title">${String.fromCharCode(65 + i)}. ${escapeHtml(a.title)}</h2>${sanitizeForExport(a.html)}</section>`
+          `<section class="appendix-item" id="app-${a.id}"><h2 class="appendix-title">${String.fromCharCode(65 + i)}. ${escapeHtml(a.title)}</h2><div class="print-body">${sanitizeForExport(a.html)}</div></section>`
       )
       .join('');
     parts.push(
@@ -202,41 +371,101 @@ export const assemblePrintHtml = (params: {
   return parts.join('\n');
 };
 
-// Print CSS additions layered on top of the base print stylesheet: cover, TOC,
-// chapter page breaks, repeated table headers, and landscape pages for the
-// wide tables/embeds tagged with .print-landscape.
-export const PRINT_EXPORT_CSS = `
-  @page { size: A4 portrait; margin: 16mm; }
-  @page landscapePage { size: A4 landscape; margin: 12mm; }
+const PAGE_NUMBER = `content: counter(page) " / " counter(pages); font: 9pt ui-sans-serif, system-ui, sans-serif; color: #6b7280;`;
 
-  .cover { display: flex; align-items: center; justify-content: center; min-height: 86vh; break-after: page; text-align: center; }
-  .cover-title { font-size: 30px; margin: 0 0 12px; }
-  .cover-meta { color: #6b7280; margin: 2px 0; }
+// Print CSS layered on top of the base print stylesheet and the app's own.
+//
+// Page margins: top and bottom are ZERO and the space is page PADDING instead.
+// Chrome's print dialog only offers its "Headers and footers" (the date, the
+// title, the URL) when the document leaves a top or bottom margin to draw them
+// in, so this is what keeps them off. The page number lives in the right-hand
+// margin box, which still has room.
+export const PRINT_EXPORT_CSS = `
+  @page { size: A4 portrait; margin: 0 16mm; padding: 16mm 0;
+    @right-bottom { ${PAGE_NUMBER} padding-bottom: 8mm; } }
+  @page :first { @right-bottom { content: none; } }
+  @page landscapePage { size: A4 landscape; margin: 0 12mm; padding: 12mm 0;
+    @right-bottom { ${PAGE_NUMBER} padding-bottom: 6mm; } }
+
+  /* Backgrounds are part of the design (callouts, covers, table headers):
+     print them even with the dialog's "Background graphics" unticked. */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; background: #ffffff !important; }
+  .print-root { max-width: none; margin: 0; padding: 0; }
+  @media screen { .print-root { width: 178mm; } }
+
+  .section-heading { font-size: 20px; font-weight: 700; color: #0f172a; margin: 0 0 12px; }
+  .section-subheading { font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin: 22px 0 8px; }
+
+  /* Cover: the page's cover image and its title, and nowhere else. */
+  .cover { break-after: page; min-height: 262mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover-with-visual { justify-content: flex-start; }
+  .cover-visual { height: 92mm; border-radius: 12px; overflow: hidden; margin-bottom: 22mm; }
+  .cover-visual img { display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; }
+  .cover-title { font-size: 34px; font-weight: 700; line-height: 1.15; color: #0f172a; margin: 0; }
+  .cover-rule { width: 64px; height: 4px; border-radius: 2px; background: #5ebd6a; margin: 16px 0 18px; }
+  .cover-version { display: inline-block; font-size: 13px; font-weight: 600; color: #1e3a8a; background: #e0e7ff; border-radius: 999px; padding: 2px 12px; margin: 0 0 10px; }
+  .cover-meta { font-size: 14px; color: #475569; margin: 2px 0; }
+
+  /* Document control: identity, link and revision history. */
+  .doc-control { margin-bottom: 12mm; }
+  table.doc-info, table.revision-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  table.doc-info th, table.doc-info td, table.revision-table th, table.revision-table td { border: 0; border-bottom: 1px solid #e2e8f0; padding: 7px 10px; vertical-align: top; }
+  table.doc-info tr:last-child th, table.doc-info tr:last-child td, table.revision-table tr:last-child td { border-bottom: 0; }
+  table.doc-info th { width: 36mm; background: #f8fafc; color: #475569; font-weight: 600; }
+  table.doc-info a { word-break: break-all; }
+  table.revision-table thead th { background: #0a1929; color: #ffffff; font-weight: 600; }
+  table.revision-table tbody tr:nth-child(even) td { background: #f8fafc; }
+  table.revision-table td.rev-version { font-weight: 600; color: #1e3a8a; white-space: nowrap; }
+  table.revision-table td.rev-date { white-space: nowrap; }
 
   .toc { break-after: page; }
-  .toc h2 { font-size: 18px; margin: 0 0 10px; }
   .toc ul { list-style: none; padding: 0; margin: 0; }
-  .toc-row { padding: 3px 0; border-bottom: 1px dotted #e5e7eb; }
+  .toc-row { padding: 4px 0; border-bottom: 1px dotted #e5e7eb; }
   .toc-row a { color: #111827; text-decoration: none; }
   .toc-appendix { margin-top: 6px; }
   .toc-tag { color: #9ca3af; font-size: 0.85em; }
 
   .chapter { break-before: page; }
   .chapter-first { break-before: auto; }
-  .chapter-title { font-size: 22px; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px; }
+  .doc-title { font-size: 28px; font-weight: 700; margin: 0 0 12px; }
+  .chapter-title { font-size: 22px; font-weight: 700; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px; margin: 0 0 12px; }
   .appendix { break-before: page; }
-  .appendix-heading { font-size: 22px; }
+  .appendix-heading { font-size: 22px; font-weight: 700; }
   .appendix-item { break-before: page; }
 
-  /* Long tables / database embeds: repeat headers, keep rows whole, wrap text,
-     and let the full content print instead of being clipped by scroll boxes. */
+  /* Dividers: one clean, continuous rule across the column, in its style. */
+  hr { border: 0; border-top: 1px solid #cbd5e1; margin: 14px 0; }
+  .print-body [data-type="divider"] { margin: 14px 0 !important; }
+  .print-body [data-print-rule] { display: block; width: 100%; height: 0 !important; margin: 0 auto; background: none !important; border: 0; border-top: 1px solid #cbd5e1; border-radius: 0; }
+  .print-body [data-print-rule="thick"] { border-top-width: 3px; border-top-color: #94a3b8; }
+  .print-body [data-print-rule="dashed"] { border-top-width: 2px; border-top-style: dashed; }
+  .print-body [data-print-rule="dotted"] { border-top-width: 2px; border-top-style: dotted; }
+
+  /* Callouts: the tinted box, its outline and its icon, never split. */
+  .print-body [data-type="callout"] { border: 1px solid rgba(15, 23, 42, 0.08); break-inside: avoid; }
+  .print-callout-icon { display: flex; width: 24px; height: 24px; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* Headings keep their text with what follows. */
+  .print-body h1, .print-body h2, .print-body h3 { break-after: avoid; }
+
+  /* Tables: headers repeat, rows stay whole, text wraps at word boundaries. */
   table { break-inside: auto; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
-  td, th { overflow-wrap: anywhere; word-break: break-word; }
+  td, th { overflow-wrap: break-word; word-break: normal; }
   [class*="overflow-"], [style*="overflow"] { overflow: visible !important; max-height: none !important; }
+  table.print-table-compact { font-size: 10px; }
+  table.print-table-compact td, table.print-table-compact th { padding: 3px 5px !important; }
 
-  /* Wide tables/embeds get their own landscape page. */
+  /* Images: centred, sized by the layout pass, never split across pages. */
+  .print-image { display: block; margin-left: auto; margin-right: auto; }
+  .print-image-block { break-inside: avoid; }
+  .print-image-block figcaption { text-align: center; }
+  .print-own-page { break-before: page; break-after: page; display: flex; flex-direction: column; justify-content: center; }
+  .print-portrait-page { min-height: 255mm; }
+  .print-landscape.print-own-page { min-height: 180mm; }
+
+  /* Wide tables and large wide images get a landscape page of their own. */
   .print-landscape { page: landscapePage; break-before: page; break-after: page; }
-  .print-landscape table { font-size: 12px; }
 `;
