@@ -165,6 +165,8 @@ const LEAF_TEXT_TYPES = new Set([
   'heading1',
   'heading2',
   'heading3',
+  'heading4',
+  'heading5',
   'codeBlock',
 ]);
 
@@ -317,6 +319,12 @@ export const richTextToMarkdown = (
           break;
         case 'heading3':
           lines.push(indent + '### ' + text);
+          break;
+        case 'heading4':
+          lines.push(indent + '#### ' + text);
+          break;
+        case 'heading5':
+          lines.push(indent + '##### ' + text);
           break;
         case 'paragraph':
           lines.push(indent + text);
@@ -703,8 +711,8 @@ export const markdownToBlocks = (
       continue;
     }
 
-    // The editor has three heading levels; deeper ones used to fall through and
-    // render their own hashes as text.
+    // The editor has five heading levels; a sixth hash lands on the fifth
+    // instead of rendering its hashes as text.
     // An uploaded image is placed by writing ![caption](file:<id>) on its own
     // line. The block's id must BE the file node id — file blocks carry no
     // attrs at all, which is the one detail that makes this work.
@@ -726,9 +734,8 @@ export const markdownToBlocks = (
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
       resetLists();
-      const level = Math.min(3, (heading[1] ?? '#').length);
-      const type =
-        level === 1 ? 'heading1' : level === 2 ? 'heading2' : 'heading3';
+      const level = Math.min(5, (heading[1] ?? '#').length);
+      const type = `heading${level}`;
       const block = pushTop(type);
       block.content = parseInline(heading[2] ?? '');
       i += 1;

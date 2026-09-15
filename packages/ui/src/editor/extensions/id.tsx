@@ -8,6 +8,8 @@ const types = [
   EditorNodeTypes.Heading1,
   EditorNodeTypes.Heading2,
   EditorNodeTypes.Heading3,
+  EditorNodeTypes.Heading4,
+  EditorNodeTypes.Heading5,
   EditorNodeTypes.Blockquote,
   EditorNodeTypes.BulletList,
   EditorNodeTypes.ListItem,

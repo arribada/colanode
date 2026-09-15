@@ -13,6 +13,8 @@ import { HardBreakRenderer } from '@colanode/ui/editor/renderers/hard-break';
 import { Heading1Renderer } from '@colanode/ui/editor/renderers/heading1';
 import { Heading2Renderer } from '@colanode/ui/editor/renderers/heading2';
 import { Heading3Renderer } from '@colanode/ui/editor/renderers/heading3';
+import { Heading4Renderer } from '@colanode/ui/editor/renderers/heading4';
+import { Heading5Renderer } from '@colanode/ui/editor/renderers/heading5';
 import { ListItemRenderer } from '@colanode/ui/editor/renderers/list-item';
 import { MarkRenderer } from '@colanode/ui/editor/renderers/mark';
 import { MathBlockRenderer } from '@colanode/ui/editor/renderers/math-block';
@@ -64,6 +66,12 @@ export const NodeRenderer = ({
         ))
         .with('heading3', () => (
           <Heading3Renderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('heading4', () => (
+          <Heading4Renderer node={node} keyPrefix={keyPrefix} />
+        ))
+        .with('heading5', () => (
+          <Heading5Renderer node={node} keyPrefix={keyPrefix} />
         ))
         .with('blockquote', () => (
           <BlockquoteRenderer node={node} keyPrefix={keyPrefix} />

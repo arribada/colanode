@@ -33,6 +33,8 @@ const leafBlockTypes = new Set([
   EditorNodeTypes.Heading1,
   EditorNodeTypes.Heading2,
   EditorNodeTypes.Heading3,
+  EditorNodeTypes.Heading4,
+  EditorNodeTypes.Heading5,
   EditorNodeTypes.HorizontalRule,
   EditorNodeTypes.CodeBlock,
   // toggleSummary holds the inline text of a toggle block; toggle,

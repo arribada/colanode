@@ -22,9 +22,11 @@ const typesOf = (markdown: string): string[] =>
     .sort();
 
 describe('markdownToBlocks — tables', () => {
-  const table = ['| Tracker | Use case |', '| --- | --- |', '| KIM2 | Argos |'].join(
-    '\n'
-  );
+  const table = [
+    '| Tracker | Use case |',
+    '| --- | --- |',
+    '| KIM2 | Argos |',
+  ].join('\n');
 
   it('builds real table nodes instead of paragraphs of pipes', () => {
     const types = typesOf(table);
@@ -42,7 +44,10 @@ describe('markdownToBlocks — tables', () => {
     const rows = all.filter((b) => b.parentId === tableBlock.id);
     expect(rows).toHaveLength(2);
     const headerCells = all.filter((b) => b.parentId === rows[0]!.id);
-    expect(headerCells.map((c) => c.type)).toEqual(['tableHeader', 'tableHeader']);
+    expect(headerCells.map((c) => c.type)).toEqual([
+      'tableHeader',
+      'tableHeader',
+    ]);
     const cellParagraphs = all.filter((b) => b.parentId === headerCells[0]!.id);
     expect(cellParagraphs.map((p) => p.type)).toEqual(['paragraph']);
   });
@@ -88,7 +93,12 @@ describe('markdownToBlocks — code and diagrams', () => {
     const blocks = Object.values(markdownToBlocks(DOC, '```bash\nls -la\n```'));
     const code = blocks.find((b) => b.type === 'codeBlock')!;
     expect(code.attrs).toMatchObject({ language: 'bash' });
-    expect(richTextToMarkdown(DOC, { type: 'rich_text', blocks: markdownToBlocks(DOC, '```bash\nls -la\n```') })).toContain('```bash');
+    expect(
+      richTextToMarkdown(DOC, {
+        type: 'rich_text',
+        blocks: markdownToBlocks(DOC, '```bash\nls -la\n```'),
+      })
+    ).toContain('```bash');
   });
 
   it('turns a mermaid fence into a real diagram block, not a code block', () => {
@@ -124,11 +134,29 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
     expect(types).not.toContain('callout');
   });
 
-  it('clamps a deep heading instead of leaving its hashes as text', () => {
-    const blocks = Object.values(markdownToBlocks(DOC, '#### deep'));
-    const heading = blocks.find((b) => b.type === 'heading3')!;
-    expect(heading).toBeDefined();
-    expect(heading.content?.[0]?.text).toBe('deep');
+  it('maps four and five hashes to the matching heading level', () => {
+    for (const [hashes, type] of [
+      ['####', 'heading4'],
+      ['#####', 'heading5'],
+    ] as const) {
+      const blocks = Object.values(markdownToBlocks(DOC, `${hashes} deep`));
+      const heading = blocks.find((b) => b.type === type);
+      expect(heading, type).toBeDefined();
+      expect(heading?.content?.[0]?.text).toBe('deep');
+    }
+  });
+
+  it('lands a sixth level on the fifth instead of leaving its hashes as text', () => {
+    const blocks = Object.values(markdownToBlocks(DOC, '###### deeper'));
+    expect(blocks.find((b) => b.type === 'heading5')?.content?.[0]?.text).toBe(
+      'deeper'
+    );
+  });
+
+  it('round-trips the deeper heading levels', () => {
+    const out = roundTrip('#### four\n\n##### five');
+    expect(out).toContain('#### four');
+    expect(out).toContain('##### five');
   });
 
   it('nests an indented list under its parent item', () => {
@@ -144,13 +172,17 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
   });
 
   it('keeps a flat list flat', () => {
-    const blocks = Object.values(markdownToBlocks(DOC, '- one\n- two\n- three'));
+    const blocks = Object.values(
+      markdownToBlocks(DOC, '- one\n- two\n- three')
+    );
     expect(blocks.filter((b) => b.type === 'bulletList')).toHaveLength(1);
     expect(blocks.filter((b) => b.type === 'listItem')).toHaveLength(3);
   });
 
   it('reads a task list checkbox', () => {
-    const blocks = Object.values(markdownToBlocks(DOC, '- [x] done\n- [ ] todo'));
+    const blocks = Object.values(
+      markdownToBlocks(DOC, '- [x] done\n- [ ] todo')
+    );
     const items = blocks.filter((b) => b.type === 'taskItem');
     expect(items.map((t) => t.attrs?.checked)).toEqual([true, false]);
   });
@@ -159,7 +191,9 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
 describe('unrepresentableBlockTypes', () => {
   it('is empty for anything markdown can carry', () => {
     expect(
-      unrepresentableBlockTypes(toContent('# title\n\n| a | b |\n| --- | --- |\n| 1 | 2 |'))
+      unrepresentableBlockTypes(
+        toContent('# title\n\n| a | b |\n| --- | --- |\n| 1 | 2 |')
+      )
     ).toEqual([]);
   });
 
@@ -280,7 +314,8 @@ describe('internal links become mentions', () => {
     expect(markdown).toContain(`[](node:${PAGE})`);
 
     // ...and it survives the trip back, which is what makes replace safe.
-    const back = Object.values(markdownToBlocks(DOC, markdown))[0]?.content ?? [];
+    const back =
+      Object.values(markdownToBlocks(DOC, markdown))[0]?.content ?? [];
     expect(back.find((leaf) => leaf.type === 'mention')?.attrs).toMatchObject({
       target: PAGE,
     });

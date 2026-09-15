@@ -1,9 +1,10 @@
 // ABOUTME: A read-only, auto table of contents rendered at the top of a page
-// ABOUTME: when the page's showToc attribute is on. Lists H1/H2/H3 with jump.
+// ABOUTME: when the page's showToc attribute is on. Lists H1 to H5 with jump.
 import { type Editor } from '@tiptap/react';
 import { ListTree } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { headingLevel } from '@colanode/ui/lib/headings';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface HeadingItem {
@@ -36,12 +37,13 @@ export const DocumentToc = ({ editor }: DocumentTocProps) => {
   const headings: HeadingItem[] = [];
   editor.state.doc.descendants((node, pos) => {
     const name = node.type.name;
-    if (name === 'heading1' || name === 'heading2' || name === 'heading3') {
+    const level = headingLevel(name);
+    if (level > 0) {
       const text = node.textContent.trim();
       if (text.length > 0) {
         headings.push({
           id: typeof node.attrs.id === 'string' ? node.attrs.id : null,
-          level: name === 'heading1' ? 1 : name === 'heading2' ? 2 : 3,
+          level,
           text,
           pos,
         });
@@ -79,7 +81,9 @@ export const DocumentToc = ({ editor }: DocumentTocProps) => {
             className={cn(
               'truncate rounded px-1.5 py-0.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
               heading.level === 2 && 'pl-4',
-              heading.level === 3 && 'pl-7'
+              heading.level === 3 && 'pl-7',
+              heading.level === 4 && 'pl-10',
+              heading.level === 5 && 'pl-12'
             )}
           >
             {heading.text}

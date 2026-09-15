@@ -19,6 +19,8 @@ import { GithubCommand } from '@colanode/ui/editor/commands/github';
 import { Heading1Command } from '@colanode/ui/editor/commands/heading1';
 import { Heading2Command } from '@colanode/ui/editor/commands/heading2';
 import { Heading3Command } from '@colanode/ui/editor/commands/heading3';
+import { Heading4Command } from '@colanode/ui/editor/commands/heading4';
+import { Heading5Command } from '@colanode/ui/editor/commands/heading5';
 import {
   MathBlockCommand,
   MathInlineCommand,
@@ -73,6 +75,8 @@ export {
   Heading1Command,
   Heading2Command,
   Heading3Command,
+  Heading4Command,
+  Heading5Command,
   NumberHeadingsCommand,
   NumberHeadingsFlatCommand,
   CreateAdrCommand,

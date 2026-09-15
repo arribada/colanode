@@ -4,13 +4,17 @@ import { NodeSelection } from '@tiptap/pm/state';
 import { Editor } from '@tiptap/react';
 import {
   Baseline,
+  Check,
   ChevronRight,
   Code,
   Copy,
   GripVertical,
+  Heading,
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
+  Heading5,
   Highlighter,
   ChevronsDownUp,
   Hash,
@@ -47,6 +51,16 @@ import {
 import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
+
+// The heading levels a block can be turned into, each previewed at a size
+// that ranks it against the others.
+const HEADING_CHOICES = [
+  { node: 'heading1', label: 'Heading 1', icon: Heading1, preview: 'text-base font-bold' },
+  { node: 'heading2', label: 'Heading 2', icon: Heading2, preview: 'text-[15px] font-semibold' },
+  { node: 'heading3', label: 'Heading 3', icon: Heading3, preview: 'text-sm font-semibold' },
+  { node: 'heading4', label: 'Heading 4', icon: Heading4, preview: 'text-sm font-medium' },
+  { node: 'heading5', label: 'Heading 5', icon: Heading5, preview: 'text-xs font-medium' },
+] as const;
 
 interface ActionMenuProps {
   editor: Editor | null;
@@ -462,7 +476,10 @@ export const ActionMenu = ({
   const currentHeadingLevel = (): number => {
     const name = menuState.pmNode?.type.name;
     if (name === 'heading2') return 2;
-    if (name === 'heading3') return 3;
+    // A toggle summary knows three heading sizes; deeper levels use the smallest.
+    if (name === 'heading3' || name === 'heading4' || name === 'heading5') {
+      return 3;
+    }
     return 1;
   };
 
@@ -693,27 +710,33 @@ export const ActionMenu = ({
                     <Pilcrow className="size-4" />
                     Text
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    data-testid="editor-action-menu-turn-heading1"
-                    onClick={() => turnInto('heading1')}
-                  >
-                    <Heading1 className="size-4" />
-                    Heading 1
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    data-testid="editor-action-menu-turn-heading2"
-                    onClick={() => turnInto('heading2')}
-                  >
-                    <Heading2 className="size-4" />
-                    Heading 2
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    data-testid="editor-action-menu-turn-heading3"
-                    onClick={() => turnInto('heading3')}
-                  >
-                    <Heading3 className="size-4" />
-                    Heading 3
-                  </DropdownMenuItem>
+                  {/* One entry opens every level side by side, instead of a
+                      heading item per level crowding the list. */}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger
+                      data-testid="editor-action-menu-turn-heading"
+                      className="flex items-center gap-2"
+                    >
+                      <Heading className="size-4 text-muted-foreground" />
+                      Heading
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-48">
+                      {HEADING_CHOICES.map((choice) => (
+                        <DropdownMenuItem
+                          key={choice.node}
+                          data-testid={`editor-action-menu-turn-${choice.node}`}
+                          onClick={() => turnInto(choice.node)}
+                          className="flex items-center gap-2"
+                        >
+                          <choice.icon className="size-4 text-muted-foreground" />
+                          <span className={choice.preview}>{choice.label}</span>
+                          {menuState.pmNode?.type.name === choice.node && (
+                            <Check className="ml-auto size-4" />
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                   <DropdownMenuItem
                     data-testid="editor-action-menu-turn-bullet-list"
                     onClick={() => turnIntoWith((c) => c.toggleBulletList())}

@@ -68,12 +68,14 @@ export const headingEnhancementsKey = new PluginKey<DecorationSet>(
   'heading-enhancements'
 );
 
-// Maps the three distinct heading node types to their nesting level. Any other
+// Maps the five distinct heading node types to their nesting level. Any other
 // node type resolves to 0 (not a heading).
 const HEADING_LEVELS: Record<string, number> = {
   heading1: 1,
   heading2: 2,
   heading3: 3,
+  heading4: 4,
+  heading5: 5,
 };
 
 // 1 -> 'a', 2 -> 'b', … 26 -> 'z', 27 -> 'aa' (spreadsheet-style base-26).

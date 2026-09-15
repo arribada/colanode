@@ -82,6 +82,10 @@ const renderBlock = (blocks: Record<string, Block>, block: Block): string => {
       return `<h2>${renderInline(block)}</h2>`;
     case 'heading3':
       return `<h3>${renderInline(block)}</h3>`;
+    case 'heading4':
+      return `<h4>${renderInline(block)}</h4>`;
+    case 'heading5':
+      return `<h5>${renderInline(block)}</h5>`;
     case 'bulletList':
       return `<ul>${kidsHtml}</ul>`;
     case 'orderedList':
@@ -151,6 +155,8 @@ const BASE_CSS = `
   .content h1 { font-size: 24px; margin: 1.4em 0 .5em; }
   .content h2 { font-size: 20px; margin: 1.3em 0 .5em; }
   .content h3 { font-size: 17px; margin: 1.2em 0 .4em; }
+  .content h4 { font-size: 15px; margin: 1.1em 0 .35em; }
+  .content h5 { font-size: 14px; margin: 1em 0 .3em; }
   .content p { margin: .7em 0; }
   .content ul, .content ol { padding-left: 1.4em; margin: .6em 0; }
   .content blockquote { margin: .8em 0; padding-left: 14px; border-left: 3px solid #d1d5db; color: #4b5563; }

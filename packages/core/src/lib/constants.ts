@@ -3,6 +3,8 @@ export const EditorNodeTypes = {
   Heading1: 'heading1',
   Heading2: 'heading2',
   Heading3: 'heading3',
+  Heading4: 'heading4',
+  Heading5: 'heading5',
   Blockquote: 'blockquote',
   BulletList: 'bulletList',
   CodeBlock: 'codeBlock',

@@ -65,8 +65,13 @@ const normalizeNode = (node: JSONContent): JSONContent => {
       newType = 'heading1';
     } else if (level === 2) {
       newType = 'heading2';
-    } else {
+    } else if (level === 3) {
       newType = 'heading3';
+    } else if (level === 4) {
+      newType = 'heading4';
+    } else {
+      // h5 and h6 both land on the deepest level the editor has.
+      newType = 'heading5';
     }
 
     const { level: _, ...restAttrs } = node.attrs;
