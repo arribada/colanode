@@ -128,7 +128,7 @@ describe('pushService', () => {
     expect(subscription.account_id).toBe(memberAccount.id);
     expect(payload.rootId).toBe(channelId);
     expect(payload.nodeId).toBe(messageId);
-    expect(payload.url).toBe(`/workspace/${member.id}/${channelId}`);
+    expect(payload.url).toBe(`/workspace/${member.id}/${messageId}`);
   });
 
   it('sends an apns push to a channel member (not the author) who has an apns subscription and is not muted', async () => {
@@ -195,7 +195,7 @@ describe('pushService', () => {
     expect(notification.payload.rootId).toBe(channelId);
     expect(notification.payload.nodeId).toBe(messageId);
     expect(notification.payload.url).toBe(
-      `/workspace/${member.id}/${channelId}`
+      `/workspace/${member.id}/${messageId}`
     );
   });
 });
