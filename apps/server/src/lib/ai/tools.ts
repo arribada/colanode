@@ -48,6 +48,7 @@ import {
   parseInline,
   renderInline,
 } from '@colanode/server/lib/ai/markdown-inline';
+import { lostOnRoundTrip } from '@colanode/server/lib/ai/markdown-loss';
 import {
   loadImageFromBase64,
   loadImageFromUrl,
@@ -557,47 +558,37 @@ const calloutHeader = (block: Block): string => {
   return `> [!${keyword ?? 'NOTE'}${meta.map((item) => `|${item}`).join('')}]`;
 };
 
-// Block types markdown cannot carry. A replace-mode edit round-trips the whole
-// document through markdown, so these would be silently deleted -- 215 of the
-// wiki's 935 documents hold at least one. edit_page refuses instead of eating
-// them, because the model cannot even SEE them in what get_page returned.
+// What a replace edit would delete from this page, named -- empty when a
+// replace keeps everything. A replace writes the whole page from markdown,
+// so whatever markdown cannot carry is lost without the model ever having
+// seen it. The old check knew a list of block types, and after embeds and
+// files learnt to travel as markdown it never fired: a table's column
+// widths, a colour, a quote inside a table cell went without a word.
+// markdown-loss.ts looks for what is known not to survive and compares the
+// page with the page as it would come back.
 //
-// The embedded atom blocks (EMBED_BLOCKS) travel as fenced JSON, so they count
-// only in the shape markdown still cannot carry: with child blocks.
-const UNREPRESENTABLE_BLOCK_TYPES = new Set([
-  'planeEmbed',
-  'planeIssueLink',
-  'bookmark',
-  'chart',
-  'columns',
-  'column',
-  'tableOfContents',
-  'referenceList',
-  'toggle',
-  'toggleSummary',
-  'toggleContent',
-  'folder',
-  'mathBlock',
-  'mathInline',
-  'poll',
-]);
-
-export const unrepresentableBlockTypes = (
-  content: RichTextContent | null | undefined
+// `markdown`: the page as get_page already wrote it, to not write it twice.
+// Labels and hints in it change nothing: the parser ignores both.
+export const lossyOnReplace = (
+  documentId: string,
+  content: RichTextContent | null | undefined,
+  markdown?: string
 ): string[] => {
-  const blocks = content && content.blocks ? Object.values(content.blocks) : [];
-  const parents = new Set(blocks.map((block) => block.parentId));
-  const found = new Set<string>();
-  for (const block of blocks) {
-    if (EMBED_BLOCKS[block.type]) {
-      if (parents.has(block.id)) {
-        found.add(block.type);
-      }
-    } else if (UNREPRESENTABLE_BLOCK_TYPES.has(block.type)) {
-      found.add(block.type);
-    }
+  if (!content || Object.keys(content.blocks ?? {}).length === 0) {
+    return [];
   }
-  return [...found].sort();
+  let roundTripped: Record<string, Block>;
+  try {
+    roundTripped = markdownToBlocks(
+      documentId,
+      markdown ?? richTextToMarkdown(documentId, content)
+    );
+  } catch {
+    // A stored page the parser refuses (nesting too deep, say) cannot be
+    // replaced without loss either.
+    return ['content that does not survive the conversion to markdown'];
+  }
+  return lostOnRoundTrip(documentId, content, roundTripped);
 };
 
 // A fence one backtick longer than the longest backtick run inside the code,
@@ -1713,6 +1704,10 @@ export interface GetPageResult {
   // lists them.
   childCounts: Record<string, number>;
   content: string;
+  // What a replace edit of this page would delete, named: things markdown
+  // does not carry, such as table column widths. Empty when a replace keeps
+  // everything; otherwise edit_page refuses a replace unless given force.
+  lossyOnReplace: string[];
 }
 
 export interface ChildSummary {
@@ -2120,6 +2115,7 @@ export const getPage = async (
     path,
     childCounts,
     content,
+    lossyOnReplace: lossyOnReplace(input.id, richText, content),
   };
 };
 
@@ -2198,7 +2194,12 @@ export const createPage = async (
 
 export const editPage = async (
   ctx: WikiToolContext,
-  input: { id: string; content: string; mode: 'replace' | 'append' }
+  input: {
+    id: string;
+    content: string;
+    mode: 'replace' | 'append';
+    force?: boolean;
+  }
 ): Promise<EditPageResult> => {
   const { tree, node } = await requireAccessibleNode(input.id, ctx);
   const model = getNodeModel(node.type);
@@ -2268,15 +2269,17 @@ export const editPage = async (
         };
       }
 
-      // A replace round-trips the whole document through markdown. get_page
-      // already dropped these on the way out, so the model is rewriting a page
-      // it never saw in full -- refusing is the only honest outcome.
-      const lost = unrepresentableBlockTypes(current as RichTextContent);
-      if (lost.length > 0) {
+      // A replace writes the whole page from markdown, and get_page could not
+      // show what markdown does not carry: the model is rewriting a page it
+      // never saw in full. Checked against the page as it is now, inside the
+      // update, and refused unless the caller has said with `force` that
+      // losing what get_page listed in lossyOnReplace is intended.
+      const lost = lossyOnReplace(input.id, current as RichTextContent);
+      if (lost.length > 0 && !input.force) {
         throw new WikiToolError(
-          `This page contains blocks markdown cannot carry (${lost.join(', ')}), ` +
-            `and a replace would delete them. Use mode 'append' to add to the end, ` +
-            `or edit the page in the wiki.`
+          `A replace would delete what markdown cannot carry on this page: ${lost.join('; ')}. ` +
+            `Use mode 'append' to add to the end, edit the page in the wiki, ` +
+            `or pass force: true to replace it and lose that.`
         );
       }
 
@@ -3324,6 +3327,12 @@ const editPageInput = z.object({
   mode: z
     .enum(['replace', 'append'])
     .describe("'replace' overwrites the document; 'append' adds to the end."),
+  force: z
+    .boolean()
+    .optional()
+    .describe(
+      "With mode 'replace': replace even though get_page listed something in lossyOnReplace, which is then deleted. Default false."
+    ),
 });
 const renameNodeInput = z.object({
   id: z
@@ -3438,7 +3447,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'get_page',
     description:
-      'Read a page or record by id and return its title and body as markdown text, where it sits (parentId, rootId, and path from the space down to the parent) and how many children of each type it has. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). Returns { id, name, type, parentId, rootId, path: [{ id, name, type }], childCounts, content }.',
+      'Read a page or record by id and return its title and body as markdown text, where it sits (parentId, rootId, and path from the space down to the parent) and how many children of each type it has. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). What markdown has no syntax for is written as tags: <span data-color="red">, <mark data-color="yellow">, <u>, <span data-comment="…"> (a comment anchor), <p></p> (an empty paragraph), <br> (a line break in a table cell, or several paragraphs as <p>…</p>); elsewhere a line ending in a backslash is a line break. lossyOnReplace names what a replace edit would delete from this page, such as table column widths; edit_page refuses that replace unless given force. Returns { id, name, type, parentId, rootId, path: [{ id, name, type }], childCounts, content, lossyOnReplace }.',
     inputSchema: getPageInput,
     run: getPage,
     action: (input, result) => ({
@@ -3486,7 +3495,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'edit_page',
     description:
-      "Edit a page's document. mode 'replace' overwrites the whole body; mode 'append' adds the content to the end. Content is markdown; a colanode-* fence from get_page keeps its embedded block, and a new one may embed any database, whiteboard or page you can read. Returns { id, mode }.",
+      "Edit a page's document. mode 'replace' overwrites the whole body; mode 'append' adds the content to the end. Content is markdown, with the tags get_page writes for colour, highlight, underline, comment anchors and empty paragraphs; a colanode-* fence from get_page keeps its embedded block, and a new one may embed any database, whiteboard or page you can read. A replace is refused while get_page lists something in lossyOnReplace, because it would delete that: append instead, or pass force: true to replace anyway. Returns { id, mode }.",
     inputSchema: editPageInput,
     run: editPage,
     action: (input) => ({

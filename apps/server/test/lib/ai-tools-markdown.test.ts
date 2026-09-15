@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   collectMentionTargets,
+  lossyOnReplace,
   markdownToBlocks,
   richTextToMarkdown,
-  unrepresentableBlockTypes,
 } from '@colanode/server/lib/ai/tools';
 
 const DOC = 'doc1';
@@ -1146,29 +1146,158 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
   });
 });
 
-describe('unrepresentableBlockTypes', () => {
-  it('is empty for anything markdown can carry', () => {
-    expect(
-      unrepresentableBlockTypes(
-        toContent('# title\n\n| a | b |\n| --- | --- |\n| 1 | 2 |')
-      )
-    ).toEqual([]);
+describe('lossyOnReplace', () => {
+  it('is empty for a page markdown carries whole', () => {
+    const markdown = [
+      '# Title',
+      '',
+      'Some **bold** and <span data-color="red">red</span> text.\\',
+      'after a break',
+      '',
+      '> [!WARNING]',
+      '> Mind the gap',
+      '',
+      '| a | b |',
+      '| --- | --- |',
+      '| 1 | <p>x</p> <p>y</p> |',
+      '',
+      '11. eleven',
+      '    - nested',
+      '12. twelve',
+      '',
+      '```bash',
+      'ls',
+      '```',
+    ].join('\n');
+    expect(lossyOnReplace(DOC, toContent(markdown))).toEqual([]);
   });
 
-  it('names the blocks a replace would delete', () => {
+  it('names what a replace would delete', () => {
     const content = {
       type: 'rich_text' as const,
       blocks: {
-        b1: { id: 'b1', type: 'database', parentId: DOC, index: 'a0' },
-        b2: { id: 'b2', type: 'chart', parentId: DOC, index: 'a1' },
-        b3: { id: 'b3', type: 'paragraph', parentId: DOC, index: 'a2' },
-        b4: { id: 'b4', type: 'page', parentId: DOC, index: 'a3' },
-        b5: { id: 'b5', type: 'paragraph', parentId: 'b4', index: 'a0' },
+        cols: { id: 'cols', type: 'columns', parentId: DOC, index: 'a0' },
+        h: {
+          id: 'h',
+          type: 'heading2',
+          parentId: DOC,
+          index: 'a1',
+          attrs: { collapsed: true },
+          content: [{ type: 'text', text: 'Folded' }],
+        },
+        t: { id: 't', type: 'table', parentId: DOC, index: 'a2' },
+        r0: { id: 'r0', type: 'tableRow', parentId: 't', index: 'a0' },
+        h0: {
+          id: 'h0',
+          type: 'tableHeader',
+          parentId: 'r0',
+          index: 'a0',
+          attrs: { colspan: 1, rowspan: 1, colwidth: [500] },
+        },
+        h0p: { id: 'h0p', type: 'paragraph', parentId: 'h0', index: 'a0', content: [] },
+        r1: { id: 'r1', type: 'tableRow', parentId: 't', index: 'a1' },
+        c0: {
+          id: 'c0',
+          type: 'tableCell',
+          parentId: 'r1',
+          index: 'a0',
+          attrs: { colspan: 1, rowspan: 1, backgroundColor: 'red' },
+        },
+        q: { id: 'q', type: 'blockquote', parentId: 'c0', index: 'a0' },
+        qp: {
+          id: 'qp',
+          type: 'paragraph',
+          parentId: 'q',
+          index: 'a0',
+          content: [{ type: 'text', text: 'quoted', marks: [{ type: 'subscript' }] }],
+        },
       },
     };
-    // An embedded database now travels as a fence; a page block with children
-    // inside it is still more than a fence can hold.
-    expect(unrepresentableBlockTypes(content)).toEqual(['chart', 'page']);
+    expect(lossyOnReplace(DOC, content)).toEqual([
+      'blocks other than text and images inside table cells',
+      'collapsed headings',
+      'columns blocks',
+      'subscript formatting',
+      'table cell colours',
+      'table column widths',
+    ]);
+  });
+
+  it('names nothing for settings that mean nothing is set', () => {
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        h: {
+          id: 'h',
+          type: 'heading2',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { collapsed: false, textAlign: 'left' },
+          content: [{ type: 'text', text: 'Open' }],
+        },
+        hr: { id: 'hr', type: 'horizontalRule', parentId: DOC, index: 'a1', attrs: { variant: 'line' } },
+        t: { id: 't', type: 'table', parentId: DOC, index: 'a2', attrs: { colorRules: [] } },
+        r0: { id: 'r0', type: 'tableRow', parentId: 't', index: 'a0' },
+        h0: {
+          id: 'h0',
+          type: 'tableHeader',
+          parentId: 'r0',
+          index: 'a0',
+          attrs: { colspan: 1, rowspan: 1, colwidth: null, valign: 'middle', backgroundColor: 'default' },
+        },
+        h0p: { id: 'h0p', type: 'paragraph', parentId: 'h0', index: 'a0', content: [{ type: 'text', text: 'Pin' }] },
+      },
+    };
+    expect(lossyOnReplace(DOC, content)).toEqual([]);
+  });
+
+  it('ignores what a reader cannot see: regenerated ids, split runs, spaces', () => {
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        e1: {
+          id: 'e1',
+          type: 'embed',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { url: 'https://docs.google.com/spreadsheets/d/1Sil/edit', provider: 'google-sheets' },
+        },
+        p1: {
+          id: 'p1',
+          type: 'paragraph',
+          parentId: DOC,
+          index: 'a1',
+          content: [
+            { type: 'text', text: 'Note: ', marks: [{ type: 'bold' }] },
+            { type: 'text', text: 'it uses a ', marks: [{ type: 'italic' }] },
+            { type: 'text', text: 'RunCam', marks: [{ type: 'italic' }] },
+            { type: 'text', text: ' module.  ' },
+          ],
+        },
+      },
+    };
+    expect(lossyOnReplace(DOC, content)).toEqual([]);
+  });
+
+  it('still refuses what it has no name for', () => {
+    // A list item straight under the page is written as a list, and comes
+    // back inside one.
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        i: { id: 'i', type: 'listItem', parentId: DOC, index: 'a0' },
+        p: {
+          id: 'p',
+          type: 'paragraph',
+          parentId: 'i',
+          index: 'a0',
+          content: [{ type: 'text', text: 'orphan' }],
+        },
+      },
+    };
+    expect(lossyOnReplace(DOC, content)).toEqual([
+      'content that does not survive the conversion to markdown',
+    ]);
   });
 });
 
@@ -1235,7 +1364,7 @@ describe('embedded blocks', () => {
     });
     // The hints are gone, the attributes are exactly what was stored.
     expect(back[ADR_DB]!.attrs).toEqual(adrAttrs);
-    expect(unrepresentableBlockTypes(content)).toEqual([]);
+    expect(lossyOnReplace(DOC, content)).toEqual([]);
   });
 
   it('round-trips a whiteboard view, a sub-page and a web embed', () => {
@@ -1342,10 +1471,10 @@ describe('images', () => {
     expect(leaves[0]!.marks?.[0]?.type).toBe('link');
   });
 
-  it('stops treating a file block as unrepresentable', () => {
+  it('loses nothing of a file block on a replace', () => {
     const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
     expect(
-      unrepresentableBlockTypes({
+      lossyOnReplace(DOC, {
         type: 'rich_text',
         blocks: markdownToBlocks(DOC, `![x](file:${id})`),
       })
