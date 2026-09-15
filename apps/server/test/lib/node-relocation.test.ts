@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
-import { describe, expect, it } from 'vitest';
+import type { MockInstance } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   generateId,
@@ -13,6 +14,7 @@ import { encodeState, YDoc } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
 import { moveNode } from '@colanode/server/lib/ai/tools';
 import { createDocument } from '@colanode/server/lib/documents';
+import { eventBus } from '@colanode/server/lib/event-bus';
 import { updateNode, updateNodeFromMutation } from '@colanode/server/lib/nodes';
 
 import {
@@ -201,6 +203,24 @@ const snapshot = async (data: Awaited<ReturnType<typeof seed>>) => {
   };
 };
 
+// The re-homed body has new revisions in the destination, and live clients of
+// that space only fetch it when their document synchronizer is woken.
+const expectDocumentWakeUp = (
+  publish: MockInstance<typeof eventBus.publish>,
+  data: Awaited<ReturnType<typeof seed>>
+) => {
+  expect(publish).toHaveBeenCalledWith({
+    type: 'document.update.created',
+    documentId: data.page,
+    rootId: data.spaceB,
+    workspaceId: data.workspace.id,
+  });
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('cross-space move', () => {
   it('re-homes the history before recording the move (client mutation)', async () => {
     const data = await seed();
@@ -215,6 +235,7 @@ describe('cross-space move', () => {
     expect(update).not.toBeNull();
 
     const updateId = generateId(IdType.Update);
+    const publish = vi.spyOn(eventBus, 'publish');
     const status = await updateNodeFromMutation(
       {
         id: data.workspace.id,
@@ -236,11 +257,13 @@ describe('cross-space move', () => {
 
     const move = await expectRelocated(data, before);
     expect(move.id).toBe(updateId);
+    expectDocumentWakeUp(publish, data);
   });
 
   it('re-homes the history before recording the move (move_node tool)', async () => {
     const data = await seed();
     const before = await snapshot(data);
+    const publish = vi.spyOn(eventBus, 'publish');
 
     await moveNode(
       { userId: data.user.id, workspaceId: data.workspace.id },
@@ -248,6 +271,7 @@ describe('cross-space move', () => {
     );
 
     await expectRelocated(data, before);
+    expectDocumentWakeUp(publish, data);
   });
 
   it('refuses to move a node into its own subtree', async () => {

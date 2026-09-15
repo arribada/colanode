@@ -276,7 +276,7 @@ const relocateSubtree = async (
     workspaceId: string;
     userId: string;
   }
-): Promise<void> => {
+): Promise<string[]> => {
   // node_paths carries the self row at level 0, so ancestor_id = X yields the
   // whole subtree. A move does not change who is below the moved node, so this
   // is right whether or not the new parent_id has been written yet.
@@ -287,7 +287,7 @@ const relocateSubtree = async (
     .execute();
   const subtreeIds = subtree.map((row) => row.descendant_id);
   if (subtreeIds.length === 0) {
-    return;
+    return [];
   }
 
   await trx
@@ -316,7 +316,7 @@ const relocateSubtree = async (
   // 00028), so the new revision is assigned here, in the same order.
   const documentUpdates = await trx
     .selectFrom('document_updates')
-    .select('id')
+    .select(['id', 'document_id'])
     .where('document_id', 'in', subtreeIds)
     .orderBy('revision', 'asc')
     .execute();
@@ -358,13 +358,42 @@ const relocateSubtree = async (
       )
       .execute();
   }
+
+  return [...new Set(documentUpdates.map((row) => row.document_id))];
+};
+
+type Relocation = {
+  /** The root the subtree now lives in. */
+  rootId: string;
+  /** Documents whose updates were re-homed into that root. */
+  documentIds: string[];
+};
+
+/**
+ * Wakes the document synchronizers of the root a subtree moved into. The
+ * re-homed bodies have new revisions there, but no event announced them, so
+ * live clients of that space only fetched them on their next document event
+ * or reconnect. Call after the move's transaction has committed.
+ */
+const publishRelocatedDocuments = (
+  relocation: Relocation,
+  workspaceId: string
+) => {
+  for (const documentId of relocation.documentIds) {
+    eventBus.publish({
+      type: 'document.update.created',
+      documentId,
+      rootId: relocation.rootId,
+      workspaceId,
+    });
+  }
 };
 
 /**
  * Everything a re-parenting needs before its update row is written: the space
- * lock, the cycle check, and — when the new parent lives in another root — the
- * relocation of the subtree. Returns the new root id when the node changed
- * root, null otherwise.
+ * locks, the cycle check, and — when the new parent lives in another root — the
+ * relocation of the subtree. Returns where the subtree went when the node
+ * changed root, null otherwise.
  */
 const prepareMove = async (
   trx: Transaction<DatabaseSchema>,
@@ -375,7 +404,7 @@ const prepareMove = async (
     workspaceId: string;
     userId: string;
   }
-): Promise<string | null> => {
+): Promise<Relocation | null> => {
   // Serialise moves against each other, in the space the node leaves AND the
   // one it enters. READ COMMITTED alone lets two moves each read a node_paths
   // that predates the other, and locking only the old space still let A (in
@@ -424,14 +453,14 @@ const prepareMove = async (
     return null;
   }
 
-  await relocateSubtree(trx, {
+  const documentIds = await relocateSubtree(trx, {
     nodeId: input.nodeId,
     oldRootId: input.oldRootId,
     newRootId: currentDestinationRootId,
     workspaceId: input.workspaceId,
     userId: input.userId,
   });
-  return currentDestinationRootId;
+  return { rootId: currentDestinationRootId, documentIds };
 };
 
 export const updateNode = async (input: UpdateNodeInput): Promise<boolean> => {
@@ -500,11 +529,11 @@ export const tryUpdateNode = async (
       updatedNode,
       createdCollaborations,
       updatedCollaborations,
-      relocatedToRoot,
+      relocation,
     } = await database.transaction().execute(async (trx) => {
-      let relocatedToRoot: string | null = null;
+      let relocation: Relocation | null = null;
       if (isMove && nextParentId !== undefined) {
-        relocatedToRoot = await prepareMove(trx, {
+        relocation = await prepareMove(trx, {
           nodeId: input.nodeId,
           parentId: nextParentId,
           oldRootId: node.root_id,
@@ -519,6 +548,7 @@ export const tryUpdateNode = async (
         // revision. Wait out the move, and retry if it changed the root.
         await lockNodeRoot(trx, input.nodeId, node.root_id);
       }
+      const relocatedToRoot = relocation?.rootId ?? null;
 
       const createdNodeUpdate = await trx
         .insertInto('node_updates')
@@ -568,24 +598,25 @@ export const tryUpdateNode = async (
         updatedNode,
         createdCollaborations,
         updatedCollaborations,
-        relocatedToRoot,
+        relocation,
       };
     });
 
     eventBus.publish({
       type: 'node.updated',
       nodeId: input.nodeId,
-      rootId: relocatedToRoot ?? node.root_id,
+      rootId: relocation?.rootId ?? node.root_id,
       workspaceId: input.workspaceId,
     });
 
-    if (relocatedToRoot) {
+    if (relocation) {
       eventBus.publish({
         type: 'node.deleted',
         nodeId: input.nodeId,
         rootId: node.root_id,
         workspaceId: input.workspaceId,
       });
+      publishRelocatedDocuments(relocation, input.workspaceId);
     }
 
     for (const createdCollaboration of createdCollaborations) {
@@ -890,16 +921,16 @@ const tryUpdateNodeFromMutation = async (
   }
 
   try {
-    const { createdCollaborations, updatedCollaborations, relocatedToRoot } =
+    const { createdCollaborations, updatedCollaborations, relocation } =
       await database.transaction().execute(async (trx) => {
         // Cross-space relocation happens FIRST: re-homing bumps the revision of
         // every historical update, and the move has to come after all of them
         // in the new root's stream (see relocateSubtree). The node_paths
         // rebuild for the new parent still comes from the attributes update
         // below (trg_update_node_path); root_id is what no trigger touches.
-        let relocatedToRoot: string | null = null;
+        let relocation: Relocation | null = null;
         if (isMove && nextParentId !== undefined) {
-          relocatedToRoot = await prepareMove(trx, {
+          relocation = await prepareMove(trx, {
             nodeId: mutation.nodeId,
             parentId: nextParentId,
             oldRootId,
@@ -911,6 +942,7 @@ const tryUpdateNodeFromMutation = async (
           // space must not stamp the space the subtree is leaving.
           await lockNodeRoot(trx, mutation.nodeId, node.root_id);
         }
+        const relocatedToRoot = relocation?.rootId ?? null;
 
         const createdNodeUpdate = await trx
           .insertInto('node_updates')
@@ -960,7 +992,7 @@ const tryUpdateNodeFromMutation = async (
           updatedNode,
           createdCollaborations,
           updatedCollaborations,
-          relocatedToRoot,
+          relocation,
         };
       });
 
@@ -972,17 +1004,18 @@ const tryUpdateNodeFromMutation = async (
     eventBus.publish({
       type: 'node.updated',
       nodeId: mutation.nodeId,
-      rootId: relocatedToRoot ?? node.root_id,
+      rootId: relocation?.rootId ?? node.root_id,
       workspaceId: workspace.id,
     });
 
-    if (relocatedToRoot) {
+    if (relocation) {
       eventBus.publish({
         type: 'node.deleted',
         nodeId: mutation.nodeId,
         rootId: oldRootId,
         workspaceId: workspace.id,
       });
+      publishRelocatedDocuments(relocation, workspace.id);
     }
 
     for (const createdCollaboration of createdCollaborations) {
