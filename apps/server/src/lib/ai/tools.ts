@@ -612,6 +612,18 @@ const codeFence = (code: string): string => {
   return '`'.repeat(Math.max(3, longest + 1));
 };
 
+// Blocks that read on into the lines written after them: a callout or quote
+// takes the next `>` line, a table the next line with a pipe, a list the next
+// item marker. Something written right after one needs a blank line between.
+const RUNS_ON_BLOCK_TYPES = new Set([
+  'table',
+  'callout',
+  'blockquote',
+  'bulletList',
+  'orderedList',
+  'taskList',
+]);
+
 // Converts a page/record rich-text document into plain markdown for the model.
 export const richTextToMarkdown = (
   documentId: string,
@@ -674,26 +686,46 @@ export const richTextToMarkdown = (
     return out;
   };
 
-  // `spaced`: a blank line between sibling blocks. Without one a callout, a
+  // `spacing` blank: a blank line between sibling blocks. Without one a callout, a
   // quote, a table or a list runs on into whatever is written after it: two
   // callouts came back as one, a line with a pipe after a table as one more
   // row, two lists as one. The items of a list stay on consecutive lines.
+  //
+  // Lines come back unindented. A container quotes or indents every line of
+  // its children -- every line: a code block or a paragraph with hard breaks
+  // is one entry but several lines, and a line that loses its `>` or its
+  // indentation ends the quote or the list item it belonged to.
+  //
+  // `number`: the number of the next item, inside an ordered list.
   const walk = (
     parentId: string,
-    indent: string,
-    ordered: boolean,
-    spaced: boolean
+    spacing: 'blank' | 'tight' | 'item',
+    number: number | null = null
   ): string[] => {
     const lines: string[] = [];
-    let counter = 1;
+    let previousType: string | null = null;
 
-    // A callout's or a quote's children, each line behind a `>` -- every
-    // line: a code block or a paragraph with hard breaks is one entry here
-    // but several lines, and a line without its `>` ends the quote.
+    const eachLine = (entries: string[]): string[] =>
+      entries.flatMap((entry) => entry.split('\n'));
+
     const quoted = (containerId: string): string[] =>
-      walk(containerId, '', false, true)
-        .flatMap((entry) => entry.split('\n'))
-        .map((line) => indent + (line ? '> ' + line : '>'));
+      eachLine(walk(containerId, 'blank')).map((line) =>
+        line ? '> ' + line : '>'
+      );
+
+    // An item's children follow its marker, and every further line sits
+    // under the text after the marker: a code block keeps exactly its own
+    // indentation, a second paragraph or a nested list stays in the item.
+    const item = (itemId: string, marker: string): string[] => {
+      const inner = eachLine(walk(itemId, 'item'));
+      if (inner.length === 0) {
+        return [marker.trimEnd()];
+      }
+      const pad = ' '.repeat(marker.length);
+      return inner.map((line, index) =>
+        index === 0 ? marker + line : line ? pad + line : ''
+      );
+    };
 
     for (const block of childrenOf(parentId)) {
       const own: string[] = [];
@@ -705,33 +737,31 @@ export const richTextToMarkdown = (
           : leafText(block, !block.type.startsWith('heading'));
       switch (block.type) {
         case 'heading1':
-          own.push(indent + '# ' + text);
+          own.push('# ' + text);
           break;
         case 'heading2':
-          own.push(indent + '## ' + text);
+          own.push('## ' + text);
           break;
         case 'heading3':
-          own.push(indent + '### ' + text);
+          own.push('### ' + text);
           break;
         case 'heading4':
-          own.push(indent + '#### ' + text);
+          own.push('#### ' + text);
           break;
         case 'heading5':
-          own.push(indent + '##### ' + text);
+          own.push('##### ' + text);
           break;
         case 'paragraph':
           // An empty paragraph is spacing somebody put there. Between blocks
           // that are already a blank line apart, a blank line cannot say so.
-          own.push(indent + (text.trim() === '' ? EMPTY_PARAGRAPH : text));
+          own.push(text.trim() === '' ? EMPTY_PARAGRAPH : text);
           break;
         case 'codeBlock': {
           // The language was dropped on the way out, so a round-trip turned
           // every annotated block into plaintext.
           const language = attrString(block, 'language');
           const fence = codeFence(text);
-          own.push(indent + fence + (language === 'plaintext' ? '' : language));
-          own.push(indent + text);
-          own.push(indent + fence);
+          own.push(fence + (language === 'plaintext' ? '' : language), text, fence);
           break;
         }
         case 'mermaid': {
@@ -739,20 +769,16 @@ export const richTextToMarkdown = (
           // diagram rather than a code block.
           const source = attrString(block, 'source');
           const fence = codeFence(source);
-          own.push(indent + fence + 'mermaid');
-          for (const sourceLine of source.split('\n')) {
-            own.push(sourceLine);
-          }
-          own.push(indent + fence);
+          own.push(fence + 'mermaid', source, fence);
           break;
         }
         case 'callout':
-          own.push(indent + calloutHeader(block), ...quoted(block.id));
+          own.push(calloutHeader(block), ...quoted(block.id));
           break;
         case 'file':
           // A file block carries no attrs: the BLOCK's own id is the file
           // node id. An image renders inline, anything else as a file card.
-          own.push(indent + '![](file:' + block.id + ')');
+          own.push('![](file:' + block.id + ')');
           break;
         case 'database':
         case 'whiteboardEmbed':
@@ -763,13 +789,11 @@ export const richTextToMarkdown = (
           const spec = EMBED_BLOCKS[block.type]!;
           const json = embedJson(block, spec, options);
           const fence = codeFence(json);
-          own.push(indent + fence + spec.fence);
-          own.push(indent + json);
-          own.push(indent + fence);
+          own.push(fence + spec.fence, json, fence);
           break;
         }
         case 'table':
-          own.push(...tableLines(block, indent));
+          own.push(...tableLines(block, ''));
           break;
         case 'tableRow':
         case 'tableHeader':
@@ -777,57 +801,73 @@ export const richTextToMarkdown = (
           // Consumed by the 'table' case above.
           break;
         case 'horizontalRule':
-          own.push(indent + '---');
+          own.push('---');
           break;
         case 'blockquote':
           own.push(...quoted(block.id));
           break;
         case 'bulletList':
-          own.push(...walk(block.id, indent, false, false));
-          break;
-        case 'orderedList':
-          own.push(...walk(block.id, indent, true, false));
-          break;
         case 'taskList':
-          own.push(...walk(block.id, indent, false, false));
+          own.push(...walk(block.id, 'tight'));
           break;
-        case 'listItem': {
-          const inner = walk(block.id, indent + '  ', false, false);
-          const first = inner.shift() ?? indent + '  ';
-          const marker = ordered ? `${counter}. ` : '- ';
-          own.push(indent + marker + first.trimStart());
-          own.push(...inner);
-          counter += 1;
-          break;
-        }
-        case 'taskItem': {
-          const checked = block.attrs && block.attrs.checked ? 'x' : ' ';
-          const inner = walk(block.id, indent + '  ', false, false);
-          const first = inner.shift() ?? '';
-          own.push(indent + `- [${checked}] ` + first.trimStart());
-          own.push(...inner);
+        case 'orderedList': {
+          // "11." after a note that interrupted the list: the numbering
+          // restarted at 1 on every edit.
+          const start = (block.attrs ?? {}).start;
+          own.push(
+            ...walk(
+              block.id,
+              'tight',
+              typeof start === 'number' && Number.isInteger(start) && start >= 0
+                ? start
+                : 1
+            )
+          );
           break;
         }
+        case 'listItem':
+          own.push(...item(block.id, number === null ? '- ' : `${number}. `));
+          if (number !== null) {
+            number += 1;
+          }
+          break;
+        case 'taskItem':
+          own.push(
+            ...item(
+              block.id,
+              `- [${block.attrs && block.attrs.checked ? 'x' : ' '}] `
+            )
+          );
+          break;
         default:
           if (text) {
-            own.push(indent + text);
+            own.push(text);
           } else {
-            own.push(...walk(block.id, indent, false, false));
+            own.push(...walk(block.id, 'tight'));
           }
       }
 
       if (own.length > 0) {
-        if (spaced && lines.length > 0) {
+        // Inside an item only a block that reads on into what follows needs
+        // the blank line; the item goes on across it.
+        const blank =
+          lines.length > 0 &&
+          (spacing === 'blank' ||
+            (spacing === 'item' &&
+              previousType !== null &&
+              RUNS_ON_BLOCK_TYPES.has(previousType)));
+        if (blank) {
           lines.push('');
         }
         lines.push(...own);
+        previousType = block.type;
       }
     }
 
     return lines;
   };
 
-  return walk(documentId, '', false, true).join('\n');
+  return walk(documentId, 'blank').join('\n');
 };
 
 // An odd number of trailing backslashes: the last one is not escaped.
@@ -949,20 +989,90 @@ const parseBlockLines = (
     error: 'red',
   };
 
-  // One entry per open list level, so indentation can nest instead of being
-  // flattened. The old parser read `trimmed` only, which made every sub-list a
-  // sibling of its parent.
-  type ListLevel = {
+  type ListKind = 'bullet' | 'ordered' | 'task';
+
+  interface ListMarker {
+    kind: ListKind;
     indent: number;
-    list: Block;
-    kind: 'bullet' | 'ordered' | 'task';
-    lastItemIndex: string | null;
-    lastItem: Block | null;
-    lastItemChildIndex: string | null;
+    // Where the item's text starts; its other lines are indented to here.
+    contentIndent: number;
+    content: string;
+    number: number;
+    checked: boolean;
+  }
+
+  const LIST_TYPE_BY_KIND: Record<ListKind, string> = {
+    bullet: 'bulletList',
+    ordered: 'orderedList',
+    task: 'taskList',
   };
-  let stack: ListLevel[] = [];
-  const resetLists = () => {
-    stack = [];
+
+  const indentOf = (value: string): number =>
+    value.length - value.trimStart().length;
+
+  // The first line of a list item: its kind, where its text starts, and its
+  // number or checkbox. The marker may stand alone -- an empty item, or one
+  // whose first block is not a paragraph.
+  const listMarker = (value: string): ListMarker | null => {
+    const indent = indentOf(value);
+    const rest = value.slice(indent);
+    const task = /^[-*+]\s+\[([ xX])\](?=\s|$)/.exec(rest);
+    const ordered = task ? null : /^(\d{1,9})[.)](?=\s|$)/.exec(rest);
+    const bullet = task || ordered ? null : /^[-*+](?=\s|$)/.exec(rest);
+    const head = task ?? ordered ?? bullet;
+    if (!head) {
+      return null;
+    }
+    const after = rest.slice(head[0].length);
+    const gap = indentOf(after);
+    return {
+      kind: task ? 'task' : ordered ? 'ordered' : 'bullet',
+      indent,
+      // No space after the marker, or more than four, counts as one: the rest
+      // is the item's text, as in CommonMark.
+      contentIndent:
+        indent + head[0].length + (gap === 0 || gap > 4 ? 1 : gap),
+      content: after.trimStart(),
+      number: ordered ? Number(ordered[1]) : 1,
+      checked: task ? task[1] !== ' ' : false,
+    };
+  };
+
+  // An item's lines, less the indentation that puts them in the item: the
+  // text after the marker, then every line indented past the marker, and the
+  // blank lines between them when the item goes on after them.
+  const collectItemLines = (
+    at: number,
+    marker: ListMarker
+  ): { itemLines: string[]; next: number } => {
+    const itemLines = [marker.content];
+    let next = at + 1;
+    while (next < lines.length) {
+      const line = lines[next] ?? '';
+      if (line.trim() === '') {
+        let after = next;
+        while (after < lines.length && (lines[after] ?? '').trim() === '') {
+          after += 1;
+        }
+        if (
+          after >= lines.length ||
+          indentOf(lines[after] ?? '') <= marker.indent
+        ) {
+          break;
+        }
+        for (; next < after; next += 1) {
+          itemLines.push('');
+        }
+        continue;
+      }
+      const width = indentOf(line);
+      if (width <= marker.indent) {
+        break;
+      }
+      itemLines.push(line.slice(Math.min(width, marker.contentIndent)));
+      next += 1;
+    }
+    return { itemLines, next };
   };
 
   const isTableDelimiter = (value: string): boolean => {
@@ -1013,11 +1123,9 @@ const parseBlockLines = (
   while (i < lines.length) {
     const line = (lines[i] ?? '').replace(/\s+$/, '');
     const trimmed = line.trim();
-    const indentWidth = line.length - line.trimStart().length;
 
     const fenceOpen = /^(`{3,})([^`]*)$/.exec(trimmed);
     if (fenceOpen) {
-      resetLists();
       const fenceLength = (fenceOpen[1] ?? '').length;
       const info = (fenceOpen[2] ?? '').trim().toLowerCase();
       // Only a line of backticks at least as long as the opening fence closes
@@ -1065,15 +1173,13 @@ const parseBlockLines = (
     }
 
     if (trimmed === '') {
-      resetLists();
       i += 1;
       continue;
     }
 
     // A GFM table is a row followed by a delimiter row. Without this branch
     // every line landed as a paragraph of literal pipes.
-    if (trimmed.includes('|') && isTableDelimiter(lines[i + 1] ?? '')) {
-      resetLists();
+    if (trimmed.includes('|') && !listMarker(line) && isTableDelimiter(lines[i + 1] ?? '')) {
       const header = splitRow(trimmed);
       i += 2;
       const bodyRows: string[][] = [];
@@ -1115,7 +1221,6 @@ const parseBlockLines = (
     // attrs at all, which is the one detail that makes this work.
     const image = /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)$/.exec(trimmed);
     if (image && image[1]) {
-      resetLists();
       blocks[image[1]] = {
         id: image[1],
         type: 'file',
@@ -1128,7 +1233,6 @@ const parseBlockLines = (
 
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
-      resetLists();
       const level = Math.min(5, (heading[1] ?? '#').length);
       const type = `heading${level}`;
       const block = pushTop(type);
@@ -1139,7 +1243,6 @@ const parseBlockLines = (
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
-      resetLists();
       pushTop('horizontalRule');
       i += 1;
       continue;
@@ -1148,7 +1251,6 @@ const parseBlockLines = (
     const callout =
       /^>\s*\[!([A-Za-z]+)((?:\|[a-z]+=[^|\]\s]+)*)\]\s*(.*)$/.exec(trimmed);
     if (callout) {
-      resetLists();
       const block = pushTop('callout');
       const attrs: Record<string, unknown> = {
         color: CALLOUT_COLOURS[(callout[1] ?? '').toLowerCase()] ?? 'default',
@@ -1180,7 +1282,6 @@ const parseBlockLines = (
     }
 
     if (isQuoteLine(line)) {
-      resetLists();
       const block = pushTop('blockquote');
       const quoted: string[] = [];
       while (i < lines.length && isQuoteLine(lines[i] ?? '')) {
@@ -1191,77 +1292,49 @@ const parseBlockLines = (
       continue;
     }
 
-    const task = /^[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(trimmed);
-    const ordered = /^(\d+)[.)]\s+(.*)$/.exec(trimmed);
-    const bullet = /^[-*+]\s+(.*)$/.exec(trimmed);
-
-    if (task || ordered || bullet) {
-      const kind: 'bullet' | 'ordered' | 'task' = task
-        ? 'task'
-        : ordered
-          ? 'ordered'
-          : 'bullet';
-      const text = task
-        ? (task[2] ?? '')
-        : ordered
-          ? (ordered[2] ?? '')
-          : (bullet?.[1] ?? '');
-      const listType =
-        kind === 'ordered'
-          ? 'orderedList'
-          : kind === 'task'
-            ? 'taskList'
-            : 'bulletList';
-
-      while (stack.length > 1 && indentWidth < (stack[stack.length - 1]?.indent ?? 0)) {
-        stack.pop();
+    // A list item is its marker line and every line indented past the
+    // marker; those lines, less that indentation, are parsed like a page of
+    // their own. The old parser kept only the marker line, so an item's
+    // second paragraph broke out of the list and a code block in an item
+    // came back with the item's indentation added to every line of code.
+    const marker = listMarker(line);
+    if (marker) {
+      const list = pushTop(LIST_TYPE_BY_KIND[marker.kind]);
+      if (marker.kind === 'ordered' && marker.number !== 1) {
+        list.attrs = { start: marker.number };
       }
-
-      let level = stack[stack.length - 1];
-      const openLevel = (parent: ListLevel | undefined) => {
-        const parentItem = parent?.lastItem ?? null;
-        const list = parentItem
-          ? addChild(parentItem.id, listType, parent?.lastItemChildIndex ?? null)
-          : pushTop(listType);
-        if (parentItem && parent) {
-          parent.lastItemChildIndex = list.index;
+      let current: ListMarker | null = marker;
+      let itemAfter: string | null = null;
+      while (current) {
+        const item = newBlock(
+          current.kind === 'task' ? 'taskItem' : 'listItem',
+          list.id,
+          generateFractionalIndex(itemAfter, null)
+        );
+        blocks[item.id] = item;
+        itemAfter = item.index;
+        if (current.kind === 'task') {
+          item.attrs = { checked: current.checked };
         }
-        const created: ListLevel = {
-          indent: indentWidth,
-          list,
-          kind,
-          lastItemIndex: null,
-          lastItem: null,
-          lastItemChildIndex: null,
-        };
-        stack.push(created);
-        return created;
-      };
-
-      if (!level) {
-        level = openLevel(undefined);
-      } else if (indentWidth > level.indent && level.lastItem) {
-        level = openLevel(level);
-      } else if (level.kind !== kind) {
-        stack.pop();
-        level = openLevel(stack[stack.length - 1]);
+        const { itemLines, next } = collectItemLines(i, current);
+        if (parseBlockLines(itemLines, item.id, null, blocks, depth + 1) === 0) {
+          addParagraph(item.id, '');
+        }
+        i = next;
+        const following =
+          i < lines.length
+            ? listMarker((lines[i] ?? '').replace(/\s+$/, ''))
+            : null;
+        current =
+          following &&
+          following.kind === marker.kind &&
+          following.indent <= marker.indent
+            ? following
+            : null;
       }
-
-      const itemType = kind === 'task' ? 'taskItem' : 'listItem';
-      const item = addChild(level.list.id, itemType, level.lastItemIndex);
-      if (kind === 'task') {
-        item.attrs = { checked: task ? task[1]?.toLowerCase() === 'x' : false };
-      }
-      level.lastItemIndex = item.index;
-      level.lastItem = item;
-      const para = addParagraph(item.id, text);
-      level.lastItemChildIndex = para.index;
-
-      i += 1;
       continue;
     }
 
-    resetLists();
     const paragraph = pushTop('paragraph');
     const { text, next } = takeHardBreakLines(trimmed, i);
     paragraph.content = paragraphContent(text);

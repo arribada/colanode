@@ -591,6 +591,177 @@ describe('blocks written one after another', () => {
   });
 });
 
+describe('lists', () => {
+  const FILE = '01m077hpdmt396qc9n0z5zb5n1fi';
+  const list = (id: string, type: string, parentId: string, index: string, attrs?: Record<string, unknown>) =>
+    container(id, type, parentId, index, attrs);
+  const item = (id: string, parentId: string, index: string, type = 'listItem', attrs?: Record<string, unknown>) =>
+    container(id, type, parentId, index, attrs);
+
+  const expectRoundTrip = (blocks: Record<string, TestBlock>) => {
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+    return markdown;
+  };
+
+  it('keeps a second paragraph, an image and a code block inside their item', () => {
+    expectRoundTrip(
+      byId(
+        list('l1', 'orderedList', DOC, 'a0'),
+        item('i1', 'l1', 'a0'),
+        textBlock('i1a', 'i1', 'a0', 'Solder the battery wire to J7.'),
+        { id: FILE, type: 'file', parentId: 'i1', index: 'a1' },
+        textBlock('i1b', 'i1', 'a2', 'Then check the polarity.'),
+        {
+          ...textBlock('i1c', 'i1', 'a3', 'west build -b rspb\n  --pristine\n\n# done', 'codeBlock'),
+          attrs: { language: 'bash' },
+        },
+        item('i2', 'l1', 'a1'),
+        textBlock('i2a', 'i2', 'a0', 'Close the lid.')
+      )
+    );
+  });
+
+  it('writes code inside an item without adding indentation to it', () => {
+    const markdown = expectRoundTrip(
+      byId(
+        list('l1', 'bulletList', DOC, 'a0'),
+        item('i1', 'l1', 'a0'),
+        textBlock('i1a', 'i1', 'a0', 'Run:'),
+        {
+          ...textBlock('i1b', 'i1', 'a1', 'make\n    flash', 'codeBlock'),
+          attrs: { language: 'plaintext' },
+        }
+      )
+    );
+    expect(markdown).toBe('- Run:\n  ```\n  make\n      flash\n  ```');
+  });
+
+  it('keeps the number an ordered list starts at', () => {
+    const blocks = byId(
+      list('l1', 'orderedList', DOC, 'a0', { start: 11 }),
+      item('i1', 'l1', 'a0'),
+      textBlock('i1a', 'i1', 'a0', 'eleventh'),
+      item('i2', 'l1', 'a1'),
+      textBlock('i2a', 'i2', 'a0', 'twelfth')
+    );
+    const markdown = expectRoundTrip(blocks);
+    expect(markdown).toBe('11. eleventh\n12. twelfth');
+    const back = Object.values(markdownToBlocks(DOC, markdown));
+    expect(back.find((b) => b.type === 'orderedList')?.attrs).toMatchObject({ start: 11 });
+  });
+
+  it('nests lists of every kind, with breaks and containers inside items', () => {
+    expectRoundTrip(
+      byId(
+        list('l1', 'bulletList', DOC, 'a0'),
+        item('i1', 'l1', 'a0'),
+        { ...textBlock('i1a', 'i1', 'a0', ''), content: [{ type: 'text', text: 'line one' }, { type: 'hardBreak' }, { type: 'text', text: 'line two' }] },
+        list('l2', 'orderedList', 'i1', 'a1'),
+        item('i2', 'l2', 'a0'),
+        textBlock('i2a', 'i2', 'a0', 'C:\\'),
+        list('l3', 'taskList', 'i2', 'a1'),
+        item('i3', 'l3', 'a0', 'taskItem', { checked: true }),
+        textBlock('i3a', 'i3', 'a0', 'done'),
+        container('q1', 'blockquote', 'i1', 'a2'),
+        textBlock('q1a', 'q1', 'a0', 'quoted in the item'),
+        textBlock('i1b', 'i1', 'a3', 'after the quote'),
+        item('i4', 'l1', 'a1'),
+        textBlock('i4a', 'i4', 'a0', 'second item')
+      )
+    );
+  });
+
+  it('keeps two quotes or two lists in a row apart inside an item', () => {
+    expectRoundTrip(
+      byId(
+        list('l1', 'bulletList', DOC, 'a0'),
+        item('i1', 'l1', 'a0'),
+        textBlock('i1a', 'i1', 'a0', 'first'),
+        container('q1', 'blockquote', 'i1', 'a1'),
+        textBlock('q1p', 'q1', 'a0', 'one quote'),
+        container('q2', 'blockquote', 'i1', 'a2'),
+        textBlock('q2p', 'q2', 'a0', 'another quote'),
+        list('n1', 'bulletList', 'i1', 'a3'),
+        item('n1i', 'n1', 'a0'),
+        textBlock('n1p', 'n1i', 'a0', 'one list'),
+        list('n2', 'bulletList', 'i1', 'a4'),
+        item('n2i', 'n2', 'a0'),
+        textBlock('n2p', 'n2i', 'a0', 'another list')
+      )
+    );
+  });
+
+  it('keeps an empty item', () => {
+    expectRoundTrip(
+      byId(
+        list('l1', 'bulletList', DOC, 'a0'),
+        item('i1', 'l1', 'a0'),
+        { id: 'i1a', type: 'paragraph', parentId: 'i1', index: 'a0', content: [] },
+        item('i2', 'l1', 'a1'),
+        textBlock('i2a', 'i2', 'a0', 'next')
+      )
+    );
+  });
+
+  it('keeps a table that is the first thing in an item', () => {
+    expectRoundTrip(
+      byId(
+        list('l1', 'bulletList', DOC, 'a0'),
+        item('i1', 'l1', 'a0'),
+        container('t', 'table', 'i1', 'a0'),
+        container('r0', 'tableRow', 't', 'a0'),
+        container('h0', 'tableHeader', 'r0', 'a0'),
+        textBlock('h0p', 'h0', 'a0', 'Pin'),
+        container('r1', 'tableRow', 't', 'a1'),
+        container('c0', 'tableCell', 'r1', 'a0'),
+        textBlock('c0p', 'c0', 'a0', 'VBAT'),
+        textBlock('i1p', 'i1', 'a1', 'after the table')
+      )
+    );
+  });
+
+  it('reads what people write: another kind of marker, a bare marker', () => {
+    expect(
+      treeOf(markdownToBlocks(DOC, '- a\n- [ ] b\n1. c') as never).map((n) => n.type)
+    ).toEqual(['bulletList', 'taskList', 'orderedList']);
+
+    const bare = treeOf(markdownToBlocks(DOC, '-\n- b') as never);
+    expect(bare).toHaveLength(1);
+    expect(bare[0]!.children.map((child) => child.children.map((c) => [c.type, c.text]))).toEqual([
+      [['paragraph', '']],
+      [['paragraph', 'b']],
+    ]);
+  });
+
+  it('reads the nesting people write, two spaces under a numbered item', () => {
+    const tree = treeOf(markdownToBlocks(DOC, '1. a\n  - b\n2. c') as never);
+    expect(tree).toEqual([
+      {
+        type: 'orderedList',
+        text: '',
+        children: [
+          {
+            type: 'listItem',
+            text: '',
+            children: [
+              { type: 'paragraph', text: 'a', children: [] },
+              {
+                type: 'bulletList',
+                text: '',
+                children: [
+                  { type: 'listItem', text: '', children: [{ type: 'paragraph', text: 'b', children: [] }] },
+                ],
+              },
+            ],
+          },
+          { type: 'listItem', text: '', children: [{ type: 'paragraph', text: 'c', children: [] }] },
+        ],
+      },
+    ]);
+  });
+});
+
 describe('markdownToBlocks — tables', () => {
   const table = [
     '| Tracker | Use case |',
@@ -854,6 +1025,7 @@ describe('markdownToBlocks — callouts, headings, lists', () => {
       expect(heading?.content?.[0]?.text).toBe('deep');
     }
   });
+
 
   it('lands a sixth level on the fifth instead of leaving its hashes as text', () => {
     const blocks = Object.values(markdownToBlocks(DOC, '###### deeper'));
