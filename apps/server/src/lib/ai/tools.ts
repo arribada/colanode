@@ -809,6 +809,10 @@ export const richTextToMarkdown = (
   return walk(documentId, '', false).join('\n');
 };
 
+// An odd number of trailing backslashes: the last one is not escaped.
+const endsWithHardBreak = (line: string): boolean =>
+  ((/\\+$/.exec(line)?.[0].length ?? 0) & 1) === 1;
+
 const newBlock = (type: string, parentId: string, index: string): Block => ({
   id: generateId(IdType.Block),
   type,
@@ -905,6 +909,27 @@ export const markdownToBlocks = (
       row = row.slice(0, -1);
     }
     return row.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+  };
+
+  // A line ending in an unescaped backslash is a hard line break: its text
+  // goes on on the next line, whatever that line looks like -- the
+  // serializer escapes a block marker there. The old parser read every line
+  // as a paragraph of its own and deleted the break.
+  const takeHardBreakLines = (
+    first: string,
+    at: number
+  ): { text: string; next: number } => {
+    const parts = [first];
+    let next = at + 1;
+    while (
+      endsWithHardBreak(parts[parts.length - 1] ?? '') &&
+      next < lines.length &&
+      (lines[next] ?? '').trim() !== ''
+    ) {
+      parts.push((lines[next] ?? '').trim());
+      next += 1;
+    }
+    return { text: parts.join('\n'), next };
   };
 
   let i = 0;
@@ -1034,8 +1059,9 @@ export const markdownToBlocks = (
       const level = Math.min(5, (heading[1] ?? '#').length);
       const type = `heading${level}`;
       const block = pushTop(type);
-      block.content = parseInline(heading[2] ?? '');
-      i += 1;
+      const { text, next } = takeHardBreakLines(heading[2] ?? '', i);
+      block.content = parseInline(text);
+      i = next;
       continue;
     }
 
@@ -1175,8 +1201,9 @@ export const markdownToBlocks = (
 
     resetLists();
     const paragraph = pushTop('paragraph');
-    paragraph.content = parseInline(trimmed);
-    i += 1;
+    const { text, next } = takeHardBreakLines(trimmed, i);
+    paragraph.content = parseInline(text);
+    i = next;
   }
 
   return blocks;

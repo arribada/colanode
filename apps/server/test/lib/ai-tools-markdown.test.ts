@@ -309,6 +309,107 @@ describe('inline markdown — colour, highlight, underline, comments', () => {
   });
 });
 
+describe('hard line breaks', () => {
+  const br = { type: 'hardBreak' };
+  const text = (value: string): TestLeaf => ({ type: 'text', text: value });
+
+  it('writes a break as a backslash at the end of the line and reads it back', () => {
+    const leaves = [text('line one'), br, text('line two')];
+    const markdown = richTextToMarkdown(DOC, paragraphOf(leaves));
+    expect(markdown).toBe('line one\\\nline two');
+    const back = paragraphBack(markdown);
+    expect(back.types).toEqual(['paragraph']);
+    expect(shapeOf(back.leaves)).toEqual(shapeOf(leaves));
+  });
+
+  it('keeps trailing and repeated breaks, and a next line that looks like a block', () => {
+    const cases: TestLeaf[][] = [
+      [text('Price difference is minor.'), br],
+      [br, br],
+      [text('a'), br, br, text('b')],
+      [text('Steps'), br, text('# not a heading'), br, text('- not a bullet'), br, text('1. nor a list')],
+      [text('Commit reviewed : 987b249i'), br, { type: 'text', text: 'bold next', marks: [{ type: 'bold' }] }],
+    ];
+    for (const leaves of cases) {
+      const markdown = richTextToMarkdown(DOC, paragraphOf(leaves));
+      const back = paragraphBack(markdown);
+      expect(back.types, markdown).toEqual(['paragraph']);
+      expect(shapeOf(back.leaves), markdown).toEqual(shapeOf(leaves));
+    }
+  });
+
+  it('escapes a block marker on the line after a break, as CommonMark needs', () => {
+    // CommonMark lets a heading or a list interrupt a paragraph, so another
+    // renderer would split these lines off without the escapes.
+    const markdown = richTextToMarkdown(
+      DOC,
+      paragraphOf([text('Steps'), br, text('# one'), br, text('- two'), br, text('3. three')])
+    );
+    expect(markdown).toBe('Steps\\\n\\# one\\\n\\- two\\\n3\\. three');
+  });
+
+  it('keeps a literal backslash at the end of a line a backslash', () => {
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        p1: { id: 'p1', type: 'paragraph', parentId: DOC, index: 'a0', content: [text('C:\\')] },
+        p2: { id: 'p2', type: 'paragraph', parentId: DOC, index: 'a1', content: [text('next')] },
+      },
+    };
+    const blocks = Object.values(
+      markdownToBlocks(DOC, richTextToMarkdown(DOC, content))
+    ).sort((a, b) => (a.index < b.index ? -1 : 1));
+    expect(blocks.map((b) => shapeOf(b.content))).toEqual([
+      shapeOf([text('C:\\')]),
+      shapeOf([text('next')]),
+    ]);
+  });
+
+  it('keeps a break in a heading', () => {
+    const markdown = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: {
+        h1: { id: 'h1', type: 'heading2', parentId: DOC, index: 'a0', content: [text('4.1 Block diagram'), br, text('and more')] },
+      },
+    });
+    const blocks = Object.values(markdownToBlocks(DOC, markdown));
+    expect(blocks.map((b) => b.type), markdown).toEqual(['heading2']);
+    expect(shapeOf(blocks[0]!.content)).toEqual(shapeOf([text('4.1 Block diagram'), br, text('and more')]));
+  });
+
+  it('writes a break inside a table cell as <br>, and reads <br> anywhere', () => {
+    const markdown = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: {
+        t: { id: 't', type: 'table', parentId: DOC, index: 'a0' },
+        r0: { id: 'r0', type: 'tableRow', parentId: 't', index: 'a0' },
+        h0: { id: 'h0', type: 'tableHeader', parentId: 'r0', index: 'a0' },
+        hp: { id: 'hp', type: 'paragraph', parentId: 'h0', index: 'a0', content: [text('Pin')] },
+        r1: { id: 'r1', type: 'tableRow', parentId: 't', index: 'a1' },
+        c0: { id: 'c0', type: 'tableCell', parentId: 'r1', index: 'a0' },
+        cp: { id: 'cp', type: 'paragraph', parentId: 'c0', index: 'a0', content: [text('VBAT'), br, text('3.7 V')] },
+      },
+    });
+    expect(markdown).toContain('| VBAT<br>3.7 V |');
+    const cell = Object.values(markdownToBlocks(DOC, markdown)).find(
+      (b) => b.type === 'paragraph' && (b.content ?? []).some((l) => l.type === 'hardBreak')
+    );
+    expect(shapeOf(cell?.content)).toEqual(shapeOf([text('VBAT'), br, text('3.7 V')]));
+
+    expect(shapeOf(paragraphBack('a<br>b<br/>c<br />d').leaves)).toEqual(
+      shapeOf([text('a'), br, text('b'), br, text('c'), br, text('d')])
+    );
+  });
+
+  it('writes a newline stored inside text as a break', () => {
+    const back = paragraphBack(
+      richTextToMarkdown(DOC, paragraphOf([text('first\nsecond')]))
+    );
+    expect(back.types).toEqual(['paragraph']);
+    expect(shapeOf(back.leaves)).toEqual(shapeOf([text('first'), br, text('second')]));
+  });
+});
+
 describe('markdownToBlocks — tables', () => {
   const table = [
     '| Tracker | Use case |',

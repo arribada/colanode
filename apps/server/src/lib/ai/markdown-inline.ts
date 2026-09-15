@@ -421,6 +421,14 @@ export const parseInline = (src: string): BlockLeaf[] => {
         i += 2;
         continue;
       }
+      // A backslash ending a line is a hard line break (CommonMark), and so
+      // is one ending the block: a literal backslash is always written `\\`.
+      if (next === '\n' || next === '') {
+        flush();
+        tokens.push({ kind: 'leaf', leaf: { type: 'hardBreak' }, marks: [] });
+        i += next === '\n' ? 2 : 1;
+        continue;
+      }
       buffer += ch;
       i += 1;
       continue;
@@ -594,6 +602,15 @@ export const parseInline = (src: string): BlockLeaf[] => {
     }
 
     if (ch === '<') {
+      // <br> is a line break wherever it is written; inside a table row it is
+      // the only way to write one.
+      const lineBreak = /^<br\s*\/?>/.exec(src.slice(i, i + 8));
+      if (lineBreak) {
+        flush();
+        tokens.push({ kind: 'leaf', leaf: { type: 'hardBreak' }, marks: [] });
+        i += lineBreak[0].length;
+        continue;
+      }
       const open = parseOpenTag(src, i);
       if (open) {
         flush();
@@ -880,8 +897,14 @@ const renderLeaves = (
   mode: RenderMode
 ): string => {
   let out = '';
-  // Still at the start of the line: nothing but whitespace written yet.
-  const atLineStart = () => Boolean(options.lineStart) && out.trim() === '';
+  // Still at the start of a line: nothing but whitespace written since the
+  // block began (when the block starts a line) or since the last hard break.
+  const atLineStart = () => {
+    const newline = out.lastIndexOf('\n');
+    return newline < 0
+      ? Boolean(options.lineStart) && out.trim() === ''
+      : out.slice(newline + 1).trim() === '';
+  };
 
   const startsWithBracket = (leaf: BlockLeaf | undefined): boolean =>
     leaf !== undefined &&
@@ -894,6 +917,13 @@ const renderLeaves = (
     let lead = '';
     let core = '';
     let trail = '';
+
+    if (leaf.type === 'hardBreak') {
+      // A backslash ending the line, as CommonMark writes it. A table row
+      // cannot span lines, so a cell uses <br>.
+      out += options.inTable ? '<br>' : '\\\n';
+      continue;
+    }
 
     if (leaf.type === 'mention') {
       const target = (leaf.attrs ?? {}).target;
@@ -978,13 +1008,30 @@ const renderLeaves = (
   return out;
 };
 
+// A newline stored inside a text leaf shows as a line break in the editor.
+// Written raw it would end the markdown line, and with it the paragraph, so
+// it is written as the hard break it looks like.
+const splitNewlines = (leaves: readonly BlockLeaf[]): BlockLeaf[] =>
+  leaves.flatMap((leaf) => {
+    if (leaf.type !== 'text' || !leaf.text || !leaf.text.includes('\n')) {
+      return [leaf];
+    }
+    return leaf.text.split('\n').flatMap((part, index) => {
+      const pieces: BlockLeaf[] = index > 0 ? [{ type: 'hardBreak' }] : [];
+      if (part) {
+        pieces.push({ ...leaf, text: part });
+      }
+      return pieces;
+    });
+  });
+
 // One block's leaves as inline markdown. Delimiters (`**`, `*`, `~~`) are
 // used when they read back to exactly the same leaves, tags otherwise.
 export const renderInline = (
   leaves: readonly BlockLeaf[] | null | undefined,
   options: InlineRenderOptions = {}
 ): string => {
-  const list = mergeLeaves(leaves ?? []);
+  const list = mergeLeaves(splitNewlines(leaves ?? []));
   if (list.length === 0) {
     return '';
   }
