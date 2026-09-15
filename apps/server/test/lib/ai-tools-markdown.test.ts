@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  collectMentionTargets,
   markdownToBlocks,
   richTextToMarkdown,
   unrepresentableBlockTypes,
@@ -310,8 +311,10 @@ describe('internal links become mentions', () => {
       },
     };
 
-    const markdown = richTextToMarkdown(DOC, content);
-    expect(markdown).toContain(`[](node:${PAGE})`);
+    const markdown = richTextToMarkdown(DOC, content, {
+      labels: new Map([[PAGE, 'Hardware Catalog']]),
+    });
+    expect(markdown).toContain(`[Hardware Catalog](node:${PAGE})`);
 
     // ...and it survives the trip back, which is what makes replace safe.
     const back =
@@ -319,5 +322,75 @@ describe('internal links become mentions', () => {
     expect(back.find((leaf) => leaf.type === 'mention')?.attrs).toMatchObject({
       target: PAGE,
     });
+  });
+
+  const mentionParagraph = (target: string) => ({
+    type: 'rich_text' as const,
+    blocks: {
+      b1: {
+        id: 'b1',
+        type: 'paragraph',
+        parentId: DOC,
+        index: 'a0',
+        content: [
+          { type: 'text', text: 'see ' },
+          { type: 'mention', attrs: { id: 'm1me', target } },
+          { type: 'text', text: '.' },
+        ],
+      },
+    },
+  });
+
+  const leavesBack = (markdown: string) =>
+    Object.values(markdownToBlocks(DOC, markdown))[0]?.content ?? [];
+
+  it('writes an empty label when the target has no known name', () => {
+    expect(richTextToMarkdown(DOC, mentionParagraph(PAGE))).toBe(
+      `see [](node:${PAGE}).`
+    );
+  });
+
+  it('escapes brackets and backslashes in a label and still reads the link back', () => {
+    const markdown = richTextToMarkdown(DOC, mentionParagraph(PAGE), {
+      labels: new Map([[PAGE, 'Specs ] v2 \\ draft']]),
+    });
+    expect(markdown).toBe(`see [Specs \\] v2 \\\\ draft](node:${PAGE}).`);
+
+    const leaves = leavesBack(markdown);
+    expect(leaves.map((leaf) => leaf.type)).toEqual([
+      'text',
+      'mention',
+      'text',
+    ]);
+    expect(leaves[1]!.attrs).toMatchObject({ target: PAGE });
+    expect(leaves[2]!.text).toBe('.');
+  });
+
+  it('ignores whatever label the model writes', () => {
+    const leaves = leavesBack(`see [a name the model made up](node:${PAGE}).`);
+    expect(leaves.map((leaf) => leaf.type)).toEqual([
+      'text',
+      'mention',
+      'text',
+    ]);
+    expect(leaves.some((leaf) => leaf.text?.includes('made up'))).toBe(false);
+  });
+
+  it('round-trips a user mention with its @name label', () => {
+    const USER = '01ky6s2zq9b8nqpj15wqxtaepdus';
+    const markdown = richTextToMarkdown(DOC, mentionParagraph(USER), {
+      labels: new Map([[USER, '@Geoffrey']]),
+    });
+    expect(markdown).toBe(`see [@Geoffrey](node:${USER}).`);
+    expect(leavesBack(markdown)[1]!.attrs).toMatchObject({ target: USER });
+  });
+
+  it('collects each mention target once', () => {
+    const content = mentionParagraph(PAGE);
+    content.blocks.b1.content.push({
+      type: 'mention',
+      attrs: { id: 'm2me', target: PAGE },
+    });
+    expect(collectMentionTargets(content)).toEqual([PAGE]);
   });
 });

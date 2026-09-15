@@ -127,6 +127,55 @@ const requireAccessibleNode = async (
   return { tree, node, role };
 };
 
+// Read access to `alias`.id for the user: a live collaboration on the node or
+// any of its ancestors. The same rule extractNodeRole applies to the tree,
+// written as EXISTS so a node with several collaborations cannot be listed
+// twice.
+const nodeAccessCondition = (userId: string, alias = 'n') =>
+  sql<SqlBool>`exists (
+    select 1
+    from node_paths access_path
+    join collaborations access_collab
+      on access_collab.node_id = access_path.ancestor_id
+    where access_path.descendant_id = ${sql.ref(`${alias}.id`)}
+      and access_collab.collaborator_id = ${userId}
+      and access_collab.deleted_at is null
+  )`;
+
+const NODE_ID_PATTERN = /^[a-z0-9]{20,}$/;
+
+// Display labels for mention targets and embedded nodes: the node's current
+// name when the caller can read the node, `@name` for a workspace user. A
+// target the caller cannot see gets no entry at all -- a label is a read.
+export const resolveNodeLabels = async (
+  ctx: WikiToolContext,
+  ids: readonly string[]
+): Promise<Map<string, string>> => {
+  const unique = [...new Set(ids)].filter((id) => NODE_ID_PATTERN.test(id));
+  const labels = new Map<string, string>();
+  if (unique.length === 0) {
+    return labels;
+  }
+
+  const result = await sql<{ id: string; label: string | null }>`
+    select n.id, n.attributes->>'name' as label
+    from nodes n
+    where n.id in (${sql.join(unique)})
+      and n.workspace_id = ${ctx.workspaceId}
+      and ${nodeAccessCondition(ctx.userId)}
+    union all
+    select u.id, '@' || coalesce(nullif(u.custom_name, ''), u.name) as label
+    from users u
+    where u.id in (${sql.join(unique)})
+      and u.workspace_id = ${ctx.workspaceId}
+  `.execute(database);
+
+  for (const row of result.rows) {
+    labels.set(row.id, row.label ?? '');
+  }
+  return labels;
+};
+
 interface WorkspaceUser {
   id: string;
   role: WorkspaceRole;
@@ -170,16 +219,33 @@ const LEAF_TEXT_TYPES = new Set([
   'codeBlock',
 ]);
 
-const applyLeafMarks = (leaf: BlockLeaf): string => {
+export interface MarkdownRenderOptions {
+  // Current display names for mention targets, from resolveNodeLabels. A
+  // target without an entry is written with an empty label.
+  labels?: ReadonlyMap<string, string>;
+}
+
+const escapeLinkLabel = (label: string): string =>
+  label.replace(/\s+/g, ' ').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+
+const applyLeafMarks = (
+  leaf: BlockLeaf,
+  options: MarkdownRenderOptions = {}
+): string => {
   // A mention carries no text of its own -- its label is resolved from the
   // target node when it renders. Without a case here it fell straight through
   // the empty-text guard below and came back as nothing, so a replace-mode
   // edit DELETED every internal link on the page it rewrote.
+  //
+  // The label is written for the reader only: the parser ignores it, so a
+  // renamed page or a label the model rewords never changes the link.
   if (leaf.type === 'mention') {
     const target = (leaf.attrs ?? {}).target;
-    return typeof target === 'string' && target.length > 0
-      ? `[](node:${target})`
-      : '';
+    if (typeof target !== 'string' || target.length === 0) {
+      return '';
+    }
+    const label = options.labels?.get(target) ?? '';
+    return `[${escapeLinkLabel(label)}](node:${target})`;
   }
 
   let text = leaf.text ?? '';
@@ -202,8 +268,28 @@ const applyLeafMarks = (leaf: BlockLeaf): string => {
   return text;
 };
 
-const leafText = (block: Block): string =>
-  (block.content ?? []).map(applyLeafMarks).join('');
+const leafTextOf = (
+  block: Block,
+  options: MarkdownRenderOptions = {}
+): string =>
+  (block.content ?? []).map((leaf) => applyLeafMarks(leaf, options)).join('');
+
+// Every node or user a document mentions, once each.
+export const collectMentionTargets = (
+  content: RichTextContent | null | undefined
+): string[] => {
+  const targets = new Set<string>();
+  const blocks = content && content.blocks ? Object.values(content.blocks) : [];
+  for (const block of blocks) {
+    for (const leaf of block.content ?? []) {
+      const target = leaf.type === 'mention' ? (leaf.attrs ?? {}).target : null;
+      if (typeof target === 'string' && target.length > 0) {
+        targets.add(target);
+      }
+    }
+  }
+  return [...targets];
+};
 
 const attrString = (block: Block, key: string): string => {
   const value = (block.attrs ?? {})[key];
@@ -252,8 +338,10 @@ export const unrepresentableBlockTypes = (
 // Converts a page/record rich-text document into plain markdown for the model.
 export const richTextToMarkdown = (
   documentId: string,
-  content: RichTextContent | null | undefined
+  content: RichTextContent | null | undefined,
+  options: MarkdownRenderOptions = {}
 ): string => {
+  const leafText = (block: Block): string => leafTextOf(block, options);
   const blocks = content && content.blocks ? Object.values(content.blocks) : [];
   if (blocks.length === 0) {
     return '';
@@ -452,7 +540,10 @@ const inlinePatterns: { re: RegExp; make: (match: RegExpExecArray) => BlockLeaf 
       // and the full URL that "Copy link" puts on the clipboard -- each with an
       // optional #block fragment. Ids are long lowercase alphanumerics, which
       // is what keeps an ordinary external link from matching here.
-      re: /^\[([^\]]*)\]\((?:node:([a-z0-9]{20,})|(?:https?:\/\/[^/)\s]+)?\/[a-z0-9]{20,}\/([a-z0-9]{20,}))(?:#[a-z0-9]{20,})?\)/,
+      //
+      // The label may contain escaped brackets and backslashes (get_page writes
+      // the target's name there), and is otherwise ignored.
+      re: /^\[((?:\\.|[^\]\\])*)\]\((?:node:([a-z0-9]{20,})|(?:https?:\/\/[^/)\s]+)?\/[a-z0-9]{20,}\/([a-z0-9]{20,}))(?:#[a-z0-9]{20,})?\)/,
       make: (m) => ({
         type: 'mention',
         attrs: {
@@ -1128,8 +1219,10 @@ export const getPage = async (
     .where('id', '=', input.id)
     .executeTakeFirst();
 
-  const content = document
-    ? richTextToMarkdown(input.id, document.content as RichTextContent)
+  const richText = document ? (document.content as RichTextContent) : null;
+  const labels = await resolveNodeLabels(ctx, collectMentionTargets(richText));
+  const content = richText
+    ? richTextToMarkdown(input.id, richText, { labels })
     : '';
 
   return { id: node.id, name, type: node.type, content };
