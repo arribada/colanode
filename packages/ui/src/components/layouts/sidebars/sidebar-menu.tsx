@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Bell,
   Boxes,
-  Download,
   FolderKanban,
   Github,
   Home,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { SidebarMenuType, UploadStatus } from '@colanode/client/types';
+import { SidebarGetTheApp } from '@colanode/ui/components/layouts/sidebars/sidebar-get-the-app';
 import { SidebarMenuFooter } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer';
 import { SidebarMenuHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-header';
 import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-icon';
@@ -59,12 +59,6 @@ const ARRIBADA_APPS = [
     url: 'https://github.com/arribada',
   },
 ] as const;
-
-// Where the desktop builds land. The workflow publishes one GitHub release per
-// version to this public repository, so /latest stays correct on its own and
-// nobody has to come back and edit a version number here.
-const DESKTOP_DOWNLOAD_URL =
-  'https://github.com/arribada/colanode/releases/latest';
 
 interface SidebarMenuProps {
   value: SidebarMenuType;
@@ -205,13 +199,9 @@ export const SidebarMenu = ({
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="mt-auto" />
-        {app.type === 'web' && (
-          <SidebarMenuIcon
-            icon={Download}
-            label="Download the desktop app"
-            onClick={() => window.colanode.openExternalUrl(DESKTOP_DOWNLOAD_URL)}
-          />
-        )}
+        {/* Installing from the browser, or downloading the desktop build,
+            means nothing from inside the desktop app itself. */}
+        {app.type === 'web' && <SidebarGetTheApp />}
         {onToggleCollapsed && (
           <SidebarMenuIcon
             icon={collapsed ? PanelLeftOpen : PanelLeftClose}

@@ -60,6 +60,11 @@ vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-menu-footer', () => ({
   SidebarMenuFooter: () => null,
 }));
 
+// The get-the-app menu has its own tests; here only WHETHER the rail shows it.
+vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-get-the-app', () => ({
+  SidebarGetTheApp: () => 'get-the-app-menu',
+}));
+
 // The apps launcher uses a Radix DropdownMenu, whose context hooks assume a
 // live client render and throw under renderToStaticMarkup. This test only
 // asserts the rail's icon aria-labels (all outside the dropdown), so stub the
@@ -140,7 +145,7 @@ describe('SidebarMenu — desktop download', () => {
     const markup = renderToStaticMarkup(
       <SidebarMenu value="spaces" onChange={() => {}} />
     );
-    expect(markup).toContain('Download the desktop app');
+    expect(markup).toContain('get-the-app-menu');
   });
 
   it('does not offer it inside the desktop app itself', () => {
@@ -148,6 +153,6 @@ describe('SidebarMenu — desktop download', () => {
     const markup = renderToStaticMarkup(
       <SidebarMenu value="spaces" onChange={() => {}} />
     );
-    expect(markup).not.toContain('Download the desktop app');
+    expect(markup).not.toContain('get-the-app-menu');
   });
 });
