@@ -302,9 +302,153 @@ describe('unrepresentableBlockTypes', () => {
         b1: { id: 'b1', type: 'database', parentId: DOC, index: 'a0' },
         b2: { id: 'b2', type: 'chart', parentId: DOC, index: 'a1' },
         b3: { id: 'b3', type: 'paragraph', parentId: DOC, index: 'a2' },
+        b4: { id: 'b4', type: 'page', parentId: DOC, index: 'a3' },
+        b5: { id: 'b5', type: 'paragraph', parentId: 'b4', index: 'a0' },
       },
     };
-    expect(unrepresentableBlockTypes(content)).toEqual(['chart', 'database']);
+    // An embedded database now travels as a fence; a page block with children
+    // inside it is still more than a fence can hold.
+    expect(unrepresentableBlockTypes(content)).toEqual(['chart', 'page']);
+  });
+});
+
+describe('embedded blocks', () => {
+  const ADR_DB = '01kz65zq0tcwrjsry61cw4sf4pdb';
+  const WHITEBOARD = '01m1xfh2s2xxv7rhdbn2gbm08wwb';
+  const SUB_PAGE = '01m1ndcs1x158s41y5ach5cnq0pg';
+  const adrAttrs = {
+    inline: true,
+    filterValue: '01kz65zq0tcwrjsry61cw4sf46so',
+    filterFieldId: '01kz65zq0tcwrjsry61cw4sf4rfd',
+  };
+
+  it('round-trips the ADR page view of the ADR database, filter included', () => {
+    // The block as it is stored on the ADR page.
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        p0: {
+          id: 'p0',
+          type: 'paragraph',
+          parentId: DOC,
+          index: 'a0',
+          content: [{ type: 'text', text: 'Decisions' }],
+        },
+        [ADR_DB]: {
+          id: ADR_DB,
+          type: 'database',
+          parentId: DOC,
+          index: 'a1',
+          attrs: adrAttrs,
+        },
+      },
+    };
+
+    const markdown = richTextToMarkdown(DOC, content, {
+      embedHints: new Map([
+        [ADR_DB, { _name: '🧭 ADR', _filter: 'Project = 📸 Insight 360' }],
+      ]),
+    });
+    expect(markdown).toBe(
+      [
+        'Decisions',
+        '```colanode-database',
+        JSON.stringify({
+          id: ADR_DB,
+          inline: true,
+          filterFieldId: adrAttrs.filterFieldId,
+          filterValue: adrAttrs.filterValue,
+          _name: '🧭 ADR',
+          _filter: 'Project = 📸 Insight 360',
+        }),
+        '```',
+      ].join('\n')
+    );
+
+    const back = markdownToBlocks(DOC, markdown);
+    expect(back[ADR_DB]).toMatchObject({
+      id: ADR_DB,
+      type: 'database',
+      parentId: DOC,
+    });
+    // The hints are gone, the attributes are exactly what was stored.
+    expect(back[ADR_DB]!.attrs).toEqual(adrAttrs);
+    expect(unrepresentableBlockTypes(content)).toEqual([]);
+  });
+
+  it('round-trips a whiteboard view, a sub-page and a web embed', () => {
+    const region = {
+      x: -202.73979955177447,
+      y: -31.50204770183541,
+      zoom: 0.42,
+    };
+    const embedAttrs = {
+      url: 'https://docs.google.com/spreadsheets/d/1Sil/edit?gid=0#gid=0',
+      provider: 'google-sheets',
+    };
+    const markdown = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: {
+        [WHITEBOARD]: {
+          id: WHITEBOARD,
+          type: 'whiteboardEmbed',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { height: 480, region },
+        },
+        [SUB_PAGE]: { id: SUB_PAGE, type: 'page', parentId: DOC, index: 'a1' },
+        e1: {
+          id: 'e1',
+          type: 'embed',
+          parentId: DOC,
+          index: 'a2',
+          attrs: embedAttrs,
+        },
+      },
+    });
+
+    const back = Object.values(markdownToBlocks(DOC, markdown)).sort((a, b) =>
+      a.index < b.index ? -1 : 1
+    );
+    expect(back.map((b) => b.type)).toEqual([
+      'whiteboardEmbed',
+      'page',
+      'embed',
+    ]);
+    expect(back[0]).toMatchObject({ id: WHITEBOARD });
+    expect(back[0]!.attrs).toEqual({ height: 480, region });
+    expect(back[1]).toMatchObject({ id: SUB_PAGE });
+    expect(back[1]!.attrs).toBeUndefined();
+    expect(back[2]!.attrs).toEqual(embedAttrs);
+  });
+
+  it('keeps a malformed embed as an ordinary code block', () => {
+    const blocks = Object.values(
+      markdownToBlocks(DOC, '```colanode-database\n{not json\n```')
+    );
+    expect(blocks.map((b) => b.type)).toEqual(['codeBlock']);
+    expect(blocks[0]!.attrs).toMatchObject({ language: 'colanode-database' });
+  });
+
+  it('refuses an embed without a valid id, or the same node twice', () => {
+    expect(() =>
+      markdownToBlocks(DOC, '```colanode-page\n{"id":"not-an-id"}\n```')
+    ).toThrow(/needs the id/);
+
+    const fence =
+      '```colanode-page\n' + JSON.stringify({ id: SUB_PAGE }) + '\n```';
+    expect(() => markdownToBlocks(DOC, `${fence}\n\n${fence}`)).toThrow(
+      /embedded twice/
+    );
+  });
+
+  it('refuses a web embed that is not a web address', () => {
+    expect(() =>
+      markdownToBlocks(
+        DOC,
+        '```colanode-embed\n{"url":"javascript:alert(1)","provider":"x"}\n```'
+      )
+    ).toThrow(/invalid "url"/);
   });
 });
 

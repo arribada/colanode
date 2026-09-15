@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { getPage, resolveNodeLabels } from '@colanode/server/lib/ai/tools';
+import { generateId, IdType, NodeAttributes } from '@colanode/core';
+import {
+  editPage,
+  getPage,
+  resolveNodeLabels,
+} from '@colanode/server/lib/ai/tools';
 import { createDocument } from '@colanode/server/lib/documents';
+import { createNode } from '@colanode/server/lib/nodes';
 
 import {
   createAccount,
@@ -119,5 +125,158 @@ describe('get_page mentions', () => {
     expect(page.content).toBe(
       `[Visible page](node:${data.pageA}) and [](node:${data.pageB})`
     );
+  });
+});
+
+const FIELD = 'projectfield';
+const OPTION = 'insightoption';
+
+const createDatabaseIn = async (input: {
+  workspaceId: string;
+  userId: string;
+  spaceId: string;
+  name: string;
+}): Promise<string> => {
+  const id = generateId(IdType.Database);
+  const attributes: NodeAttributes = {
+    type: 'database',
+    name: input.name,
+    parentId: input.spaceId,
+    fields: {
+      [FIELD]: {
+        id: FIELD,
+        type: 'select',
+        name: 'Project',
+        index: 'a0',
+        options: {
+          [OPTION]: { id: OPTION, name: 'Insight', color: 'blue', index: 'a0' },
+        },
+      },
+    },
+  };
+  const created = await createNode({
+    nodeId: id,
+    rootId: input.spaceId,
+    attributes,
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+  });
+  if (!created) {
+    throw new Error('Failed to create database');
+  }
+  return id;
+};
+
+describe('embedded blocks through get_page and edit_page', () => {
+  const seedHost = async () => {
+    const data = await seedTwoSpaces();
+    const ownDatabase = await createDatabaseIn({
+      workspaceId: data.workspace.id,
+      userId: data.userA.id,
+      spaceId: data.spaceA,
+      name: 'Trackers',
+    });
+    const foreignDatabase = await createDatabaseIn({
+      workspaceId: data.workspace.id,
+      userId: data.userB.id,
+      spaceId: data.spaceB,
+      name: 'Bob only',
+    });
+    const host = await createPageNode({
+      workspaceId: data.workspace.id,
+      userId: data.userA.id,
+      parentId: data.spaceA,
+      rootId: data.spaceA,
+      name: 'Host',
+    });
+    await createDocument({
+      nodeId: host,
+      content: {
+        type: 'rich_text',
+        blocks: {
+          [ownDatabase]: {
+            id: ownDatabase,
+            type: 'database',
+            parentId: host,
+            index: 'a0',
+            attrs: { inline: true, filterFieldId: FIELD, filterValue: OPTION },
+          },
+          [foreignDatabase]: {
+            id: foreignDatabase,
+            type: 'database',
+            parentId: host,
+            index: 'a1',
+            attrs: { inline: true },
+          },
+        },
+      },
+      userId: data.userA.id,
+      workspaceId: data.workspace.id,
+    });
+    return { ...data, ownDatabase, foreignDatabase, host };
+  };
+
+  const fencesOf = (content: string) =>
+    content
+      .split('\n')
+      .filter((line) => line.startsWith('{'))
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+  it('names the views the caller can read and spells out their filter', async () => {
+    const data = await seedHost();
+
+    const page = await getPage(data.ctxA, { id: data.host });
+    const [own, foreign] = fencesOf(page.content);
+
+    expect(own).toEqual({
+      id: data.ownDatabase,
+      inline: true,
+      filterFieldId: FIELD,
+      filterValue: OPTION,
+      _name: 'Trackers',
+      _filter: 'Project = Insight',
+    });
+    // Kept, so a rewrite does not delete it, but not named.
+    expect(foreign).toEqual({ id: data.foreignDatabase, inline: true });
+  });
+
+  it('keeps what the page already embeds through a replace, but refuses to add what the caller cannot read', async () => {
+    const data = await seedHost();
+    const page = await getPage(data.ctxA, { id: data.host });
+
+    await editPage(data.ctxA, {
+      id: data.host,
+      mode: 'replace',
+      content: `${page.content}\n\nOne more line.`,
+    });
+    const after = await getPage(data.ctxA, { id: data.host });
+    expect(fencesOf(after.content).map((fence) => fence.id)).toEqual([
+      data.ownDatabase,
+      data.foreignDatabase,
+    ]);
+
+    const foreignPage =
+      '```colanode-page\n' + JSON.stringify({ id: data.pageB }) + '\n```';
+    await expect(
+      editPage(data.ctxA, {
+        id: data.host,
+        mode: 'append',
+        content: foreignPage,
+      })
+    ).rejects.toThrow(/do not have access/);
+  });
+
+  it('refuses a block that would draw the wrong kind of node', async () => {
+    const data = await seedHost();
+
+    const pageAsDatabase =
+      '```colanode-database\n' + JSON.stringify({ id: data.pageA }) + '\n```';
+    await expect(
+      editPage(data.ctxA, {
+        id: data.host,
+        mode: 'append',
+        content: pageAsDatabase,
+      })
+    ).rejects.toThrow(/is a page/);
   });
 });

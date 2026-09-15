@@ -223,7 +223,174 @@ export interface MarkdownRenderOptions {
   // Current display names for mention targets, from resolveNodeLabels. A
   // target without an entry is written with an empty label.
   labels?: ReadonlyMap<string, string>;
+  // Read-only hints for embedded blocks, keyed by block id: `_name`,
+  // `_filter`. Written into the fenced JSON for the reader; the parser drops
+  // every `_` key.
+  embedHints?: ReadonlyMap<string, Record<string, string>>;
 }
+
+// ---------------------------------------------------------------------------
+// Embedded atom blocks
+// ---------------------------------------------------------------------------
+
+type EmbedAttrCheck = (value: unknown) => boolean;
+
+const isNullableString: EmbedAttrCheck = (value) =>
+  value === null || typeof value === 'string';
+
+const isRegion: EmbedAttrCheck = (value) => {
+  if (value === null) {
+    return true;
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const region = value as Record<string, unknown>;
+  return ['x', 'y', 'zoom'].every(
+    (key) => typeof region[key] === 'number' && Number.isFinite(region[key])
+  );
+};
+
+interface EmbedBlockSpec {
+  fence: string;
+  // The block's own id IS the embedded node's id (database, whiteboard, page).
+  nodeType: NodeType | null;
+  attrs: Record<string, EmbedAttrCheck>;
+}
+
+// Atom blocks with no text of their own. Markdown carries each as a fenced
+// JSON object, e.g.
+//   ```colanode-database
+//   {"id":"…","inline":true,"filterFieldId":"…","filterValue":"…","_name":"🧭 ADR"}
+//   ```
+// Only these attributes are read back: the editor extensions' own (packages/ui
+// editor/extensions/{database,whiteboard-embed,page,embed}.tsx).
+const EMBED_BLOCKS: Record<string, EmbedBlockSpec> = {
+  database: {
+    fence: 'colanode-database',
+    nodeType: 'database',
+    attrs: {
+      inline: (value) => typeof value === 'boolean',
+      filterFieldId: isNullableString,
+      filterValue: isNullableString,
+    },
+  },
+  whiteboardEmbed: {
+    fence: 'colanode-whiteboard',
+    nodeType: 'whiteboard',
+    attrs: {
+      height: (value) => typeof value === 'number' && Number.isFinite(value),
+      region: isRegion,
+    },
+  },
+  page: {
+    fence: 'colanode-page',
+    nodeType: 'page',
+    attrs: {},
+  },
+  embed: {
+    fence: 'colanode-embed',
+    nodeType: null,
+    attrs: {
+      // Only web addresses: an embed is an iframe.
+      url: (value) => typeof value === 'string' && /^https?:\/\//i.test(value),
+      provider: (value) =>
+        typeof value === 'string' && /^[a-z0-9-]*$/.test(value),
+    },
+  },
+};
+
+const embedSpecByFence = new Map(
+  Object.entries(EMBED_BLOCKS).map(([type, spec]) => [spec.fence, { type, spec }])
+);
+
+const embedJson = (
+  block: Block,
+  spec: EmbedBlockSpec,
+  options: MarkdownRenderOptions
+): string => {
+  const out: Record<string, unknown> = {};
+  if (spec.nodeType) {
+    out.id = block.id;
+  }
+  const attrs = (block.attrs ?? {}) as Record<string, unknown>;
+  for (const [key, check] of Object.entries(spec.attrs)) {
+    if (attrs[key] !== undefined && check(attrs[key])) {
+      out[key] = attrs[key];
+    }
+  }
+  for (const [key, value] of Object.entries(
+    options.embedHints?.get(block.id) ?? {}
+  )) {
+    out[key.startsWith('_') ? key : `_${key}`] = value;
+  }
+  return JSON.stringify(out);
+};
+
+interface ParsedEmbed {
+  type: string;
+  id: string | null;
+  attrs: Record<string, unknown> | null;
+}
+
+// null when the fence is not one of ours or its body is not a JSON object --
+// the caller then keeps it as an ordinary code block. A recognisable embed
+// with a bad id or attribute is an error the caller should hear about.
+const parseEmbedFence = (info: string, body: string): ParsedEmbed | null => {
+  const entry = embedSpecByFence.get(info);
+  if (!entry) {
+    return null;
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!json || typeof json !== 'object' || Array.isArray(json)) {
+    return null;
+  }
+  const value = json as Record<string, unknown>;
+
+  let id: string | null = null;
+  if (entry.spec.nodeType) {
+    if (typeof value.id !== 'string' || !NODE_ID_PATTERN.test(value.id)) {
+      throw new WikiToolError(
+        `An embedded ${entry.type} needs the id of the ${entry.spec.nodeType} it shows.`
+      );
+    }
+    id = value.id;
+  }
+
+  const attrs: Record<string, unknown> = {};
+  for (const [key, check] of Object.entries(entry.spec.attrs)) {
+    if (value[key] === undefined) {
+      continue;
+    }
+    if (!check(value[key])) {
+      throw new WikiToolError(
+        `The embedded ${entry.type} has an invalid "${key}".`
+      );
+    }
+    attrs[key] = value[key];
+  }
+
+  return {
+    type: entry.type,
+    id,
+    attrs: Object.keys(attrs).length > 0 ? attrs : null,
+  };
+};
+
+// Node ids a set of blocks embeds, with the node type each block expects.
+export const embeddedNodeIds = (
+  blocks: Record<string, Block>
+): { id: string; type: string; nodeType: NodeType }[] =>
+  Object.values(blocks).flatMap((block) => {
+    const nodeType = EMBED_BLOCKS[block.type]?.nodeType;
+    return nodeType ? [{ id: block.id, type: block.type, nodeType }] : [];
+  });
 
 const escapeLinkLabel = (label: string): string =>
   label.replace(/\s+/g, ' ').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
@@ -344,12 +511,12 @@ const calloutHeader = (block: Block): string => {
 // document through markdown, so these would be silently deleted -- 215 of the
 // wiki's 935 documents hold at least one. edit_page refuses instead of eating
 // them, because the model cannot even SEE them in what get_page returned.
+//
+// The embedded atom blocks (EMBED_BLOCKS) travel as fenced JSON, so they count
+// only in the shape markdown still cannot carry: with child blocks.
 const UNREPRESENTABLE_BLOCK_TYPES = new Set([
-  'database',
-  'whiteboardEmbed',
   'planeEmbed',
   'planeIssueLink',
-  'embed',
   'bookmark',
   'chart',
   'columns',
@@ -359,7 +526,6 @@ const UNREPRESENTABLE_BLOCK_TYPES = new Set([
   'toggle',
   'toggleSummary',
   'toggleContent',
-  'page',
   'folder',
   'mathBlock',
   'mathInline',
@@ -370,9 +536,14 @@ export const unrepresentableBlockTypes = (
   content: RichTextContent | null | undefined
 ): string[] => {
   const blocks = content && content.blocks ? Object.values(content.blocks) : [];
+  const parents = new Set(blocks.map((block) => block.parentId));
   const found = new Set<string>();
   for (const block of blocks) {
-    if (UNREPRESENTABLE_BLOCK_TYPES.has(block.type)) {
+    if (EMBED_BLOCKS[block.type]) {
+      if (parents.has(block.id)) {
+        found.add(block.type);
+      }
+    } else if (UNREPRESENTABLE_BLOCK_TYPES.has(block.type)) {
       found.add(block.type);
     }
   }
@@ -492,6 +663,18 @@ export const richTextToMarkdown = (
           // node id. An image renders inline, anything else as a file card.
           lines.push(indent + '![](file:' + block.id + ')');
           break;
+        case 'database':
+        case 'whiteboardEmbed':
+        case 'page':
+        case 'embed': {
+          // These used to come out as nothing at all, and a page holding one
+          // could not be edited in replace mode.
+          const spec = EMBED_BLOCKS[block.type]!;
+          lines.push(indent + '```' + spec.fence);
+          lines.push(indent + embedJson(block, spec, options));
+          lines.push(indent + '```');
+          break;
+        }
         case 'table':
           lines.push(...tableLines(block, indent));
           break;
@@ -788,6 +971,27 @@ export const markdownToBlocks = (
         i += 1;
       }
       i += 1; // skip closing fence
+      if (info.startsWith('colanode-')) {
+        const embed = parseEmbedFence(info, codeLines.join('\n'));
+        if (embed) {
+          if (embed.id && blocks[embed.id]) {
+            throw new WikiToolError(
+              `The ${embed.type} ${embed.id} is embedded twice; a page can show it once.`
+            );
+          }
+          const index = generateFractionalIndex(prevTopIndex, null);
+          prevTopIndex = index;
+          const id = embed.id ?? generateId(IdType.Block);
+          blocks[id] = {
+            id,
+            type: embed.type,
+            parentId: documentId,
+            index,
+            ...(embed.attrs ? { attrs: embed.attrs } : {}),
+          };
+          continue;
+        }
+      }
       if (info === 'mermaid') {
         // A real diagram, not a code block: editable afterwards and themed.
         const block = pushTop('mermaid');
@@ -1260,6 +1464,87 @@ export const searchPages = async (
   }));
 };
 
+// `_name` and, for a filtered database view, a readable `_filter` for every
+// embedded node the caller can read. Nothing is added for the others: their
+// names are not the caller's to see.
+const buildEmbedHints = async (
+  content: RichTextContent | null,
+  embedded: { id: string; type: string }[],
+  labels: ReadonlyMap<string, string>
+): Promise<Map<string, Record<string, string>>> => {
+  const hints = new Map<string, Record<string, string>>();
+  const blocks = content?.blocks ?? {};
+  const accessible = embedded.filter((embed) => labels.has(embed.id));
+
+  const filteredDatabaseIds = accessible
+    .filter(
+      (embed) =>
+        embed.type === 'database' &&
+        typeof blocks[embed.id]?.attrs?.filterFieldId === 'string'
+    )
+    .map((embed) => embed.id);
+  const databases =
+    filteredDatabaseIds.length > 0
+      ? await database
+          .selectFrom('nodes')
+          .select(['id', 'attributes'])
+          .where('id', 'in', filteredDatabaseIds)
+          .where('type', '=', 'database')
+          .execute()
+      : [];
+  const fieldsByDatabase = new Map(
+    databases.map((row) => [
+      row.id,
+      (row.attributes as DatabaseAttributes).fields ?? {},
+    ])
+  );
+
+  for (const embed of accessible) {
+    const hint: Record<string, string> = {
+      _name: labels.get(embed.id) ?? '',
+    };
+    const attrs = (blocks[embed.id]?.attrs ?? {}) as Record<string, unknown>;
+    if (embed.type === 'database' && typeof attrs.filterFieldId === 'string') {
+      const field = fieldsByDatabase.get(embed.id)?.[attrs.filterFieldId];
+      const value = attrs.filterValue;
+      const optionName =
+        field &&
+        (field.type === 'select' || field.type === 'multi_select') &&
+        typeof value === 'string'
+          ? field.options?.[value]?.name
+          : undefined;
+      hint._filter = `${field?.name ?? attrs.filterFieldId} = ${
+        optionName ?? (typeof value === 'string' ? value : '(empty)')
+      }`;
+    }
+    hints.set(embed.id, hint);
+  }
+
+  return hints;
+};
+
+// Writing a block that embeds a node shows that node to everyone who can read
+// the page, so the caller must be able to read it -- and it must be the kind
+// of node the block draws. Nodes the page already embeds are left alone: a
+// page showing something the caller cannot see stays editable.
+const assertEmbeddableNodes = async (
+  ctx: WikiToolContext,
+  blocks: Record<string, Block>,
+  alreadyEmbedded: ReadonlySet<string>
+): Promise<void> => {
+  for (const embed of embeddedNodeIds(blocks)) {
+    if (alreadyEmbedded.has(embed.id)) {
+      continue;
+    }
+    const { node } = await requireAccessibleNode(embed.id, ctx);
+    if (node.type !== embed.nodeType) {
+      throw new WikiToolError(
+        `Node ${embed.id} is a ${node.type}; a ${embed.type} block can only show a ${embed.nodeType}.`
+      );
+    }
+  }
+};
+
 export const getPage = async (
   ctx: WikiToolContext,
   input: { id: string }
@@ -1275,9 +1560,14 @@ export const getPage = async (
     .executeTakeFirst();
 
   const richText = document ? (document.content as RichTextContent) : null;
-  const labels = await resolveNodeLabels(ctx, collectMentionTargets(richText));
+  const embedded = richText ? embeddedNodeIds(richText.blocks ?? {}) : [];
+  const labels = await resolveNodeLabels(ctx, [
+    ...collectMentionTargets(richText),
+    ...embedded.map((embed) => embed.id),
+  ]);
+  const embedHints = await buildEmbedHints(richText, embedded, labels);
   const content = richText
-    ? richTextToMarkdown(input.id, richText, { labels })
+    ? richTextToMarkdown(input.id, richText, { labels, embedHints })
     : '';
 
   return { id: node.id, name, type: node.type, content };
@@ -1311,6 +1601,15 @@ export const createPage = async (
   if (!model.canCreate(canCreateContext)) {
     throw new WikiToolError(
       'You do not have permission to create a page here.'
+    );
+  }
+
+  // Checked before the page exists, so a refused embed leaves nothing behind.
+  if (input.content && input.content.trim().length > 0) {
+    await assertEmbeddableNodes(
+      ctx,
+      markdownToBlocks('pending', input.content),
+      new Set()
     );
   }
 
@@ -1375,6 +1674,32 @@ export const editPage = async (
   }
 
   const mode = input.mode ?? 'replace';
+
+  const current = await database
+    .selectFrom('documents')
+    .select('content')
+    .where('id', '=', input.id)
+    .executeTakeFirst();
+  const alreadyEmbedded = new Set(
+    embeddedNodeIds(
+      (current?.content as RichTextContent | undefined)?.blocks ?? {}
+    ).map((embed) => embed.id)
+  );
+  const incoming = markdownToBlocks(input.id, input.content);
+  if (mode === 'append') {
+    // Appending a node the page already shows would silently move it.
+    const repeated = embeddedNodeIds(incoming).find((embed) =>
+      alreadyEmbedded.has(embed.id)
+    );
+    if (repeated) {
+      throw new WikiToolError(
+        `The ${repeated.type} ${repeated.id} is already on this page.`
+      );
+    }
+    await assertEmbeddableNodes(ctx, incoming, new Set());
+  } else {
+    await assertEmbeddableNodes(ctx, incoming, alreadyEmbedded);
+  }
 
   const updated = await updateDocument({
     documentId: input.id,
@@ -2043,7 +2368,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'get_page',
     description:
-      'Read a page or record by id and return its title and body as markdown text.',
+      'Read a page or record by id and return its title and body as markdown text. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). Returns { id, name, type, content }.',
     inputSchema: getPageInput,
     run: getPage,
     action: (input, result) => ({
@@ -2067,7 +2392,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'edit_page',
     description:
-      "Edit a page's document. mode 'replace' overwrites the whole body; mode 'append' adds the content to the end. Content is markdown.",
+      "Edit a page's document. mode 'replace' overwrites the whole body; mode 'append' adds the content to the end. Content is markdown; a colanode-* fence from get_page keeps its embedded block, and a new one may embed any database, whiteboard or page you can read. Returns { id, mode }.",
     inputSchema: editPageInput,
     run: editPage,
     action: (input) => ({
