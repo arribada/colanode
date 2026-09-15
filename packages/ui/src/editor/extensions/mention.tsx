@@ -25,7 +25,12 @@ import {
 } from 'react';
 
 import { NodePathSegment } from '@colanode/client/queries';
-import { EditorContext, LocalNode, User } from '@colanode/client/types';
+import {
+  EditorContext,
+  LocalNode,
+  LocalRecordNode,
+  User,
+} from '@colanode/client/types';
 import { generateId, IdType, NodeType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { NodePath } from '@colanode/ui/components/nodes/node-path';
@@ -35,6 +40,7 @@ import {
   ScrollBar,
 } from '@colanode/ui/components/ui/scroll-area';
 import { MentionNodeView } from '@colanode/ui/editor/views';
+import { useRecordMentionContext } from '@colanode/ui/hooks/use-record-mention-context';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import { updateScrollView } from '@colanode/ui/lib/utils';
 
@@ -70,6 +76,27 @@ const navigationKeys = ['ArrowUp', 'ArrowDown', 'Enter'];
 
 const getMentionItemId = (item: MentionItem): string =>
   item.type === 'user' ? item.user.id : item.node.id;
+
+// A record's path stops at its database, which every ADR shares; its project is
+// what tells "ADR-2" of one tag from "ADR-2" of another, so it ends the line.
+const MentionRecordPath = ({
+  record,
+  path,
+}: {
+  record: LocalRecordNode;
+  path: NodePathSegment[];
+}) => {
+  const { context } = useRecordMentionContext(record);
+  const segments = context
+    ? [...path, { id: `${record.id}:project`, type: 'project', name: context, avatar: null }]
+    : path;
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return <NodePath segments={segments} maxChars={44} className="text-sm" />;
+};
 
 const MentionItemButton = ({
   item,
@@ -117,7 +144,9 @@ const MentionItemButton = ({
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{name}</p>
-        {item.type === 'node' && item.path.length > 0 ? (
+        {item.type === 'node' && item.node.type === 'record' ? (
+          <MentionRecordPath record={item.node} path={item.path} />
+        ) : item.type === 'node' && item.path.length > 0 ? (
           <NodePath segments={item.path} maxChars={44} className="text-sm" />
         ) : (
           <p className="truncate text-sm text-muted-foreground">{secondary}</p>
