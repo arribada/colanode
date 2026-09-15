@@ -397,11 +397,13 @@ const BoardNodeCard = ({
           </div>
           {isPage ? (
             // The live page editor. Pointer / wheel / double-click events are
-            // stopped here so typing, selecting and scrolling inside the page
-            // never reach the board (no drag, no zoom) and a double-click never
+            // stopped here so typing and selecting inside the page never drag
+            // the card, and a double-click never
             // opens the node fullscreen. The board drives drag/select with
             // POINTER events while the editor selects text with MOUSE events, so
-            // stopping pointer/wheel/dblclick leaves editing fully intact.
+            // stopping pointer/dblclick leaves editing fully intact. The wheel
+            // is not stopped here: the board hears it natively, ahead of React,
+            // and lets a SELECTED card scroll through data-board-wheel-scroll.
             <div
               style={{
                 flex: 1,
@@ -412,7 +414,7 @@ const BoardNodeCard = ({
               }}
               onPointerDown={(e) => e.stopPropagation()}
               onPointerMove={(e) => e.stopPropagation()}
-              onWheel={(e) => e.stopPropagation()}
+              data-board-wheel-scroll="true"
               onDoubleClick={(e) => e.stopPropagation()}
             >
               <Document node={node} canEdit={canEdit} />

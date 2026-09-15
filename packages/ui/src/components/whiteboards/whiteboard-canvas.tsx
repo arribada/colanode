@@ -131,6 +131,7 @@ import {
 } from '@colanode/ui/lib/board/png';
 import { togglePollVote } from '@colanode/ui/lib/board/poll';
 import { getTemplate } from '@colanode/ui/lib/board/templates';
+import { resolveWheelOwner } from '@colanode/ui/lib/board/wheel';
 import { presenceColor } from '@colanode/ui/lib/presence';
 import { printHtmlDocument } from '@colanode/ui/lib/print';
 import { cn } from '@colanode/ui/lib/utils';
@@ -2675,6 +2676,24 @@ export const WhiteboardCanvas = ({
       return;
     }
     const onWheel = (e: WheelEvent) => {
+      // A selected card owns the wheel over its own body, so its page scrolls
+      // instead of the board zooming. It is decided here because this native
+      // listener runs before React's delegated handlers: the card's own
+      // onWheel stopPropagation arrived too late to stop anything. Returning
+      // without preventDefault lets the browser scroll the card natively.
+      const target = e.target instanceof Element ? e.target : null;
+      const scroller = target?.closest('[data-board-wheel-scroll]') ?? null;
+      const cardHost = scroller?.closest('[data-el-id]') ?? null;
+      const owner = resolveWheelOwner({
+        insideCardScroller: scroller !== null,
+        cardId: cardHost?.getAttribute('data-el-id') ?? null,
+        selectedIds: selectionRef.current,
+        zoomGesture: e.ctrlKey || e.metaKey,
+      });
+      if (owner === 'card') {
+        return;
+      }
+
       // In an in-page embed the board sits inside a short box mid-page, so a
       // plain wheel must scroll the PAGE, not zoom the board. Only intercept
       // the pinch-zoom gesture (ctrl/meta held); let every other wheel event
