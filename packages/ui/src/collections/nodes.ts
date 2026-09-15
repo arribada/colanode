@@ -47,6 +47,13 @@ export const createNodesCollection = (userId: string) => {
             event.type === 'node.created' &&
             event.workspace.userId === userId
           ) {
+            // A node can reach a client already trashed: its create, a move
+            // and the trash merged into a single server update. Inserting it
+            // put a deleted page in every fresh client's sidebar, since only
+            // updates were checked for the trash.
+            if (isNodeTrashed(event.node)) {
+              return;
+            }
             begin();
             write({ type: 'insert', value: event.node });
             commit();
