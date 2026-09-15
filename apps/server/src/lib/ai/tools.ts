@@ -80,14 +80,15 @@ export interface WikiToolContext {
 export class WikiToolError extends Error {}
 
 // Node types the wiki tools consider "pages/entries" for search.
-const SEARCHABLE_NODE_TYPES: NodeType[] = [
+const SEARCHABLE_NODE_TYPES = [
   'page',
   'folder',
   'database',
   'record',
   'channel',
   'space',
-];
+  'whiteboard',
+] as const satisfies readonly NodeType[];
 
 // ---------------------------------------------------------------------------
 // Access helpers
@@ -1434,10 +1435,21 @@ const readableFieldValue = (
 // Tool result types
 // ---------------------------------------------------------------------------
 
-export interface SearchPageResult {
+export interface SearchPageItem {
   id: string;
   name: string;
   type: string;
+  parentId: string | null;
+  rootId: string;
+  // Ancestors from the space down to the parent; an ancestor the caller
+  // could not open on its own keeps an empty name.
+  path: NodePathEntry[];
+}
+
+export interface SearchPagesResult {
+  items: SearchPageItem[];
+  truncated: boolean;
+  nextCursor: string | null;
 }
 
 export interface NodePathEntry {
@@ -1521,32 +1533,147 @@ export interface MutateRecordResult {
 // Tool functions
 // ---------------------------------------------------------------------------
 
+export const SEARCH_PAGES_DEFAULT_LIMIT = 25;
+export const SEARCH_PAGES_MAX_LIMIT = 100;
+
+// ILIKE treats % and _ as wildcards: searching "100%" matched every name.
+const escapeLike = (value: string): string =>
+  value.replace(/[\\%_]/g, (match) => `\\${match}`);
+
+const encodeSearchCursor = (sortName: string, id: string): string =>
+  Buffer.from(JSON.stringify([sortName, id]), 'utf8').toString('base64url');
+
+const decodeSearchCursor = (cursor: string): [string, string] => {
+  try {
+    const value: unknown = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8')
+    );
+    if (
+      Array.isArray(value) &&
+      value.length === 2 &&
+      typeof value[0] === 'string' &&
+      typeof value[1] === 'string' &&
+      NODE_ID_PATTERN.test(value[1])
+    ) {
+      return [value[0], value[1]];
+    }
+  } catch {
+    // Not a cursor of ours; refused below.
+  }
+  throw new WikiToolError('That cursor was not returned by search_pages.');
+};
+
 export const searchPages = async (
   ctx: WikiToolContext,
-  input: { query: string }
-): Promise<SearchPageResult[]> => {
-  const like = `%${input.query ?? ''}%`;
+  input: {
+    query: string;
+    types?: string[];
+    rootId?: string;
+    parentId?: string;
+    scope?: 'children' | 'descendants';
+    includeTrashed?: boolean;
+    limit?: number;
+    cursor?: string;
+  }
+): Promise<SearchPagesResult> => {
+  const limit = Math.min(
+    Math.max(1, Math.floor(input.limit ?? SEARCH_PAGES_DEFAULT_LIMIT)),
+    SEARCH_PAGES_MAX_LIMIT
+  );
+  const types = (
+    input.types && input.types.length > 0 ? input.types : SEARCHABLE_NODE_TYPES
+  ) as NodeType[];
+  const like = `%${escapeLike(input.query ?? '')}%`;
+  const cursor = input.cursor ? decodeSearchCursor(input.cursor) : null;
+  const parentId = input.parentId;
+  const sortName = sql<string>`lower(coalesce(n.attributes->>'name', ''))`;
+
+  // Access, trash and scope are all EXISTS: the old join on collaborations
+  // returned a node once per collaborator of its space, and 25 rows with no
+  // ORDER BY were whichever the planner met first.
   const rows = await database
     .selectFrom('nodes as n')
-    .innerJoin('collaborations as c', 'c.node_id', 'n.root_id')
-    .where('n.workspace_id', '=', ctx.workspaceId)
-    .where('c.collaborator_id', '=', ctx.userId)
-    .where('c.deleted_at', 'is', null)
-    .where('n.type', 'in', SEARCHABLE_NODE_TYPES)
-    .where(sql<SqlBool>`n.attributes->>'name' ILIKE ${like}`)
     .select([
       'n.id as id',
       'n.type as type',
+      'n.parent_id as parentId',
+      'n.root_id as rootId',
       sql<string | null>`n.attributes->>'name'`.as('name'),
+      sortName.as('sortName'),
+      sql<NodePathEntry[] | null>`(
+        select coalesce(
+          json_agg(
+            json_build_object(
+              'id', a.id,
+              'name', case when ${nodeAccessCondition(ctx.userId, 'a')}
+                then coalesce(a.attributes->>'name', '') else '' end,
+              'type', a.type
+            )
+            order by p.level desc
+          ),
+          '[]'::json
+        )
+        from node_paths p
+        join nodes a on a.id = p.ancestor_id
+        where p.descendant_id = n.id and p.level > 0
+      )`.as('path'),
     ])
-    .limit(25)
+    .where('n.workspace_id', '=', ctx.workspaceId)
+    .where('n.type', 'in', types)
+    .where(
+      sql<SqlBool>`coalesce(n.attributes->>'name', '') ilike ${like} escape '\\'`
+    )
+    .where(nodeAccessCondition(ctx.userId))
+    .where(
+      sql<SqlBool>`coalesce(n.attributes->>'isTemplate', 'false') <> 'true'`
+    )
+    .$if(!input.includeTrashed, (qb) =>
+      // A page inside a trashed folder carries no deletedAt of its own.
+      qb.where(sql<SqlBool>`not exists (
+        select 1
+        from node_paths trash_path
+        join nodes trash_node on trash_node.id = trash_path.ancestor_id
+        where trash_path.descendant_id = n.id
+          and coalesce(trash_node.attributes->>'deletedAt', '') <> ''
+      )`)
+    )
+    .$if(!!input.rootId, (qb) => qb.where('n.root_id', '=', input.rootId!))
+    .$if(!!parentId && input.scope === 'children', (qb) =>
+      qb.where('n.parent_id', '=', parentId!)
+    )
+    .$if(!!parentId && input.scope !== 'children', (qb) =>
+      qb.where(sql<SqlBool>`exists (
+        select 1 from node_paths scope_path
+        where scope_path.ancestor_id = ${parentId!}
+          and scope_path.descendant_id = n.id
+          and scope_path.level > 0
+      )`)
+    )
+    .$if(cursor !== null, (qb) =>
+      qb.where(
+        sql<SqlBool>`(${sortName}, n.id) > (${cursor![0]}, ${cursor![1]})`
+      )
+    )
+    .orderBy(sortName)
+    .orderBy('n.id')
+    .limit(limit + 1)
     .execute();
 
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name ?? '',
-    type: row.type,
-  }));
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  const truncated = rows.length > limit;
+  return {
+    items: page.map((row) => ({
+      id: row.id,
+      name: row.name ?? '',
+      type: row.type,
+      parentId: row.parentId,
+      rootId: row.rootId,
+      path: row.path ?? [],
+    })),
+    truncated,
+    nextCursor: truncated && last ? encodeSearchCursor(last.sortName, last.id) : null,
+  };
 };
 
 // `_name` and, for a filtered database view, a readable `_filter` for every
@@ -2327,7 +2454,53 @@ const defineTool = <I, R>(config: {
 });
 
 const searchPagesInput = z.object({
-  query: z.string().describe('Text to match against page/entry names.'),
+  query: z
+    .string()
+    .describe(
+      'Text to find in names, case-insensitive; % and _ match themselves. An empty query matches every name.'
+    ),
+  types: z
+    .array(z.enum(SEARCHABLE_NODE_TYPES))
+    .optional()
+    .describe(
+      'Only these node types. Default: pages, folders, databases, records, channels, spaces and whiteboards.'
+    ),
+  rootId: z
+    .string()
+    .regex(NODE_ID_PATTERN)
+    .optional()
+    .describe('Only nodes in this space (the space id).'),
+  parentId: z
+    .string()
+    .regex(NODE_ID_PATTERN)
+    .optional()
+    .describe('Only nodes below this node.'),
+  scope: z
+    .enum(['children', 'descendants'])
+    .optional()
+    .describe(
+      "With parentId: 'children' for its direct children only, 'descendants' (the default) for its whole subtree."
+    ),
+  includeTrashed: z
+    .boolean()
+    .optional()
+    .describe(
+      'Also match nodes in the trash or under a trashed node. Default false.'
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(SEARCH_PAGES_MAX_LIMIT)
+    .optional()
+    .describe(
+      `Results per page, default ${SEARCH_PAGES_DEFAULT_LIMIT}, at most ${SEARCH_PAGES_MAX_LIMIT}.`
+    ),
+  cursor: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe('The nextCursor of the previous page, to read the page after it.'),
 });
 const getPageInput = z.object({
   id: z.string().describe('The node id of the page/record to read.'),
@@ -2593,7 +2766,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'search_pages',
     description:
-      'Search the workspace for pages, folders, databases, records and channels whose name matches the query. Returns { id, name, type }.',
+      'Search names across the workspace -- pages, folders, databases, records, channels, spaces and whiteboards -- ordered by name, optionally within one space or below one node. Trashed nodes and templates are left out unless includeTrashed. Returns { items: [{ id, name, type, parentId, rootId, path: [{ id, name, type }] }], truncated, nextCursor }.',
     inputSchema: searchPagesInput,
     run: searchPages,
     action: (input) => ({
