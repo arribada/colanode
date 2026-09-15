@@ -1,10 +1,11 @@
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalPageNode } from '@colanode/client/types';
 import { generateId, IdType } from '@colanode/core';
+import { SameNameHint } from '@colanode/ui/components/nodes/same-name-hint';
 import {
   PageForm,
   PageFormValues,
@@ -39,6 +40,13 @@ export const PageCreateDialog = ({
   const navigate = useNavigate({ from: '/workspace/$userId' });
 
   const [selectedSpaceId, setSelectedSpaceId] = useState(spaceId);
+  const [draftName, setDraftName] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setDraftName('');
+    }
+  }, [open]);
 
   // Only offer the picker when there's an actual choice to make.
   const showSpacePicker = (spaces?.length ?? 0) > 1;
@@ -120,6 +128,14 @@ export const PageCreateDialog = ({
             onOpenChange(false);
           }}
           onSubmit={(values) => mutate(values)}
+          onNameChange={setDraftName}
+          nameHint={
+            <SameNameHint
+              rootId={targetSpaceId}
+              name={draftName}
+              className="-mt-2 mb-3"
+            />
+          }
         />
       </DialogContent>
     </Dialog>

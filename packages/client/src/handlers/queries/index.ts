@@ -36,6 +36,8 @@ import { NodeBacklinkListQueryHandler } from './nodes/node-backlink-list';
 import { NodeGraphGetQueryHandler } from './nodes/node-graph-get';
 import { NodeListQueryHandler } from './nodes/node-list';
 import { NodeMentionSearchQueryHandler } from './nodes/node-mention-search';
+import { NodeNameMatchQueryHandler } from './nodes/node-name-match';
+import { NodePathListQueryHandler } from './nodes/node-path-list';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
 import { NodeSearchQueryHandler } from './nodes/node-search';
 import { NodeSnapshotGetQueryHandler } from './nodes/node-snapshot-get';
@@ -76,6 +78,8 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'node.list': new NodeListQueryHandler(app),
     'node.search': new NodeSearchQueryHandler(app),
     'node.mention.search': new NodeMentionSearchQueryHandler(app),
+    'node.name.match': new NodeNameMatchQueryHandler(app),
+    'node.path.list': new NodePathListQueryHandler(app),
     'node.backlink.list': new NodeBacklinkListQueryHandler(app),
     'node.graph.get': new NodeGraphGetQueryHandler(app),
     'node.trash.list': new NodeTrashListQueryHandler(app),

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NodeSearchResult } from '@colanode/client/queries';
 import { NodeType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { NodePath } from '@colanode/ui/components/nodes/node-path';
 import {
   CommandDialog,
   CommandEmpty,
@@ -19,6 +20,7 @@ import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useChatVisibility } from '@colanode/ui/hooks/use-chat-visibility';
 import { useDebouncedValue } from '@colanode/ui/hooks/use-debounced-value';
+import { useNodePaths } from '@colanode/ui/hooks/use-node-paths';
 import { useQuery } from '@colanode/ui/hooks/use-query';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
@@ -149,6 +151,14 @@ export const SearchDialog = () => {
     }))
     .filter((group) => group.results.length > 0);
 
+  // Where each row lives. Without it fifteen results all read "Requirements".
+  const pathOf = useNodePaths(
+    isSearching
+      ? results.map((result) => result.id)
+      : recentNodes.map((node) => node.id),
+    open
+  );
+
   const handleOpenChange = (value: boolean) => {
     setOpen(value);
     if (!value) {
@@ -267,6 +277,7 @@ export const SearchDialog = () => {
                     />
                     <div className="flex min-w-0 grow flex-col">
                       <p className="truncate text-sm">{name}</p>
+                      <NodePath segments={pathOf(node.id)} />
                     </div>
                     <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                       {label}
@@ -295,17 +306,13 @@ export const SearchDialog = () => {
                   />
                   <div className="flex min-w-0 grow flex-col">
                     <p className="truncate text-sm">{resultName(result)}</p>
+                    <NodePath segments={pathOf(result.id)} />
                     {result.snippet && (
                       <p className="truncate text-xs text-muted-foreground">
                         {result.snippet}
                       </p>
                     )}
                   </div>
-                  {result.spaceName && result.rootId !== result.id && (
-                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                      {result.spaceName}
-                    </span>
-                  )}
                 </div>
               </CommandItem>
             ))}

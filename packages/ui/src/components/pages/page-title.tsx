@@ -3,6 +3,7 @@
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { LocalPageNode } from '@colanode/client/types';
+import { SameNameHint } from '@colanode/ui/components/nodes/same-name-hint';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { resolveTitleEdit } from '@colanode/ui/lib/page-title';
 import { cn } from '@colanode/ui/lib/utils';
@@ -20,6 +21,7 @@ export const PageTitle = ({
 }: PageTitleProps) => {
   const workspace = useWorkspace();
   const [draft, setDraft] = useState(page.name ?? '');
+  const [editing, setEditing] = useState(false);
   const cancelledRef = useRef(false);
 
   // Follow a rename made elsewhere -- the sidebar, the page dialog, another
@@ -72,7 +74,11 @@ export const PageTitle = ({
       value={draft}
       readOnly={!canEdit}
       onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
+      onFocus={() => setEditing(true)}
+      onBlur={() => {
+        setEditing(false);
+        commit();
+      }}
       onKeyDown={onKeyDown}
       placeholder="Untitled"
       aria-label="Page title"
@@ -88,13 +94,33 @@ export const PageTitle = ({
     />
   );
 
+  // Only while a new title is being typed: an existing duplicate is not news
+  // every time the page opens.
+  const hint = (
+    <SameNameHint
+      rootId={page.rootId}
+      name={draft}
+      excludeId={page.id}
+      enabled={
+        canEdit && editing && resolveTitleEdit(draft, page.name) !== null
+      }
+      onCover={onCover}
+    />
+  );
+
   if (onCover) {
     return (
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-6 pb-4 pt-12">
         {field}
+        {hint}
       </div>
     );
   }
 
-  return <div className="mb-2 mt-4">{field}</div>;
+  return (
+    <div className="mb-2 mt-4">
+      {field}
+      {hint}
+    </div>
+  );
 };

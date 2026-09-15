@@ -25,6 +25,7 @@ import {
 } from '@colanode/client/types';
 import { compareString, generateFractionalIndex, timeAgo } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { NodePath } from '@colanode/ui/components/nodes/node-path';
 import { NotificationItem } from '@colanode/ui/components/notifications/notification-item';
 import { PageCreateDialog } from '@colanode/ui/components/pages/page-create-dialog';
 import { SpaceCreateDialog } from '@colanode/ui/components/spaces/space-create-dialog';
@@ -32,6 +33,7 @@ import { Link } from '@colanode/ui/components/ui/link';
 import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
+import { useNodePaths } from '@colanode/ui/hooks/use-node-paths';
 import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import { ADR_DATABASE_ID } from '@colanode/ui/lib/adr';
 import { resolveWikiTasksDb } from '@colanode/ui/lib/wiki-tasks';
@@ -361,6 +363,14 @@ export const WorkspaceHomeDashboard = () => {
 
   const recent = recentQuery.data ?? [];
 
+  // Where each listed node lives: the home lists are exactly where a dozen
+  // "Requirements" pages would otherwise be indistinguishable.
+  const pathOf = useNodePaths([
+    ...recent.map((node) => node.id),
+    ...myWikiTasks.map((record) => record.id),
+    ...unresolvedAdrs.map((record) => record.id),
+  ]);
+
   const nodeById = useMemo(
     () => new Map((sourceQuery.data ?? []).map((node) => [node.id, node])),
     [sourceQuery.data]
@@ -516,7 +526,10 @@ export const WorkspaceHomeDashboard = () => {
                     name={name}
                     avatar={avatar}
                   />
-                  <span className="flex-1 truncate text-sm">{name}</span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm">{name}</span>
+                    <NodePath segments={pathOf(record.id)} />
+                  </div>
                 </Link>
               );
             })}
@@ -563,7 +576,10 @@ export const WorkspaceHomeDashboard = () => {
                     name={name}
                     avatar={avatar}
                   />
-                  <span className="flex-1 truncate text-sm">{name}</span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm">{name}</span>
+                    <NodePath segments={pathOf(record.id)} />
+                  </div>
                 </Link>
               );
             })}
@@ -696,7 +712,10 @@ export const WorkspaceHomeDashboard = () => {
                     name={name}
                     avatar={avatar}
                   />
-                  <span className="flex-1 truncate text-sm">{name}</span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm">{name}</span>
+                    <NodePath segments={pathOf(node.id)} />
+                  </div>
                   <span className="hidden text-xs text-muted-foreground sm:inline">
                     {label}
                   </span>

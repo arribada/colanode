@@ -43,6 +43,8 @@ export * from './servers/server-list';
 export * from './nodes/node-list';
 export * from './nodes/node-search';
 export * from './nodes/node-mention-search';
+export * from './nodes/node-name-match';
+export * from './nodes/node-path-list';
 export * from './nodes/node-backlink-list';
 export * from './nodes/node-graph-get';
 export * from './nodes/node-snapshot-get';

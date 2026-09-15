@@ -24,9 +24,11 @@ import {
   useState,
 } from 'react';
 
+import { NodePathSegment } from '@colanode/client/queries';
 import { EditorContext, LocalNode, User } from '@colanode/client/types';
 import { generateId, IdType, NodeType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
+import { NodePath } from '@colanode/ui/components/nodes/node-path';
 import {
   ScrollArea,
   ScrollViewport,
@@ -56,6 +58,8 @@ export type MentionUserItem = {
 export type MentionNodeItem = {
   type: 'node';
   node: LocalNode;
+  // Space down to parent: the only thing telling fifteen "Requirements" apart.
+  path: NodePathSegment[];
 };
 
 export type MentionItem = MentionUserItem | MentionNodeItem;
@@ -111,9 +115,13 @@ const MentionItemButton = ({
       <div className="flex size-10 min-w-10 items-center justify-center rounded-md border bg-background">
         <Avatar id={id} name={name} avatar={avatar} className="size-8" />
       </div>
-      <div className="flex-1">
-        <p className="font-medium">{name}</p>
-        <p className="text-sm text-muted-foreground">{secondary}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{name}</p>
+        {item.type === 'node' && item.path.length > 0 ? (
+          <NodePath segments={item.path} maxChars={44} className="text-sm" />
+        ) : (
+          <p className="truncate text-sm text-muted-foreground">{secondary}</p>
+        )}
       </div>
     </button>
   );
@@ -429,9 +437,24 @@ export const MentionExtension = Node.create<MentionOptions>({
             }),
           ]);
 
+          const paths =
+            nodes.length > 0
+              ? await window.colanode.executeQuery({
+                  type: 'node.path.list',
+                  userId,
+                  nodeIds: nodes.map((node) => node.id),
+                })
+              : {};
+
           return [
             ...users.map((user): MentionItem => ({ type: 'user', user })),
-            ...nodes.map((node): MentionItem => ({ type: 'node', node })),
+            ...nodes.map(
+              (node): MentionItem => ({
+                type: 'node',
+                node,
+                path: paths[node.id] ?? [],
+              })
+            ),
           ];
         },
         render: renderItems,

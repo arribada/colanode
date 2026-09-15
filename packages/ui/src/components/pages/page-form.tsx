@@ -1,5 +1,5 @@
 import { useForm, useStore } from '@tanstack/react-form';
-import { useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { z } from 'zod/v4';
 
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
@@ -23,6 +23,8 @@ interface PageFormProps {
   onCancel: () => void;
   onSubmit: (values: PageFormValues) => void;
   readOnly?: boolean;
+  onNameChange?: (name: string) => void;
+  nameHint?: ReactNode;
 }
 
 export const PageForm = ({
@@ -33,6 +35,8 @@ export const PageForm = ({
   onCancel,
   onSubmit,
   readOnly = false,
+  onNameChange,
+  nameHint,
 }: PageFormProps) => {
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,7 +112,10 @@ export const PageForm = ({
                   name={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => {
+                    field.handleChange(e.target.value);
+                    onNameChange?.(e.target.value);
+                  }}
                   aria-invalid={isInvalid}
                   aria-label="Name"
                   readOnly={readOnly}
@@ -120,6 +127,7 @@ export const PageForm = ({
           }}
         />
       </div>
+      {nameHint}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
