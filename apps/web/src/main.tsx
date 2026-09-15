@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client';
 
 import { eventBus } from '@colanode/client/lib';
 import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
-import { BrowserNotSupported } from '@colanode/web/components/browser-not-supported';
-import { ColanodeWorkerApi } from '@colanode/web/lib/types';
-import { getThemeVariables } from '@colanode/ui/lib/themes';
 import { PublicShare } from '@colanode/ui/components/share/public-share';
 import { Toaster } from '@colanode/ui/components/ui/sonner';
+import {
+  capturePwaInstallPrompt,
+  requestDurableStorage,
+} from '@colanode/ui/lib/pwa';
+import { getThemeVariables } from '@colanode/ui/lib/themes';
+import { BrowserNotSupported } from '@colanode/web/components/browser-not-supported';
+import { ColanodeWorkerApi } from '@colanode/web/lib/types';
 import { isOpfsSupported } from '@colanode/web/lib/utils';
 import { Root } from '@colanode/web/root';
 import {
@@ -29,6 +33,11 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[Web] Unhandled promise rejection', event.reason);
 });
+
+// Chromium fires beforeinstallprompt once, early in the page's life. The
+// sidebar mounts long after, so the event is caught here or the "Install in
+// this browser" entry never has a prompt to open.
+capturePwaInstallPrompt();
 
 // A deploy replaces every content-hashed chunk, so a tab left open across one
 // asks for chunk names that no longer exist the moment it lazy-loads anything
@@ -111,6 +120,12 @@ const initializeApp = async () => {
     root.render(<BrowserNotSupported />);
     return;
   }
+
+  // The local database is the whole point of working offline. Ask the browser
+  // not to evict it -- from the installed app only, where the grant is silent.
+  void requestDurableStorage().catch((error: unknown) => {
+    console.warn('[Web] durable storage request failed', error);
+  });
 
   const worker = new DedicatedWorker();
   const workerApi = Comlink.wrap<ColanodeWorkerApi>(worker);

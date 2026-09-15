@@ -172,6 +172,11 @@ export default defineConfig({
       filename: 'service.ts',
       strategies: 'injectManifest',
       registerType: 'autoUpdate',
+      // public/manifest.json is the one real manifest. Left to its default the
+      // plugin ALSO generated manifest.webmanifest -- named "@colanode/web",
+      // no icons, a Vue-green theme -- and injected a second <link rel=manifest>,
+      // so the identity a browser installed depended on tag order.
+      manifest: false,
       injectManifest: {
         minify: false,
         enableWorkboxModulesLogs: true,

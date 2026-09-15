@@ -153,7 +153,9 @@ self.addEventListener('push', (event: PushEvent) => {
       body: payload.body ?? '',
       data: { url: payload.url ?? '/' },
       tag: payload.rootId,
-      icon: '/assets/colanode-logo-192.jpg',
+      // The old path, colanode-logo-192.jpg, was never shipped: every push
+      // notification asked for a 404 and showed a blank icon.
+      icon: '/assets/arribada-app-192.png',
     })
   );
 });
