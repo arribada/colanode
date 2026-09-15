@@ -7,11 +7,15 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalFolderNode, LocalPageNode } from '@colanode/client/types';
-import { generateId, IdType } from '@colanode/core';
+import {
+  LocalFolderNode,
+  LocalNode,
+  LocalPageNode,
+} from '@colanode/client/types';
+import { extractNodeRole, generateId, hasNodeRole, IdType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { SidebarDropIndicator } from '@colanode/ui/components/layouts/sidebars/sidebar-drop-indicator';
 import {
@@ -21,6 +25,10 @@ import {
 import { SidebarItem } from '@colanode/ui/components/layouts/sidebars/sidebar-item';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
+import {
+  PageTemplateSubmenu,
+  useCreatePageFromTemplate,
+} from '@colanode/ui/components/pages/page-template-submenu';
 import {
   Collapsible,
   CollapsibleContent,
@@ -81,6 +89,25 @@ export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
   // together too), so it never orphans children. Gated on an editor-level role,
   // matching how the page settings menu gates Delete.
   const canEdit = workspace.role !== 'guest' && workspace.role !== 'none';
+
+  // "New from template" writes a page tree under this folder, so it is gated on
+  // the effective role through the ancestor chain (node-level collaborators
+  // included), as the page item does; the mutation checks it again.
+  const role = useMemo(() => {
+    const chain: LocalNode[] = [];
+    let current: LocalNode | undefined = folder;
+    while (current) {
+      chain.unshift(current);
+      current = current.parentId ? tree.nodeById(current.parentId) : undefined;
+    }
+    return extractNodeRole(chain, workspace.userId);
+  }, [folder, tree, workspace.userId]);
+  const canCreateInFolder = role ? hasNodeRole(role, 'editor') : false;
+  const createFromTemplate = useCreatePageFromTemplate({
+    spaceId: folder.rootId,
+    parentId: folder.id,
+    onCreated: () => setOpen(true),
+  });
 
   // "+ page": create a blank child page under this folder and open it — the same
   // local insert the page item uses for a subpage, just parented to the folder.
@@ -232,6 +259,12 @@ export const FolderSidebarItem = ({ folder }: FolderSidebarItemProps) => {
                       <FilePlus className="size-4" />
                       New page
                     </DropdownMenuItem>
+                    {canCreateInFolder && (
+                      <PageTemplateSubmenu
+                        spaceId={folder.rootId}
+                        onSelect={createFromTemplate}
+                      />
+                    )}
                     <DropdownMenuItem onSelect={() => startRenaming()}>
                       <Pencil className="size-4" />
                       Rename

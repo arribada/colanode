@@ -27,6 +27,10 @@ import { SidebarItem } from '@colanode/ui/components/layouts/sidebars/sidebar-it
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
 import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
+import {
+  PageTemplateSubmenu,
+  useCreatePageFromTemplate,
+} from '@colanode/ui/components/pages/page-template-submenu';
 import { PageTransferDialog } from '@colanode/ui/components/pages/page-transfer-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
 import {
@@ -155,6 +159,14 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   }, [page, tree, workspace.userId]);
   const canEdit = role ? hasNodeRole(role, 'editor') : false;
   const canDelete = canEdit;
+
+  // "New from template" files the template's page tree last under this page
+  // and opens it; the row expands so the new child is visible in the tree.
+  const createFromTemplate = useCreatePageFromTemplate({
+    spaceId: page.rootId,
+    parentId: page.id,
+    onCreated: () => setOpen(true),
+  });
 
   // Shared by the right-click context menu and the hover "…" menu so both offer
   // exactly the same actions.
@@ -346,6 +358,12 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                       <Copy className="size-4" />
                       Duplicate
                     </DropdownMenuItem>
+                    {canEdit && (
+                      <PageTemplateSubmenu
+                        spaceId={page.rootId}
+                        onSelect={createFromTemplate}
+                      />
+                    )}
                     <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
                       <FolderInput className="size-4" />
                       Move to
