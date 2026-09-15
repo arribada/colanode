@@ -628,10 +628,23 @@ export const richTextToMarkdown = (
     return '';
   }
 
+  // Each block's children, sorted once. Filtering every block for every
+  // parent made writing a page quadratic in its size: the largest production
+  // page, 4,000 blocks, took 380 ms.
+  const children = new Map<string, Block[]>();
+  for (const block of blocks) {
+    const siblings = children.get(block.parentId);
+    if (siblings) {
+      siblings.push(block);
+    } else {
+      children.set(block.parentId, [block]);
+    }
+  }
+  for (const siblings of children.values()) {
+    siblings.sort((a, b) => compareString(a.index, b.index));
+  }
   const childrenOf = (parentId: string): Block[] =>
-    blocks
-      .filter((block) => block.parentId === parentId)
-      .sort((a, b) => compareString(a.index, b.index));
+    children.get(parentId) ?? [];
 
   // A cell holds paragraphs and images. A cell of one paragraph is written as
   // its text. Anything more is written as <p>…</p> and ![](file:…) segments:
