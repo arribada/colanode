@@ -32,6 +32,8 @@ import {
   getNodeModel,
   hasNodeRole,
   IdType,
+  isNodeTrashed,
+  isSoftDeletableNodeType,
   NodeAttributes,
   NodeRole,
   NodeType,
@@ -144,6 +146,28 @@ const nodeAccessCondition = (userId: string, alias = 'n') =>
   )`;
 
 const NODE_ID_PATTERN = /^[a-z0-9]{20,}$/;
+
+// The ancestors of `n`, from its space down to its parent, as a JSON array of
+// { id, name, type }. An ancestor the user could not open on its own keeps an
+// empty name: sitting under it does not make its title the user's to read.
+const nodePathSelect = (userId: string) =>
+  sql<NodePathEntry[] | null>`(
+    select coalesce(
+      json_agg(
+        json_build_object(
+          'id', a.id,
+          'name', case when ${nodeAccessCondition(userId, 'a')}
+            then coalesce(a.attributes->>'name', '') else '' end,
+          'type', a.type
+        )
+        order by p.level desc
+      ),
+      '[]'::json
+    )
+    from node_paths p
+    join nodes a on a.id = p.ancestor_id
+    where p.descendant_id = n.id and p.level > 0
+  )`;
 
 // Neither trashed nor a template: what the wiki's browsing views show.
 const visibleNodeCondition = (alias = 'n') =>
@@ -1452,6 +1476,31 @@ export interface SearchPagesResult {
   nextCursor: string | null;
 }
 
+export interface TrashItem {
+  id: string;
+  type: string;
+  name: string;
+  parentId: string | null;
+  rootId: string;
+  path: NodePathEntry[];
+  deletedAt: string;
+  deletedBy: { id: string; name: string } | null;
+  // The nearest ancestor that is itself in the trash. Restoring this node
+  // restores that ancestor too, or the node would stay out of sight.
+  trashedAncestorId: string | null;
+}
+
+export interface ListTrashResult {
+  items: TrashItem[];
+  nextCursor: string | null;
+}
+
+export interface RestoreNodeResult {
+  id: string;
+  // Every node taken out of the trash, outermost first.
+  restored: string[];
+}
+
 export interface NodePathEntry {
   id: string;
   name: string;
@@ -1600,23 +1649,7 @@ export const searchPages = async (
       'n.root_id as rootId',
       sql<string | null>`n.attributes->>'name'`.as('name'),
       sortName.as('sortName'),
-      sql<NodePathEntry[] | null>`(
-        select coalesce(
-          json_agg(
-            json_build_object(
-              'id', a.id,
-              'name', case when ${nodeAccessCondition(ctx.userId, 'a')}
-                then coalesce(a.attributes->>'name', '') else '' end,
-              'type', a.type
-            )
-            order by p.level desc
-          ),
-          '[]'::json
-        )
-        from node_paths p
-        join nodes a on a.id = p.ancestor_id
-        where p.descendant_id = n.id and p.level > 0
-      )`.as('path'),
+      nodePathSelect(ctx.userId).as('path'),
     ])
     .where('n.workspace_id', '=', ctx.workspaceId)
     .where('n.type', 'in', types)
@@ -2104,44 +2137,257 @@ export const renameNode = async (
   return { id: input.id, name, type: node.type };
 };
 
-export const trashNode = async (
+// ---------------------------------------------------------------------------
+// Trash
+// ---------------------------------------------------------------------------
+
+// Same list as softDeletableNodeTypes in @colanode/core, as a tuple for zod.
+const TRASHABLE_NODE_TYPES = [
+  'page',
+  'folder',
+  'database',
+  'record',
+  'file',
+  'whiteboard',
+] as const satisfies readonly NodeType[];
+
+const isTrashed = (row: SelectNode): boolean =>
+  isNodeTrashed(row.attributes as { deletedAt?: string | null });
+
+// Moving to the trash and back is one attribute change -- deletedAt/deletedBy
+// set or cleared -- synced like any other node update. updateNode checks no
+// permission, so the node model's own rule is applied here first, exactly as
+// the server does for a client's update.
+const assertCanSetTrashState = (
+  user: WorkspaceUser,
+  tree: SelectNode[],
+  trashed: boolean
+): void => {
+  const node = tree[tree.length - 1]!;
+  const model = getNodeModel(node.type);
+  const attributes = {
+    ...(node.attributes as NodeAttributes),
+    deletedAt: trashed ? new Date().toISOString() : null,
+    deletedBy: trashed ? user.id : null,
+  } as NodeAttributes;
+  const allowed = model.canUpdateAttributes({
+    user: {
+      id: user.id,
+      role: user.role,
+      workspaceId: user.workspaceId,
+      accountId: user.accountId,
+    },
+    node: mapNode(node),
+    tree: tree.map(mapNode),
+    attributes,
+  });
+  if (!allowed) {
+    throw new WikiToolError(
+      trashed
+        ? `You do not have permission to move node ${node.id} to the trash.`
+        : `You do not have permission to restore node ${node.id}.`
+    );
+  }
+};
+
+const writeTrashState = (
   ctx: WikiToolContext,
-  input: { id: string }
-): Promise<{ id: string; trashed: boolean; type: string }> => {
-  const { node, role } = await requireAccessibleNode(input.id, ctx);
-  if (!hasNodeRole(role, 'editor')) {
-    throw new WikiToolError('You need editor access to trash this node.');
-  }
-
-  const SOFT_DELETABLE = new Set([
-    'page', 'folder', 'database', 'record', 'file', 'whiteboard',
-  ]);
-  if (!SOFT_DELETABLE.has(node.type)) {
-    throw new WikiToolError(`Node type '${node.type}' cannot be trashed.`);
-  }
-
-  const updated = await updateNode({
-    nodeId: input.id,
+  nodeId: string,
+  trashed: boolean
+): Promise<boolean> =>
+  updateNode({
+    nodeId,
     userId: ctx.userId,
     workspaceId: ctx.workspaceId,
     updater: (attributes) => {
-      const a = attributes as {
+      const state = attributes as {
         deletedAt?: string | null;
         deletedBy?: string | null;
       };
-      a.deletedAt = new Date().toISOString();
-      a.deletedBy = ctx.userId;
+      state.deletedAt = trashed ? new Date().toISOString() : null;
+      state.deletedBy = trashed ? ctx.userId : null;
       return attributes;
     },
   });
 
-  if (!updated) {
-    throw new WikiToolError(
-      `Could not trash node ${input.id} (permission denied or the type is not trashable).`
-    );
+export const trashNode = async (
+  ctx: WikiToolContext,
+  input: { id: string }
+): Promise<{ id: string; trashed: boolean; type: string }> => {
+  const { tree, node } = await requireAccessibleNode(input.id, ctx);
+  if (!isSoftDeletableNodeType(node.type)) {
+    throw new WikiToolError(`Node type '${node.type}' cannot be trashed.`);
+  }
+  if (isTrashed(node)) {
+    return { id: input.id, trashed: true, type: node.type };
+  }
+
+  const user = await fetchWorkspaceUser(ctx);
+  assertCanSetTrashState(user, tree, true);
+  if (!(await writeTrashState(ctx, node.id, true))) {
+    throw new WikiToolError(`Could not move node ${input.id} to the trash.`);
   }
 
   return { id: input.id, trashed: true, type: node.type };
+};
+
+export const restoreNode = async (
+  ctx: WikiToolContext,
+  input: { id: string }
+): Promise<RestoreNodeResult> => {
+  if (!(await fetchNode(input.id))) {
+    // "Delete forever" removes the row and leaves a tombstone.
+    const tombstone = await database
+      .selectFrom('node_tombstones')
+      .select('id')
+      .where('id', '=', input.id)
+      .where('workspace_id', '=', ctx.workspaceId)
+      .executeTakeFirst();
+    throw new WikiToolError(
+      tombstone
+        ? `Node ${input.id} was permanently deleted and cannot be restored.`
+        : `Node ${input.id} was not found.`
+    );
+  }
+
+  const { tree } = await requireAccessibleNode(input.id, ctx);
+
+  // Like the client's restore: the node and every trashed ancestor, since a
+  // node restored inside a folder still in the trash stays out of sight.
+  const trashedDepths = tree
+    .map((row, depth) => (isTrashed(row) ? depth : -1))
+    .filter((depth) => depth >= 0);
+  if (trashedDepths.length === 0) {
+    throw new WikiToolError(`Node ${input.id} is not in the trash.`);
+  }
+
+  // Every permission first, so a refusal part-way leaves nothing restored.
+  const user = await fetchWorkspaceUser(ctx);
+  for (const depth of trashedDepths) {
+    assertCanSetTrashState(user, tree.slice(0, depth + 1), false);
+  }
+
+  const restored: string[] = [];
+  for (const depth of trashedDepths) {
+    const target = tree[depth]!;
+    if (!(await writeTrashState(ctx, target.id, false))) {
+      throw new WikiToolError(
+        `Could not restore node ${target.id}` +
+          (restored.length > 0
+            ? `; already restored: ${restored.join(', ')}.`
+            : '; nothing was restored.')
+      );
+    }
+    restored.push(target.id);
+  }
+
+  return { id: input.id, restored };
+};
+
+export const LIST_TRASH_DEFAULT_LIMIT = 50;
+export const LIST_TRASH_MAX_LIMIT = 200;
+
+const encodeTrashCursor = (deletedAt: string, id: string): string =>
+  Buffer.from(JSON.stringify([deletedAt, id]), 'utf8').toString('base64url');
+
+const decodeTrashCursor = (cursor: string): [string, string] => {
+  try {
+    const value: unknown = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8')
+    );
+    if (
+      Array.isArray(value) &&
+      value.length === 2 &&
+      typeof value[0] === 'string' &&
+      typeof value[1] === 'string' &&
+      NODE_ID_PATTERN.test(value[1])
+    ) {
+      return [value[0], value[1]];
+    }
+  } catch {
+    // Not a cursor of ours; refused below.
+  }
+  throw new WikiToolError('That cursor was not returned by list_trash.');
+};
+
+export const listTrash = async (
+  ctx: WikiToolContext,
+  input: { rootId?: string; types?: string[]; limit?: number; cursor?: string }
+): Promise<ListTrashResult> => {
+  const limit = Math.min(
+    Math.max(1, Math.floor(input.limit ?? LIST_TRASH_DEFAULT_LIMIT)),
+    LIST_TRASH_MAX_LIMIT
+  );
+  const types = (
+    input.types && input.types.length > 0 ? input.types : TRASHABLE_NODE_TYPES
+  ) as NodeType[];
+  const cursor = input.cursor ? decodeTrashCursor(input.cursor) : null;
+  const deletedAt = sql<string>`n.attributes->>'deletedAt'`;
+
+  const rows = await database
+    .selectFrom('nodes as n')
+    .select([
+      'n.id as id',
+      'n.type as type',
+      'n.parent_id as parentId',
+      'n.root_id as rootId',
+      sql<string | null>`n.attributes->>'name'`.as('name'),
+      deletedAt.as('deletedAt'),
+      sql<string | null>`n.attributes->>'deletedBy'`.as('deletedById'),
+      sql<string | null>`(
+        select coalesce(nullif(u.custom_name, ''), u.name)
+        from users u
+        where u.id = n.attributes->>'deletedBy'
+          and u.workspace_id = n.workspace_id
+      )`.as('deletedByName'),
+      nodePathSelect(ctx.userId).as('path'),
+      sql<string | null>`(
+        select trash_path.ancestor_id
+        from node_paths trash_path
+        join nodes trash_node on trash_node.id = trash_path.ancestor_id
+        where trash_path.descendant_id = n.id
+          and trash_path.level > 0
+          and coalesce(trash_node.attributes->>'deletedAt', '') <> ''
+        order by trash_path.level asc
+        limit 1
+      )`.as('trashedAncestorId'),
+    ])
+    .where('n.workspace_id', '=', ctx.workspaceId)
+    .where('n.type', 'in', types)
+    .where(sql<SqlBool>`coalesce(n.attributes->>'deletedAt', '') <> ''`)
+    .where(nodeAccessCondition(ctx.userId))
+    .$if(!!input.rootId, (qb) => qb.where('n.root_id', '=', input.rootId!))
+    .$if(cursor !== null, (qb) =>
+      qb.where(
+        sql<SqlBool>`(${deletedAt}, n.id) < (${cursor![0]}, ${cursor![1]})`
+      )
+    )
+    .orderBy(deletedAt, 'desc')
+    .orderBy('n.id', 'desc')
+    .limit(limit + 1)
+    .execute();
+
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  return {
+    items: page.map((row) => ({
+      id: row.id,
+      type: row.type,
+      name: row.name ?? '',
+      parentId: row.parentId,
+      rootId: row.rootId,
+      path: row.path ?? [],
+      deletedAt: row.deletedAt,
+      deletedBy: row.deletedById
+        ? { id: row.deletedById, name: row.deletedByName ?? '' }
+        : null,
+      trashedAncestorId: row.trashedAncestorId,
+    })),
+    nextCursor:
+      rows.length > limit && last
+        ? encodeTrashCursor(last.deletedAt, last.id)
+        : null,
+  };
 };
 
 export const moveNode = async (
@@ -2719,6 +2965,34 @@ const renameNodeInput = z.object({
 const trashNodeInput = z.object({
   id: z.string().describe('The node id of the page/folder/database/whiteboard to move to trash.'),
 });
+const listTrashInput = z.object({
+  rootId: z
+    .string()
+    .regex(NODE_ID_PATTERN)
+    .optional()
+    .describe('Only the trash of this space (the space id).'),
+  types: z
+    .array(z.enum(TRASHABLE_NODE_TYPES))
+    .optional()
+    .describe('Only these node types.'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(LIST_TRASH_MAX_LIMIT)
+    .optional()
+    .describe(
+      `Nodes per page, default ${LIST_TRASH_DEFAULT_LIMIT}, at most ${LIST_TRASH_MAX_LIMIT}.`
+    ),
+  cursor: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe('The nextCursor of the previous page, to read the page after it.'),
+});
+const restoreNodeInput = z.object({
+  id: z.string().describe('The id of the trashed node to restore.'),
+});
 const moveNodeInput = z.object({
   id: z.string().describe('The node id to move.'),
   parentId: z
@@ -2853,13 +3127,37 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'trash_node',
     description:
-      "Move a page, folder, database or whiteboard to the trash (soft delete — recoverable). Returns { id, trashed, type }.",
+      "Move a page, folder, database, record, file or whiteboard to the trash (soft delete; restore_node brings it back). Returns { id, trashed, type }.",
     inputSchema: trashNodeInput,
     run: trashNode,
     action: (input) => ({
       type: 'trash_node',
       nodeId: input.id,
       summary: 'Moved to trash',
+    }),
+  }),
+  defineTool({
+    name: 'list_trash',
+    description:
+      'List what is in the trash, newest first. A node inside a trashed folder or page names that ancestor in trashedAncestorId. Returns { items: [{ id, type, name, parentId, rootId, path, deletedAt, deletedBy: { id, name }, trashedAncestorId }], nextCursor }.',
+    inputSchema: listTrashInput,
+    run: listTrash,
+    action: () => ({
+      type: 'list_trash',
+      nodeId: null,
+      summary: 'Listed the trash',
+    }),
+  }),
+  defineTool({
+    name: 'restore_node',
+    description:
+      'Take a node out of the trash, together with any trashed ancestor it sits in, so it is visible again. Refuses a node that is not in the trash or was permanently deleted. Returns { id, restored: [ids, outermost first] }.',
+    inputSchema: restoreNodeInput,
+    run: restoreNode,
+    action: (input, result) => ({
+      type: 'restore_node',
+      nodeId: input.id,
+      summary: `Restored ${result.restored.length} node(s) from the trash`,
     }),
   }),
   defineTool({
