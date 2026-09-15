@@ -74,7 +74,7 @@ export const sanitizeSvg = (source: string): string => {
     USE_PROFILES: { svg: true, svgFilters: true },
     FORBID_TAGS: ['foreignObject', 'script', 'animate', 'set'],
     RETURN_DOM: true,
-  }) as unknown as { querySelector: (selector: string) => Element | null };
+  }) as unknown as { querySelector: (selector: string) => unknown };
 
   const svg = body.querySelector('svg');
   if (!svg) {
