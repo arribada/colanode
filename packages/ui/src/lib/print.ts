@@ -148,10 +148,15 @@ export const printHtmlDocument = ({
       iframe.remove();
       return;
     }
+    // Chrome names the saved PDF after the page that opened the dialog, not
+    // after this iframe, so the top document carries the title while it is open.
+    const previousTitle = document.title;
+    document.title = title;
     try {
       win.focus();
       win.print();
     } finally {
+      document.title = previousTitle;
       // Give the (modal) print dialog time to grab the document before the
       // iframe is torn down.
       setTimeout(() => iframe.remove(), 1500);

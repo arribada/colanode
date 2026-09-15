@@ -203,6 +203,12 @@ export const PrintExportDialog = ({
               : getCoverClass(pageCover),
           };
 
+    // The browser proposes the document title as the PDF's file name. A page
+    // with a version tag gets it appended, so exported files tell versions apart.
+    const fileTitle = pageAsPage.version
+      ? `${page.name || 'Document'} ${pageAsPage.version}`
+      : page.name || 'Document';
+
     const body = assemblePrintHtml({
       documentTitle: page.name || 'Document',
       date: new Date().toLocaleDateString(),
@@ -220,7 +226,7 @@ export const PrintExportDialog = ({
       options: { subpages, appendix, toc, cover },
     });
     printHtmlDocument({
-      title: page.name || 'Document',
+      title: fileTitle,
       bodyHtml: body,
       css: PRINT_EXPORT_CSS,
       withAppStyles: true,

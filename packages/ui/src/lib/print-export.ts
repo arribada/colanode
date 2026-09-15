@@ -173,7 +173,7 @@ const injectHeadingIds = (
 ): { html: string; headings: { id: string; text: string; level: number }[] } => {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const headings: { id: string; text: string; level: number }[] = [];
-  doc.querySelectorAll('h1, h2, h3').forEach((el, i) => {
+  doc.querySelectorAll('h1, h2, h3, h4, h5').forEach((el, i) => {
     const id = `${prefix}-h${i}`;
     el.setAttribute('id', id);
     headings.push({
@@ -407,8 +407,10 @@ export const PRINT_EXPORT_CSS = `
   .cover-version { display: inline-block; font-size: 13px; font-weight: 600; color: #1e3a8a; background: #e0e7ff; border-radius: 999px; padding: 2px 12px; margin: 0 0 10px; }
   .cover-meta { font-size: 14px; color: #475569; margin: 2px 0; }
 
-  /* Document control: identity, link and revision history. */
-  .doc-control { margin-bottom: 12mm; }
+  /* Document control: identity, link and revision history, on a page of
+     their own and centred on it. */
+  .doc-control { break-after: page; min-height: 262mm; display: flex; flex-direction: column; justify-content: center; }
+  .doc-control .section-heading, .doc-control .section-subheading { text-align: center; }
   table.doc-info, table.revision-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
   table.doc-info th, table.doc-info td, table.revision-table th, table.revision-table td { border: 0; border-bottom: 1px solid #e2e8f0; padding: 7px 10px; vertical-align: top; }
   table.doc-info tr:last-child th, table.doc-info tr:last-child td, table.revision-table tr:last-child td { border-bottom: 0; }
@@ -447,7 +449,7 @@ export const PRINT_EXPORT_CSS = `
   .print-callout-icon { display: flex; width: 24px; height: 24px; align-items: center; justify-content: center; flex-shrink: 0; }
 
   /* Headings keep their text with what follows. */
-  .print-body h1, .print-body h2, .print-body h3 { break-after: avoid; }
+  .print-body h1, .print-body h2, .print-body h3, .print-body h4, .print-body h5 { break-after: avoid; }
 
   /* Tables: headers repeat, rows stay whole, text wraps at word boundaries. */
   table { break-inside: auto; }
