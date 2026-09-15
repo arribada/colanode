@@ -6,6 +6,8 @@ import { workspaceDatabaseMigrations } from '@colanode/client/databases/workspac
 import {
   buildNodePaths,
   fetchNodePaths,
+  isParentOfAny,
+  pathsMention,
   sameNodePaths,
 } from '@colanode/client/lib/node-paths';
 
@@ -139,6 +141,45 @@ describe('buildNodePaths', () => {
     );
 
     expect(names(paths['leaf'] ?? [])).toEqual(['Space', 'Parent']);
+  });
+});
+
+describe('pathsMention', () => {
+  const paths = {
+    leaf: [
+      { id: 'space', type: 'space', name: 'Space', avatar: null },
+      { id: 'parent', type: 'page', name: 'Parent', avatar: null },
+    ],
+  };
+
+  it('reacts to a listed node and to its ancestors', () => {
+    expect(pathsMention('leaf', ['leaf'], paths)).toBe(true);
+    expect(pathsMention('parent', ['leaf'], paths)).toBe(true);
+    expect(pathsMention('space', ['leaf'], paths)).toBe(true);
+  });
+
+  it('ignores a node that is on no listed path', () => {
+    expect(pathsMention('elsewhere', ['leaf'], paths)).toBe(false);
+  });
+});
+
+describe('isParentOfAny', () => {
+  it('recognises the late parent of a node whose path was cut short', async () => {
+    const db = await openDatabase();
+    await insertNode(db, { id: 'child', type: 'page', name: 'Child', parentId: 'late-parent' });
+
+    const before = await fetchNodePaths(db, ['child']);
+    expect(await isParentOfAny(db, 'late-parent', ['child'], before)).toBe(true);
+    expect(await isParentOfAny(db, 'someone-else', ['child'], before)).toBe(false);
+  });
+
+  it('recognises the late parent of a known ancestor', async () => {
+    const db = await openDatabase();
+    await insertNode(db, { id: 'mid', type: 'page', name: 'Mid', parentId: 'late-space' });
+    await insertNode(db, { id: 'leaf', type: 'page', name: 'Leaf', parentId: 'mid' });
+
+    const before = await fetchNodePaths(db, ['leaf']);
+    expect(await isParentOfAny(db, 'late-space', ['leaf'], before)).toBe(true);
   });
 });
 

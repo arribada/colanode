@@ -64,6 +64,60 @@ export const buildNodePaths = (
 export const sameNodePaths = (a: NodePaths, b: NodePaths): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
+/**
+ * Whether a change to `nodeId` can alter the paths already computed: it is one
+ * of the requested nodes (moved, renamed, deleted) or one of their ancestors.
+ * Anything else -- the thousands of unrelated nodes a first sync writes -- is
+ * skipped without touching the database.
+ */
+export const pathsMention = (
+  nodeId: string,
+  requestedIds: string[],
+  paths: NodePaths
+): boolean => {
+  if (requestedIds.includes(nodeId)) {
+    return true;
+  }
+
+  return Object.values(paths).some((segments) =>
+    segments.some((segment) => segment.id === nodeId)
+  );
+};
+
+/**
+ * Whether a newly stored node is the missing parent of a requested node or of
+ * one of their known ancestors, which would complete a path cut short. One
+ * lookup on the parent_id index, instead of re-walking every path.
+ */
+export const isParentOfAny = async <DB>(
+  database: Kysely<DB> | Transaction<DB>,
+  parentId: string,
+  requestedIds: string[],
+  paths: NodePaths
+): Promise<boolean> => {
+  const ids = new Set(requestedIds);
+  for (const segments of Object.values(paths)) {
+    for (const segment of segments) {
+      ids.add(segment.id);
+    }
+  }
+  if (ids.size === 0) {
+    return false;
+  }
+
+  const result = await sql<{ id: string }>`
+    SELECT id FROM nodes
+    WHERE parent_id = ${parentId}
+      AND id IN (${sql.join(
+        [...ids].map((id) => sql`${id}`),
+        sql`, `
+      )})
+    LIMIT 1
+  `.execute(database);
+
+  return result.rows.length > 0;
+};
+
 export const fetchNodePaths = async <DB>(
   database: Kysely<DB> | Transaction<DB>,
   nodeIds: string[]

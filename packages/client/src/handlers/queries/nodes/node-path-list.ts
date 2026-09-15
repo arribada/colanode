@@ -3,6 +3,8 @@ import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib';
 import {
   NodePaths,
   fetchNodePaths,
+  isParentOfAny,
+  pathsMention,
   sameNodePaths,
 } from '@colanode/client/lib/node-paths';
 import { NodePathListQueryInput } from '@colanode/client/queries/nodes/node-path-list';
@@ -32,26 +34,51 @@ export class NodePathListQueryHandler
       };
     }
 
-    // Any rename or move on the way up changes a path, and an ancestor that
-    // syncs in late completes one. The walk is a handful of primary-key
-    // lookups, so it is re-run and only reported when a path really changed.
+    // A rename, move or delete matters only when it touches a listed node or
+    // one of its ancestors; a created node only when it is the missing parent
+    // of one. Re-walking every path on every event cost seconds of worker time
+    // per open list during a first sync, when thousands of nodes arrive.
     if (
       (event.type === 'node.created' ||
         event.type === 'node.updated' ||
         event.type === 'node.deleted') &&
       event.workspace.userId === input.userId
     ) {
-      const result = await this.handleQuery(input);
-      if (sameNodePaths(output, result)) {
+      // A failure here must not escape: an exception inside a change check
+      // stops every live query from updating.
+      try {
+        const relevant =
+          pathsMention(event.node.id, input.nodeIds, output) ||
+          (event.type === 'node.created' &&
+            (await isParentOfAny(
+              this.getWorkspace(input.userId).database,
+              event.node.id,
+              input.nodeIds,
+              output
+            )));
+
+        if (!relevant) {
+          return {
+            hasChanges: false,
+          };
+        }
+
+        const result = await this.handleQuery(input);
+        if (sameNodePaths(output, result)) {
+          return {
+            hasChanges: false,
+          };
+        }
+
+        return {
+          hasChanges: true,
+          result,
+        };
+      } catch {
         return {
           hasChanges: false,
         };
       }
-
-      return {
-        hasChanges: true,
-        result,
-      };
     }
 
     return {

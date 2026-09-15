@@ -25,6 +25,10 @@ export const useNodePaths = (nodeIds: string[], enabled = true) => {
     },
     {
       enabled: enabled && ids.length > 0,
+      // Every new set of rows is a new live subscription, released only when
+      // the cache drops it. Lists change often (typing in search, a first
+      // sync filling the home), so stale sets are let go quickly.
+      gcTime: 15_000,
     }
   );
 

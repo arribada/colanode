@@ -466,13 +466,17 @@ export const MentionExtension = Node.create<MentionOptions>({
             }),
           ]);
 
+          // The path is a hint: if it cannot be read, offer the entries
+          // without it rather than an empty picker.
           const paths =
             nodes.length > 0
-              ? await window.colanode.executeQuery({
-                  type: 'node.path.list',
-                  userId,
-                  nodeIds: nodes.map((node) => node.id),
-                })
+              ? await window.colanode
+                  .executeQuery({
+                    type: 'node.path.list',
+                    userId,
+                    nodeIds: nodes.map((node) => node.id),
+                  })
+                  .catch(() => ({}) as Record<string, NodePathSegment[]>)
               : {};
 
           return [
