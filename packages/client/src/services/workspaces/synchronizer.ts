@@ -1,10 +1,10 @@
 import { sha256 } from 'js-sha256';
-import { computeHealCursor } from '@colanode/client/services/workspaces/sync-guards';
 import ms from 'ms';
 
 import { eventBus } from '@colanode/client/lib/event-bus';
 import { EventLoop } from '@colanode/client/lib/event-loop';
 import { AccountSocket } from '@colanode/client/services/accounts/account-socket';
+import { computeHealCursor } from '@colanode/client/services/workspaces/sync-guards';
 import { WorkspaceService } from '@colanode/client/services/workspaces/workspace-service';
 import {
   SynchronizerOutputMessage,

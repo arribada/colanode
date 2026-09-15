@@ -7,12 +7,12 @@ import { SelectNodeUpdate } from '@colanode/server/data/schema';
 import { JobHandler } from '@colanode/server/jobs';
 import { config } from '@colanode/server/lib/config';
 import { fetchCounter, setCounter } from '@colanode/server/lib/counters';
+import { createLogger } from '@colanode/server/lib/logger';
 import {
   captureNodeSnapshot,
   pruneNodeSnapshots,
   DEFAULT_NODE_SNAPSHOT_RETENTION,
 } from '@colanode/server/lib/node-snapshots';
-import { createLogger } from '@colanode/server/lib/logger';
 
 const logger = createLogger('server:job:node-updates-merge');
 

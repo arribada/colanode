@@ -34,8 +34,8 @@ import { useSearch } from '@colanode/ui/contexts/search';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery as useClientQuery } from '@colanode/ui/hooks/use-live-query';
 import { useNodePaths } from '@colanode/ui/hooks/use-node-paths';
-import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import { ADR_DATABASE_ID } from '@colanode/ui/lib/adr';
+import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 import { resolveWikiTasksDb } from '@colanode/ui/lib/wiki-tasks';
 
 // Node types shown in the "Recently updated" feed. Pulled via a dedicated
