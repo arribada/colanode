@@ -45,6 +45,10 @@ import {
 import { database } from '@colanode/server/data/database';
 import { SelectNode } from '@colanode/server/data/schema';
 import {
+  parseInline,
+  renderInline,
+} from '@colanode/server/lib/ai/markdown-inline';
+import {
   loadImageFromBase64,
   loadImageFromUrl,
   MAX_IMAGE_BYTES,
@@ -472,54 +476,20 @@ export const embeddedNodeIds = (
     return nodeType ? [{ id: block.id, type: block.type, nodeType }] : [];
   });
 
-const escapeLinkLabel = (label: string): string =>
-  label.replace(/\s+/g, ' ').replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
-
-const applyLeafMarks = (
-  leaf: BlockLeaf,
-  options: MarkdownRenderOptions = {}
-): string => {
-  // A mention carries no text of its own -- its label is resolved from the
-  // target node when it renders. Without a case here it fell straight through
-  // the empty-text guard below and came back as nothing, so a replace-mode
-  // edit DELETED every internal link on the page it rewrote.
-  //
-  // The label is written for the reader only: the parser ignores it, so a
-  // renamed page or a label the model rewords never changes the link.
-  if (leaf.type === 'mention') {
-    const target = (leaf.attrs ?? {}).target;
-    if (typeof target !== 'string' || target.length === 0) {
-      return '';
-    }
-    const label = options.labels?.get(target) ?? '';
-    return `[${escapeLinkLabel(label)}](node:${target})`;
-  }
-
-  let text = leaf.text ?? '';
-  if (!text) {
-    return '';
-  }
-
-  const marks = leaf.marks ?? [];
-  const has = (type: string) => marks.some((mark) => mark.type === type);
-  const link = marks.find((mark) => mark.type === 'link');
-
-  if (has('code')) text = '`' + text + '`';
-  if (has('bold')) text = '**' + text + '**';
-  if (has('italic')) text = '*' + text + '*';
-  if (has('strike')) text = '~~' + text + '~~';
-  if (link && link.attrs && typeof link.attrs.href === 'string') {
-    text = `[${text}](${link.attrs.href})`;
-  }
-
-  return text;
-};
-
+// A mention carries no text of its own: it is written as [label](node:<id>),
+// the label resolved from the target for the reader only -- the parser
+// ignores it, so a renamed page or a label the model rewords never changes
+// the link. Marks, escaping and links are markdown-inline's.
 const leafTextOf = (
   block: Block,
-  options: MarkdownRenderOptions = {}
+  options: MarkdownRenderOptions = {},
+  lineStart = false
 ): string =>
-  (block.content ?? []).map((leaf) => applyLeafMarks(leaf, options)).join('');
+  renderInline(block.content, { labels: options.labels, lineStart });
+
+// A code block's text is literal: no escaping, no marks.
+const rawTextOf = (block: Block): string =>
+  (block.content ?? []).map((leaf) => leaf.text ?? '').join('');
 
 // Every node or user a document mentions, once each.
 export const collectMentionTargets = (
@@ -648,7 +618,8 @@ export const richTextToMarkdown = (
   content: RichTextContent | null | undefined,
   options: MarkdownRenderOptions = {}
 ): string => {
-  const leafText = (block: Block): string => leafTextOf(block, options);
+  const leafText = (block: Block, lineStart = false): string =>
+    leafTextOf(block, options, lineStart);
   const blocks = content && content.blocks ? Object.values(content.blocks) : [];
   if (blocks.length === 0) {
     return '';
@@ -659,10 +630,14 @@ export const richTextToMarkdown = (
       .filter((block) => block.parentId === parentId)
       .sort((a, b) => compareString(a.index, b.index));
 
-  // A cell holds paragraphs; a pipe inside one would break the row.
+  // A cell holds paragraphs; a pipe inside one would break the row, in code
+  // as much as in text, so every pipe is escaped once the cell is written
+  // (the parser unescapes them before reading the cell).
   const cellText = (cell: Block): string =>
     childrenOf(cell.id)
-      .map((child) => leafText(child))
+      .map((child) =>
+        renderInline(child.content, { labels: options.labels, inTable: true })
+      )
       .join(' ')
       .replace(/\|/g, '\\|')
       .trim();
@@ -704,7 +679,12 @@ export const richTextToMarkdown = (
     let counter = 1;
 
     for (const block of childrenOf(parentId)) {
-      const text = leafText(block);
+      // A heading's text follows its hashes; anything else starts a line,
+      // where a leading `#`, `>`, `-` or `1.` would be read as a block.
+      const text =
+        block.type === 'codeBlock'
+          ? rawTextOf(block)
+          : leafText(block, !block.type.startsWith('heading'));
       switch (block.type) {
         case 'heading1':
           lines.push(indent + '# ' + text);
@@ -827,153 +807,6 @@ export const richTextToMarkdown = (
   };
 
   return walk(documentId, '', false).join('\n');
-};
-
-// A wiki link written as a URL becomes a mention only when it has no label of
-// its own -- empty, or the address itself, which is what pasting a link
-// produces. A link somebody labelled "Saltwater Switch (SWS)" kept its target
-// but lost that label, rendered as the page's current title instead: 47
-// production pages carried such links.
-const isBareWikiLink = (label: string, href: string): boolean => {
-  const text = label.replace(/\\(.)/g, '$1').trim();
-  return text === '' || text === href;
-};
-
-const inlinePatterns: {
-  re: RegExp;
-  // null: not this construct after all; the next pattern gets a try.
-  make: (match: RegExpExecArray) => BlockLeaf | null;
-}[] =
-  [
-    {
-      // An image that is not one of ours cannot be displayed — the wiki has no
-      // image node, only file nodes. Render it as a link rather than leaving a
-      // stray '!' in the text, which is what used to happen.
-      re: /^!\[([^\]]*)\]\(([^)\s]+)\)/,
-      make: (m) => ({
-        type: 'text',
-        text: m[1] || m[2],
-        marks: [
-          {
-            type: 'link',
-            attrs: {
-              href: m[2],
-              target: '_blank',
-              rel: 'noopener noreferrer nofollow',
-            },
-          },
-        ],
-      }),
-    },
-    {
-      // An internal wiki link becomes a real mention rather than a link mark.
-      // Mentions are what the backlink index and the knowledge graph are built
-      // from, and they render the target's CURRENT title instead of a copy
-      // frozen at the moment somebody wrote the link.
-      //
-      // Three spellings are accepted: node:<id>, the /{workspace}/{node} path,
-      // and the full URL that "Copy link" puts on the clipboard -- each with an
-      // optional #block fragment. Ids are long lowercase alphanumerics, which
-      // is what keeps an ordinary external link from matching here.
-      //
-      // The label may contain escaped brackets and backslashes (get_page writes
-      // the target's name there), and is otherwise ignored. A URL spelling
-      // with a real label of its own stays an ordinary link (isBareWikiLink).
-      re: /^\[((?:\\.|[^\]\\])*)\]\((node:([a-z0-9]{20,})|(?:https?:\/\/[^/)\s]+)?\/[a-z0-9]{20,}\/([a-z0-9]{20,})(?:#[a-z0-9]{20,})?)(?:#[a-z0-9]{20,})?\)/,
-      make: (m) => {
-        const href = m[2] ?? '';
-        if (!m[3] && !isBareWikiLink(m[1] ?? '', href)) {
-          return null;
-        }
-        return {
-          type: 'mention',
-          attrs: {
-            id: generateId(IdType.Mention),
-            target: (m[3] ?? m[4]) as string,
-          },
-        };
-      },
-    },
-    {
-      re: /^\[([^\]]+)\]\(([^)\s]+)\)/,
-      make: (m) => ({
-        type: 'text',
-        text: m[1],
-        marks: [
-          {
-            type: 'link',
-            attrs: {
-              href: m[2],
-              target: '_blank',
-              rel: 'noopener noreferrer nofollow',
-            },
-          },
-        ],
-      }),
-    },
-    {
-      re: /^\*\*([^*]+)\*\*/,
-      make: (m) => ({ type: 'text', text: m[1], marks: [{ type: 'bold' }] }),
-    },
-    {
-      re: /^__([^_]+)__/,
-      make: (m) => ({ type: 'text', text: m[1], marks: [{ type: 'bold' }] }),
-    },
-    {
-      re: /^~~([^~]+)~~/,
-      make: (m) => ({ type: 'text', text: m[1], marks: [{ type: 'strike' }] }),
-    },
-    {
-      re: /^\*([^*]+)\*/,
-      make: (m) => ({ type: 'text', text: m[1], marks: [{ type: 'italic' }] }),
-    },
-    {
-      re: /^_([^_]+)_/,
-      make: (m) => ({ type: 'text', text: m[1], marks: [{ type: 'italic' }] }),
-    },
-    {
-      re: /^`([^`]+)`/,
-      make: (m) => ({ type: 'text', text: m[1], marks: [{ type: 'code' }] }),
-    },
-  ];
-
-const parseInline = (text: string): BlockLeaf[] => {
-  if (!text) {
-    return [];
-  }
-
-  const leaves: BlockLeaf[] = [];
-  let rest = text;
-  let plain = '';
-
-  const flushPlain = () => {
-    if (plain) {
-      leaves.push({ type: 'text', text: plain });
-      plain = '';
-    }
-  };
-
-  while (rest.length) {
-    let matched = false;
-    for (const pattern of inlinePatterns) {
-      const match = pattern.re.exec(rest);
-      const leaf = match ? pattern.make(match) : null;
-      if (match && leaf) {
-        flushPlain();
-        leaves.push(leaf);
-        rest = rest.slice((match[0] ?? '').length);
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      plain += rest.charAt(0);
-      rest = rest.slice(1);
-    }
-  }
-
-  flushPlain();
-  return leaves;
 };
 
 const newBlock = (type: string, parentId: string, index: string): Block => ({

@@ -22,6 +22,189 @@ const typesOf = (markdown: string): string[] =>
     .map((block) => block.type)
     .sort();
 
+type TestLeaf = { type: string; text?: string; marks?: { type: string; attrs?: Record<string, unknown> }[]; attrs?: Record<string, unknown> };
+
+const paragraphOf = (leaves: TestLeaf[]) => ({
+  type: 'rich_text' as const,
+  blocks: {
+    p1: { id: 'p1', type: 'paragraph', parentId: DOC, index: 'a0', content: leaves },
+  },
+});
+
+// Leaves as a reader tells them apart: text and the kinds of marks on it
+// (with a link's href), a mention by its target.
+const shapeOf = (leaves: TestLeaf[] | null | undefined) =>
+  (leaves ?? []).map((leaf) => ({
+    type: leaf.type,
+    ...(leaf.type === 'mention'
+      ? { target: leaf.attrs?.target }
+      : { text: leaf.text }),
+    marks: (leaf.marks ?? [])
+      .map((mark) =>
+        mark.type === 'link' ? `link=${String(mark.attrs?.href)}` : mark.type
+      )
+      .sort(),
+  }));
+
+const paragraphBack = (markdown: string) => {
+  const blocks = Object.values(markdownToBlocks(DOC, markdown));
+  return { types: blocks.map((b) => b.type), leaves: blocks[0]?.content };
+};
+
+describe('inline markdown — escaping', () => {
+  const literal = [
+    'AZURE_ACCOUNT_NAME and _leading and trailing_',
+    'a * b * c and 2*3*4',
+    'use `npm i` here',
+    '[not a link](https://example.org)',
+    '# not a heading',
+    '1. not a list',
+    '12) not a list either',
+    '> not a quote',
+    '- not a bullet',
+    '+ nor this',
+    '| not | a | table |',
+    '---',
+    '___',
+    '~~not struck~~',
+    '<b>not bold</b> <u>nor underlined</u>',
+    'C:\\path\\to\\file and a trailing \\',
+    '**not bold** and __not bold__',
+    '![not an image](https://example.org/x.png)',
+    '```',
+  ];
+
+  it('reads plain text back as exactly the same text', () => {
+    for (const text of literal) {
+      const markdown = richTextToMarkdown(DOC, paragraphOf([{ type: 'text', text }]));
+      const back = paragraphBack(markdown);
+      expect(back.types, markdown).toEqual(['paragraph']);
+      expect(shapeOf(back.leaves), markdown).toEqual([
+        { type: 'text', text, marks: [] },
+      ]);
+    }
+  });
+
+  it('leaves identifiers readable', () => {
+    expect(
+      richTextToMarkdown(DOC, paragraphOf([{ type: 'text', text: 'set AZURE_ACCOUNT_NAME in .env' }]))
+    ).toBe('set AZURE_ACCOUNT_NAME in .env');
+  });
+
+  it('keeps the ! in front of a link', () => {
+    const leaves = [
+      { type: 'text', text: 'Look!' },
+      { type: 'text', text: 'image', marks: [{ type: 'link', attrs: { href: 'https://example.org/a' } }] },
+    ];
+    const back = paragraphBack(richTextToMarkdown(DOC, paragraphOf(leaves)));
+    expect(shapeOf(back.leaves)).toEqual(shapeOf(leaves));
+  });
+});
+
+describe('inline markdown — marks', () => {
+  const PAGE = '01ky60x9fb8x1856afmmf01sw1pg';
+  const link = (href: string) => ({ type: 'link', attrs: { href } });
+
+  it('keeps emphasis on links and mentions', () => {
+    const leaves: TestLeaf[] = [
+      { type: 'text', text: 'see ' },
+      { type: 'text', text: 'docs', marks: [{ type: 'bold' }, link('https://example.org/docs')] },
+      { type: 'text', text: ' and ' },
+      { type: 'mention', attrs: { id: 'm1me', target: PAGE }, marks: [{ type: 'italic' }] },
+    ];
+    const markdown = richTextToMarkdown(DOC, paragraphOf(leaves));
+    const back = paragraphBack(markdown);
+    expect(shapeOf(back.leaves), markdown).toEqual(shapeOf(leaves));
+  });
+
+  it('reads a bold link and a bold mention the way people write them', () => {
+    const back = paragraphBack(
+      `**[docs](https://example.org/docs)** then **[x](node:${PAGE})**`
+    );
+    expect(shapeOf(back.leaves)).toEqual([
+      { type: 'text', text: 'docs', marks: ['bold', 'link=https://example.org/docs'] },
+      { type: 'text', text: ' then ', marks: [] },
+      { type: 'mention', target: PAGE, marks: ['bold'] },
+    ]);
+  });
+
+  it('reads the usual emphasis spellings, and leaves words with underscores alone', () => {
+    const back = paragraphBack(
+      '__bold__ _it_ ***both*** ~~gone~~ snake_case_name 2 * 3 * 4'
+    );
+    expect(shapeOf(back.leaves)).toEqual([
+      { type: 'text', text: 'bold', marks: ['bold'] },
+      { type: 'text', text: ' ', marks: [] },
+      { type: 'text', text: 'it', marks: ['italic'] },
+      { type: 'text', text: ' ', marks: [] },
+      { type: 'text', text: 'both', marks: ['bold', 'italic'] },
+      { type: 'text', text: ' ', marks: [] },
+      { type: 'text', text: 'gone', marks: ['strike'] },
+      { type: 'text', text: ' snake_case_name 2 * 3 * 4', marks: [] },
+    ]);
+  });
+
+  it('round-trips marks that sit side by side', () => {
+    const cases: TestLeaf[][] = [
+      [{ type: 'text', text: 'a', marks: [{ type: 'bold' }] }, { type: 'text', text: 'b', marks: [{ type: 'italic' }] }],
+      [{ type: 'text', text: 'a', marks: [{ type: 'italic' }] }, { type: 'text', text: 'b', marks: [{ type: 'bold' }] }],
+      [{ type: 'text', text: 'a', marks: [{ type: 'bold' }] }, { type: 'text', text: 'b', marks: [{ type: 'bold' }, { type: 'italic' }] }],
+      [{ type: 'text', text: 'a', marks: [{ type: 'strike' }] }, { type: 'text', text: 'b', marks: [{ type: 'bold' }, { type: 'strike' }] }],
+      [{ type: 'text', text: 'foo' }, { type: 'text', text: 'bar', marks: [{ type: 'italic' }] }, { type: 'text', text: 'baz' }],
+      [{ type: 'text', text: 'x' }, { type: 'text', text: '(y)', marks: [{ type: 'bold' }] }, { type: 'text', text: 'z' }],
+      [{ type: 'text', text: '*', marks: [{ type: 'bold' }] }, { type: 'text', text: '_', marks: [{ type: 'italic' }] }],
+      [{ type: 'text', text: 'a`b', marks: [{ type: 'code' }, { type: 'bold' }] }, { type: 'text', text: ' c' }],
+    ];
+    for (const leaves of cases) {
+      const markdown = richTextToMarkdown(DOC, paragraphOf(leaves));
+      const back = paragraphBack(markdown);
+      expect(shapeOf(back.leaves), markdown).toEqual(shapeOf(leaves));
+      // ...and writing what came back gives the same markdown again.
+      expect(
+        richTextToMarkdown(DOC, { type: 'rich_text', blocks: markdownToBlocks(DOC, markdown) }),
+        markdown
+      ).toBe(markdown);
+    }
+  });
+
+  it('does not pair emphasis across a link boundary', () => {
+    const back = paragraphBack('[a*b](https://example.org) c*');
+    expect(shapeOf(back.leaves)).toEqual([
+      { type: 'text', text: 'a*b', marks: ['link=https://example.org'] },
+      { type: 'text', text: ' c*', marks: [] },
+    ]);
+  });
+
+  it('keeps the indentation of an emphasised line', () => {
+    const leaves: TestLeaf[] = [
+      { type: 'text', text: '\tλ = c / f', marks: [{ type: 'italic' }] },
+    ];
+    const back = paragraphBack(richTextToMarkdown(DOC, paragraphOf(leaves)));
+    expect(shapeOf(back.leaves)).toEqual(shapeOf(leaves));
+  });
+
+  it('writes neighbouring leaves with the same marks as one run', () => {
+    // The editor stores an italic sentence split around spaces and mentions.
+    // Written leaf by leaf it came out as `*a **b*`, which does not read back.
+    const leaves: TestLeaf[] = [
+      { type: 'text', text: 'Note — it uses a ', marks: [{ type: 'italic' }] },
+      { type: 'text', text: 'RunCam', marks: [{ type: 'italic' }] },
+      { type: 'text', text: ' module.', marks: [{ type: 'italic' }] },
+    ];
+    expect(richTextToMarkdown(DOC, paragraphOf(leaves))).toBe(
+      '*Note — it uses a RunCam module.*'
+    );
+  });
+
+  it('writes a link address with spaces or parentheses so it reads back whole', () => {
+    for (const href of ['https://en.wikipedia.org/wiki/Loggerhead_(turtle)', 'https://example.org/a b']) {
+      const leaves = [{ type: 'text', text: 'here', marks: [link(href)] }];
+      const back = paragraphBack(richTextToMarkdown(DOC, paragraphOf(leaves)));
+      expect(shapeOf(back.leaves), href).toEqual(shapeOf(leaves));
+    }
+  });
+});
+
 describe('markdownToBlocks — tables', () => {
   const table = [
     '| Tracker | Use case |',
