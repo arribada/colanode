@@ -1,3 +1,4 @@
+import { BlockChildren, indexBlockChildren } from '@colanode/core/lib/block-tree';
 import { Block } from '@colanode/core/registry/block';
 import { Mention } from '@colanode/core/types/mentions';
 
@@ -9,39 +10,44 @@ export const extractBlocksMentions = (
     return [];
   }
 
-  return collectBlockMentions(nodeId, blocks);
+  // Children grouped once, as for the text: the per-block scan was quadratic
+  // and ran twice per synced document update (before and after content).
+  const mentions: Mention[] = [];
+  collectBlockMentions(
+    nodeId,
+    blocks,
+    indexBlockChildren(blocks),
+    new Set(),
+    mentions
+  );
+  return mentions;
 };
 
 const collectBlockMentions = (
   blockId: string,
-  blocks: Record<string, Block>
-): Mention[] => {
-  const mentions: Mention[] = [];
+  blocks: Record<string, Block>,
+  children: BlockChildren,
+  visited: Set<string>,
+  mentions: Mention[]
+): void => {
+  if (visited.has(blockId)) {
+    return;
+  }
+  visited.add(blockId);
 
-  // Extract text from the current block's leaf nodes
   const block = blocks[blockId];
-  if (block) {
-    if (block.content) {
-      for (const leaf of block.content) {
-        if (leaf.type === 'mention' && leaf.attrs?.target && leaf.attrs?.id) {
-          mentions.push({
-            id: leaf.attrs.id,
-            target: leaf.attrs.target,
-          });
-        }
+  if (block?.content) {
+    for (const leaf of block.content) {
+      if (leaf.type === 'mention' && leaf.attrs?.target && leaf.attrs?.id) {
+        mentions.push({
+          id: leaf.attrs.id,
+          target: leaf.attrs.target,
+        });
       }
     }
   }
 
-  // Find children and sort them by their index to maintain a stable order
-  const children = Object.values(blocks)
-    .filter((child) => child.parentId === blockId)
-    .sort((a, b) => a.index.localeCompare(b.index));
-
-  // Recursively collect mentions from children
-  for (const child of children) {
-    mentions.push(...collectBlockMentions(child.id, blocks));
+  for (const child of children.get(blockId) ?? []) {
+    collectBlockMentions(child.id, blocks, children, visited, mentions);
   }
-
-  return mentions;
 };

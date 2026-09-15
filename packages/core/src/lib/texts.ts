@@ -1,3 +1,4 @@
+import { BlockChildren, indexBlockChildren } from '@colanode/core/lib/block-tree';
 import { Block } from '@colanode/core/registry/block';
 import { DocumentContent } from '@colanode/core/registry/documents';
 
@@ -13,14 +14,31 @@ export const extractBlockTexts = (
     return null;
   }
 
-  const result = collectBlockText(nodeId, blocks);
+  // The children are grouped once. Scanning every block for the children of
+  // each block made this quadratic: a 4,000-block page took ten seconds, on
+  // the worker that also answers every query, so a first sync of the large
+  // Platform pages froze search for minutes.
+  const result = collectBlockText(
+    nodeId,
+    blocks,
+    indexBlockChildren(blocks),
+    new Set()
+  );
   return result.length > 0 ? result : null;
 };
 
 const collectBlockText = (
   blockId: string,
-  blocks: Record<string, Block>
+  blocks: Record<string, Block>,
+  children: BlockChildren,
+  visited: Set<string>
 ): string => {
+  // A parent cycle in corrupted content must end the walk, not the stack.
+  if (visited.has(blockId)) {
+    return '';
+  }
+  visited.add(blockId);
+
   const texts: string[] = [];
 
   // Extract text from the current block's leaf nodes
@@ -37,14 +55,8 @@ const collectBlockText = (
     texts.push(text);
   }
 
-  // Find children and sort them by their index to maintain a stable order
-  const children = Object.values(blocks)
-    .filter((child) => child.parentId === blockId)
-    .sort((a, b) => a.index.localeCompare(b.index));
-
-  // Recursively collect text from children
-  for (const child of children) {
-    texts.push(collectBlockText(child.id, blocks));
+  for (const child of children.get(blockId) ?? []) {
+    texts.push(collectBlockText(child.id, blocks, children, visited));
   }
 
   return texts.join('\n');
