@@ -549,19 +549,36 @@ describe('internal links become mentions', () => {
     expect(leaves.some((leaf) => leaf.marks?.[0]?.type === 'link')).toBe(false);
   });
 
-  it('accepts the link the Copy link action puts on the clipboard', () => {
-    const leaves = leavesOf(`[x](https://docs.arribada.org/${WS}/${PAGE})`);
-    expect(leaves[0]?.attrs).toMatchObject({ target: PAGE });
+  it('accepts the link the Copy link action puts on the clipboard, unlabelled', () => {
+    const url = `https://docs.arribada.org/${WS}/${PAGE}`;
+    for (const markdown of [`[](${url})`, `[${url}](${url})`]) {
+      const leaves = leavesOf(markdown);
+      expect(leaves.map((leaf) => leaf.type), markdown).toEqual(['mention']);
+      expect(leaves[0]?.attrs, markdown).toMatchObject({ target: PAGE });
+    }
   });
 
   it('accepts the bare workspace path, and a block anchor on the end', () => {
-    expect(leavesOf(`[x](/${WS}/${PAGE})`)[0]?.attrs).toMatchObject({
+    expect(leavesOf(`[](/${WS}/${PAGE})`)[0]?.attrs).toMatchObject({
       target: PAGE,
     });
     const anchored = leavesOf(
-      `[x](https://docs.arribada.org/${WS}/${PAGE}#01kzjt1mn5keseg529m93mcvbqbl)`
+      `[](https://docs.arribada.org/${WS}/${PAGE}#01kzjt1mn5keseg529m93mcvbqbl)`
     );
     expect(anchored[0]?.attrs).toMatchObject({ target: PAGE });
+  });
+
+  it('keeps a labelled wiki URL a link, label and address intact', () => {
+    // 47 production pages carry links like this one. Turning it into a
+    // mention replaced "Saltwater Switch (SWS)" with the page's own title.
+    const url = `https://docs.arribada.org/${WS}/${PAGE}`;
+    for (const href of [url, `/${WS}/${PAGE}`]) {
+      const leaves = leavesOf(`see [Saltwater Switch (SWS)](${href}) here`);
+      expect(leaves.some((leaf) => leaf.type === 'mention'), href).toBe(false);
+      const link = leaves.find((leaf) => leaf.marks?.[0]?.type === 'link');
+      expect(link?.text, href).toBe('Saltwater Switch (SWS)');
+      expect(link?.marks?.[0]?.attrs, href).toMatchObject({ href });
+    }
   });
 
   it('leaves an ordinary external link exactly as it was', () => {

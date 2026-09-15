@@ -829,7 +829,21 @@ export const richTextToMarkdown = (
   return walk(documentId, '', false).join('\n');
 };
 
-const inlinePatterns: { re: RegExp; make: (match: RegExpExecArray) => BlockLeaf }[] =
+// A wiki link written as a URL becomes a mention only when it has no label of
+// its own -- empty, or the address itself, which is what pasting a link
+// produces. A link somebody labelled "Saltwater Switch (SWS)" kept its target
+// but lost that label, rendered as the page's current title instead: 47
+// production pages carried such links.
+const isBareWikiLink = (label: string, href: string): boolean => {
+  const text = label.replace(/\\(.)/g, '$1').trim();
+  return text === '' || text === href;
+};
+
+const inlinePatterns: {
+  re: RegExp;
+  // null: not this construct after all; the next pattern gets a try.
+  make: (match: RegExpExecArray) => BlockLeaf | null;
+}[] =
   [
     {
       // An image that is not one of ours cannot be displayed — the wiki has no
@@ -863,15 +877,22 @@ const inlinePatterns: { re: RegExp; make: (match: RegExpExecArray) => BlockLeaf 
       // is what keeps an ordinary external link from matching here.
       //
       // The label may contain escaped brackets and backslashes (get_page writes
-      // the target's name there), and is otherwise ignored.
-      re: /^\[((?:\\.|[^\]\\])*)\]\((?:node:([a-z0-9]{20,})|(?:https?:\/\/[^/)\s]+)?\/[a-z0-9]{20,}\/([a-z0-9]{20,}))(?:#[a-z0-9]{20,})?\)/,
-      make: (m) => ({
-        type: 'mention',
-        attrs: {
-          id: generateId(IdType.Mention),
-          target: (m[2] ?? m[3]) as string,
-        },
-      }),
+      // the target's name there), and is otherwise ignored. A URL spelling
+      // with a real label of its own stays an ordinary link (isBareWikiLink).
+      re: /^\[((?:\\.|[^\]\\])*)\]\((node:([a-z0-9]{20,})|(?:https?:\/\/[^/)\s]+)?\/[a-z0-9]{20,}\/([a-z0-9]{20,})(?:#[a-z0-9]{20,})?)(?:#[a-z0-9]{20,})?\)/,
+      make: (m) => {
+        const href = m[2] ?? '';
+        if (!m[3] && !isBareWikiLink(m[1] ?? '', href)) {
+          return null;
+        }
+        return {
+          type: 'mention',
+          attrs: {
+            id: generateId(IdType.Mention),
+            target: (m[3] ?? m[4]) as string,
+          },
+        };
+      },
     },
     {
       re: /^\[([^\]]+)\]\(([^)\s]+)\)/,
@@ -936,9 +957,10 @@ const parseInline = (text: string): BlockLeaf[] => {
     let matched = false;
     for (const pattern of inlinePatterns) {
       const match = pattern.re.exec(rest);
-      if (match) {
+      const leaf = match ? pattern.make(match) : null;
+      if (match && leaf) {
         flushPlain();
-        leaves.push(pattern.make(match));
+        leaves.push(leaf);
         rest = rest.slice((match[0] ?? '').length);
         matched = true;
         break;
