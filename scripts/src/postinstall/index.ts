@@ -101,6 +101,21 @@ const execute = () => {
     path.resolve(WEB_ASSETS_DIR, 'arribada-mark.svg')
   );
 
+  // Install icons, all traced from the official logo: the any-purpose tile,
+  // the full-bleed maskable variant Android and Windows crop to their own
+  // shape, and the square iOS rounds by itself.
+  for (const name of [
+    'arribada-app-180.png',
+    'arribada-app-192.png',
+    'arribada-app-512.png',
+    'arribada-app-maskable-512.png',
+  ]) {
+    copyFile(
+      path.resolve(IMAGES_DIR, name),
+      path.resolve(WEB_ASSETS_DIR, name)
+    );
+  }
+
   copyFile(
     path.resolve(IMAGES_DIR, 'colanode-logo.png'),
     path.resolve(DESKTOP_ASSETS_DIR, 'colanode-logo.png')
@@ -115,6 +130,17 @@ const execute = () => {
     path.resolve(IMAGES_DIR, 'colanode-logo.icns'),
     path.resolve(DESKTOP_ASSETS_DIR, 'colanode-logo.icns')
   );
+
+  // The desktop app's own icon: .ico for the Windows exe and installer,
+  // .icns for macOS, .png for Linux and for the window itself. The sources
+  // are arribada-desktop.* because assets/images/arribada-logo.png is
+  // already the brand logo; the app still finds them as arribada-logo.*.
+  for (const extension of ['png', 'ico', 'icns']) {
+    copyFile(
+      path.resolve(IMAGES_DIR, `arribada-desktop.${extension}`),
+      path.resolve(DESKTOP_ASSETS_DIR, `arribada-logo.${extension}`)
+    );
+  }
 };
 
 execute();

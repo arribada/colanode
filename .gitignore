@@ -166,6 +166,9 @@ apps/desktop/assets/fonts/antonio.ttf
 apps/desktop/assets/colanode-logo.png
 apps/desktop/assets/colanode-logo.ico
 apps/desktop/assets/colanode-logo.icns
+apps/desktop/assets/arribada-logo.png
+apps/desktop/assets/arribada-logo.ico
+apps/desktop/assets/arribada-logo.icns
 
 # Ignore web assets
 apps/web/public/assets/emojis.db
@@ -181,6 +184,10 @@ apps/web/public/assets/arribada-icon-180.png
 apps/web/public/assets/arribada-icon-192.png
 apps/web/public/assets/arribada-icon-512.png
 apps/web/public/assets/arribada-mark.svg
+apps/web/public/assets/arribada-app-180.png
+apps/web/public/assets/arribada-app-192.png
+apps/web/public/assets/arribada-app-512.png
+apps/web/public/assets/arribada-app-maskable-512.png
 
 # Ignore mobile assets
 apps/mobile/assets/ui/index.html
