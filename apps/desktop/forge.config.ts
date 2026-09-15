@@ -104,6 +104,9 @@ const config: ForgeConfig = {
     new MakerDeb({
       options: {
         name: 'arribada-wiki',
+        // The Debian maker ignores the packager's executableName and would look
+        // for a binary named after the npm package.
+        bin: 'arribada-wiki',
         productName: 'Arribada Wiki',
         icon: 'assets/arribada-logo.png',
         categories: ['Office'],
