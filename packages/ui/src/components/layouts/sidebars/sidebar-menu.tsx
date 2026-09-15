@@ -21,6 +21,7 @@ import { SidebarGetTheApp } from '@colanode/ui/components/layouts/sidebars/sideb
 import { SidebarMenuFooter } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-footer';
 import { SidebarMenuHeader } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-header';
 import { SidebarMenuIcon } from '@colanode/ui/components/layouts/sidebars/sidebar-menu-icon';
+import { SidebarThemeToggle } from '@colanode/ui/components/layouts/sidebars/sidebar-theme-toggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -202,6 +203,7 @@ export const SidebarMenu = ({
         {/* Installing from the browser, or downloading the desktop build,
             means nothing from inside the desktop app itself. */}
         {app.type === 'web' && <SidebarGetTheApp />}
+        <SidebarThemeToggle />
         {onToggleCollapsed && (
           <SidebarMenuIcon
             icon={collapsed ? PanelLeftOpen : PanelLeftClose}

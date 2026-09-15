@@ -65,6 +65,10 @@ vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-get-the-app', () => ({
   SidebarGetTheApp: () => 'get-the-app-menu',
 }));
 
+vi.mock('@colanode/ui/components/layouts/sidebars/sidebar-theme-toggle', () => ({
+  SidebarThemeToggle: () => 'theme-toggle',
+}));
+
 // The apps launcher uses a Radix DropdownMenu, whose context hooks assume a
 // live client render and throw under renderToStaticMarkup. This test only
 // asserts the rail's icon aria-labels (all outside the dropdown), so stub the
@@ -154,5 +158,17 @@ describe('SidebarMenu — desktop download', () => {
       <SidebarMenu value="spaces" onChange={() => {}} />
     );
     expect(markup).not.toContain('get-the-app-menu');
+  });
+});
+
+describe('SidebarMenu — theme switch', () => {
+  // The navy dark theme is hard to read in daylight wherever the wiki runs,
+  // so the light/dark switch is on the rail in both builds.
+  it.each(['web', 'desktop'] as const)('is on the rail in the %s build', (type) => {
+    appType.value = type;
+    const markup = renderToStaticMarkup(
+      <SidebarMenu value="spaces" onChange={() => {}} />
+    );
+    expect(markup).toContain('theme-toggle');
   });
 });
