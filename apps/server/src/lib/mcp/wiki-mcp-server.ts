@@ -17,6 +17,21 @@ import {
   wikiToolDefinitions,
 } from '@colanode/server/lib/ai/tools';
 
+// What a failed tool call tells the model. A WikiToolError is an expected,
+// recoverable failure and says what went wrong, and so does input the tool's
+// schema rejects: zod names the field and the rule, nothing of the server.
+// That used to come back as "The tool failed to execute.", which left a
+// model guessing at a typo. Anything else stays server-side.
+export const toolErrorMessage = (error: unknown): string => {
+  if (error instanceof WikiToolError) {
+    return error.message;
+  }
+  if (error instanceof z.ZodError) {
+    return `Invalid input: ${z.prettifyError(error)}`.slice(0, 2000);
+  }
+  return 'The tool failed to execute.';
+};
+
 const toolsByName = new Map<string, WikiToolDefinition>(
   wikiToolDefinitions.map((def): [string, WikiToolDefinition] => [
     def.name,
@@ -63,16 +78,9 @@ export const createWikiMcpServer = (ctx: WikiToolContext): Server => {
         content: [{ type: 'text', text: JSON.stringify(result) }],
       };
     } catch (error) {
-      // WikiToolError is an expected, recoverable failure (permission denied,
-      // not found, bad input) — surface its message to the model. Anything
-      // else is unexpected; keep the detail server-side.
-      const message =
-        error instanceof WikiToolError
-          ? error.message
-          : 'The tool failed to execute.';
       return {
         isError: true,
-        content: [{ type: 'text', text: message }],
+        content: [{ type: 'text', text: toolErrorMessage(error) }],
       };
     }
   });
