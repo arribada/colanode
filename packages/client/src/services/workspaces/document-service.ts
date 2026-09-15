@@ -722,6 +722,22 @@ export class DocumentService {
       : BigInt(0);
 
     const updatesToDelete = [data.id, ...mergedUpdateIds];
+
+    // Idempotent short-circuit: if applying this update leaves the materialized
+    // content identical to what is already stored, it adds nothing new -- e.g.
+    // the periodic healing re-sync re-delivering an update we already applied.
+    // Skip the write entirely so a heal that finds nothing missing costs nothing.
+    // It comes BEFORE the text and mention extraction: those walk the whole
+    // document, and on a large page they were paid for every re-delivered
+    // update only to be thrown away here.
+    if (
+      document &&
+      JSON.stringify(content) === document.content &&
+      !documentUpdates.some((update) => updatesToDelete.includes(update.id))
+    ) {
+      return true;
+    }
+
     const text = extractDocumentText(data.documentId, content);
 
     const beforeContent = JSON.parse(
@@ -732,18 +748,6 @@ export class DocumentService {
     const afterMentions =
       extractBlocksMentions(data.documentId, content.blocks) ?? [];
     const mentionChanges = checkMentionChanges(beforeMentions, afterMentions);
-
-    // Idempotent short-circuit: if applying this update leaves the materialized
-    // content identical to what is already stored, it adds nothing new -- e.g.
-    // the periodic healing re-sync re-delivering an update we already applied.
-    // Skip the write entirely so a heal that finds nothing missing costs nothing.
-    if (
-      document &&
-      JSON.stringify(content) === document.content &&
-      !documentUpdates.some((update) => updatesToDelete.includes(update.id))
-    ) {
-      return true;
-    }
 
     if (document) {
       const {

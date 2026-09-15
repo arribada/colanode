@@ -36,6 +36,12 @@ const HEAL_LOOKBACK = 200n;
 // past any realistic wiki load.
 const MAX_HEAL_LOOKBACK = 5000n;
 
+// How many items of a batch are applied between two cursor saves.
+const CURSOR_SAVE_INTERVAL = 20;
+
+const yieldToEventLoop = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 export class Synchronizer<TInput extends SynchronizerInput> {
   private readonly id: string;
   private readonly input: TInput;
@@ -162,6 +168,24 @@ export class Synchronizer<TInput extends SynchronizerInput> {
         await this.processor(item.data);
         lastCursor = item.cursor;
         processedCount++;
+
+        // The local database answers synchronously, so a batch never let the
+        // worker take a breath: every query the page sent (search, paths,
+        // lists) queued behind the whole batch, for minutes on a first sync
+        // of large pages. Yield between items so queries get answered.
+        await yieldToEventLoop();
+
+        // Persist progress along the way, so a tab closed mid-batch does not
+        // restart the same slow batch from scratch next time. Not while
+        // healing: a heal re-pulls below the saved cursor, and saving there
+        // would move the persisted cursor backwards.
+        if (
+          !this.healing &&
+          processedCount % CURSOR_SAVE_INTERVAL === 0
+        ) {
+          this.cursor = lastCursor;
+          await this.saveCursor(lastCursor);
+        }
       }
     } catch (error) {
       debug(`Error consuming items: ${error}`);
