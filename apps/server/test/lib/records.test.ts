@@ -191,10 +191,15 @@ describe('searchRecords', () => {
   it('returns each matching record of the database once, and nothing else', async () => {
     const data = await seed();
 
-    const rows = await searchRecords(data.target, data.workspaceId, data.userA, {
-      searchQuery: 'energy',
-      visibleOnly: true,
-    });
+    const rows = await searchRecords(
+      data.target,
+      data.workspaceId,
+      data.userA,
+      {
+        searchQuery: 'energy',
+        visibleOnly: true,
+      }
+    );
 
     expect(rows.map((row) => row.id)).toEqual(
       [data.byName, data.byField].sort()
@@ -204,9 +209,14 @@ describe('searchRecords', () => {
   it('matches field values, not the keys of the stored JSON', async () => {
     const data = await seed();
 
-    const rows = await searchRecords(data.target, data.workspaceId, data.userA, {
-      searchQuery: 'text',
-    });
+    const rows = await searchRecords(
+      data.target,
+      data.workspaceId,
+      data.userA,
+      {
+        searchQuery: 'text',
+      }
+    );
 
     expect(rows).toEqual([]);
   });
