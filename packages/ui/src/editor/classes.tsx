@@ -1,9 +1,17 @@
 export const defaultClasses = {
-  heading1: 'mb-1 mt-4 font-heading text-4xl font-bold group',
+  // The space around a heading grows with its rank, so a section break reads
+  // as one. A heading right after another heading keeps only a small top
+  // margin: a chapter followed by its first section must not open a hole.
+  heading1:
+    'mb-3 mt-8 font-heading text-4xl font-bold group first:mt-2 [:is(h1,h2,h3,h4,h5)+&]:mt-2',
   heading2:
-    'mb-px mt-3 font-heading text-2xl font-semibold tracking-tight group',
+    'mb-2 mt-7 font-heading text-2xl font-semibold tracking-tight group first:mt-2 [:is(h1,h2,h3,h4,h5)+&]:mt-1.5',
   heading3:
-    'mb-px mt-2 font-heading text-xl font-semibold tracking-tight group',
+    'mb-1.5 mt-6 font-heading text-xl font-semibold tracking-tight group first:mt-2 [:is(h1,h2,h3,h4,h5)+&]:mt-1',
+  heading4:
+    'mb-1 mt-5 font-heading text-lg font-semibold tracking-tight group first:mt-2 [:is(h1,h2,h3,h4,h5)+&]:mt-1',
+  heading5:
+    'mb-1 mt-4 font-heading text-base font-semibold group first:mt-2 [:is(h1,h2,h3,h4,h5)+&]:mt-0.5',
   paragraph: 'm-0 px-0 py-1',
   bulletList: 'm-0 ps-6 list-disc [&_ul]:list-[circle] [&_ul_ul]:list-[square]',
   orderedList: 'm-0 ps-6 list-decimal',
