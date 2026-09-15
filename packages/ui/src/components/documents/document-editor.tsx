@@ -956,8 +956,18 @@ export const DocumentEditor = ({
     });
 
     const recount = () => {
-      const text = editor.getText().trim();
-      setWordCount(text.length === 0 ? 0 : text.split(/\s+/).length);
+      // TipTap destroys an editor whose mount effect has not run within a
+      // millisecond, leaving a null schema: getText then threw, and the
+      // uncaught error blanked the whole page. A word count is never worth it.
+      if (editor.isDestroyed) {
+        return;
+      }
+      try {
+        const text = editor.getText().trim();
+        setWordCount(text.length === 0 ? 0 : text.split(/\s+/).length);
+      } catch {
+        // Leave the previous count.
+      }
     };
     recount();
     editor.on('update', recount);
