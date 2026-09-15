@@ -642,17 +642,30 @@ export const richTextToMarkdown = (
       .filter((block) => block.parentId === parentId)
       .sort((a, b) => compareString(a.index, b.index));
 
-  // A cell holds paragraphs; a pipe inside one would break the row, in code
-  // as much as in text, so every pipe is escaped once the cell is written
-  // (the parser unescapes them before reading the cell).
-  const cellText = (cell: Block): string =>
-    childrenOf(cell.id)
-      .map((child) =>
-        renderInline(child.content, { labels: options.labels, inTable: true })
-      )
-      .join(' ')
-      .replace(/\|/g, '\\|')
-      .trim();
+  // A cell holds paragraphs and images. A cell of one paragraph is written as
+  // its text. Anything more is written as <p>…</p> and ![](file:…) segments:
+  // the paragraphs used to be joined into one, and the images dropped. A
+  // pipe would break the row, in code as much as in text, so every pipe is
+  // escaped once the cell is written (the parser unescapes them first).
+  const cellText = (cell: Block): string => {
+    const inside = childrenOf(cell.id);
+    const inline = (child: Block) =>
+      renderInline(child.content, { labels: options.labels, inTable: true });
+    const only = inside[0];
+    const text =
+      inside.length === 1 && only?.type === 'paragraph'
+        ? inline(only)
+        : inside
+            .map((child) =>
+              child.type === 'file'
+                ? `![](file:${child.id})`
+                : child.type === 'paragraph'
+                  ? `<p>${inline(child)}</p>`
+                  : ''
+            )
+            .join('');
+    return text.replace(/\|/g, '\\|').trim();
+  };
 
   const tableLines = (table: Block, indent: string): string[] => {
     const rows = childrenOf(table.id).filter((row) => row.type === 'tableRow');
@@ -881,6 +894,75 @@ const EMPTY_PARAGRAPH = '<p></p>';
 
 const paragraphContent = (text: string): BlockLeaf[] =>
   text.trim() === EMPTY_PARAGRAPH ? [] : parseInline(text);
+
+type CellSegment = { fileId: string } | { text: string };
+
+// The inverse of cellText in richTextToMarkdown: a cell written as <p>…</p>
+// and ![](file:…) segments, and nothing else, becomes those blocks. Any
+// other cell is one paragraph (null).
+const cellSegments = (text: string): CellSegment[] | null => {
+  const segments: CellSegment[] = [];
+  // Backtick run lengths with no closing run further on: not searched again,
+  // so a cell full of stray backticks stays linear.
+  const unclosed = new Set<number>();
+  let at = 0;
+  while (at < text.length) {
+    if (/\s/.test(text[at] ?? '')) {
+      at += 1;
+      continue;
+    }
+    const image = /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)/.exec(
+      text.slice(at, at + 256)
+    );
+    if (image) {
+      segments.push({ fileId: image[1] ?? '' });
+      at += image[0].length;
+      continue;
+    }
+    if (!text.startsWith('<p>', at)) {
+      return null;
+    }
+    // The </p> that ends this paragraph: not escaped, and not inside code,
+    // which is not escaped.
+    let close = -1;
+    for (let k = at + 3; k < text.length && close < 0; k++) {
+      const ch = text[k];
+      if (ch === '\\') {
+        k += 1;
+        continue;
+      }
+      if (ch === '`') {
+        let run = 1;
+        while (text[k + run] === '`') run += 1;
+        let end = -1;
+        if (!unclosed.has(run)) {
+          const ticks = /`+/g;
+          ticks.lastIndex = k + run;
+          for (let m = ticks.exec(text); m; m = ticks.exec(text)) {
+            if (m[0].length === run) {
+              end = m.index;
+              break;
+            }
+          }
+          if (end < 0) {
+            unclosed.add(run);
+          }
+        }
+        k = (end < 0 ? k : end) + run - 1;
+        continue;
+      }
+      if (text.startsWith('</p>', k)) {
+        close = k;
+      }
+    }
+    if (close < 0) {
+      return null;
+    }
+    segments.push({ text: text.slice(at + 3, close) });
+    at = close + 4;
+  }
+  return segments.length > 0 ? segments : null;
+};
 
 const newBlock = (type: string, parentId: string, index: string): Block => ({
   id: generateId(IdType.Block),
@@ -1204,7 +1286,29 @@ const parseBlockLines = (
           const cell = addChild(row.id, cellType, cellAfter);
           cellAfter = cell.index;
           cell.attrs = { colspan: 1, rowspan: 1 };
-          addParagraph(cell.id, cells[c] ?? '');
+          const text = cells[c] ?? '';
+          const segments = cellSegments(text);
+          if (!segments) {
+            addParagraph(cell.id, text);
+            continue;
+          }
+          let inside: string | null = null;
+          for (const segment of segments) {
+            const index = generateFractionalIndex(inside, null);
+            inside = index;
+            if ('fileId' in segment) {
+              blocks[segment.fileId] = {
+                id: segment.fileId,
+                type: 'file',
+                parentId: cell.id,
+                index,
+              };
+            } else {
+              const paragraph = newBlock('paragraph', cell.id, index);
+              paragraph.content = paragraphContent(segment.text);
+              blocks[paragraph.id] = paragraph;
+            }
+          }
         }
       };
       emitRow(header, 'tableHeader');

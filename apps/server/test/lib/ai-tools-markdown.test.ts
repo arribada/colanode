@@ -762,6 +762,70 @@ describe('lists', () => {
   });
 });
 
+describe('table cells', () => {
+  const IMAGE = '01kzbt4zt38teyamczph8kq65ffi';
+
+  const tableWith = (cellChildren: TestBlock[]) =>
+    byId(
+      container('t', 'table', DOC, 'a0'),
+      container('r0', 'tableRow', 't', 'a0'),
+      container('h0', 'tableHeader', 'r0', 'a0'),
+      textBlock('h0p', 'h0', 'a0', 'Review note'),
+      container('r1', 'tableRow', 't', 'a1'),
+      container('c0', 'tableCell', 'r1', 'a0'),
+      ...cellChildren
+    );
+
+  it('keeps several paragraphs and an image in one cell', () => {
+    const blocks = tableWith([
+      textBlock('c0a', 'c0', 'a0', 'U7 needs 4.7uF + 100nF | per pin, not </p> literally.'),
+      { id: IMAGE, type: 'file', parentId: 'c0', index: 'a1' },
+      {
+        ...textBlock('c0b', 'c0', 'a2', ''),
+        content: [
+          { type: 'text', text: 'Check the ' },
+          { type: 'text', text: '</p>', marks: [{ type: 'code' }] },
+          { type: 'hardBreak' },
+          { type: 'text', text: 'datasheet' },
+        ],
+      },
+    ]);
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+    const back = markdownToBlocks(DOC, markdown);
+    expect(back[IMAGE]?.type).toBe('file');
+    expect(back[back[IMAGE]!.parentId]?.type).toBe('tableCell');
+  });
+
+  it('gives an empty cell its paragraph back', () => {
+    const blocks = tableWith([
+      { id: 'c0a', type: 'paragraph', parentId: 'c0', index: 'a0', content: [] },
+    ]);
+    const { markdown, tree } = treeRoundTrip(blocks);
+    expect(tree, markdown).toEqual(treeOf(blocks));
+  });
+
+  it('writes a cell of one paragraph as its text', () => {
+    const { markdown, tree } = treeRoundTrip(
+      tableWith([textBlock('c0a', 'c0', 'a0', '<p>not a paragraph tag</p>')])
+    );
+    expect(markdown).toContain('| \\<p>not a paragraph tag\\</p> |');
+    expect(tree[0]!.children[1]!.children[0]!.children).toEqual([
+      { type: 'paragraph', text: '<p>not a paragraph tag</p>', children: [] },
+    ]);
+  });
+
+  it('reads paragraphs and images that people write into a cell', () => {
+    const markdown = `| a |\n| --- |\n| <p>one</p> ![](file:${IMAGE}) <p>two</p> |`;
+    const tree = treeOf(markdownToBlocks(DOC, markdown) as never);
+    expect(tree[0]!.children[1]!.children[0]!.children.map((c) => [c.type, c.text])).toEqual([
+      ['paragraph', 'one'],
+      ['file', ''],
+      ['paragraph', 'two'],
+    ]);
+  });
+});
+
 describe('markdownToBlocks — tables', () => {
   const table = [
     '| Tracker | Use case |',
