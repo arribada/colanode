@@ -17,6 +17,10 @@ import { eventBus } from '@colanode/server/lib/event-bus';
 import { createLogger } from '@colanode/server/lib/logger';
 import { fetchNode, fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 import { createMentionNotifications } from '@colanode/server/lib/notifications';
+import {
+  lockNodeRoot,
+  RootChangedError,
+} from '@colanode/server/lib/root-locks';
 import { WorkspaceContext } from '@colanode/server/types/api';
 import {
   CreateDocumentInput,
@@ -79,70 +83,89 @@ export const createDocument = async (
 
   const content = ydoc.getObject<DocumentContent>();
 
-  const { createdDocument, createdDocumentUpdate } = await database
-    .transaction()
-    .execute(async (trx) => {
-      const createdDocumentUpdate = await trx
-        .insertInto('document_updates')
-        .returningAll()
-        .values({
-          id: generateId(IdType.Update),
-          document_id: input.nodeId,
-          workspace_id: input.workspaceId,
-          root_id: node.root_id,
-          data: update,
-          created_at: new Date(),
-          created_by: input.userId,
-        })
-        .executeTakeFirst();
+  // The body is stamped with the node's space as read above. A move committed
+  // since would leave it in the space the page just left, invisible to users
+  // of the new one: checked under the space lock, and on a change written in
+  // the node's current space instead.
+  let rootId = node.root_id;
+  for (let attempt = 0; attempt < UPDATE_RETRIES_LIMIT; attempt++) {
+    try {
+      const { createdDocument, createdDocumentUpdate } = await database
+        .transaction()
+        .execute(async (trx) => {
+          await lockNodeRoot(trx, input.nodeId, rootId);
 
-      if (!createdDocumentUpdate) {
-        throw new Error('Failed to create document update');
+          const createdDocumentUpdate = await trx
+            .insertInto('document_updates')
+            .returningAll()
+            .values({
+              id: generateId(IdType.Update),
+              document_id: input.nodeId,
+              workspace_id: input.workspaceId,
+              root_id: rootId,
+              data: update,
+              created_at: new Date(),
+              created_by: input.userId,
+            })
+            .executeTakeFirst();
+
+          if (!createdDocumentUpdate) {
+            throw new Error('Failed to create document update');
+          }
+
+          const createdDocument = await trx
+            .insertInto('documents')
+            .returningAll()
+            .values({
+              id: input.nodeId,
+              workspace_id: input.workspaceId,
+              content: JSON.stringify(content),
+              created_at: new Date(),
+              created_by: input.userId,
+              revision: createdDocumentUpdate.revision,
+            })
+            .executeTakeFirst();
+
+          if (!createdDocument) {
+            throw new Error('Failed to create document');
+          }
+
+          return {
+            createdDocument,
+            createdDocumentUpdate,
+          };
+        });
+
+      if (!createdDocument || !createdDocumentUpdate) {
+        return null;
       }
 
-      const createdDocument = await trx
-        .insertInto('documents')
-        .returningAll()
-        .values({
-          id: input.nodeId,
-          workspace_id: input.workspaceId,
-          content: JSON.stringify(content),
-          created_at: new Date(),
-          created_by: input.userId,
-          revision: createdDocumentUpdate.revision,
-        })
-        .executeTakeFirst();
+      eventBus.publish({
+        type: 'document.updated',
+        documentId: input.nodeId,
+        workspaceId: input.workspaceId,
+      });
 
-      if (!createdDocument) {
-        throw new Error('Failed to create document');
-      }
+      eventBus.publish({
+        type: 'document.update.created',
+        documentId: input.nodeId,
+        rootId,
+        workspaceId: input.workspaceId,
+      });
 
       return {
-        createdDocument,
-        createdDocumentUpdate,
+        document: createdDocument,
       };
-    });
-
-  if (!createdDocument || !createdDocumentUpdate) {
-    return null;
+    } catch (error) {
+      if (error instanceof RootChangedError && error.currentRootId) {
+        rootId = error.currentRootId;
+        continue;
+      }
+      throw error;
+    }
   }
 
-  eventBus.publish({
-    type: 'document.updated',
-    documentId: input.nodeId,
-    workspaceId: input.workspaceId,
-  });
-
-  eventBus.publish({
-    type: 'document.update.created',
-    documentId: input.nodeId,
-    rootId: node.root_id,
-    workspaceId: input.workspaceId,
-  });
-
-  return {
-    document: createdDocument,
-  };
+  return null;
 };
 
 export const updateDocumentFromMutation = async (
@@ -236,6 +259,11 @@ const tryUpdateDocumentFromMutation = async (
     const outcome = await database
       .transaction()
       .execute(async (trx) => {
+        // The row is stamped with the root read before this transaction; a
+        // cross-space move committed in between retries from a fresh read.
+        // See lockNodeRoot.
+        await lockNodeRoot(trx, mutation.documentId, node.root_id);
+
         // Idempotent insert: a replayed update (same id — an at-least-once
         // retry after e.g. a dropped response) inserts nothing. The append-only
         // log already has it, so the document is already up to date: report a
@@ -407,7 +435,9 @@ const tryUpdateDocumentFromMutation = async (
       output: MutationStatus.OK,
     };
   } catch (error) {
-    logger.error(error, `Failed to update document`);
+    if (!(error instanceof RootChangedError)) {
+      logger.error(error, `Failed to update document`);
+    }
     return { type: 'retry' };
   }
 };
@@ -478,6 +508,9 @@ const tryUpdateDocument = async (
     const { updatedDocument, createdDocumentUpdate } = await database
       .transaction()
       .execute(async (trx) => {
+        // See tryUpdateDocumentFromMutation.
+        await lockNodeRoot(trx, input.documentId, node.root_id);
+
         const createdDocumentUpdate = await trx
           .insertInto('document_updates')
           .returningAll()
@@ -550,7 +583,9 @@ const tryUpdateDocument = async (
       output: true,
     };
   } catch (error) {
-    logger.error(error, `Failed to update document`);
+    if (!(error instanceof RootChangedError)) {
+      logger.error(error, `Failed to update document`);
+    }
     return { type: 'retry' };
   }
 };

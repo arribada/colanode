@@ -59,6 +59,35 @@ export const readNodeRootId = async (
   return row?.root_id ?? null;
 };
 
+/** A shared lock on one root: moves of that space wait until commit. */
+export const lockRootShared = async (
+  trx: Transaction<DatabaseSchema>,
+  rootId: string
+): Promise<void> => {
+  await sql`select pg_advisory_xact_lock_shared(hashtext(${rootId}))`.execute(
+    trx
+  );
+};
+
+/**
+ * For a write about to stamp `expectedRootId` on a row of this node (or of a
+ * child of it): wait out any move of that space, then check the node is still
+ * in it. Must be the first thing the transaction does. Throws RootChangedError
+ * when a move committed since the caller's read; a node that no longer exists
+ * is left to the caller's own checks.
+ */
+export const lockNodeRoot = async (
+  trx: Transaction<DatabaseSchema>,
+  nodeId: string,
+  expectedRootId: string
+): Promise<void> => {
+  await lockRootShared(trx, expectedRootId);
+  const currentRootId = await readNodeRootId(trx, nodeId);
+  if (currentRootId !== null && currentRootId !== expectedRootId) {
+    throw new RootChangedError(nodeId, expectedRootId, currentRootId);
+  }
+};
+
 /** Exclusive locks on the given roots, de-duplicated, in ascending key order. */
 export const lockRootsExclusive = async (
   trx: Transaction<DatabaseSchema>,

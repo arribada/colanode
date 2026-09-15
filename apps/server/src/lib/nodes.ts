@@ -36,6 +36,7 @@ import { eventBus } from '@colanode/server/lib/event-bus';
 import { createLogger } from '@colanode/server/lib/logger';
 import { reconcileBidirectionalRelations } from '@colanode/server/lib/relation-reconciler';
 import {
+  lockNodeRoot,
   lockRootsExclusive,
   readNodeRootId,
   RootChangedError,
@@ -141,80 +142,103 @@ export const createNode = async (input: CreateNodeInput): Promise<boolean> => {
     created_by: input.userId,
   }));
 
-  try {
-    const { createdCollaborations } = await database
-      .transaction()
-      .execute(async (trx) => {
-        const createdNodeUpdate = await trx
-          .insertInto('node_updates')
-          .returningAll()
-          .values({
-            id: updateId,
-            node_id: input.nodeId,
-            root_id: input.rootId,
-            workspace_id: input.workspaceId,
-            data: state,
-            created_at: date,
-            created_by: input.userId,
-          })
-          .executeTakeFirst();
+  // A node is born in its parent's space. The caller read that space before
+  // this transaction, and a move committed since would leave the new node in
+  // the space its parent just left, where users of the new one never see it.
+  // Checked under the space lock; on a change the create is made again in the
+  // parent's current space.
+  const parentId =
+    input.attributes.type !== 'space' && input.attributes.type !== 'chat'
+      ? readParentId(input.attributes)
+      : undefined;
+  let rootId = input.rootId;
 
-        if (!createdNodeUpdate) {
-          throw new Error('Failed to create node update');
-        }
+  for (let attempt = 0; attempt < UPDATE_RETRIES_LIMIT; attempt++) {
+    try {
+      const { createdCollaborations } = await database
+        .transaction()
+        .execute(async (trx) => {
+          if (parentId) {
+            await lockNodeRoot(trx, parentId, rootId);
+          }
 
-        const createdNode = await trx
-          .insertInto('nodes')
-          .returningAll()
-          .values({
-            id: input.nodeId,
-            root_id: input.rootId,
-            workspace_id: input.workspaceId,
-            attributes: attributesJson,
-            created_at: date,
-            created_by: input.userId,
-            revision: createdNodeUpdate.revision,
-          })
-          .executeTakeFirst();
-
-        if (!createdNode) {
-          throw new Error('Failed to create node');
-        }
-
-        let createdCollaborations: SelectCollaboration[] = [];
-
-        if (collaborationsToCreate.length > 0) {
-          createdCollaborations = await trx
-            .insertInto('collaborations')
+          const createdNodeUpdate = await trx
+            .insertInto('node_updates')
             .returningAll()
-            .values(collaborationsToCreate)
-            .execute();
-        }
+            .values({
+              id: updateId,
+              node_id: input.nodeId,
+              root_id: rootId,
+              workspace_id: input.workspaceId,
+              data: state,
+              created_at: date,
+              created_by: input.userId,
+            })
+            .executeTakeFirst();
 
-        return { createdNode, createdCollaborations };
-      });
+          if (!createdNodeUpdate) {
+            throw new Error('Failed to create node update');
+          }
 
-    eventBus.publish({
-      type: 'node.created',
-      nodeId: input.nodeId,
-      rootId: input.rootId,
-      workspaceId: input.workspaceId,
-    });
+          const createdNode = await trx
+            .insertInto('nodes')
+            .returningAll()
+            .values({
+              id: input.nodeId,
+              root_id: rootId,
+              workspace_id: input.workspaceId,
+              attributes: attributesJson,
+              created_at: date,
+              created_by: input.userId,
+              revision: createdNodeUpdate.revision,
+            })
+            .executeTakeFirst();
 
-    for (const createdCollaboration of createdCollaborations) {
+          if (!createdNode) {
+            throw new Error('Failed to create node');
+          }
+
+          let createdCollaborations: SelectCollaboration[] = [];
+
+          if (collaborationsToCreate.length > 0) {
+            createdCollaborations = await trx
+              .insertInto('collaborations')
+              .returningAll()
+              .values(collaborationsToCreate)
+              .execute();
+          }
+
+          return { createdNode, createdCollaborations };
+        });
+
       eventBus.publish({
-        type: 'collaboration.created',
-        collaboratorId: createdCollaboration.collaborator_id,
+        type: 'node.created',
         nodeId: input.nodeId,
+        rootId,
         workspaceId: input.workspaceId,
       });
-    }
 
-    return true;
-  } catch (error) {
-    logger.error(error, `Failed to create node transaction`);
-    return false;
+      for (const createdCollaboration of createdCollaborations) {
+        eventBus.publish({
+          type: 'collaboration.created',
+          collaboratorId: createdCollaboration.collaborator_id,
+          nodeId: input.nodeId,
+          workspaceId: input.workspaceId,
+        });
+      }
+
+      return true;
+    } catch (error) {
+      if (error instanceof RootChangedError && error.currentRootId) {
+        rootId = error.currentRootId;
+        continue;
+      }
+      logger.error(error, `Failed to create node transaction`);
+      return false;
+    }
   }
+
+  return false;
 };
 
 // Thrown from inside the update transaction when a move would put a node inside
@@ -478,16 +502,23 @@ export const tryUpdateNode = async (
       updatedCollaborations,
       relocatedToRoot,
     } = await database.transaction().execute(async (trx) => {
-      const relocatedToRoot =
-        isMove && nextParentId !== undefined
-          ? await prepareMove(trx, {
-              nodeId: input.nodeId,
-              parentId: nextParentId,
-              oldRootId: node.root_id,
-              workspaceId: node.workspace_id,
-              userId: input.userId,
-            })
-          : null;
+      let relocatedToRoot: string | null = null;
+      if (isMove && nextParentId !== undefined) {
+        relocatedToRoot = await prepareMove(trx, {
+          nodeId: input.nodeId,
+          parentId: nextParentId,
+          oldRootId: node.root_id,
+          workspaceId: node.workspace_id,
+          userId: input.userId,
+        });
+      } else {
+        // The node may sit inside a subtree being carried to another space,
+        // and the row below is stamped with the root read before this
+        // transaction. The revision guard does not catch that: a relocation
+        // changes the root of the moved node's descendants, not their
+        // revision. Wait out the move, and retry if it changed the root.
+        await lockNodeRoot(trx, input.nodeId, node.root_id);
+      }
 
       const createdNodeUpdate = await trx
         .insertInto('node_updates')
@@ -626,23 +657,6 @@ export const createNodeFromMutation = async (
     parentId = attributes.parentId;
   }
 
-  const tree = parentId ? await fetchNodeTree(parentId) : [];
-  const canCreateNodeContext: CanCreateNodeContext = {
-    user: {
-      id: workspace.user.id,
-      role: workspace.user.role,
-      workspaceId: workspace.id,
-      accountId: workspace.user.accountId,
-    },
-    tree: tree.map(mapNode),
-    attributes,
-  };
-
-  if (!model.canCreate(canCreateNodeContext)) {
-    return MutationStatus.FORBIDDEN;
-  }
-
-  const rootId = tree[0]?.id ?? mutation.nodeId;
   const collaborationsToCreate: CreateCollaboration[] = Object.entries(
     extractNodeCollaborators(attributes)
   ).map(([userId, role]) => ({
@@ -654,80 +668,116 @@ export const createNodeFromMutation = async (
     created_by: workspace.user.id,
   }));
 
-  try {
-    const { createdCollaborations } = await database
-      .transaction()
-      .execute(async (trx) => {
-        const createdNodeUpdate = await trx
-          .insertInto('node_updates')
-          .returningAll()
-          .values({
-            id: mutation.updateId,
-            node_id: mutation.nodeId,
-            root_id: rootId,
-            workspace_id: workspace.id,
-            data: ydoc.getState(),
-            created_at: new Date(mutation.createdAt),
-            created_by: workspace.user.id,
-          })
-          .executeTakeFirst();
-
-        if (!createdNodeUpdate) {
-          throw new Error('Failed to create node update');
-        }
-
-        const createdNode = await trx
-          .insertInto('nodes')
-          .returningAll()
-          .values({
-            id: mutation.nodeId,
-            root_id: rootId,
-            attributes: JSON.stringify(attributes),
-            workspace_id: workspace.id,
-            created_at: new Date(mutation.createdAt),
-            created_by: workspace.user.id,
-            revision: createdNodeUpdate.revision,
-          })
-          .executeTakeFirst();
-
-        if (!createdNode) {
-          throw new Error('Failed to create node');
-        }
-
-        let createdCollaborations: SelectCollaboration[] = [];
-
-        if (collaborationsToCreate.length > 0) {
-          createdCollaborations = await trx
-            .insertInto('collaborations')
-            .returningAll()
-            .values(collaborationsToCreate)
-            .execute();
-        }
-
-        return { createdNode, createdCollaborations };
-      });
-
-    eventBus.publish({
-      type: 'node.created',
-      nodeId: mutation.nodeId,
-      rootId,
-      workspaceId: workspace.id,
-    });
-
-    for (const createdCollaboration of createdCollaborations) {
-      eventBus.publish({
-        type: 'collaboration.created',
-        collaboratorId: createdCollaboration.collaborator_id,
-        nodeId: mutation.nodeId,
+  for (let attempt = 0; attempt < UPDATE_RETRIES_LIMIT; attempt++) {
+    const tree = parentId ? await fetchNodeTree(parentId) : [];
+    const canCreateNodeContext: CanCreateNodeContext = {
+      user: {
+        id: workspace.user.id,
+        role: workspace.user.role,
         workspaceId: workspace.id,
-      });
+        accountId: workspace.user.accountId,
+      },
+      tree: tree.map(mapNode),
+      attributes,
+    };
+
+    if (!model.canCreate(canCreateNodeContext)) {
+      return MutationStatus.FORBIDDEN;
     }
 
-    return MutationStatus.CREATED;
-  } catch (error) {
-    logger.error(error, `Failed to create node transaction`);
-    return MutationStatus.INTERNAL_SERVER_ERROR;
+    // The node joins its parent's space, as read before the transaction. A
+    // move committed in between would leave the node in the space its parent
+    // just left, so the parent's root is checked again under the space lock,
+    // and a change starts over -- permission check included, since the parent
+    // may now be in a space with other members. The parent's own root_id is
+    // what its clients sync it by, so that is the root the child takes.
+    const parent = tree[tree.length - 1];
+    const rootId = parent?.root_id ?? mutation.nodeId;
+
+    try {
+      const { createdCollaborations } = await database
+        .transaction()
+        .execute(async (trx) => {
+          if (parentId) {
+            await lockNodeRoot(trx, parentId, rootId);
+          }
+
+          const createdNodeUpdate = await trx
+            .insertInto('node_updates')
+            .returningAll()
+            .values({
+              id: mutation.updateId,
+              node_id: mutation.nodeId,
+              root_id: rootId,
+              workspace_id: workspace.id,
+              data: ydoc.getState(),
+              created_at: new Date(mutation.createdAt),
+              created_by: workspace.user.id,
+            })
+            .executeTakeFirst();
+
+          if (!createdNodeUpdate) {
+            throw new Error('Failed to create node update');
+          }
+
+          const createdNode = await trx
+            .insertInto('nodes')
+            .returningAll()
+            .values({
+              id: mutation.nodeId,
+              root_id: rootId,
+              attributes: JSON.stringify(attributes),
+              workspace_id: workspace.id,
+              created_at: new Date(mutation.createdAt),
+              created_by: workspace.user.id,
+              revision: createdNodeUpdate.revision,
+            })
+            .executeTakeFirst();
+
+          if (!createdNode) {
+            throw new Error('Failed to create node');
+          }
+
+          let createdCollaborations: SelectCollaboration[] = [];
+
+          if (collaborationsToCreate.length > 0) {
+            createdCollaborations = await trx
+              .insertInto('collaborations')
+              .returningAll()
+              .values(collaborationsToCreate)
+              .execute();
+          }
+
+          return { createdNode, createdCollaborations };
+        });
+
+      eventBus.publish({
+        type: 'node.created',
+        nodeId: mutation.nodeId,
+        rootId,
+        workspaceId: workspace.id,
+      });
+
+      for (const createdCollaboration of createdCollaborations) {
+        eventBus.publish({
+          type: 'collaboration.created',
+          collaboratorId: createdCollaboration.collaborator_id,
+          nodeId: mutation.nodeId,
+          workspaceId: workspace.id,
+        });
+      }
+
+      return MutationStatus.CREATED;
+    } catch (error) {
+      if (error instanceof RootChangedError) {
+        continue;
+      }
+      logger.error(error, `Failed to create node transaction`);
+      return MutationStatus.INTERNAL_SERVER_ERROR;
+    }
   }
+
+  return MutationStatus.INTERNAL_SERVER_ERROR;
 };
 
 export const updateNodeFromMutation = async (
@@ -847,16 +897,20 @@ const tryUpdateNodeFromMutation = async (
         // in the new root's stream (see relocateSubtree). The node_paths
         // rebuild for the new parent still comes from the attributes update
         // below (trg_update_node_path); root_id is what no trigger touches.
-        const relocatedToRoot =
-          isMove && nextParentId !== undefined
-            ? await prepareMove(trx, {
-                nodeId: mutation.nodeId,
-                parentId: nextParentId,
-                oldRootId,
-                workspaceId: workspace.id,
-                userId: workspace.user.id,
-              })
-            : null;
+        let relocatedToRoot: string | null = null;
+        if (isMove && nextParentId !== undefined) {
+          relocatedToRoot = await prepareMove(trx, {
+            nodeId: mutation.nodeId,
+            parentId: nextParentId,
+            oldRootId,
+            workspaceId: workspace.id,
+            userId: workspace.user.id,
+          });
+        } else {
+          // See tryUpdateNode: an edit inside a subtree being moved to another
+          // space must not stamp the space the subtree is leaving.
+          await lockNodeRoot(trx, mutation.nodeId, node.root_id);
+        }
 
         const createdNodeUpdate = await trx
           .insertInto('node_updates')
@@ -998,6 +1052,26 @@ export const deleteNodeFromMutation = async (
   workspace: WorkspaceContext,
   mutation: DeleteNodeMutationData
 ): Promise<MutationStatus> => {
+  for (let attempt = 0; attempt < UPDATE_RETRIES_LIMIT; attempt++) {
+    try {
+      return await tryDeleteNodeFromMutation(workspace, mutation);
+    } catch (error) {
+      // The node moved to another space between the read and the lock: its
+      // tombstone would have gone to the space it left. Start over.
+      if (error instanceof RootChangedError) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return MutationStatus.INTERNAL_SERVER_ERROR;
+};
+
+const tryDeleteNodeFromMutation = async (
+  workspace: WorkspaceContext,
+  mutation: DeleteNodeMutationData
+): Promise<MutationStatus> => {
   const tree = await fetchNodeTree(mutation.nodeId);
   if (tree.length === 0) {
     return MutationStatus.OK;
@@ -1025,6 +1099,9 @@ export const deleteNodeFromMutation = async (
   }
 
   const { deletedNode } = await database.transaction().execute(async (trx) => {
+    // The tombstone is stamped with the root read above; see lockNodeRoot.
+    await lockNodeRoot(trx, mutation.nodeId, node.root_id);
+
     const deletedNode = await trx
       .deleteFrom('nodes')
       .returningAll()
