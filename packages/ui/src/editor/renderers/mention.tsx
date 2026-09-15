@@ -4,11 +4,12 @@ import { JSONContent } from '@tiptap/core';
 import { getIdType, IdType } from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { AdrStatusDot } from '@colanode/ui/editor/adr-status-dot';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { MentionSafeBoundary } from '@colanode/ui/editor/mention-safe-boundary';
-import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
-import { AdrStatusDot } from '@colanode/ui/editor/adr-status-dot';
+import { RecordMentionName } from '@colanode/ui/editor/record-mention-name';
 import { ADR_DATABASE_ID } from '@colanode/ui/lib/adr';
+import { getMentionNodeDisplay } from '@colanode/ui/lib/mentions';
 
 interface MentionRendererProps {
   node: JSONContent;
@@ -67,7 +68,11 @@ const MentionNodeRenderer = ({ target }: { target: string }) => {
     <span className={defaultClasses.mention}>
       <Avatar size="small" id={target} name={name} avatar={avatar} />
       {adrRecord && <AdrStatusDot record={adrRecord} />}
-      <span role="presentation">{name}</span>
+      {node != null && node.type === 'record' ? (
+        <RecordMentionName record={node} name={name} />
+      ) : (
+        <span role="presentation">{name}</span>
+      )}
     </span>
   );
 };
