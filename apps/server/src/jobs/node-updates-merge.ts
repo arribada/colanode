@@ -101,7 +101,7 @@ export const nodeUpdatesMergeHandler: JobHandler<
   );
 };
 
-const processNodeUpdates = async (
+export const processNodeUpdates = async (
   nodeId: string,
   nodeUpdates: SelectNodeUpdate[],
   mergeWindow: number,
@@ -261,7 +261,35 @@ const mergeUpdatesGroup = async (
       });
     }
 
-    await database.transaction().execute(async (trx) => {
+    return await database.transaction().execute(async (trx) => {
+      // The merged row gets a new revision (the node_updates trigger), which
+      // puts it after every other update of the node in the sync stream. That
+      // is harmless unless the group holds the node's create: a client builds
+      // a node from the first update it receives for it, so a create pushed
+      // behind a later update could no longer be built, and the node landed
+      // orphaned on every fresh client. Such a group is left unmerged unless
+      // it is the node's whole history.
+      const groupIds = updates.map((update) => update.id);
+      const earliest = await trx
+        .selectFrom('node_updates')
+        .select('id')
+        .where('node_id', '=', nodeId)
+        .orderBy('revision', 'asc')
+        .limit(1)
+        .executeTakeFirst();
+      if (earliest && groupIds.includes(earliest.id)) {
+        const outside = await trx
+          .selectFrom('node_updates')
+          .select('id')
+          .where('node_id', '=', nodeId)
+          .where('id', 'not in', groupIds)
+          .limit(1)
+          .executeTakeFirst();
+        if (outside) {
+          return false;
+        }
+      }
+
       await trx
         .updateTable('node_updates')
         .set({
@@ -278,9 +306,9 @@ const mergeUpdatesGroup = async (
         .deleteFrom('node_updates')
         .where('id', 'in', updatesToMergeIds)
         .execute();
-    });
 
-    return true;
+      return true;
+    });
   } catch (error) {
     logger.error(error, `Failed to merge updates for node ${nodeId}`);
     return false;
