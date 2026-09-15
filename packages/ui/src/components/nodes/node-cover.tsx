@@ -1,5 +1,5 @@
 import { ImageIcon, Search, Trash2, Upload } from 'lucide-react';
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { toast } from 'sonner';
 
 import { NodeCover, UnsplashPhoto } from '@colanode/core';
@@ -388,6 +388,8 @@ interface NodeCoverBannerProps {
   cover: NodeCover | null | undefined;
   canEdit: boolean;
   onChange: (cover: NodeCover | null) => void;
+  // Laid over the banner, under the change-cover control -- the page title.
+  children?: ReactNode;
 }
 
 // Banner shown at the top of page and record containers. Without a cover it
@@ -398,6 +400,7 @@ export const NodeCoverBanner = ({
   cover,
   canEdit,
   onChange,
+  children,
 }: NodeCoverBannerProps) => {
   const isImage = cover?.type === 'image';
   const coverClass = getCoverClass(cover); // null for image type
@@ -434,6 +437,7 @@ export const NodeCoverBanner = ({
       )}
     >
       {isImage && cover && <CoverImage value={cover.value} />}
+      {children}
       {canEdit && (
         <div className="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/cover:opacity-100">
           <CoverPicker cover={cover} onChange={onChange}>

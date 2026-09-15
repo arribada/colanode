@@ -4,6 +4,7 @@ import { Document } from '@colanode/ui/components/documents/document';
 import { DocumentBacklinks } from '@colanode/ui/components/documents/document-backlinks';
 import { NodeCoverBanner } from '@colanode/ui/components/nodes/node-cover';
 import { PageChildren } from '@colanode/ui/components/pages/page-children';
+import { PageTitle } from '@colanode/ui/components/pages/page-title';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -34,6 +35,9 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
   // container width, for pages built around wide tables or database embeds.
   // Toggle lives in the page ⋯ menu (page-settings.tsx).
   const fullWidth = page.fullWidth ?? false;
+  // Any stored cover draws a banner (an unknown preset falls back to a muted
+  // one), so the title goes over it whenever a cover is set at all.
+  const hasCover = page.cover != null;
 
   return (
     <div className="group/cover">
@@ -54,8 +58,11 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
             draft.cover = cover;
           });
         }}
-      />
+      >
+        {hasCover && <PageTitle page={page} canEdit={canEdit} onCover />}
+      </NodeCoverBanner>
       <div className={cn('mx-auto w-full min-w-0', !fullWidth && 'max-w-3xl')}>
+        {!hasCover && <PageTitle page={page} canEdit={canEdit} />}
         <Document
           node={page}
           canEdit={canEditDocument}
