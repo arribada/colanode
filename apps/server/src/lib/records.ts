@@ -49,12 +49,22 @@ type TextBasedFieldAttributes =
 // Access is checked with EXISTS rather than a join. A join on collaborations
 // yields one row per collaborator of the space, so any condition that escaped
 // the collaborator filter returned every record once per member.
+//
+// A live collaboration on the record or on any node above it -- its database,
+// a page or folder holding that, the space -- which is the rule
+// extractNodeRole applies to a node's tree. Checking the space alone returned
+// nothing to someone a database had been shared with directly, although
+// every other tool let them open it.
 const recordAccessCondition = (userId: string) =>
   sql<SqlBool>`exists (
     select 1 from collaborations c
-    where c.node_id = n.root_id
-      and c.collaborator_id = ${userId}
+    where c.collaborator_id = ${userId}
       and c.deleted_at is null
+      and exists (
+        select 1 from node_paths p
+        where p.ancestor_id = c.node_id
+          and p.descendant_id = n.id
+      )
   )`;
 
 const visibleRecordCondition = sql<SqlBool>`(

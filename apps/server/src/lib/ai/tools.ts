@@ -2826,13 +2826,14 @@ export const listDatabases = async (
   ctx: WikiToolContext,
   _input: Record<string, never>
 ): Promise<ListDatabaseResult[]> => {
+  // Every database the caller can open: a collaboration on the database or
+  // on anything above it, the rule every other tool applies. Joining the
+  // space's collaborations left out a database shared with someone directly.
   const rows = await database
     .selectFrom('nodes as n')
-    .innerJoin('collaborations as c', 'c.node_id', 'n.root_id')
     .where('n.workspace_id', '=', ctx.workspaceId)
-    .where('c.collaborator_id', '=', ctx.userId)
-    .where('c.deleted_at', 'is', null)
     .where('n.type', '=', 'database')
+    .where(nodeAccessCondition(ctx.userId))
     .selectAll('n')
     .execute();
 
