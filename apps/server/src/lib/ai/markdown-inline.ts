@@ -258,38 +258,112 @@ const parseLinkDestination = (
   return { href, end: j + 1 };
 };
 
-const OPEN_TAG = /^<([a-z]+)\s*>/;
+// Formatting the editor has and markdown lacks -- text colour, highlight,
+// underline, a comment anchor -- travels as a few fixed tags, the attribute
+// names those marks use in the editor's own HTML:
+//   <span data-color="red">…</span>   <mark data-color="yellow">…</mark>
+//   <u>…</u>                          <span data-comment="<thread id>">…</span>
+// Only these tags, with exactly these attributes and values, are read. Any
+// other tag stays literal text: nothing here ever becomes HTML.
+const EDITOR_COLOURS = new Set([
+  'default',
+  'gray',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'pink',
+  'red',
+]);
+const THREAD_ID = /^[a-z0-9]{20,64}$/;
+
+const OPEN_TAG = /^<([a-z]+)(?:\s+(data-[a-z]+)="([^"<>]{0,64})")?\s*>/;
 const CLOSE_TAG = /^<\/([a-z]+)\s*>/;
 
+// Tags that close each other: </strong> ends <b>, </span> the nearest span.
+const TAG_GROUP: Record<string, string> = {
+  b: 'b',
+  strong: 'b',
+  i: 'i',
+  em: 'i',
+  s: 's',
+  del: 's',
+  u: 'u',
+  span: 'span',
+  mark: 'mark',
+};
+
 interface ParsedTag {
-  name: string;
+  group: string;
   mark: Mark;
   length: number;
 }
 
 const parseOpenTag = (src: string, at: number): ParsedTag | null => {
-  const match = OPEN_TAG.exec(src.slice(at, at + 64));
+  const match = OPEN_TAG.exec(src.slice(at, at + 96));
   if (!match) {
     return null;
   }
-  const name = match[1]!;
-  const markType = MARK_BY_TAG[name];
-  return markType
-    ? { name, mark: { type: markType }, length: match[0].length }
-    : null;
+  const [whole, name = '', attribute, value = ''] = match;
+  const group = TAG_GROUP[name];
+  if (!group) {
+    return null;
+  }
+  let mark: Mark | null = null;
+  if (attribute === undefined) {
+    const type = name === 'u' ? 'underline' : MARK_BY_TAG[name];
+    mark = type ? { type } : null;
+  } else if (attribute === 'data-color' && EDITOR_COLOURS.has(value)) {
+    if (name === 'span') {
+      mark = { type: 'color', attrs: { color: value } };
+    } else if (name === 'mark') {
+      mark = { type: 'highlight', attrs: { highlight: value } };
+    }
+  } else if (
+    attribute === 'data-comment' &&
+    name === 'span' &&
+    THREAD_ID.test(value)
+  ) {
+    mark = { type: 'comment', attrs: { threadId: value } };
+  }
+  return mark ? { group, mark, length: whole.length } : null;
 };
 
-// The mark type a closing tag ends, or null when it is not one of ours.
+// The tag group a closing tag ends, or null when it is not one of ours.
 const parseCloseTag = (
   src: string,
   at: number
-): { markType: string; length: number } | null => {
+): { group: string; length: number } | null => {
   const match = CLOSE_TAG.exec(src.slice(at, at + 16));
-  if (!match) {
-    return null;
+  const group = match ? TAG_GROUP[match[1]!] : undefined;
+  return match && group ? { group, length: match[0].length } : null;
+};
+
+// The tags a mark is written with, or null when its value is not one the
+// parser would accept (the mark is then left out).
+const tagsForMark = (mark: Mark): [string, string] | null => {
+  const attrs = mark.attrs ?? {};
+  switch (mark.type) {
+    case 'underline':
+      return ['<u>', '</u>'];
+    case 'highlight':
+      return typeof attrs.highlight === 'string' &&
+        EDITOR_COLOURS.has(attrs.highlight)
+        ? [`<mark data-color="${attrs.highlight}">`, '</mark>']
+        : null;
+    case 'color':
+      return typeof attrs.color === 'string' && EDITOR_COLOURS.has(attrs.color)
+        ? [`<span data-color="${attrs.color}">`, '</span>']
+        : null;
+    case 'comment':
+      return typeof attrs.threadId === 'string' &&
+        THREAD_ID.test(attrs.threadId)
+        ? [`<span data-comment="${attrs.threadId}">`, '</span>']
+        : null;
+    default:
+      return null;
   }
-  const markType = MARK_BY_TAG[match[1]!];
-  return markType ? { markType, length: match[0].length } : null;
 };
 
 const delimiterFlags = (
@@ -526,7 +600,7 @@ export const parseInline = (src: string): BlockLeaf[] => {
         tags.push(tokens.length);
         tokens.push({
           kind: 'tag',
-          name: open.name,
+          name: open.group,
           mark: open.mark,
           source: src.slice(i, i + open.length),
           marks: [],
@@ -539,7 +613,7 @@ export const parseInline = (src: string): BlockLeaf[] => {
         let at = -1;
         for (let t = tags.length - 1; t >= 0; t--) {
           const tag = tokens[tags[t]!];
-          if (tag?.kind === 'tag' && tag.mark.type === close.markType) {
+          if (tag?.kind === 'tag' && tag.name === close.group) {
             at = t;
             break;
           }
@@ -623,6 +697,12 @@ const markKey = (mark: Mark): string => {
   switch (mark.type) {
     case 'link':
       return `link=${String(attrs.href ?? '')}`;
+    case 'color':
+      return `color=${String(attrs.color ?? '')}`;
+    case 'highlight':
+      return `highlight=${String(attrs.highlight ?? '')}`;
+    case 'comment':
+      return `comment=${String(attrs.threadId ?? '')}`;
     default:
       return mark.type;
   }
@@ -633,7 +713,17 @@ const sameMarks = (a: readonly Mark[], b: readonly Mark[]): boolean =>
 
 // The marks this module writes; anything else is dropped on the way out and
 // must not make the delimiter form look wrong.
-const WRITTEN_MARKS = new Set(['bold', 'italic', 'strike', 'code', 'link']);
+const WRITTEN_MARKS = new Set([
+  'bold',
+  'italic',
+  'strike',
+  'code',
+  'link',
+  'underline',
+  'highlight',
+  'color',
+  'comment',
+]);
 
 // Neighbouring text leaves with the same marks are one run to a reader. The
 // editor often stores them split; written apart, `*a**b*` fuses delimiters.
@@ -858,6 +948,21 @@ const renderLeaves = (
       }
     }
 
+    // Tags wrap everything written so far, spaces included: a colour, a
+    // highlight or an underline shows on a space too.
+    const wrap = (type: string) => {
+      const mark = marks.find((m) => m.type === type);
+      const tags = mark ? tagsForMark(mark) : null;
+      if (tags && lead + core + trail) {
+        core = tags[0] + lead + core + trail + tags[1];
+        lead = '';
+        trail = '';
+      }
+    };
+    wrap('underline');
+    wrap('highlight');
+    wrap('color');
+
     const link =
       leaf.type === 'text' ? marks.find((m) => m.type === 'link') : undefined;
     const href = link?.attrs?.href;
@@ -866,6 +971,7 @@ const renderLeaves = (
       lead = '';
       trail = '';
     }
+    wrap('comment');
 
     out += lead + core + trail;
   }

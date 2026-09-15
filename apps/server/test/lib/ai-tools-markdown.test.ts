@@ -205,6 +205,110 @@ describe('inline markdown — marks', () => {
   });
 });
 
+describe('inline markdown — colour, highlight, underline, comments', () => {
+  const PAGE = '01ky60x9fb8x1856afmmf01sw1pg';
+  const THREAD = '01m077kqhhgrnz2y9gr5vdrb0vcm';
+  const red = { type: 'color', attrs: { color: 'red' } };
+  const blue = { type: 'highlight', attrs: { highlight: 'blue' } };
+  const underline = { type: 'underline' };
+  const comment = { type: 'comment', attrs: { threadId: THREAD } };
+  const link = { type: 'link', attrs: { href: 'https://www.digikey.fr/p/KXOB25' } };
+
+  // shapeOf, with the value each of these marks carries.
+  const styled = (leaves: TestLeaf[] | null | undefined) =>
+    (leaves ?? []).map((leaf) => ({
+      ...shapeOf([leaf])[0],
+      marks: (leaf.marks ?? [])
+        .map((mark) => {
+          const value = mark.attrs?.color ?? mark.attrs?.highlight ?? mark.attrs?.threadId ?? mark.attrs?.href;
+          return value === undefined ? mark.type : `${mark.type}=${String(value)}`;
+        })
+        .sort(),
+    }));
+
+  it('round-trips the marks markdown has no syntax for', () => {
+    const cases: TestLeaf[][] = [
+      [
+        { type: 'text', text: '🔴 TO BE DEFINED — 1 open item', marks: [{ type: 'bold' }, red] },
+        { type: 'text', text: ' · Owner: Geoffrey' },
+      ],
+      [
+        { type: 'text', text: 'use the menu to change ' },
+        { type: 'text', text: 'colors', marks: [blue] },
+      ],
+      [{ type: 'text', text: ' KXOB25-03X4F', marks: [{ type: 'bold' }, underline, link] }],
+      [
+        { type: 'text', text: 'Solder battery wire to J7 ', marks: [comment] },
+        { type: 'text', text: 'now', marks: [comment, { type: 'italic' }] },
+      ],
+      [
+        { type: 'text', text: 'owner ' },
+        { type: 'mention', attrs: { id: 'm1me', target: PAGE }, marks: [red] },
+      ],
+      [{ type: 'text', text: '+ Enclosure available', marks: [underline] }],
+    ];
+    for (const leaves of cases) {
+      const markdown = richTextToMarkdown(DOC, paragraphOf(leaves));
+      const back = paragraphBack(markdown);
+      expect(back.types, markdown).toEqual(['paragraph']);
+      expect(styled(back.leaves), markdown).toEqual(styled(leaves));
+    }
+  });
+
+  it('writes them as the tags the editor uses', () => {
+    expect(
+      richTextToMarkdown(
+        DOC,
+        paragraphOf([{ type: 'text', text: 'TO BE DEFINED', marks: [{ type: 'bold' }, red] }])
+      )
+    ).toBe('<span data-color="red">**TO BE DEFINED**</span>');
+  });
+
+  it('closes a span against the nearest open one', () => {
+    const back = paragraphBack(
+      `<span data-color="red">a <span data-comment="${THREAD}">b</span> c</span>`
+    );
+    expect(styled(back.leaves)).toEqual([
+      { type: 'text', text: 'a ', marks: ['color=red'] },
+      { type: 'text', text: 'b', marks: ['color=red', `comment=${THREAD}`] },
+      { type: 'text', text: ' c', marks: ['color=red'] },
+    ]);
+  });
+
+  it('leaves the tag a closer does not match as text', () => {
+    // </span> ends the span, not the <u> opened inside it; that <u> is then
+    // never closed and stays literal, as does the stray </u>.
+    const back = paragraphBack('<span data-color="red">a <u>b</span> c</u>');
+    expect(styled(back.leaves)).toEqual([
+      { type: 'text', text: 'a <u>b', marks: ['color=red'] },
+      { type: 'text', text: ' c</u>', marks: [] },
+    ]);
+  });
+
+  it('does not merge two runs of different colours', () => {
+    const leaves: TestLeaf[] = [
+      { type: 'text', text: 'red', marks: [{ type: 'color', attrs: { color: 'red' } }] },
+      { type: 'text', text: 'green', marks: [{ type: 'color', attrs: { color: 'green' } }] },
+    ];
+    const back = paragraphBack(richTextToMarkdown(DOC, paragraphOf(leaves)));
+    expect(styled(back.leaves)).toEqual(styled(leaves));
+  });
+
+  it('keeps any other tag, or a value it does not know, as literal text', () => {
+    for (const text of [
+      '<script>alert(1)</script>',
+      '<span data-color="javascript:alert(1)">a</span>',
+      '<span onclick="x">a</span>',
+      '<span>a</span> <mark>b</mark>',
+      '<span data-comment="not an id">a</span>',
+      '<img src=x onerror=alert(1)>',
+    ]) {
+      const back = paragraphBack(text);
+      expect(styled(back.leaves), text).toEqual([{ type: 'text', text, marks: [] }]);
+    }
+  });
+});
+
 describe('markdownToBlocks — tables', () => {
   const table = [
     '| Tracker | Use case |',
