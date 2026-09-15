@@ -8,6 +8,8 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { resolveTitleEdit } from '@colanode/ui/lib/page-title';
 import { cn } from '@colanode/ui/lib/utils';
 
+const HINT_LINGER_MS = 500;
+
 interface PageTitleProps {
   page: LocalPageNode;
   canEdit: boolean;
@@ -22,7 +24,18 @@ export const PageTitle = ({
   const workspace = useWorkspace();
   const [draft, setDraft] = useState(page.name ?? '');
   const [editing, setEditing] = useState(false);
+  const [nameAtFocus, setNameAtFocus] = useState(page.name ?? '');
   const cancelledRef = useRef(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (blurTimer.current) {
+        clearTimeout(blurTimer.current);
+      }
+    },
+    []
+  );
 
   // Follow a rename made elsewhere -- the sidebar, the page dialog, another
   // member -- so the field never shows a stale name.
@@ -74,10 +87,22 @@ export const PageTitle = ({
       value={draft}
       readOnly={!canEdit}
       onChange={(event) => setDraft(event.target.value)}
-      onFocus={() => setEditing(true)}
+      onFocus={() => {
+        if (blurTimer.current) {
+          clearTimeout(blurTimer.current);
+          blurTimer.current = null;
+        }
+        setNameAtFocus(page.name ?? '');
+        setEditing(true);
+      }}
       onBlur={() => {
-        setEditing(false);
         commit();
+        // Pressing the hint's link is what blurs the field: the hint has to
+        // outlive the blur long enough for that click to land on it.
+        blurTimer.current = setTimeout(
+          () => setEditing(false),
+          HINT_LINGER_MS
+        );
       }}
       onKeyDown={onKeyDown}
       placeholder="Untitled"
@@ -101,8 +126,10 @@ export const PageTitle = ({
       rootId={page.rootId}
       name={draft}
       excludeId={page.id}
+      // Compared with the name the field had when focused, not the saved one:
+      // the blur saves the new title, and the hint must survive that save.
       enabled={
-        canEdit && editing && resolveTitleEdit(draft, page.name) !== null
+        canEdit && editing && resolveTitleEdit(draft, nameAtFocus) !== null
       }
       onCover={onCover}
     />

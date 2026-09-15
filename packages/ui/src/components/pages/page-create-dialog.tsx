@@ -134,6 +134,7 @@ export const PageCreateDialog = ({
               rootId={targetSpaceId}
               name={draftName}
               className="-mt-2 mb-3"
+              onNavigate={() => onOpenChange(false)}
             />
           }
         />

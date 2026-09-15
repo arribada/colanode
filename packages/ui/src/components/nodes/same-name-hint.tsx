@@ -15,6 +15,7 @@ interface SameNameHintProps {
   enabled?: boolean;
   onCover?: boolean;
   className?: string;
+  onNavigate?: () => void;
 }
 
 export const SameNameHint = ({
@@ -24,6 +25,7 @@ export const SameNameHint = ({
   enabled = true,
   onCover = false,
   className,
+  onNavigate,
 }: SameNameHintProps) => {
   const workspace = useWorkspace();
   const typed = useDebouncedValue(name, 300).trim();
@@ -71,6 +73,7 @@ export const SameNameHint = ({
         to="$nodeId"
         params={{ nodeId: first.id }}
         className="min-w-0 hover:underline"
+        onClick={onNavigate}
       >
         <NodePath
           segments={[

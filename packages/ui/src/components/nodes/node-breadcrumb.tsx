@@ -88,7 +88,9 @@ export const NodeBreadcrumb = ({ nodes }: NodeBreadcrumbProps) => {
   const { head, hidden, tail } = splitBreadcrumb(nodes, overflowing);
 
   return (
-    <div ref={containerRef} className="relative flex min-w-0 grow">
+    // overflow-hidden: the invisible measuring copy below is as wide as the
+    // whole path, and the header row around it scrolls sideways otherwise.
+    <div ref={containerRef} className="relative flex min-w-0 grow overflow-hidden">
       <Breadcrumb className="flex min-w-0 grow">
         <BreadcrumbList className="flex-nowrap overflow-hidden">
           {head.map((item, index) => (
@@ -106,16 +108,40 @@ export const NodeBreadcrumb = ({ nodes }: NodeBreadcrumbProps) => {
                     className="flex items-center gap-1"
                     aria-label="Show the full path"
                     data-testid="breadcrumb-more"
-                    onMouseEnter={openMore}
-                    onMouseLeave={closeMoreSoon}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === 'mouse') {
+                        openMore();
+                      }
+                    }}
+                    onPointerLeave={(event) => {
+                      if (event.pointerType === 'mouse') {
+                        closeMoreSoon();
+                      }
+                    }}
+                    onClick={(event) => {
+                      // Radix toggles on click, so a click right after the
+                      // hover opened it would close it again, and a tap (which
+                      // fires both) would never show it. A click only opens;
+                      // an outside click or Escape closes.
+                      event.preventDefault();
+                      openMore();
+                    }}
                   >
                     <BreadcrumbEllipsis className="h-4 w-4" />
                   </PopoverTrigger>
                   <PopoverContent
                     align="start"
                     className="w-auto max-w-md p-2"
-                    onMouseEnter={openMore}
-                    onMouseLeave={closeMoreSoon}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === 'mouse') {
+                        openMore();
+                      }
+                    }}
+                    onPointerLeave={(event) => {
+                      if (event.pointerType === 'mouse') {
+                        closeMoreSoon();
+                      }
+                    }}
                     onOpenAutoFocus={(event) => event.preventDefault()}
                   >
                     <ol className="flex flex-col gap-0.5 text-sm">
