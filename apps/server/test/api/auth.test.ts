@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ApiErrorCode } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
+import { config } from '@colanode/server/lib/config';
 
 import { buildTestApp } from '../helpers/app';
 import {
@@ -114,5 +115,51 @@ describe('token lifecycle', () => {
     expect(logoutResponse.json()).toMatchObject({
       code: ApiErrorCode.TokenMissing,
     });
+  });
+});
+
+describe('the workspace an account lands in', () => {
+  const login = async (email: string, password: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/client/v1/auth/email/login',
+      payload: { email, password },
+    });
+
+  it('gives an account with no workspace one of its own by default', async () => {
+    const account = await createAccount({
+      email: 'solo-default@example.com',
+      password: 'Password123!',
+    });
+
+    const response = await login(account.email, 'Password123!');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().workspaces).toHaveLength(1);
+  });
+
+  it('creates none when the deployment runs a single shared workspace', async () => {
+    const account = await createAccount({
+      email: 'solo-disabled@example.com',
+      password: 'Password123!',
+    });
+
+    const previous = config.account.defaultWorkspace;
+    config.account.defaultWorkspace = false;
+    try {
+      const response = await login(account.email, 'Password123!');
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().workspaces).toEqual([]);
+    } finally {
+      config.account.defaultWorkspace = previous;
+    }
+
+    const workspaces = await database
+      .selectFrom('workspaces')
+      .select('id')
+      .where('created_by', '=', account.id)
+      .execute();
+    expect(workspaces).toEqual([]);
   });
 });

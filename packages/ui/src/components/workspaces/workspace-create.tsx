@@ -44,6 +44,17 @@ export const WorkspaceCreate = ({ accountId }: WorkspaceCreateProps) => {
               Setup your workspace
             </h1>
           </div>
+          {workspaces.length === 0 && (
+            <p
+              data-testid="no-workspace-note"
+              className="mb-6 rounded-md border border-border/60 bg-muted/40 p-4 text-sm text-muted-foreground"
+            >
+              Your account does not belong to a workspace yet. If you are
+              expecting access to the Arribada Wiki, ask an admin to invite this
+              email address, then sign in again. You can also set up a workspace
+              of your own below.
+            </p>
+          )}
           <WorkspaceForm
             accountId={accountId}
             onSubmit={(values) => {

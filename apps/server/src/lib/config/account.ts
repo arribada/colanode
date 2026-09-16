@@ -103,6 +103,16 @@ export const accountConfigSchema = z
       .transform(resolveConfigReference)
       .default('automatic'),
     otpTimeout: z.coerce.number().default(600),
+    // A deployment that runs ONE shared workspace (this wiki) does not want a
+    // personal workspace created for every account that signs in: whoever logs
+    // in before being invited lands in an empty workspace of their own and
+    // never sees the wiki. Left on by default, as upstream behaves.
+    defaultWorkspace: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value !== 'false' : value),
+        z.boolean()
+      )
+      .default(true),
     google: googleConfigSchema,
     oidc: oidcConfigSchema,
   })

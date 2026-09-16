@@ -134,7 +134,11 @@ export const buildLoginSuccessOutput = async (
     }
   }
 
-  if (workspaceOutputs.length === 0) {
+  // An account with no workspace gets one of its own, unless the deployment
+  // turned that off: on a server built around a single shared workspace, the
+  // personal one only hides the wiki people are looking for. The client then
+  // shows the "create a workspace" screen, which says to ask for an invite.
+  if (workspaceOutputs.length === 0 && config.account.defaultWorkspace) {
     const workspace = await createDefaultWorkspace(account);
     workspaceOutputs.push(workspace);
   }
