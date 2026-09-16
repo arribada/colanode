@@ -49,12 +49,14 @@ export const BoardViewColumn = () => {
         width: '272px',
       }}
     >
-      {/* Soft tag-colour wash behind the column — kept faint so it tints
-          rather than shouts (a full colour block was too aggressive). */}
+      {/* Soft tag-colour wash behind the column. The colour itself is already a
+          pale 50-shade on the light theme, and a quarter of it over white was
+          not far from invisible; it is shown as it is there, and stays faint on
+          the dark theme, where a 900-shade at full strength would shout. */}
       <div
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute inset-0 -z-10 rounded-xl opacity-25',
+          'pointer-events-none absolute inset-0 -z-10 rounded-xl opacity-100 dark:opacity-25',
           columnClass
         )}
       />
