@@ -390,6 +390,10 @@ interface NodeCoverBannerProps {
   onChange: (cover: NodeCover | null) => void;
   // Laid over the banner, under the change-cover control -- the page title.
   children?: ReactNode;
+  // Keep the banner even when there is no cover: a grey band the title sits
+  // on, which opens the cover picker when clicked. Pages use it so a title
+  // always looks the same; records keep the old hover-only affordance.
+  placeholder?: boolean;
 }
 
 // Banner shown at the top of page and record containers. Without a cover it
@@ -401,11 +405,13 @@ export const NodeCoverBanner = ({
   canEdit,
   onChange,
   children,
+  placeholder = false,
 }: NodeCoverBannerProps) => {
   const isImage = cover?.type === 'image';
   const coverClass = getCoverClass(cover); // null for image type
+  const hasCover = isImage || coverClass !== null;
 
-  if (!coverClass && !isImage) {
+  if (!hasCover && !placeholder) {
     if (!canEdit) {
       return null;
     }
@@ -430,25 +436,48 @@ export const NodeCoverBanner = ({
 
   return (
     <div
-      data-testid="node-cover"
+      data-testid={hasCover ? 'node-cover' : 'node-cover-placeholder'}
       className={cn(
         'relative mb-4 h-32 w-full overflow-hidden rounded-lg lg:h-40',
-        !isImage && coverClass
+        hasCover ? !isImage && coverClass : 'bg-muted'
       )}
     >
       {isImage && cover && <CoverImage value={cover.value} />}
+      {canEdit && (
+        // The band itself picks the cover: clicking anywhere that is not the
+        // title opens the picker, which is what people reach for first. It
+        // sits under the title, which keeps its own clicks.
+        <CoverPicker cover={cover} onChange={onChange}>
+          <button
+            type="button"
+            aria-label={hasCover ? 'Change cover' : 'Add cover'}
+            data-testid="cover-band-button"
+            className="absolute inset-0 z-0 cursor-pointer"
+          />
+        </CoverPicker>
+      )}
       {children}
       {canEdit && (
-        <div className="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/cover:opacity-100">
+        <div
+          className={cn(
+            'absolute right-2 top-2 z-20 transition-opacity',
+            // With a cover the control would cover the picture, so it waits
+            // for a hover; on the empty band there is nothing to hide.
+            hasCover
+              ? 'opacity-0 focus-within:opacity-100 group-hover/cover:opacity-100'
+              : 'opacity-100'
+          )}
+        >
           <CoverPicker cover={cover} onChange={onChange}>
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="bg-background/70 backdrop-blur"
-              data-testid="change-cover-button"
+              data-testid={hasCover ? 'change-cover-button' : 'add-cover-button'}
             >
-              Change cover
+              {!hasCover && <ImageIcon className="size-4" />}
+              {hasCover ? 'Change cover' : 'Add cover'}
             </Button>
           </CoverPicker>
         </div>

@@ -44,6 +44,9 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
       <NodeCoverBanner
         cover={page.cover}
         canEdit={canEdit}
+        // A page always shows the band, so its title always sits in the same
+        // place, whether or not a cover was picked.
+        placeholder
         onChange={(cover) => {
           const nodes = workspace.collections.nodes;
           if (!nodes.has(page.id)) {
@@ -59,10 +62,13 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
           });
         }}
       >
-        {hasCover && <PageTitle page={page} canEdit={canEdit} onCover />}
+        <PageTitle
+          page={page}
+          canEdit={canEdit}
+          placement={hasCover ? 'cover' : 'placeholder'}
+        />
       </NodeCoverBanner>
       <div className={cn('mx-auto w-full min-w-0', !fullWidth && 'max-w-3xl')}>
-        {!hasCover && <PageTitle page={page} canEdit={canEdit} />}
         <Document
           node={page}
           canEdit={canEditDocument}

@@ -13,13 +13,16 @@ const HINT_LINGER_MS = 500;
 interface PageTitleProps {
   page: LocalPageNode;
   canEdit: boolean;
-  onCover?: boolean;
+  // Where the title sits: over a real cover (white, on the dark gradient that
+  // keeps it readable over any picture), over the grey band a page without a
+  // cover shows (the page's own colours), or on its own above the text.
+  placement?: 'cover' | 'placeholder' | 'inline';
 }
 
 export const PageTitle = ({
   page,
   canEdit,
-  onCover = false,
+  placement = 'inline',
 }: PageTitleProps) => {
   const workspace = useWorkspace();
   const [draft, setDraft] = useState(page.name ?? '');
@@ -111,9 +114,10 @@ export const PageTitle = ({
       spellCheck={false}
       className={cn(
         'w-full min-w-0 truncate border-none bg-transparent p-0 font-bold tracking-tight outline-none',
-        onCover
-          ? 'text-3xl text-white drop-shadow placeholder:text-white/60'
-          : 'text-4xl text-foreground placeholder:text-muted-foreground/50',
+        placement === 'inline' ? 'text-4xl' : 'text-3xl',
+        placement === 'cover'
+          ? 'text-white drop-shadow placeholder:text-white/60'
+          : 'text-foreground placeholder:text-muted-foreground/50',
         !canEdit && 'cursor-default'
       )}
     />
@@ -131,13 +135,24 @@ export const PageTitle = ({
       enabled={
         canEdit && editing && resolveTitleEdit(draft, nameAtFocus) !== null
       }
-      onCover={onCover}
+      onCover={placement === 'cover'}
     />
   );
 
-  if (onCover) {
+  if (placement === 'cover') {
     return (
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-6 pb-4 pt-12">
+      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-6 pb-4 pt-12">
+        {field}
+        {hint}
+      </div>
+    );
+  }
+
+  if (placement === 'placeholder') {
+    // Same place as over a real cover, on the grey band: no dark gradient, so
+    // the title keeps the colour the rest of the page uses.
+    return (
+      <div className="absolute inset-x-0 bottom-0 z-10 px-6 pb-4 pt-12">
         {field}
         {hint}
       </div>
