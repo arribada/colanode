@@ -34,9 +34,17 @@ export interface GraphUnresolved {
   target: string;
 }
 
+export interface GraphTruncation {
+  shown: number;
+  total: number;
+}
+
 export interface NodeGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  // Set when `maxNodes` dropped some: the caller says so on screen rather than
+  // drawing a fraction of the wiki and calling it the graph.
+  truncated?: GraphTruncation;
   // Mentions whose target is not among the known nodes. Not necessarily deleted:
   // a node the viewer cannot access, or one not yet synced, looks identical from
   // here. The caller decides how to label them.
@@ -51,6 +59,10 @@ export interface BuildGraphOptions {
   // Local graph: keep only what is reachable from `nodeId` within `depth` hops,
   // walking edges in both directions. The focus node is always kept, even alone.
   focus?: { nodeId: string; depth: number };
+  // Most nodes to return, best connected first. A force layout compares every
+  // pair on every frame, so the whole wiki (2,000 nodes and climbing) froze the
+  // tab for as long as it was open. Unset or 0 keeps everything.
+  maxNodes?: number;
 }
 
 const edgeKey = (edge: GraphEdge): string =>
@@ -178,9 +190,37 @@ export const buildGraph = (
   // Stable order so a re-render never reshuffles the layout seed.
   nodes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
+  let truncated: GraphTruncation | undefined;
+  const maxNodes = options.maxNodes ?? 0;
+  if (maxNodes > 0 && nodes.length > maxNodes) {
+    // Keep the best connected -- they are what gives the picture its shape --
+    // and the focused node, which is the reason the graph was opened.
+    const total = nodes.length;
+    const ranked = [...nodes].sort(
+      (a, b) => b.degree - a.degree || (a.id < b.id ? -1 : 1)
+    );
+    const kept = new Set<string>();
+    const focusId = options.focus?.nodeId;
+    if (focusId && known.has(focusId)) {
+      kept.add(focusId);
+    }
+    for (const node of ranked) {
+      if (kept.size >= maxNodes) {
+        break;
+      }
+      kept.add(node.id);
+    }
+    const shown = nodes.filter((node) => kept.has(node.id));
+    nodes.length = 0;
+    nodes.push(...shown);
+    truncated = { shown: nodes.length, total };
+  }
+
   const present = new Set(nodes.map((n) => n.id));
   edges = edges.filter((e) => present.has(e.from) && present.has(e.to));
   edges.sort((a, b) => (edgeKey(a) < edgeKey(b) ? -1 : 1));
 
-  return { nodes, edges, unresolved };
+  return truncated
+    ? { nodes, edges, unresolved, truncated }
+    : { nodes, edges, unresolved };
 };

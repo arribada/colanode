@@ -59,6 +59,11 @@ const MAX_DEPTH = 3;
 const SETTLE_THRESHOLD = 0.6;
 const MAX_FRAMES = 900;
 
+// The layout compares every pair of nodes on every frame, so the cost grows
+// with the square of the count: the whole wiki (2,000 nodes) locked the tab.
+// Past this many, only the best connected are drawn and the view says so.
+const MAX_NODES = 300;
+
 const radiusFor = (degree: number): number =>
   4 + Math.min(9, Math.sqrt(degree) * 2.4);
 
@@ -83,7 +88,9 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
 
   const [edgeMode, setEdgeMode] = useState<GraphEdgeMode>('both');
   const [includeOrphans, setIncludeOrphans] = useState(false);
-  const [depth, setDepth] = useState(2);
+  // A page's own graph opens on what sits directly around it. Two hops already
+  // pulls in the neighbours' neighbours, which is most of a space.
+  const [depth, setDepth] = useState(focusNodeId ? 1 : 2);
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState<string | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, zoom: 1 });
@@ -106,6 +113,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
     includeOrphans,
     focusNodeId: focusNodeId ?? null,
     depth,
+    maxNodes: MAX_NODES,
   });
 
   const graph = graphQuery.data;
@@ -412,6 +420,15 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
           <TooltipContent>Recentre the view and shake the layout out</TooltipContent>
         </Tooltip>
         <span className="ml-auto text-xs text-muted-foreground">
+          {graph.truncated && (
+            <span
+              data-testid="graph-truncated"
+              className="mr-2 text-amber-600 dark:text-amber-500"
+            >
+              too many to draw — showing the {graph.truncated.shown} best
+              connected of {graph.truncated.total}
+            </span>
+          )}
           {graph.nodes.length} nodes · {linkCount} links ·{' '}
           {graph.edges.length - linkCount} nested
           {graph.unresolved.length > 0 && (

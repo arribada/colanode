@@ -9,6 +9,8 @@ export type NodeGraphGetQueryInput = {
   // within `depth` hops. Absent for the whole-workspace graph.
   focusNodeId?: string | null;
   depth?: number;
+  // Most nodes to draw; the rest are left out and the view says so.
+  maxNodes?: number;
 };
 
 declare module '@colanode/client/queries' {

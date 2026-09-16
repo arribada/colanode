@@ -74,6 +74,7 @@ export class NodeGraphGetQueryHandler
       focus: input.focusNodeId
         ? { nodeId: input.focusNodeId, depth: input.depth ?? 1 }
         : undefined,
+      maxNodes: input.maxNodes,
     });
   }
 

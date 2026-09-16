@@ -155,3 +155,66 @@ describe('buildGraph', () => {
     expect(second.edges).toEqual(first.edges);
   });
 });
+
+describe('buildGraph — the cap that keeps a big wiki drawable', () => {
+  // A hub every other node points at, so degrees differ and the ranking has a
+  // defensible answer: the hub first, then the pages that mention it.
+  const nodes = Array.from({ length: 30 }, (_, i) => ({
+    id: `n${String(i).padStart(2, '0')}`,
+    type: 'page',
+    name: `Page ${i}`,
+    parentId: null,
+  }));
+  const references = nodes
+    .slice(1)
+    .map((node) => ({ nodeId: node.id, referenceId: 'n00' }));
+
+  it('draws everything when the graph is small enough', () => {
+    const graph = buildGraph(nodes, references, {
+      edgeMode: 'links',
+      includeOrphans: true,
+      maxNodes: 100,
+    });
+
+    expect(graph.nodes).toHaveLength(30);
+    expect(graph.truncated).toBeUndefined();
+  });
+
+  it('keeps the best connected and says how many it left out', () => {
+    const graph = buildGraph(nodes, references, {
+      edgeMode: 'links',
+      includeOrphans: true,
+      maxNodes: 10,
+    });
+
+    expect(graph.nodes).toHaveLength(10);
+    expect(graph.truncated).toEqual({ shown: 10, total: 30 });
+    expect(graph.nodes.map((n) => n.id)).toContain('n00');
+  });
+
+  it('never drops the page the graph was opened from', () => {
+    const graph = buildGraph(nodes, references, {
+      edgeMode: 'links',
+      includeOrphans: true,
+      focus: { nodeId: 'n29', depth: 3 },
+      maxNodes: 3,
+    });
+
+    expect(graph.nodes.map((n) => n.id)).toContain('n29');
+    expect(graph.nodes).toHaveLength(3);
+  });
+
+  it('leaves no edge pointing at a node it dropped', () => {
+    const graph = buildGraph(nodes, references, {
+      edgeMode: 'links',
+      includeOrphans: true,
+      maxNodes: 5,
+    });
+
+    const present = new Set(graph.nodes.map((n) => n.id));
+    for (const edge of graph.edges) {
+      expect(present.has(edge.from)).toBe(true);
+      expect(present.has(edge.to)).toBe(true);
+    }
+  });
+});
