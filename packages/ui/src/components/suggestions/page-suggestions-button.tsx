@@ -48,7 +48,12 @@ export const PageSuggestionsButton = ({
   // regains focus. Notification events already trigger a re-count when they
   // sync, but polling covers the case where they haven't yet.
   useEffect(() => {
-    const interval = window.setInterval(() => void refresh(), 15000);
+    // Hidden tabs skip the poll; coming back re-counts at once (below).
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    }, 15000);
     // One handler for both focus and visibilitychange, guarded on the visible
     // state: this skips the wasted re-count fired when the tab goes HIDDEN
     // (visibilitychange also fires on hide), and only refreshes on a real return.
