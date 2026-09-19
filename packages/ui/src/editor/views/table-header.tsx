@@ -63,7 +63,9 @@ export const TableHeaderNodeView = (props: NodeViewProps) => {
             bottomLeft: false,
             bottomRight: false,
             left: false,
-            right: !isActive,
+            // Kept on while the cell is selected: the cell menu button sits
+            // above it (z-10) mid-height, the rest of the border still drags.
+            right: true,
             top: false,
             topLeft: false,
             topRight: false,

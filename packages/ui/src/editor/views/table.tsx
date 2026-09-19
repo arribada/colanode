@@ -4,7 +4,7 @@ import {
   NodeViewWrapper,
   useEditorState,
 } from '@tiptap/react';
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 import {
   Tooltip,
@@ -142,10 +142,33 @@ export const TableNodeView = ({
     setIsBottomHovered(false);
   };
 
+  // A table wider than the page used to end flush with the page's scroll
+  // area, under its scrollbar and the reading rail, so the last column's
+  // border could not be grabbed to shrink it back. While the table overflows
+  // the editor, a spacer past its right edge lets the page scroll further.
+  const [overflowsPage, setOverflowsPage] = useState(false);
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const editorElement = wrapper?.closest('.ProseMirror');
+    if (!wrapper || !(editorElement instanceof HTMLElement)) {
+      return;
+    }
+    const measure = () =>
+      setOverflowsPage(wrapper.offsetWidth > editorElement.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(wrapper);
+    observer.observe(editorElement);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <NodeViewWrapper
       ref={wrapperRef}
-      className="pl-4 pr-4 pb-4 pt-4 w-fit max-w-full"
+      // Wider than the page on desktop the wrapper grows with the table
+      // (md:w-max), so its "+" column button and handles follow the real right
+      // edge. On mobile it stays clamped and the table scrolls in its own box.
+      className="relative pl-4 pr-4 pb-4 pt-4 w-fit max-w-full md:w-max md:max-w-none"
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -235,6 +258,12 @@ export const TableNodeView = ({
           </div>
         )}
       </div>
+      {overflowsPage && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-20 top-0 h-px w-px max-md:hidden"
+        />
+      )}
     </NodeViewWrapper>
   );
 };

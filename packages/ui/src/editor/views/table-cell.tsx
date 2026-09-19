@@ -123,7 +123,9 @@ export const TableCellNodeView = (props: NodeViewProps) => {
             bottomLeft: false,
             bottomRight: false,
             left: false,
-            right: !isActive && !isMerged,
+            // Kept on while the cell is selected: the cell menu button sits
+            // above it (z-10) mid-height, the rest of the border still drags.
+            right: !isMerged,
             top: false,
             topLeft: false,
             topRight: false,
