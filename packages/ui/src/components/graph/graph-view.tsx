@@ -425,7 +425,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
               data-testid="graph-truncated"
               className="mr-2 text-amber-600 dark:text-amber-500"
             >
-              too many to draw — showing the {graph.truncated.shown} best
+              too many to draw: showing the {graph.truncated.shown} best
               connected of {graph.truncated.total}
             </span>
           )}
