@@ -27,7 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # Pinned: windows-latest moved to Visual Studio 18 (2026), which the
+          # node-gyp bundled with Electron does not recognise, so better-sqlite3
+          # could not be compiled. windows-2022 ships Visual Studio 2022.
+          - os: windows-2022
             name: windows
           - os: ubuntu-latest
             name: linux
