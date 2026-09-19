@@ -37,15 +37,14 @@ export const TableHeaderNodeView = (props: NodeViewProps) => {
       : 100;
   const align = props.node.attrs.align;
   return (
-    <NodeViewWrapper
-      className="h-full w-full"
-    >
+    <NodeViewWrapper className="h-full w-full">
       <TableCellContextMenu {...props}>
         <Resizable
           className={cn(
             defaultClasses.tableHeader,
             'relative h-full',
-            isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
+            isActive &&
+              'outline outline-2 outline-primary [outline-offset:-2px]',
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',
             align === 'right' && 'justify-end'

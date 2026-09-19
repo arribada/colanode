@@ -94,15 +94,14 @@ export const TableCellNodeView = (props: NodeViewProps) => {
   const isMerged = colspan > 1 || rowspan > 1;
   const cellWidth = isMerged ? '100%' : `${colWidth}px`;
   return (
-    <NodeViewWrapper
-      className="h-full w-full"
-    >
+    <NodeViewWrapper className="h-full w-full">
       <TableCellContextMenu {...props}>
         <Resizable
           className={cn(
             defaultClasses.tableCell,
             'relative h-full',
-            isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
+            isActive &&
+              'outline outline-2 outline-primary [outline-offset:-2px]',
             align === 'left' && 'justify-start',
             align === 'center' && 'justify-center',
             align === 'right' && 'justify-end',

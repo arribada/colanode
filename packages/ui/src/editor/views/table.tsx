@@ -180,7 +180,10 @@ export const TableNodeView = ({
           containerRef={relativeRef}
         />
         <div className="max-md:overflow-x-auto">
-          <NodeViewContent<'table'> as="table" className={defaultClasses.table} />
+          <NodeViewContent<'table'>
+            as="table"
+            className={defaultClasses.table}
+          />
         </div>
         {hasCaption && (
           <figcaption
