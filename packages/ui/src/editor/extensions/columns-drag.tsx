@@ -79,17 +79,84 @@ const autoScrollOnDrag = (view: EditorView, clientY: number): void => {
 
 const key = new PluginKey('columnsDrag');
 
+// Which side of a block the pointer arms, or null in the middle band. The
+// band is measured on what the block shows: past its right edge (the empty
+// space beside a narrow image) counts as the right side.
+export const sideForPointer = (
+  x: number,
+  rect: { left: number; right: number; width: number }
+): Side | null => {
+  const edge = rect.width * EDGE;
+  if (x <= rect.left + edge) {
+    return 'left';
+  }
+  if (x >= rect.right - edge) {
+    return 'right';
+  }
+  return null;
+};
+
+// The box a user aims at. An image block is a full-width wrapper around a
+// figure sized to the image, so its edges are the figure's, not the page's.
+const visibleRect = (dom: HTMLElement): DOMRect =>
+  (dom.querySelector('figure') ?? dom).getBoundingClientRect();
+
+// A top-level leaf block (an image or file) under the pointer. posAtCoords
+// reports the position just before such a node, which resolves at the
+// document itself, so the lookup below never saw one; failing that, the
+// block is found by the pointer's height among the top-level blocks.
+const topLevelLeafAt = (view: EditorView, at: number, y: number) => {
+  const { doc } = view.state;
+  const inBand = (start: number) => {
+    const node = doc.nodeAt(start);
+    const dom = view.nodeDOM(start);
+    if (!node || !node.isBlock || !(dom instanceof HTMLElement)) {
+      return null;
+    }
+    const rect = dom.getBoundingClientRect();
+    return y >= rect.top && y <= rect.bottom ? { node, dom } : null;
+  };
+  let found: { start: number; node: PMNode; dom: HTMLElement } | null = null;
+  const direct = at >= 0 && at < doc.content.size ? inBand(at) : null;
+  if (direct) {
+    found = { start: at, ...direct };
+  } else {
+    doc.forEach((_child, offset) => {
+      if (!found) {
+        const hit = inBand(offset);
+        if (hit) {
+          found = { start: offset, ...hit };
+        }
+      }
+    });
+  }
+  if (!found) {
+    return null;
+  }
+  const { start, node, dom } = found as {
+    start: number;
+    node: PMNode;
+    dom: HTMLElement;
+  };
+  return {
+    $pos: doc.resolve(start),
+    start,
+    end: start + node.nodeSize,
+    node,
+    dom,
+  };
+};
+
 const topLevelBlockAt = (view: EditorView, x: number, y: number) => {
   const posInfo = view.posAtCoords({ left: x, top: y });
   if (!posInfo) {
     return null;
   }
 
-  const $pos = view.state.doc.resolve(
-    posInfo.inside >= 0 ? posInfo.inside : posInfo.pos
-  );
+  const at = posInfo.inside >= 0 ? posInfo.inside : posInfo.pos;
+  const $pos = view.state.doc.resolve(at);
   if ($pos.depth < 1) {
-    return null;
+    return topLevelLeafAt(view, posInfo.inside, y);
   }
 
   const start = $pos.before(1);
@@ -133,9 +200,7 @@ export const ColumnsDragExtension = Extension.create({
       indicator.style.top = `${t.rect.top + pad}px`;
       indicator.style.height = `${Math.max(0, t.rect.height - pad * 2)}px`;
       indicator.style.left =
-        t.side === 'left'
-          ? `${t.rect.left - 1}px`
-          : `${t.rect.right - 2}px`;
+        t.side === 'left' ? `${t.rect.left - 1}px` : `${t.rect.right - 2}px`;
     };
 
     return [
@@ -165,24 +230,17 @@ export const ColumnsDragExtension = Extension.create({
                 return false;
               }
 
-              const hit = topLevelBlockAt(
-                view,
-                event.clientX,
-                event.clientY
-              );
+              const hit = topLevelBlockAt(view, event.clientX, event.clientY);
               if (!hit) {
                 hide();
                 return false;
               }
 
-              const rect = hit.dom.getBoundingClientRect();
-              const edge = rect.width * EDGE;
-              let side: Side | null = null;
-              if (event.clientX <= rect.left + edge) {
-                side = 'left';
-              } else if (event.clientX >= rect.right - edge) {
-                side = 'right';
-              }
+              const rect =
+                hit.node.type.name === 'file'
+                  ? visibleRect(hit.dom)
+                  : hit.dom.getBoundingClientRect();
+              const side = sideForPointer(event.clientX, rect);
 
               if (!side) {
                 hide();
