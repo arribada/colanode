@@ -76,6 +76,11 @@ const EDITOR_COLOURS = new Set([
 
 // Attributes written with any value, per block type.
 const CARRIED_ATTRS: Record<string, ReadonlySet<string>> = {
+  // Written as {width=N} after the image, and as a <!-- colwidths --> line
+  // above the table; checked below for values that cannot be written.
+  file: new Set(['width']),
+  tableHeader: new Set(['colwidth']),
+  tableCell: new Set(['colwidth']),
   codeBlock: new Set(['language']),
   callout: new Set(['color', 'icon']),
   orderedList: new Set(['start']),
@@ -150,6 +155,46 @@ const childrenIndex = (blocks: readonly Block[]): Map<string, Block[]> => {
 // Named constructs
 // ---------------------------------------------------------------------------
 
+const tableCellsOf = (row: Block, children: Map<string, Block[]>): Block[] =>
+  (children.get(row.id) ?? []).filter(
+    (cell) => cell.type === 'tableHeader' || cell.type === 'tableCell'
+  );
+
+// A column width is written once per column, from the table's first row, and
+// read back onto every row. It survives when it is one whole width equal to
+// the first row's width in the same column; a cell spanning several columns
+// (several widths) or a row resized on its own does not.
+const colwidthIsCarried = (
+  cell: Block,
+  value: unknown,
+  children: Map<string, Block[]>,
+  byId: Map<string, Block>
+): boolean => {
+  if (!Array.isArray(value) || value.length > 1) {
+    return false;
+  }
+  const width: unknown = value[0];
+  if (
+    value.length === 1 &&
+    !(typeof width === 'number' && Number.isInteger(width) && width > 0)
+  ) {
+    return false;
+  }
+  const row = byId.get(cell.parentId);
+  const table = row ? byId.get(row.parentId) : undefined;
+  const firstRow = table
+    ? (children.get(table.id) ?? []).find((r) => r.type === 'tableRow')
+    : undefined;
+  if (!row || !firstRow) {
+    return false;
+  }
+  const first =
+    tableCellsOf(firstRow, children)[tableCellsOf(row, children).indexOf(cell)];
+  const firstColwidth: unknown = first?.attrs?.colwidth;
+  const firstWidth = Array.isArray(firstColwidth) ? firstColwidth[0] : undefined;
+  return firstWidth === width;
+};
+
 const namedLosses = (
   documentId: string,
   content: RichTextContent | null | undefined
@@ -157,6 +202,7 @@ const namedLosses = (
   const found = new Set<string>();
   const blocks = Object.values(content?.blocks ?? {});
   const children = childrenIndex(blocks);
+  const byId = new Map(blocks.map((block) => [block.id, block]));
   const reachable = new Set<string>();
   const visit = (parentId: string, depth: number) => {
     if (depth > 64) {
@@ -205,6 +251,20 @@ const namedLosses = (
           !(typeof value === 'number' && Number.isInteger(value) && value >= 0)
         ) {
           found.add('list numbering');
+        }
+        if (
+          block.type === 'file' &&
+          key === 'width' &&
+          !(typeof value === 'number' && Number.isInteger(value) && value > 0)
+        ) {
+          found.add('image sizes');
+        }
+        if (
+          (block.type === 'tableHeader' || block.type === 'tableCell') &&
+          key === 'colwidth' &&
+          !colwidthIsCarried(block, value, children, byId)
+        ) {
+          found.add('table column widths');
         }
         continue;
       }

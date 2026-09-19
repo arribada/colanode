@@ -1219,7 +1219,6 @@ describe('lossyOnReplace', () => {
       'columns blocks',
       'subscript formatting',
       'table cell colours',
-      'table column widths',
     ]);
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  lossyOnReplace,
   markdownToBlocks,
   richTextToMarkdown,
 } from '@colanode/server/lib/ai/tools';
@@ -128,5 +129,34 @@ describe('table column widths', () => {
     const texts = blocks.flatMap((b) => (b.content ?? []).map((l) => l.text ?? ''));
     expect(texts.join(' ')).not.toContain('colwidths');
     expect(texts.join(' ')).toContain('Just text.');
+  });
+});
+
+describe('replace guard on sizes', () => {
+  it('no longer blocks a page whose sizes the markdown now carries', () => {
+    const content = contentOf([
+      ...tableWithWidths([180, 120]),
+      { id: IMAGE, type: 'file', parentId: DOC, index: 'a1', attrs: { width: 520 } },
+    ]);
+
+    expect(lossyOnReplace(DOC, content as never)).toEqual([]);
+  });
+
+  it('still names a column resized on one row only', () => {
+    const blocks = tableWithWidths([180, 120]);
+    const bodyCell = blocks.find((b) => b.id.startsWith('cell10'))!;
+    bodyCell.attrs = { ...bodyCell.attrs, colwidth: [300] };
+
+    expect(lossyOnReplace(DOC, contentOf(blocks) as never)).toContain(
+      'table column widths'
+    );
+  });
+
+  it('still names an image width the markdown cannot write', () => {
+    const content = contentOf([
+      { id: IMAGE, type: 'file', parentId: DOC, index: 'a0', attrs: { width: 520.5 } },
+    ]);
+
+    expect(lossyOnReplace(DOC, content as never)).toContain('image sizes');
   });
 });

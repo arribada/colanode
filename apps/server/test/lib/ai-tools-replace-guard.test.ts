@@ -61,7 +61,7 @@ const seedPage = async () => {
           type: 'tableHeader',
           parentId: 'r0',
           index: 'a0',
-          attrs: { colspan: 1, rowspan: 1, colwidth: [480] },
+          attrs: { colspan: 1, rowspan: 1, backgroundColor: 'red' },
         },
         h0p: {
           id: 'h0p',
@@ -82,7 +82,7 @@ describe('replace guard', () => {
   it('names on get_page what a replace would delete', async () => {
     const { page, ctx } = await seedPage();
     const read = await getPage(ctx, { id: page });
-    expect(read.lossyOnReplace).toEqual(['table column widths']);
+    expect(read.lossyOnReplace).toEqual(['table cell colours']);
   });
 
   it('refuses a replace that would delete it, and leaves the page alone', async () => {
@@ -95,11 +95,11 @@ describe('replace guard', () => {
         mode: 'replace',
         content: `${read.content}\n\nAdded.`,
       })
-    ).rejects.toThrow(/table column widths.*force: true/s);
+    ).rejects.toThrow(/table cell colours.*force: true/s);
 
     const after = await getPage(ctx, { id: page });
     expect(after.content).toBe(read.content);
-    expect(after.lossyOnReplace).toEqual(['table column widths']);
+    expect(after.lossyOnReplace).toEqual(['table cell colours']);
   });
 
   it('appends without asking', async () => {
@@ -107,7 +107,7 @@ describe('replace guard', () => {
     await editPage(ctx, { id: page, mode: 'append', content: 'Appended.' });
     const after = await getPage(ctx, { id: page });
     expect(after.content).toContain('Appended.');
-    expect(after.lossyOnReplace).toEqual(['table column widths']);
+    expect(after.lossyOnReplace).toEqual(['table cell colours']);
   });
 
   it('replaces when the tool is told to with force, and then without it', async () => {
