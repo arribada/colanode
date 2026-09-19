@@ -1,6 +1,7 @@
 import mermaid from 'mermaid';
 import { useEffect, useId, useState } from 'react';
 
+import { mermaidExportSource, svgToPng } from '@colanode/ui/lib/image-export';
 import { cn } from '@colanode/ui/lib/utils';
 
 // Mermaid pulls in a large parser/renderer bundle, so like KaTeX it must only
@@ -20,6 +21,20 @@ const ensureInitialized = (): void => {
     fontFamily: 'inherit',
   });
   initialized = true;
+};
+
+let exportCount = 0;
+
+// The diagram as a PNG for the clipboard, drawn again with SVG text labels
+// (see mermaidExportSource).
+export const renderMermaidPng = async (source: string): Promise<Blob> => {
+  ensureInitialized();
+  exportCount += 1;
+  const { svg } = await mermaid.render(
+    `mermaid-export-${exportCount}`,
+    mermaidExportSource(source)
+  );
+  return svgToPng(svg);
 };
 
 interface MermaidDiagramProps {
@@ -89,7 +104,9 @@ export const MermaidDiagram = ({ source, className }: MermaidDiagramProps) => {
 
   if (svg === null) {
     return (
-      <span className={cn('font-mono text-sm text-muted-foreground', className)}>
+      <span
+        className={cn('font-mono text-sm text-muted-foreground', className)}
+      >
         Rendering diagram…
       </span>
     );

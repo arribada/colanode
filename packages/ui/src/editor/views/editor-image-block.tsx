@@ -2,8 +2,9 @@
 // ABOUTME: caption that carries a live, auto-updating "Figure N" number.
 import { type NodeViewProps } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { Captions, CaptionsOff } from 'lucide-react';
+import { Captions, CaptionsOff, Copy, Maximize2 } from 'lucide-react';
 import { Resizable } from 're-resizable';
+import { useState } from 'react';
 
 import { DownloadStatus, LocalFileNode } from '@colanode/client/types';
 import { FileStatus } from '@colanode/core';
@@ -11,10 +12,16 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@colanode/ui/components/ui/context-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import {
+  MediaLightbox,
+  copyPicture,
+} from '@colanode/ui/editor/views/media-lightbox';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import { imageUrlToPng } from '@colanode/ui/lib/image-export';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface EditorImageBlockProps {
@@ -54,6 +61,11 @@ export const EditorImageBlock = ({
   const caption = (node.attrs.caption as string | null | undefined) ?? null;
   const hasCaption = caption !== null;
   const editable = editor.isEditable;
+  // Double-click opens the image full size; the right-click menu can also copy
+  // it as a PNG for other apps (Ctrl+C keeps copying the block, so pasting it
+  // back in the wiki does not upload a second file).
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const copy = url ? () => copyPicture(() => imageUrlToPng(url)) : undefined;
 
   // This figure's live ordinal among ALL captioned file nodes in the document,
   // in document order -- recomputed on every change so adding, removing or
@@ -103,7 +115,9 @@ export const EditorImageBlock = ({
             handleClasses={{
               right: cn(
                 'cn-img-resize-handle transition-opacity',
-                editable ? 'opacity-0 group-hover/img:opacity-100' : 'opacity-0',
+                editable
+                  ? 'opacity-0 group-hover/img:opacity-100'
+                  : 'opacity-0',
                 editable && selected && '!opacity-100'
               ),
             }}
@@ -129,6 +143,7 @@ export const EditorImageBlock = ({
                 alt={file.name}
                 draggable={false}
                 className="block h-auto w-full select-none rounded-md"
+                onDoubleClick={() => setViewerOpen(true)}
               />
             ) : file.status === FileStatus.Pending ? (
               <div className="flex h-40 w-full flex-col items-center justify-center gap-1 bg-muted px-3 text-center text-xs text-muted-foreground">
@@ -140,7 +155,8 @@ export const EditorImageBlock = ({
                   re-upload it.
                 </span>
               </div>
-            ) : localFileQuery.data?.downloadStatus === DownloadStatus.Failed ? (
+            ) : localFileQuery.data?.downloadStatus ===
+              DownloadStatus.Failed ? (
               <div className="flex h-40 w-full items-center justify-center bg-muted px-3 text-center text-xs text-muted-foreground">
                 Couldn't load this image.
               </div>
@@ -179,7 +195,23 @@ export const EditorImageBlock = ({
         </figure>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {hasCaption ? (
+        {url && (
+          <>
+            <ContextMenuItem
+              onClick={() => setViewerOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Maximize2 className="size-4" />
+              View full size
+            </ContextMenuItem>
+            <ContextMenuItem onClick={copy} className="flex items-center gap-2">
+              <Copy className="size-4" />
+              Copy image
+            </ContextMenuItem>
+            {editable && <ContextMenuSeparator />}
+          </>
+        )}
+        {!editable ? null : hasCaption ? (
           <ContextMenuItem
             onClick={() => updateAttributes({ caption: null })}
             className="flex items-center gap-2"
@@ -197,6 +229,20 @@ export const EditorImageBlock = ({
           </ContextMenuItem>
         )}
       </ContextMenuContent>
+      {url && (
+        <MediaLightbox
+          open={viewerOpen}
+          onOpenChange={setViewerOpen}
+          title={file.name}
+          onCopy={copy}
+        >
+          <img
+            src={url}
+            alt={file.name}
+            className="max-h-full max-w-full object-contain"
+          />
+        </MediaLightbox>
+      )}
     </ContextMenu>
   );
 };
