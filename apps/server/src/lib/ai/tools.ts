@@ -616,6 +616,16 @@ const RUNS_ON_BLOCK_TYPES = new Set([
 ]);
 
 // Converts a page/record rich-text document into plain markdown for the model.
+// An image's width travels with it, as {width=N} right after the link. A
+// resized image used to come back at the default size after a replace edit,
+// because the markdown had nowhere to say how wide it was.
+const imageMarkdown = (block: Block): string => {
+  const width = block.attrs?.width;
+  return typeof width === 'number' && width > 0
+    ? `![](file:${block.id}){width=${Math.round(width)}}`
+    : `![](file:${block.id})`;
+};
+
 export const richTextToMarkdown = (
   documentId: string,
   content: RichTextContent | null | undefined,
@@ -662,7 +672,7 @@ export const richTextToMarkdown = (
         : inside
             .map((child) =>
               child.type === 'file'
-                ? `![](file:${child.id})`
+                ? imageMarkdown(child)
                 : child.type === 'paragraph'
                   ? `<p>${inline(child)}</p>`
                   : ''
@@ -690,6 +700,23 @@ export const richTextToMarkdown = (
       return copy;
     };
     const out: string[] = [];
+    // Column widths ride on a comment line just above the table, which a
+    // markdown renderer does not show: a pipe table has no place for them,
+    // and a replace edit used to reset every resized column.
+    const firstCells = childrenOf(rows[0]!.id).filter(
+      (c) => c.type === 'tableHeader' || c.type === 'tableCell'
+    );
+    const widths = firstCells.map((c) => {
+      const colwidth = c.attrs?.colwidth;
+      return Array.isArray(colwidth) && typeof colwidth[0] === 'number'
+        ? Math.round(colwidth[0])
+        : null;
+    });
+    if (widths.some((w) => w !== null)) {
+      out.push(
+        indent + `<!-- colwidths: ${widths.map((w) => w ?? '-').join(',')} -->`
+      );
+    }
     out.push(indent + '| ' + pad(matrix[0] ?? []).join(' | ') + ' |');
     out.push(
       indent +
@@ -795,7 +822,7 @@ export const richTextToMarkdown = (
         case 'file':
           // A file block carries no attrs: the BLOCK's own id is the file
           // node id. An image renders inline, anything else as a file card.
-          own.push('![](file:' + block.id + ')');
+          own.push(imageMarkdown(block));
           break;
         case 'database':
         case 'whiteboardEmbed':
@@ -899,7 +926,7 @@ const EMPTY_PARAGRAPH = '<p></p>';
 const paragraphContent = (text: string): BlockLeaf[] =>
   text.trim() === EMPTY_PARAGRAPH ? [] : parseInline(text);
 
-type CellSegment = { fileId: string } | { text: string };
+type CellSegment = { fileId: string; width?: number } | { text: string };
 
 // The inverse of cellText in richTextToMarkdown: a cell written as <p>…</p>
 // and ![](file:…) segments, and nothing else, becomes those blocks. Any
@@ -915,11 +942,15 @@ const cellSegments = (text: string): CellSegment[] | null => {
       at += 1;
       continue;
     }
-    const image = /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)/.exec(
-      text.slice(at, at + 256)
-    );
+    const image =
+      /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)(?:\{width=(\d+)\})?/.exec(
+        text.slice(at, at + 256)
+      );
     if (image) {
-      segments.push({ fileId: image[1] ?? '' });
+      segments.push({
+        fileId: image[1] ?? '',
+        ...(image[2] ? { width: Number(image[2]) } : {}),
+      });
       at += image[0].length;
       continue;
     }
@@ -1173,6 +1204,10 @@ const parseBlockLines = (
     return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line);
   };
 
+  // Column widths read from a `<!-- colwidths: ... -->` line, for the table
+  // that directly follows it (see tableLines).
+  let pendingColwidths: (number | null)[] | null = null;
+
   const splitRow = (value: string): string[] => {
     let row = value.trim();
     if (row.startsWith('|')) {
@@ -1263,10 +1298,30 @@ const parseBlockLines = (
       continue;
     }
 
+    const colwidthsLine = /^<!--\s*colwidths:\s*([\d\-,\s]+?)\s*-->$/.exec(
+      trimmed
+    );
+    if (colwidthsLine) {
+      // Only for a table right below; a stray line is dropped, not shown.
+      const tableFollows =
+        (lines[i + 1] ?? '').includes('|') &&
+        isTableDelimiter(lines[i + 2] ?? '');
+      pendingColwidths = tableFollows
+        ? (colwidthsLine[1] ?? '').split(',').map((part) => {
+            const value = Number(part.trim());
+            return Number.isFinite(value) && value > 0 ? value : null;
+          })
+        : null;
+      i += 1;
+      continue;
+    }
+
     // A GFM table is a row followed by a delimiter row. Without this branch
     // every line landed as a paragraph of literal pipes.
     if (trimmed.includes('|') && !listMarker(line) && isTableDelimiter(lines[i + 1] ?? '')) {
       const header = splitRow(trimmed);
+      const columnWidths = pendingColwidths;
+      pendingColwidths = null;
       i += 2;
       const bodyRows: string[][] = [];
       while (i < lines.length) {
@@ -1289,7 +1344,12 @@ const parseBlockLines = (
         for (let c = 0; c < width; c++) {
           const cell = addChild(row.id, cellType, cellAfter);
           cellAfter = cell.index;
-          cell.attrs = { colspan: 1, rowspan: 1 };
+          const colwidth = columnWidths?.[c];
+          cell.attrs = {
+            colspan: 1,
+            rowspan: 1,
+            ...(colwidth ? { colwidth: [colwidth] } : {}),
+          };
           const text = cells[c] ?? '';
           const segments = cellSegments(text);
           if (!segments) {
@@ -1306,6 +1366,7 @@ const parseBlockLines = (
                 type: 'file',
                 parentId: cell.id,
                 index,
+                ...(segment.width ? { attrs: { width: segment.width } } : {}),
               };
             } else {
               const paragraph = newBlock('paragraph', cell.id, index);
@@ -1327,13 +1388,17 @@ const parseBlockLines = (
     // An uploaded image is placed by writing ![caption](file:<id>) on its own
     // line. The block's id must BE the file node id — file blocks carry no
     // attrs at all, which is the one detail that makes this work.
-    const image = /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)$/.exec(trimmed);
+    const image =
+      /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)(?:\{width=(\d+)\})?$/.exec(
+        trimmed
+      );
     if (image && image[1]) {
       blocks[image[1]] = {
         id: image[1],
         type: 'file',
         parentId,
         index: nextIndex(),
+        ...(image[2] ? { attrs: { width: Number(image[2]) } } : {}),
       };
       i += 1;
       continue;
@@ -3554,7 +3619,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'get_page',
     description:
-      'Read a page or record by id and return its title and body as markdown text, where it sits (parentId, rootId, and path from the space down to the parent) and how many children of each type it has. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). What markdown has no syntax for is written as tags: <span data-color="red">, <mark data-color="yellow">, <u>, <span data-comment="…"> (a comment anchor), <p></p> (an empty paragraph), <br> (a line break in a table cell, or several paragraphs as <p>…</p>); elsewhere a line ending in a backslash is a line break. lossyOnReplace names what a replace edit would delete from this page, such as table column widths; edit_page refuses that replace unless given force. Returns { id, name, type, parentId, rootId, path: [{ id, name, type }], childCounts, content, lossyOnReplace }.',
+      'Read a page or record by id and return its title and body as markdown text, where it sits (parentId, rootId, and path from the space down to the parent) and how many children of each type it has. Embedded database views, whiteboards, sub-pages and web embeds appear as ```colanode-database / colanode-whiteboard / colanode-page / colanode-embed fences holding one JSON object; keep them when rewriting the page, and ignore their read-only "_" keys (_name, _filter). Sizes are part of the markdown too: the width of an image is written {width=N} right after it, and the column widths of a table on a <!-- colwidths: ... --> line just above it; keep both when rewriting. What markdown has no syntax for is written as tags: <span data-color="red">, <mark data-color="yellow">, <u>, <span data-comment="…"> (a comment anchor), <p></p> (an empty paragraph), <br> (a line break in a table cell, or several paragraphs as <p>…</p>); elsewhere a line ending in a backslash is a line break. lossyOnReplace names what a replace edit would delete from this page, such as table column widths; edit_page refuses that replace unless given force. Returns { id, name, type, parentId, rootId, path: [{ id, name, type }], childCounts, content, lossyOnReplace }.',
     inputSchema: getPageInput,
     run: getPage,
     action: (input, result) => ({
