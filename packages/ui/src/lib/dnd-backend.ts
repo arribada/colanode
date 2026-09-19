@@ -7,12 +7,30 @@ import { HTML5Backend as ReactDndHTML5Backend } from 'react-dnd-html5-backend';
 // For more information, see:
 // https://github.com/react-dnd/react-dnd/issues/802
 
-const shouldIgnoreTarget = (domNode: HTMLElement) => {
-  const hasProseMirror = domNode.closest('.ProseMirror');
-  if (hasProseMirror) {
-    return !domNode.closest('.react-renderer.node-database');
+// Whether react-dnd should leave this event to the editor: anything inside a
+// ProseMirror editor, except inside an embedded database view.
+//
+// Decided from the event's path, not from its target's ancestors: ProseMirror
+// handles a drop first and may replace the node the event targeted, and a
+// detached target has no .ProseMirror ancestor anymore. react-dnd then took
+// the editor's own drop and threw "Cannot call hover while not dragging".
+// composedPath() is fixed when the event is dispatched.
+export const shouldIgnoreEventPath = (path: EventTarget[]): boolean => {
+  for (const node of path) {
+    const classes = (node as Partial<Element>).classList;
+    if (!classes) {
+      continue;
+    }
+    if (
+      classes.contains('react-renderer') &&
+      classes.contains('node-database')
+    ) {
+      return false;
+    }
+    if (classes.contains('ProseMirror')) {
+      return true;
+    }
   }
-
   return false;
 };
 
@@ -35,7 +53,7 @@ export const HTML5Backend = (...args: unknown[]) => {
   listeners.forEach((name) => {
     const original = instance[name];
     instance[name] = (e: Event, ...extraArgs: unknown[]) => {
-      if (!shouldIgnoreTarget(e.target as HTMLElement)) {
+      if (!shouldIgnoreEventPath(e.composedPath())) {
         original(e, ...extraArgs);
       }
     };
