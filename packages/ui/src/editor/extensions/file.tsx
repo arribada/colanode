@@ -65,7 +65,7 @@ export const FileNode = Node.create<FileNodeOptions>({
     const options = this.options;
     return {
       addFile: (tempFile: TempFile, placeholderId?: string) => {
-        return ({ editor, tr }) => {
+        return ({ editor }) => {
           (async () => {
             const fileCreateResult = await window.colanode.executeMutation({
               type: 'file.create',
