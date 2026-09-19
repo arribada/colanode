@@ -473,6 +473,14 @@ const tryUpdateDocument = async (
     return { type: 'error', error: 'Node does not support documents' };
   }
 
+  // Read before the log, so the cache write below can tell whether any edit
+  // landed after this read (see tryUpdateDocumentFromMutation).
+  const document = await database
+    .selectFrom('documents')
+    .select('revision')
+    .where('id', '=', input.documentId)
+    .executeTakeFirst();
+
   const documentUpdates = await database
     .selectFrom('document_updates')
     .where('document_id', '=', input.documentId)
@@ -530,26 +538,81 @@ const tryUpdateDocument = async (
           throw new Error('Failed to create document update');
         }
 
-        const updatedDocument = await trx
-          .insertInto('documents')
-          .returningAll()
-          .values({
-            id: input.documentId,
-            workspace_id: input.workspaceId,
-            content: JSON.stringify(content),
-            created_at: date,
-            created_by: input.userId,
-            revision: createdDocumentUpdate.revision,
-          })
-          .onConflict((cb) =>
-            cb.column('id').doUpdateSet({
-              content: JSON.stringify(content),
-              updated_at: date,
-              updated_by: input.userId,
-              revision: createdDocumentUpdate.revision,
-            })
-          )
-          .executeTakeFirst();
+        // The cache used to be upserted with the content computed from the
+        // read above, so a user's edit committed in between stayed in the log
+        // but vanished from the cache until the next edit. Same guard as the
+        // mutation path: write only if the revision has not moved (waiting on
+        // an edit still in flight), otherwise rebuild from the whole log.
+        let updatedDocument = document
+          ? await trx
+              .updateTable('documents')
+              .returningAll()
+              .set({
+                content: JSON.stringify(content),
+                updated_at: date,
+                updated_by: input.userId,
+                revision: createdDocumentUpdate.revision,
+              })
+              .where('id', '=', input.documentId)
+              .where('revision', '=', document.revision)
+              .executeTakeFirst()
+          : await trx
+              .insertInto('documents')
+              .returningAll()
+              .values({
+                id: input.documentId,
+                workspace_id: input.workspaceId,
+                content: JSON.stringify(content),
+                created_at: date,
+                created_by: input.userId,
+                revision: createdDocumentUpdate.revision,
+              })
+              .onConflict((cb) => cb.doNothing())
+              .executeTakeFirst();
+
+        if (!updatedDocument) {
+          const allUpdates = await trx
+            .selectFrom('document_updates')
+            .where('document_id', '=', input.documentId)
+            .selectAll()
+            .execute();
+          const mergedYdoc = new YDoc();
+          for (const documentUpdate of allUpdates) {
+            mergedYdoc.applyUpdate(documentUpdate.data);
+          }
+          const mergedContent = mergedYdoc.getObject<DocumentContent>();
+          const maxRevision = allUpdates.reduce(
+            (max, documentUpdate) =>
+              documentUpdate.revision > max ? documentUpdate.revision : max,
+            createdDocumentUpdate.revision
+          );
+
+          updatedDocument =
+            (await trx
+              .updateTable('documents')
+              .returningAll()
+              .set({
+                content: JSON.stringify(mergedContent),
+                updated_at: date,
+                updated_by: input.userId,
+                revision: maxRevision,
+              })
+              .where('id', '=', input.documentId)
+              .executeTakeFirst()) ??
+            (await trx
+              .insertInto('documents')
+              .returningAll()
+              .values({
+                id: input.documentId,
+                workspace_id: input.workspaceId,
+                content: JSON.stringify(mergedContent),
+                created_at: date,
+                created_by: input.userId,
+                revision: maxRevision,
+              })
+              .onConflict((cb) => cb.doNothing())
+              .executeTakeFirst());
+        }
 
         if (!updatedDocument) {
           throw new Error('Failed to update document');
