@@ -61,10 +61,15 @@ if (started) {
   electronApp.quit();
 }
 
+// Our own releases, not upstream's: this app is the Arribada Wiki, pinned to
+// docs.arribada.org, and upstream builds point at colanode.com. Upstream is
+// still on 0.4.x, below our 1.0.0, so the feed said "nothing new" and the
+// mistake stayed invisible; their next release would have offered a different
+// app to everyone who installed ours.
 updateElectronApp({
   updateSource: {
     type: UpdateSourceType.ElectronPublicUpdateService,
-    repo: 'colanode/colanode',
+    repo: 'arribada/colanode',
     host: 'https://update.electronjs.org',
   },
   updateInterval: '5 minutes',
