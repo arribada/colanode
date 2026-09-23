@@ -35,11 +35,16 @@ export const Sidebar = ({
   // or the settings while the sidebar is collapsed used to change which panel
   // was selected behind a rail that stayed shut, so the click did nothing at
   // all. It opens the sidebar on the panel asked for.
+  //
+  // `onExpand` is called whether or not this render thinks the sidebar is
+  // closed: a button keeps the handler of the render that drew it, so reading
+  // `collapsed` here can read a value that has since changed -- measured on
+  // the spaces button, which kept a handler from before the sidebar closed
+  // and so never asked for anything. Opening what is already open is a no-op
+  // on the other side.
   const openMenu = (value: SidebarMenuType) => {
     setMenu(value);
-    if (collapsed) {
-      onExpand?.();
-    }
+    onExpand?.();
   };
 
   return (

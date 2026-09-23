@@ -1,5 +1,5 @@
 import { Resizable } from 're-resizable';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Sidebar } from '@colanode/ui/components/layouts/sidebars/sidebar';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
@@ -20,6 +20,13 @@ export const SidebarDesktop = () => {
   );
 
   const isCollapsed = collapsed ?? false;
+
+  // Read by the sidebar's own buttons, which keep the handler of the render
+  // that drew them: a handler closing over `isCollapsed` could flip the
+  // sidebar to the state it was already in, so the toggle looked dead until
+  // it was clicked twice. A ref is always the current value.
+  const collapsedRef = useRef(isCollapsed);
+  collapsedRef.current = isCollapsed;
 
   // re-resizable's `size` is controlled, but `setStoredWidth` (metadata) is
   // async, so binding `size` straight to the stored value makes the panel snap
@@ -85,8 +92,12 @@ export const SidebarDesktop = () => {
     >
       <Sidebar
         collapsed={isCollapsed}
-        onToggleCollapsed={() => setCollapsed(!isCollapsed)}
-        onExpand={() => setCollapsed(false)}
+        onToggleCollapsed={() => setCollapsed(!collapsedRef.current)}
+        onExpand={() => {
+          if (collapsedRef.current) {
+            setCollapsed(false);
+          }
+        }}
       />
     </Resizable>
   );
