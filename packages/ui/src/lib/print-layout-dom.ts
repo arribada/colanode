@@ -1,6 +1,11 @@
 // ABOUTME: Measures the assembled print document inside the print iframe itself and
 // ABOUTME: applies the layout plans: image sizes and pages, compact or landscape tables.
-import { planImagePrint, planTablePrint } from '@colanode/ui/lib/print-layout';
+import {
+  ImageFit,
+  planImagePrint,
+  planTablePrint,
+  tableFitScale,
+} from '@colanode/ui/lib/print-layout';
 
 // Forced breaks and named (landscape) pages only take effect on blocks of the
 // document flow, so a wide table or large image moves its whole top-level block.
@@ -40,10 +45,20 @@ const layoutTables = (doc: Document) => {
       if (placement === 'landscape' || placement === 'landscape-compact') {
         topLevelBlock(table).classList.add('print-landscape');
       }
+
+      // Still wider than the page it was given: scale it down rather than let
+      // the last columns hang off the paper.
+      const scale = tableFitScale({
+        minWidth: placement.endsWith('compact') ? compactMinWidth : minWidth,
+        placement,
+      });
+      if (scale < 1) {
+        table.style.zoom = String(scale);
+      }
     });
 };
 
-const layoutImages = (doc: Document) => {
+const layoutImages = (doc: Document, fit: ImageFit) => {
   doc.querySelectorAll<HTMLImageElement>('.print-body img').forEach((img) => {
     // Icons, emoji, mentions and images inside a table keep their own size.
     if (img.closest('mention, .print-callout-icon, table')) {
@@ -60,6 +75,7 @@ const layoutImages = (doc: Document) => {
       naturalWidth,
       naturalHeight,
       chosenWidth: Number.isFinite(chosen) && chosen > 0 ? chosen : null,
+      fit,
     });
     if (plan.width <= 0) {
       return;
@@ -70,13 +86,19 @@ const layoutImages = (doc: Document) => {
     img.style.height = 'auto';
     img.style.maxWidth = '100%';
 
-    // The editor's resize frame carried a screen width; centre it on the image.
-    const frame = img.parentElement;
-    if (frame && frame !== topLevelBlock(img)) {
-      frame.style.width = 'fit-content';
+    // The editor's resize frame carried a screen width, and its `fit-content`
+    // resolved against the flow rather than against the page the block ends up
+    // on: a picture planned for a full landscape page printed at 231 mm of the
+    // 273 mm available. The frame is given the whole width and the image is
+    // centred inside it instead.
+    let frame = img.parentElement;
+    while (frame && frame !== topLevelBlock(img)) {
+      frame.style.width = '100%';
       frame.style.maxWidth = '100%';
-      frame.style.marginLeft = 'auto';
-      frame.style.marginRight = 'auto';
+      frame.style.marginLeft = '0';
+      frame.style.marginRight = '0';
+      frame.style.alignItems = 'center';
+      frame = frame.parentElement;
     }
 
     const block = topLevelBlock(img);
@@ -101,7 +123,10 @@ const layoutImages = (doc: Document) => {
  * only real layout can tell -- how wide a table has to be, how many pixels an
  * image has -- and applies the decisions before the print dialog opens.
  */
-export const applyPrintLayout = (doc: Document): void => {
+export const applyPrintLayout = (
+  doc: Document,
+  options?: { imageFit?: ImageFit }
+): void => {
   layoutTables(doc);
-  layoutImages(doc);
+  layoutImages(doc, options?.imageFit ?? 'auto');
 };

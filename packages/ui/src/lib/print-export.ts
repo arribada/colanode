@@ -384,8 +384,9 @@ export const PRINT_EXPORT_CSS = `
   @page { size: A4 portrait; margin: 0 16mm; padding: 16mm 0;
     @right-bottom { ${PAGE_NUMBER} padding-bottom: 8mm; } }
   @page :first { @right-bottom { content: none; } }
-  @page landscapePage { size: A4 landscape; margin: 0 12mm; padding: 12mm 0;
-    @right-bottom { ${PAGE_NUMBER} padding-bottom: 6mm; } }
+  /* Same 16 mm as portrait: a page that turns must not move the text block. */
+  @page landscapePage { size: A4 landscape; margin: 0 16mm; padding: 16mm 0;
+    @right-bottom { ${PAGE_NUMBER} padding-bottom: 8mm; } }
 
   /* Backgrounds are part of the design (callouts, covers, table headers):
      print them even with the dialog's "Background graphics" unticked. */
@@ -461,7 +462,7 @@ export const PRINT_EXPORT_CSS = `
   table.print-table-compact td, table.print-table-compact th { padding: 3px 5px !important; }
 
   /* Images: centred, sized by the layout pass, never split across pages. */
-  .print-image { display: block; margin-left: auto; margin-right: auto; }
+  .print-image { display: block; margin-left: auto !important; margin-right: auto !important; }
   .print-image-block { break-inside: avoid; }
   .print-image-block figcaption { text-align: center; }
   .print-own-page { break-before: page; break-after: page; display: flex; flex-direction: column; justify-content: center; }

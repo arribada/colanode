@@ -8,6 +8,7 @@ import {
   planTablePrint,
   PRINT_AREA,
   ruleStyleFromClasses,
+  tableFitScale,
 } from './print-layout';
 
 describe('planImagePrint', () => {
@@ -56,6 +57,79 @@ describe('planImagePrint', () => {
 
   it('leaves an image of unknown size to the stylesheet', () => {
     expect(planImagePrint({ naturalWidth: 0, naturalHeight: 0 }).width).toBe(0);
+  });
+});
+
+describe('planImagePrint fitted to the page', () => {
+  const fitted = (
+    naturalWidth: number,
+    naturalHeight: number,
+    chosenWidth?: number
+  ) =>
+    planImagePrint({ naturalWidth, naturalHeight, chosenWidth, fit: 'page' });
+
+  it('never turns the page: a wide screenshot fills the column instead', () => {
+    const plan = fitted(1920, 1080);
+    expect(plan.placement).toBe('inline');
+    expect(plan.width).toBe(PRINT_AREA.portrait.width);
+    expect(plan.height).toBe(
+      Math.round(1080 * (PRINT_AREA.portrait.width / 1920))
+    );
+  });
+
+  it('holds a tall image back by the height, not the width', () => {
+    const plan = fitted(900, 3000);
+    expect(plan.placement).toBe('inline');
+    expect(plan.height).toBeLessThanOrEqual(PRINT_AREA.portrait.height);
+    expect(plan.width).toBeLessThan(PRINT_AREA.portrait.width);
+    // The proportions are kept.
+    expect(plan.height / plan.width).toBeCloseTo(3000 / 900, 2);
+  });
+
+  it('does not enlarge a small image past its own pixels', () => {
+    expect(fitted(240, 120)).toEqual({
+      placement: 'inline',
+      width: 240,
+      height: 120,
+    });
+  });
+
+  it('ignores the width chosen in the editor, which is the point of the mode', () => {
+    expect(fitted(1600, 900, 300).width).toBe(PRINT_AREA.portrait.width);
+  });
+});
+
+describe('tableFitScale', () => {
+  it('leaves a table that fits alone', () => {
+    expect(
+      tableFitScale({
+        minWidth: PRINT_AREA.portrait.width,
+        placement: 'portrait',
+      })
+    ).toBe(1);
+    expect(
+      tableFitScale({
+        minWidth: PRINT_AREA.landscape.width - 10,
+        placement: 'landscape',
+      })
+    ).toBe(1);
+  });
+
+  it('scales a table down to the page it was given', () => {
+    const minWidth = Math.round(PRINT_AREA.landscape.width * 1.25);
+    const scale = tableFitScale({ minWidth, placement: 'landscape-compact' });
+    expect(scale).toBeLessThan(1);
+    expect(minWidth * scale).toBeLessThanOrEqual(
+      PRINT_AREA.landscape.width + 1
+    );
+  });
+
+  it('stops scaling where the text would stop being readable', () => {
+    const scale = tableFitScale({
+      minWidth: PRINT_AREA.portrait.width * 10,
+      placement: 'portrait',
+    });
+    expect(scale).toBe(0.6);
   });
 });
 

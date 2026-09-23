@@ -2,7 +2,8 @@
 // ABOUTME: table or image needs a page of its own, and the rows of the revision table.
 
 // The printable area of A4 once the export's page margins are taken off (16 mm
-// all round in portrait, 12 mm in landscape), in CSS pixels at 96 per inch.
+// all round, on both orientations, so the text block does not shift sideways
+// when a page turns), in CSS pixels at 96 per inch.
 const PX_PER_MM = 96 / 25.4;
 
 export const PRINT_AREA = {
@@ -11,8 +12,8 @@ export const PRINT_AREA = {
     height: Math.floor(265 * PX_PER_MM),
   },
   landscape: {
-    width: Math.floor(273 * PX_PER_MM),
-    height: Math.floor(186 * PX_PER_MM),
+    width: Math.floor(265 * PX_PER_MM),
+    height: Math.floor(178 * PX_PER_MM),
   },
 } as const;
 
@@ -27,7 +28,23 @@ export const MIN_READABLE_SCALE = 0.5;
 // so its caption and the text around it still fit beside it.
 const INLINE_HEIGHT_SHARE = 0.6;
 
+// The same share when every image is fitted to the page: a picture may take
+// most of the height, but never so much that its caption is pushed over.
+const FITTED_HEIGHT_SHARE = 0.8;
+
 export type ImagePlacement = 'inline' | 'landscape-page' | 'portrait-page';
+
+/**
+ * How images are placed.
+ *
+ * 'auto'  -- a wide screenshot that would print unreadably small in the column
+ *            is given a landscape page of its own. Best for a document made
+ *            mostly of large figures, at the cost of a page turn per figure.
+ * 'page'  -- every image is scaled to the page and centred, and the page never
+ *            turns. A document of a dozen figures stops alternating between
+ *            portrait and landscape, and pages stop being left half empty.
+ */
+export type ImageFit = 'auto' | 'page';
 
 export interface ImagePlan {
   placement: ImagePlacement;
@@ -52,17 +69,39 @@ export const planImagePrint = ({
   naturalWidth,
   naturalHeight,
   chosenWidth,
+  fit = 'auto',
 }: {
   naturalWidth: number;
   naturalHeight: number;
   /** The width the author gave the image in the editor, in editor pixels. */
   chosenWidth?: number | null;
+  fit?: ImageFit;
 }): ImagePlan => {
   if (!(naturalWidth > 0) || !(naturalHeight > 0)) {
     return { placement: 'inline', width: 0, height: 0 };
   }
 
   const portrait = PRINT_AREA.portrait;
+
+  // Fitted to the page: as large as the page allows, both ways, and centred.
+  // A wide picture ends up on the full column width, a tall one is held back
+  // by the height instead. It is never enlarged past its own pixels, which
+  // would only blur it, and the width chosen in the editor is not applied --
+  // fitting to the page is exactly what this mode is asked to do.
+  if (fit === 'page') {
+    const scale = fitScale(
+      naturalWidth,
+      naturalHeight,
+      portrait.width,
+      portrait.height * FITTED_HEIGHT_SHARE
+    );
+    return {
+      placement: 'inline',
+      width: Math.round(naturalWidth * scale),
+      height: Math.round(naturalHeight * scale),
+    };
+  }
+
   const inlineScale = fitScale(
     naturalWidth,
     naturalHeight,
@@ -106,6 +145,34 @@ export const planImagePrint = ({
 
 export type TablePlacement =
   'portrait' | 'portrait-compact' | 'landscape' | 'landscape-compact';
+
+// A table narrower than this share of its page is never scaled down: past it
+// the text stops being readable and an overflowing table is the lesser evil.
+const MIN_TABLE_SCALE = 0.6;
+
+/**
+ * How much a table has to be scaled down to fit the page it was given, or 1
+ * when it already fits. The measured minimum width is what the table takes
+ * with every cell wrapped, so anything past the page really does hang off it.
+ */
+export const tableFitScale = ({
+  minWidth,
+  placement,
+}: {
+  minWidth: number;
+  placement: TablePlacement;
+}): number => {
+  const area =
+    placement === 'landscape' || placement === 'landscape-compact'
+      ? PRINT_AREA.landscape.width
+      : PRINT_AREA.portrait.width;
+
+  if (!(minWidth > area)) {
+    return 1;
+  }
+
+  return Math.max(MIN_TABLE_SCALE, Math.round((area / minWidth) * 100) / 100);
+};
 
 /**
  * Where a table prints, from its min-content width -- the narrowest it can be

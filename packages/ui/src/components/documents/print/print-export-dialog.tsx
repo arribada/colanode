@@ -88,6 +88,10 @@ export const PrintExportDialog = ({
   const [appendix, setAppendix] = useState(false);
   const [toc, setToc] = useState(true);
   const [cover, setCover] = useState(true);
+  // On by default: a report full of figures printed one landscape page per
+  // figure, so the document turned sideways every other page and left half of
+  // them empty. Fitted images keep it upright and about half as long.
+  const [fitImages, setFitImages] = useState(true);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [activePages, setActivePages] = useState<LocalNode[]>([]);
@@ -230,7 +234,8 @@ export const PrintExportDialog = ({
       bodyHtml: body,
       css: PRINT_EXPORT_CSS,
       withAppStyles: true,
-      beforePrint: applyPrintLayout,
+      beforePrint: (doc) =>
+        applyPrintLayout(doc, { imageFit: fitImages ? 'page' : 'auto' }),
     });
     setPhase('idle');
     setActivePages([]);
@@ -313,12 +318,18 @@ export const PrintExportDialog = ({
               label="Cover page"
               desc="The page's cover, title, version, date and author."
             />
+            <Option
+              checked={fitImages}
+              onChange={setFitImages}
+              label="Fit images to the page"
+              desc="Every image is scaled to the page and centred. Unticked, a large image gets a landscape page of its own."
+            />
           </div>
 
           <p className="text-xs text-muted-foreground">
             Page numbers and a document control page with the revision history
-            are added automatically. Wide tables and large images get a
-            landscape page of their own.
+            are added automatically. A table too wide for the page is given a
+            landscape page, and scaled down if it still does not fit.
           </p>
 
           <DialogFooter>
