@@ -143,6 +143,28 @@ export const planImagePrint = ({
   };
 };
 
+/**
+ * The author's column widths turned into percentages of the printed table.
+ *
+ * The editor gives every cell a pixel width of its own, which is meaningless
+ * on paper: the page is not the screen. Kept as shares, the proportions the
+ * author chose survive while the table still takes the width of the page.
+ * Returns an empty list when the widths are unusable, which means "share the
+ * width out evenly", the browser's own default.
+ */
+export const columnPercentages = (widths: readonly number[]): number[] => {
+  if (widths.length === 0 || widths.some((w) => !(w > 0))) {
+    return [];
+  }
+
+  const total = widths.reduce((sum, width) => sum + width, 0);
+  if (!(total > 0)) {
+    return [];
+  }
+
+  return widths.map((width) => Math.round((width / total) * 10000) / 100);
+};
+
 export type TablePlacement =
   'portrait' | 'portrait-compact' | 'landscape' | 'landscape-compact';
 

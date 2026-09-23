@@ -7,6 +7,7 @@ import {
   planImagePrint,
   planTablePrint,
   PRINT_AREA,
+  columnPercentages,
   ruleStyleFromClasses,
   tableFitScale,
 } from './print-layout';
@@ -96,6 +97,22 @@ describe('planImagePrint fitted to the page', () => {
 
   it('ignores the width chosen in the editor, which is the point of the mode', () => {
     expect(fitted(1600, 900, 300).width).toBe(PRINT_AREA.portrait.width);
+  });
+});
+
+describe('columnPercentages', () => {
+  it('turns the editor widths into shares of the table', () => {
+    expect(columnPercentages([100, 200, 100])).toEqual([25, 50, 25]);
+  });
+
+  it('keeps proportions, not sizes', () => {
+    expect(columnPercentages([50, 100])).toEqual(columnPercentages([200, 400]));
+  });
+
+  it('gives up on widths it cannot use, so the browser shares evenly', () => {
+    expect(columnPercentages([])).toEqual([]);
+    expect(columnPercentages([100, Number.NaN])).toEqual([]);
+    expect(columnPercentages([100, 0])).toEqual([]);
   });
 });
 
