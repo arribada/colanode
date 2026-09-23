@@ -3,30 +3,40 @@ import { z } from 'zod/v4';
 
 import {
   ApiErrorCode,
-  DocumentSnapshotListOutput,
+  DocumentSnapshotOutput,
   apiErrorOutputSchema,
-  documentSnapshotListOutputSchema,
+  documentSnapshotCreateInputSchema,
+  documentSnapshotOutputSchema,
   extractNodeRole,
   hasNodeRole,
 } from '@colanode/core';
-import { database } from '@colanode/server/data/database';
+import {
+  DEFAULT_DOCUMENT_SNAPSHOT_RETENTION,
+  captureDocumentSnapshot,
+  pruneDocumentSnapshots,
+} from '@colanode/server/lib/document-snapshots';
 import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 
-export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
+// Cuts a snapshot of the document as it stands right now. The merge job writes
+// snapshots on its own schedule, which is fine for "what did this look like
+// last week" but useless for "this is the version we agreed on": that moment
+// has to be recorded when it happens, with the tag and the changelog.
+export const documentSnapshotCreateRoute: FastifyPluginCallbackZod = (
   instance,
   _,
   done
 ) => {
   instance.route({
-    method: 'GET',
+    method: 'POST',
     url: '/:documentId/snapshots',
     schema: {
       params: z.object({
         workspaceId: z.string(),
         documentId: z.string(),
       }),
+      body: documentSnapshotCreateInputSchema,
       response: {
-        200: documentSnapshotListOutputSchema,
+        200: documentSnapshotOutputSchema,
         403: apiErrorOutputSchema,
         404: apiErrorOutputSchema,
       },
@@ -51,32 +61,35 @@ export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
         });
       }
 
+      // Cutting a version is an edit to the record of the page, so it takes
+      // the same role as editing it.
       const role = extractNodeRole(nodes, request.workspace.user.id);
-      if (role === null || !hasNodeRole(role, 'viewer')) {
+      if (role === null || !hasNodeRole(role, 'editor')) {
         return reply.code(403).send({
           code: ApiErrorCode.DocumentNoAccess,
           message: 'You do not have access to this document.',
         });
       }
 
-      const snapshots = await database
-        .selectFrom('document_snapshots')
-        .select([
-          'id',
-          'document_id',
-          'revision',
-          'created_at',
-          'created_by',
-          'name',
-          'note',
-        ])
-        .where('document_id', '=', documentId)
-        .where('workspace_id', '=', request.workspace.id)
-        .orderBy('created_at', 'desc')
-        .orderBy('id', 'desc')
-        .execute();
+      const snapshot = await captureDocumentSnapshot(
+        documentId,
+        { name: request.body.name ?? null, note: request.body.note ?? null },
+        request.workspace.user.id
+      );
 
-      const output: DocumentSnapshotListOutput = snapshots.map((snapshot) => ({
+      if (!snapshot) {
+        return reply.code(404).send({
+          code: ApiErrorCode.DocumentNotFound,
+          message: 'This page has no content to capture yet.',
+        });
+      }
+
+      await pruneDocumentSnapshots(
+        documentId,
+        DEFAULT_DOCUMENT_SNAPSHOT_RETENTION
+      );
+
+      const output: DocumentSnapshotOutput = {
         id: snapshot.id,
         documentId: snapshot.document_id,
         revision: snapshot.revision,
@@ -84,7 +97,8 @@ export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
         createdBy: snapshot.created_by,
         name: snapshot.name,
         note: snapshot.note,
-      }));
+        content: snapshot.content,
+      };
 
       return output;
     },

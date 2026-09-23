@@ -20,6 +20,7 @@ export * from './avatars/avatar-upload';
 export * from './chats/chat-create';
 export * from './documents/document-restore';
 export * from './documents/document-update';
+export * from './documents/document-snapshot-create';
 export * from './documents/document-suggestion-create';
 export * from './documents/document-suggestion-list';
 export * from './documents/document-suggestion-workspace-list';

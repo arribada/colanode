@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { Maximize2, Tag, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { mapBlocksToContents } from '@colanode/client/lib';
-import { DocumentUpdate } from '@colanode/client/types';
 import { DocumentContent } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { Button } from '@colanode/ui/components/ui/button';
@@ -35,15 +35,7 @@ interface DocumentHistoryDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type HistoryTab = 'snapshots' | 'edits';
-
-// A short (per-minute) bucket of consecutive edits, so the fine-grained
-// timeline stays readable instead of showing one row per keystroke-batch.
-interface EditGroup {
-  bucket: string;
-  date: string;
-  items: DocumentUpdate[];
-}
+type HistoryTab = 'versions' | 'snapshots' | 'edits';
 
 const formatEditTime = (value: string | undefined): string => {
   if (!value) {
@@ -89,12 +81,14 @@ export const DocumentHistoryDialog = ({
   onOpenChange,
 }: DocumentHistoryDialogProps) => {
   const workspace = useWorkspace();
-  const [tab, setTab] = useState<HistoryTab>('snapshots');
+  const [tab, setTab] = useState<HistoryTab>('versions');
   const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [selectedUpdateId, setSelectedUpdateId] = useState<string | null>(null);
+  const [fullScreen, setFullScreen] = useState(false);
   const { mutate, isPending: isRestoring } = useMutation();
 
-  // --- Snapshots (existing, server-side periodic captures) ---------------
+  // --- Snapshots (server-side captures, tagged or automatic) -------------
   const snapshotListQuery = useQuery(
     {
       type: 'document.snapshot.list',
@@ -104,48 +98,75 @@ export const DocumentHistoryDialog = ({
     { enabled: open }
   );
 
-  const snapshots = snapshotListQuery.data ?? [];
+  const snapshots = useMemo(
+    () => snapshotListQuery.data ?? [],
+    [snapshotListQuery.data]
+  );
+
+  // A version somebody cut on purpose, with the tag and the changelog written
+  // at the time. Everything else is an automatic capture.
+  const versions = useMemo(
+    () => snapshots.filter((item) => item.name),
+    [snapshots]
+  );
+
+  // Open on the tagged versions when there are any: that is the list people
+  // mean by "history". Falling back keeps an untagged page working as before.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    if (snapshotListQuery.isSuccess) {
+      setTab(versions.length > 0 ? 'versions' : 'snapshots');
+    }
+  }, [open, snapshotListQuery.isSuccess, versions.length]);
+
   const selectedSnapshotId = selectedSnapshot ?? snapshots[0]?.id ?? null;
+  const selectedVersionId = selectedVersion ?? versions[0]?.id ?? null;
+  const activeSnapshotId =
+    tab === 'versions' ? selectedVersionId : selectedSnapshotId;
 
   const snapshotGetQuery = useQuery(
     {
       type: 'document.snapshot.get',
       documentId,
-      snapshotId: selectedSnapshotId ?? '',
+      snapshotId: activeSnapshotId ?? '',
       userId: workspace.userId,
     },
-    { enabled: open && selectedSnapshotId !== null }
+    { enabled: open && tab !== 'edits' && activeSnapshotId !== null }
   );
 
   const snapshot = snapshotGetQuery.data ?? null;
+  const activeVersion = versions.find((item) => item.id === selectedVersionId);
 
-  // --- Recent edits (fine-grained, per-update local timeline) ------------
+  // --- Recent edits ------------------------------------------------------
+  // Read from the server, not from this device. A client that was handed a
+  // merged state has no per-edit rows of its own, which is why this list used
+  // to come up empty on a phone or in a fresh browser.
   const updatesQuery = useQuery(
     {
-      type: 'document.updates.list',
+      type: 'document.server.update.list',
       documentId,
       userId: workspace.userId,
     },
-    { enabled: open }
+    { enabled: open && tab === 'edits' }
   );
 
   const updates = useMemo(() => updatesQuery.data ?? [], [updatesQuery.data]);
 
-  // Newest-first list of per-minute buckets. Each bucket keeps its edits in
-  // chronological order; the UI renders them newest-first within the bucket.
-  const editGroups = useMemo<EditGroup[]>(() => {
-    const groups: EditGroup[] = [];
-    for (const update of updates) {
-      const date = update.createdAt ?? '';
-      const bucket = date.slice(0, 16);
+  // Newest first, grouped per day so a long list stays readable.
+  const editGroups = useMemo(() => {
+    const groups: { day: string; items: typeof updates }[] = [];
+    for (const update of [...updates].reverse()) {
+      const day = (update.createdAt ?? '').slice(0, 10);
       const last = groups[groups.length - 1];
-      if (last && last.bucket === bucket) {
+      if (last && last.day === day) {
         last.items.push(update);
       } else {
-        groups.push({ bucket, date, items: [update] });
+        groups.push({ day, items: [update] });
       }
     }
-    return groups.reverse();
+    return groups;
   }, [updates]);
 
   const latestUpdateId = updates[updates.length - 1]?.id ?? null;
@@ -153,7 +174,7 @@ export const DocumentHistoryDialog = ({
 
   const editContentQuery = useQuery(
     {
-      type: 'document.update.content',
+      type: 'document.server.update.get',
       documentId,
       updateId: activeUpdateId ?? '',
       userId: workspace.userId,
@@ -161,13 +182,11 @@ export const DocumentHistoryDialog = ({
     { enabled: open && tab === 'edits' && activeUpdateId !== null }
   );
 
-  const editContent = editContentQuery.data ?? null;
+  const editContent = editContentQuery.data?.content ?? null;
 
   // --- Restore -----------------------------------------------------------
   const restoreContent: DocumentContent | null =
-    tab === 'snapshots'
-      ? (snapshot?.content ?? null)
-      : editContent;
+    tab === 'edits' ? editContent : (snapshot?.content ?? null);
 
   const handleRestore = () => {
     if (!restoreContent || !canEdit || isRestoring) {
@@ -183,7 +202,9 @@ export const DocumentHistoryDialog = ({
       },
       onSuccess() {
         toast.success(
-          tab === 'snapshots' ? 'Version restored' : 'Document restored to this edit'
+          tab === 'edits'
+            ? 'Document restored to this edit'
+            : 'Version restored'
         );
         onOpenChange(false);
       },
@@ -193,168 +214,285 @@ export const DocumentHistoryDialog = ({
     });
   };
 
+  const previewTitle =
+    tab === 'versions'
+      ? (activeVersion?.name ?? 'Version')
+      : tab === 'snapshots'
+        ? 'Snapshot'
+        : 'Edit';
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[80vh] flex-col sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Version history</DialogTitle>
-          <DialogDescription>
-            Versions of &quot;{name}&quot; are captured automatically as the
-            document is edited. Restoring a version applies its content as a
-            new change, so nothing is ever lost.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex h-[80vh] flex-col sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Version history</DialogTitle>
+            <DialogDescription>
+              Versions of &quot;{name}&quot; are captured automatically as the
+              document is edited, and whenever someone cuts a version tag from
+              the page header. Restoring a version applies its content as a new
+              change, so nothing is ever lost.
+            </DialogDescription>
+          </DialogHeader>
 
-        <Tabs
-          value={tab}
-          onValueChange={(value) => setTab(value as HistoryTab)}
-          className="flex min-h-0 flex-1 flex-col gap-3"
-        >
-          <TabsList className="w-fit">
-            <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
-            <TabsTrigger value="edits">Recent edits</TabsTrigger>
-          </TabsList>
-
-          {/* --- Snapshots tab --- */}
-          <TabsContent
-            value="snapshots"
-            className="flex min-h-0 flex-1 gap-4 data-[state=inactive]:hidden"
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as HistoryTab)}
+            className="flex min-h-0 flex-1 flex-col gap-3"
           >
-            <div className="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r pr-2">
-              {snapshotListQuery.isPending && (
-                <div className="flex items-center justify-center p-4">
-                  <Spinner />
-                </div>
-              )}
-              {snapshotListQuery.isError && (
-                <p className="p-2 text-sm text-muted-foreground">
-                  Could not load version history.
-                </p>
-              )}
-              {snapshotListQuery.isSuccess && snapshots.length === 0 && (
-                <p className="p-2 text-sm text-muted-foreground">
-                  No versions yet. Versions are captured automatically a few
-                  hours after the document is edited.
-                </p>
-              )}
-              {snapshots.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={cn(
-                    'w-full cursor-pointer rounded-md p-2 text-left hover:bg-accent',
-                    item.id === selectedSnapshotId && 'bg-accent'
-                  )}
-                  onClick={() => setSelectedSnapshot(item.id)}
-                >
-                  <NodeCollaboratorAudit
-                    collaboratorId={item.createdBy}
-                    date={item.createdAt}
-                  />
-                </button>
-              ))}
-            </div>
-            <div className="min-w-0 flex-1 overflow-y-auto">
-              {selectedSnapshotId !== null && snapshotGetQuery.isPending && (
-                <div className="flex items-center justify-center p-4">
-                  <Spinner />
-                </div>
-              )}
-              {snapshotGetQuery.isError && (
-                <p className="p-2 text-sm text-muted-foreground">
-                  Could not load this version.
-                </p>
-              )}
-              {snapshot && renderContents(snapshot.content, documentId)}
-            </div>
-          </TabsContent>
+            <TabsList className="w-fit">
+              <TabsTrigger value="versions">
+                Tags{versions.length > 0 ? ` (${versions.length})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="snapshots">Snapshots</TabsTrigger>
+              <TabsTrigger value="edits">Recent edits</TabsTrigger>
+            </TabsList>
 
-          {/* --- Recent edits tab (fine-grained) --- */}
-          <TabsContent
-            value="edits"
-            className="flex min-h-0 flex-1 gap-4 data-[state=inactive]:hidden"
-          >
-            <div className="flex w-64 shrink-0 flex-col gap-2 overflow-y-auto border-r pr-2">
-              {updatesQuery.isPending && (
-                <div className="flex items-center justify-center p-4">
-                  <Spinner />
-                </div>
-              )}
-              {updatesQuery.isError && (
-                <p className="p-2 text-sm text-muted-foreground">
-                  Could not load recent edits.
-                </p>
-              )}
-              {updatesQuery.isSuccess && updates.length === 0 && (
-                <p className="p-2 text-sm text-muted-foreground">
-                  No recent edits to show. Edits appear here between automatic
-                  snapshots and are folded into a snapshot once they sync.
-                </p>
-              )}
-              {editGroups.map((group) => (
-                <div key={group.bucket} className="flex flex-col gap-1">
-                  <div className="px-2 pt-1">
-                    <NodeCollaboratorAudit
-                      collaboratorId={workspace.userId}
-                      date={group.date}
-                    />
+            {/* --- Tagged versions --- */}
+            <TabsContent
+              value="versions"
+              className="flex min-h-0 flex-1 gap-4 data-[state=inactive]:hidden"
+            >
+              <div className="flex w-72 shrink-0 flex-col gap-1 overflow-y-auto border-r pr-2">
+                {snapshotListQuery.isPending && (
+                  <div className="flex items-center justify-center p-4">
+                    <Spinner />
                   </div>
-                  {[...group.items].reverse().map((item, index) => {
-                    const editNumber = group.items.length - index;
-                    return (
+                )}
+                {snapshotListQuery.isSuccess && versions.length === 0 && (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    No version has been tagged yet. Cut one from the version
+                    button in the page header: it records the page as it stands,
+                    under a tag, with the changelog you write with it.
+                  </p>
+                )}
+                {versions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={cn(
+                      'w-full cursor-pointer rounded-md p-2 text-left hover:bg-accent',
+                      item.id === selectedVersionId && 'bg-accent'
+                    )}
+                    onClick={() => setSelectedVersion(item.id)}
+                  >
+                    <div className="flex items-center gap-1.5 text-sm font-semibold tabular-nums">
+                      <Tag className="size-3.5 text-muted-foreground" />
+                      {item.name}
+                    </div>
+                    <NodeCollaboratorAudit
+                      collaboratorId={item.createdBy}
+                      date={item.createdAt}
+                    />
+                    {item.note && (
+                      <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                        {item.note}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="min-w-0 flex-1 overflow-y-auto">
+                {activeVersion?.note && (
+                  <div className="mb-3 rounded-md border border-border bg-muted/40 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      What changed in {activeVersion.name}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">
+                      {activeVersion.note}
+                    </p>
+                  </div>
+                )}
+                {activeSnapshotId !== null && snapshotGetQuery.isPending && (
+                  <div className="flex items-center justify-center p-4">
+                    <Spinner />
+                  </div>
+                )}
+                {snapshot && renderContents(snapshot.content, documentId)}
+              </div>
+            </TabsContent>
+
+            {/* --- Automatic snapshots --- */}
+            <TabsContent
+              value="snapshots"
+              className="flex min-h-0 flex-1 gap-4 data-[state=inactive]:hidden"
+            >
+              <div className="flex w-64 shrink-0 flex-col gap-1 overflow-y-auto border-r pr-2">
+                {snapshotListQuery.isPending && (
+                  <div className="flex items-center justify-center p-4">
+                    <Spinner />
+                  </div>
+                )}
+                {snapshotListQuery.isError && (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    Could not load version history.
+                  </p>
+                )}
+                {snapshotListQuery.isSuccess && snapshots.length === 0 && (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    No versions yet. Versions are captured automatically a few
+                    hours after the document is edited.
+                  </p>
+                )}
+                {snapshots.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={cn(
+                      'w-full cursor-pointer rounded-md p-2 text-left hover:bg-accent',
+                      item.id === selectedSnapshotId && 'bg-accent'
+                    )}
+                    onClick={() => setSelectedSnapshot(item.id)}
+                  >
+                    {item.name && (
+                      <div className="flex items-center gap-1.5 text-xs font-semibold tabular-nums">
+                        <Tag className="size-3 text-muted-foreground" />
+                        {item.name}
+                      </div>
+                    )}
+                    <NodeCollaboratorAudit
+                      collaboratorId={item.createdBy}
+                      date={item.createdAt}
+                    />
+                  </button>
+                ))}
+              </div>
+              <div className="min-w-0 flex-1 overflow-y-auto">
+                {activeSnapshotId !== null && snapshotGetQuery.isPending && (
+                  <div className="flex items-center justify-center p-4">
+                    <Spinner />
+                  </div>
+                )}
+                {snapshotGetQuery.isError && (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    Could not load this version.
+                  </p>
+                )}
+                {snapshot && renderContents(snapshot.content, documentId)}
+              </div>
+            </TabsContent>
+
+            {/* --- Recent edits (fine-grained, from the server) --- */}
+            <TabsContent
+              value="edits"
+              className="flex min-h-0 flex-1 gap-4 data-[state=inactive]:hidden"
+            >
+              <div className="flex w-64 shrink-0 flex-col gap-2 overflow-y-auto border-r pr-2">
+                {updatesQuery.isPending && (
+                  <div className="flex items-center justify-center p-4">
+                    <Spinner />
+                  </div>
+                )}
+                {updatesQuery.isError && (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    Could not load recent edits.
+                  </p>
+                )}
+                {updatesQuery.isSuccess && updates.length === 0 && (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    No individual edits are kept for this page any more. They
+                    are folded into a snapshot a couple of hours after they are
+                    made; look under Snapshots for what came before.
+                  </p>
+                )}
+                {editGroups.map((group) => (
+                  <div key={group.day} className="flex flex-col gap-1">
+                    <div className="px-2 pt-1 text-xs font-medium text-muted-foreground">
+                      {group.day
+                        ? new Date(group.day).toLocaleDateString(undefined, {
+                            dateStyle: 'medium',
+                          })
+                        : 'Unknown date'}
+                    </div>
+                    {group.items.map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         className={cn(
-                          'ml-4 w-[calc(100%-1rem)] cursor-pointer rounded-md px-2 py-1 text-left text-sm hover:bg-accent',
+                          'ml-2 w-[calc(100%-0.5rem)] cursor-pointer rounded-md px-2 py-1 text-left hover:bg-accent',
                           item.id === activeUpdateId && 'bg-accent'
                         )}
                         onClick={() => setSelectedUpdateId(item.id)}
                       >
-                        <span className="text-muted-foreground">
-                          Edit {editNumber} · {formatEditTime(item.createdAt)}
+                        <NodeCollaboratorAudit
+                          collaboratorId={item.createdBy}
+                          date={item.createdAt}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {formatEditTime(item.createdAt)}
+                          {item.mergedCount > 1
+                            ? ` · ${item.mergedCount} edits folded together`
+                            : ''}
                         </span>
                       </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-            <div className="min-w-0 flex-1 overflow-y-auto">
-              {activeUpdateId !== null && editContentQuery.isPending && (
-                <div className="flex items-center justify-center p-4">
-                  <Spinner />
-                </div>
-              )}
-              {editContentQuery.isError && (
-                <p className="p-2 text-sm text-muted-foreground">
-                  Could not load this edit.
-                </p>
-              )}
-              {editContentQuery.isSuccess &&
-                activeUpdateId !== null &&
-                editContent === null && (
-                  <p className="p-2 text-sm text-muted-foreground">
-                    This edit has already been folded into a snapshot and can no
-                    longer be previewed individually.
-                  </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div className="min-w-0 flex-1 overflow-y-auto">
+                {activeUpdateId !== null && editContentQuery.isPending && (
+                  <div className="flex items-center justify-center p-4">
+                    <Spinner />
+                  </div>
                 )}
-              {editContent && renderContents(editContent, documentId)}
-            </div>
-          </TabsContent>
-        </Tabs>
+                {editContentQuery.isSuccess &&
+                  activeUpdateId !== null &&
+                  editContent === null && (
+                    <p className="p-2 text-sm text-muted-foreground">
+                      This edit is no longer kept on its own.
+                    </p>
+                  )}
+                {editContent && renderContents(editContent, documentId)}
+              </div>
+            </TabsContent>
+          </Tabs>
 
-        <DialogFooter>
-          <Button
-            type="button"
-            disabled={!canEdit || !restoreContent || isRestoring}
-            onClick={handleRestore}
-          >
-            {isRestoring && <Spinner className="mr-1" />}
-            {tab === 'snapshots' ? 'Restore this version' : 'Restore to this edit'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!restoreContent}
+              onClick={() => setFullScreen(true)}
+            >
+              <Maximize2 className="mr-1 size-4" />
+              View full screen
+            </Button>
+            <Button
+              type="button"
+              disabled={!canEdit || !restoreContent || isRestoring}
+              onClick={handleRestore}
+            >
+              {isRestoring && <Spinner className="mr-1" />}
+              {tab === 'edits'
+                ? 'Restore to this edit'
+                : 'Restore this version'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {fullScreen && restoreContent && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-background">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/90 px-4 py-2 backdrop-blur">
+            <span className="truncate text-sm text-muted-foreground">
+              {name}
+              <span className="text-foreground"> · {previewTitle}</span>
+            </span>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setFullScreen(false)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-4" />
+              Close
+            </button>
+          </div>
+          <div className="mx-auto w-full max-w-3xl px-6 py-10">
+            {renderContents(restoreContent, documentId)}
+          </div>
+        </div>
+      )}
+    </>
   );
 };

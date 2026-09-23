@@ -22,8 +22,17 @@ export const DEFAULT_DOCUMENT_SNAPSHOT_RETENTION: DocumentSnapshotRetention = {
 // version of the content is preserved even after the granular CRDT updates
 // are merged away. Deduplicates on the document revision: if the latest
 // snapshot already captured this revision, nothing is written.
+export type DocumentSnapshotLabel = {
+  // The version tag this snapshot was cut under, e.g. "v1.2.0".
+  name?: string | null;
+  // The changelog written when the version was cut.
+  note?: string | null;
+};
+
 export const captureDocumentSnapshot = async (
-  documentId: string
+  documentId: string,
+  label?: DocumentSnapshotLabel,
+  createdBy?: string
 ): Promise<SelectDocumentSnapshot | null> => {
   const document = await database
     .selectFrom('documents')
@@ -37,7 +46,7 @@ export const captureDocumentSnapshot = async (
 
   const latestSnapshot = await database
     .selectFrom('document_snapshots')
-    .select(['id', 'revision'])
+    .select(['id', 'revision', 'name', 'note'])
     .where('document_id', '=', documentId)
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
@@ -45,7 +54,25 @@ export const captureDocumentSnapshot = async (
     .executeTakeFirst();
 
   if (latestSnapshot && latestSnapshot.revision === document.revision) {
-    return null;
+    // Nothing has changed since the last snapshot. A version cut at this very
+    // revision labels the snapshot that is already there rather than storing
+    // the same content twice; the merge job, which passes no label, still does
+    // nothing.
+    if (!label || (label.name == null && label.note == null)) {
+      return null;
+    }
+
+    const labelled = await database
+      .updateTable('document_snapshots')
+      .returningAll()
+      .set({
+        name: label.name ?? null,
+        note: label.note ?? null,
+      })
+      .where('id', '=', latestSnapshot.id)
+      .executeTakeFirst();
+
+    return labelled ?? null;
   }
 
   const createdSnapshot = await database
@@ -58,7 +85,9 @@ export const captureDocumentSnapshot = async (
       revision: document.revision,
       content: JSON.stringify(document.content),
       created_at: document.updated_at ?? document.created_at,
-      created_by: document.updated_by ?? document.created_by,
+      created_by: createdBy ?? document.updated_by ?? document.created_by,
+      name: label?.name ?? null,
+      note: label?.note ?? null,
     })
     .executeTakeFirst();
 
@@ -96,7 +125,12 @@ export const pruneDocumentSnapshots = async (
 
   let deleteQuery = database
     .deleteFrom('document_snapshots')
-    .where('document_id', '=', documentId);
+    .where('document_id', '=', documentId)
+    // A version somebody cut on purpose is never pruned. Retention exists to
+    // stop the automatic captures piling up; deleting a tagged version would
+    // throw away the one thing a person deliberately kept, and its changelog
+    // with it.
+    .where('name', 'is', null);
 
   if (idsToKeep.length > 0) {
     deleteQuery = deleteQuery.where('id', 'not in', idsToKeep);

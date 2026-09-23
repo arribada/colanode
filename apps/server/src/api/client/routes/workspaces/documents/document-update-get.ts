@@ -3,36 +3,43 @@ import { z } from 'zod/v4';
 
 import {
   ApiErrorCode,
-  DocumentSnapshotListOutput,
+  DocumentContent,
+  DocumentUpdateContentOutput,
   apiErrorOutputSchema,
-  documentSnapshotListOutputSchema,
+  documentUpdateContentOutputSchema,
   extractNodeRole,
   hasNodeRole,
 } from '@colanode/core';
+import { YDoc } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
 import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 
-export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
+// The document as it stood right after one recorded edit: every update up to
+// and including it, folded in order. This is the same reconstruction the
+// client does for its own updates, so a preview here matches what restoring
+// to that point would write.
+export const documentUpdateGetRoute: FastifyPluginCallbackZod = (
   instance,
   _,
   done
 ) => {
   instance.route({
     method: 'GET',
-    url: '/:documentId/snapshots',
+    url: '/:documentId/updates/:updateId',
     schema: {
       params: z.object({
         workspaceId: z.string(),
         documentId: z.string(),
+        updateId: z.string(),
       }),
       response: {
-        200: documentSnapshotListOutputSchema,
+        200: documentUpdateContentOutputSchema,
         403: apiErrorOutputSchema,
         404: apiErrorOutputSchema,
       },
     },
     handler: async (request, reply) => {
-      const documentId = request.params.documentId;
+      const { documentId, updateId } = request.params;
 
       const tree = await fetchNodeTree(documentId);
       if (tree.length === 0) {
@@ -59,32 +66,40 @@ export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
         });
       }
 
-      const snapshots = await database
-        .selectFrom('document_snapshots')
-        .select([
-          'id',
-          'document_id',
-          'revision',
-          'created_at',
-          'created_by',
-          'name',
-          'note',
-        ])
+      const updates = await database
+        .selectFrom('document_updates')
+        .selectAll()
         .where('document_id', '=', documentId)
         .where('workspace_id', '=', request.workspace.id)
-        .orderBy('created_at', 'desc')
-        .orderBy('id', 'desc')
+        .orderBy('revision', 'asc')
         .execute();
 
-      const output: DocumentSnapshotListOutput = snapshots.map((snapshot) => ({
-        id: snapshot.id,
-        documentId: snapshot.document_id,
-        revision: snapshot.revision,
-        createdAt: snapshot.created_at.toISOString(),
-        createdBy: snapshot.created_by,
-        name: snapshot.name,
-        note: snapshot.note,
-      }));
+      const ydoc = new YDoc();
+      let target = null;
+      for (const update of updates) {
+        ydoc.applyUpdate(update.data);
+        if (update.id === updateId) {
+          target = update;
+          break;
+        }
+      }
+
+      if (!target) {
+        return reply.code(404).send({
+          code: ApiErrorCode.DocumentNotFound,
+          message: 'This edit is no longer kept.',
+        });
+      }
+
+      const output: DocumentUpdateContentOutput = {
+        id: target.id,
+        documentId: target.document_id,
+        revision: target.revision,
+        createdAt: target.created_at.toISOString(),
+        createdBy: target.created_by,
+        mergedCount: (target.merged_updates?.length ?? 0) + 1,
+        content: ydoc.getObject<DocumentContent>(),
+      };
 
       return output;
     },

@@ -7,6 +7,8 @@ export * from './ai/mcp-tokens-list';
 export * from './apps/metadata-list';
 export * from './documents/document-get';
 export * from './documents/document-snapshot-get';
+export * from './documents/document-server-update-get';
+export * from './documents/document-server-update-list';
 export * from './documents/document-snapshot-list';
 export * from './documents/document-state-get';
 export * from './documents/document-update-content';

@@ -50,6 +50,7 @@ import { createShareSuggestionsTable } from './00047-create-share-suggestions-ta
 import { createDocumentSuggestionsTable } from './00048-create-document-suggestions-table';
 import { createNodeFavoritesTable } from './00049-create-node-favorites-table';
 import { createNodeViewsTable } from './00050-create-node-views-table';
+import { addDocumentSnapshotLabel } from './00051-add-document-snapshot-label';
 
 export const databaseMigrations: Record<string, Migration> = {
   '00001_create_accounts_table': createAccountsTable,
@@ -96,7 +97,8 @@ export const databaseMigrations: Record<string, Migration> = {
   '00038_create_user_ai_settings_table': createUserAiSettingsTable,
   '00039_create_workspace_ai_settings_table': createWorkspaceAiSettingsTable,
   '00040_create_mcp_access_tokens_table': createMcpAccessTokensTable,
-  '00041_add_oauth_columns_to_mcp_access_tokens': addOauthColumnsToMcpAccessTokens,
+  '00041_add_oauth_columns_to_mcp_access_tokens':
+    addOauthColumnsToMcpAccessTokens,
   '00042_create_mcp_oauth_clients_table': createMcpOauthClientsTable,
   '00043_create_mcp_oauth_codes_table': createMcpOauthCodesTable,
   '00044_fix_node_path_update_trigger': fixNodePathUpdateTrigger,
@@ -106,4 +108,5 @@ export const databaseMigrations: Record<string, Migration> = {
   '00048_create_document_suggestions_table': createDocumentSuggestionsTable,
   '00049_create_node_favorites_table': createNodeFavoritesTable,
   '00050_create_node_views_table': createNodeViewsTable,
+  '00051_add_document_snapshot_label': addDocumentSnapshotLabel,
 };

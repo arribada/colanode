@@ -28,6 +28,7 @@ import { OidcLoginMutationHandler } from './auth/oidc-login';
 import { AvatarUploadMutationHandler } from './avatars/avatar-upload';
 import { ChatCreateMutationHandler } from './chats/chat-create';
 import { DocumentRestoreMutationHandler } from './documents/document-restore';
+import { DocumentSnapshotCreateMutationHandler } from './documents/document-snapshot-create';
 import { DocumentSuggestionCreateMutationHandler } from './documents/document-suggestion-create';
 import { DocumentSuggestionListMutationHandler } from './documents/document-suggestion-list';
 import { DocumentSuggestionResolveMutationHandler } from './documents/document-suggestion-resolve';
@@ -161,6 +162,7 @@ export const buildMutationHandlerMap = (
     'account.update': new AccountUpdateMutationHandler(app),
     'document.restore': new DocumentRestoreMutationHandler(app),
     'document.update': new DocumentUpdateMutationHandler(app),
+    'document.snapshot.create': new DocumentSnapshotCreateMutationHandler(app),
     'document.suggestion.create': new DocumentSuggestionCreateMutationHandler(
       app
     ),

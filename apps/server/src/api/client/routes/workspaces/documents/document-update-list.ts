@@ -3,30 +3,34 @@ import { z } from 'zod/v4';
 
 import {
   ApiErrorCode,
-  DocumentSnapshotListOutput,
+  DocumentUpdateListOutput,
   apiErrorOutputSchema,
-  documentSnapshotListOutputSchema,
+  documentUpdateListOutputSchema,
   extractNodeRole,
   hasNodeRole,
 } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { fetchNodeTree, mapNode } from '@colanode/server/lib/nodes';
 
-export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
+// The fine-grained tail of a document's history, read from the server rather
+// than from whatever this device happens to hold. A client that joined after
+// its updates had been folded into a state has none of them locally, which is
+// why the "recent edits" list used to be empty on a phone or a fresh browser.
+export const documentUpdateListRoute: FastifyPluginCallbackZod = (
   instance,
   _,
   done
 ) => {
   instance.route({
     method: 'GET',
-    url: '/:documentId/snapshots',
+    url: '/:documentId/updates',
     schema: {
       params: z.object({
         workspaceId: z.string(),
         documentId: z.string(),
       }),
       response: {
-        200: documentSnapshotListOutputSchema,
+        200: documentUpdateListOutputSchema,
         403: apiErrorOutputSchema,
         404: apiErrorOutputSchema,
       },
@@ -59,31 +63,28 @@ export const documentSnapshotListRoute: FastifyPluginCallbackZod = (
         });
       }
 
-      const snapshots = await database
-        .selectFrom('document_snapshots')
+      const updates = await database
+        .selectFrom('document_updates')
         .select([
           'id',
           'document_id',
           'revision',
           'created_at',
           'created_by',
-          'name',
-          'note',
+          'merged_updates',
         ])
         .where('document_id', '=', documentId)
         .where('workspace_id', '=', request.workspace.id)
-        .orderBy('created_at', 'desc')
-        .orderBy('id', 'desc')
+        .orderBy('revision', 'asc')
         .execute();
 
-      const output: DocumentSnapshotListOutput = snapshots.map((snapshot) => ({
-        id: snapshot.id,
-        documentId: snapshot.document_id,
-        revision: snapshot.revision,
-        createdAt: snapshot.created_at.toISOString(),
-        createdBy: snapshot.created_by,
-        name: snapshot.name,
-        note: snapshot.note,
+      const output: DocumentUpdateListOutput = updates.map((update) => ({
+        id: update.id,
+        documentId: update.document_id,
+        revision: update.revision,
+        createdAt: update.created_at.toISOString(),
+        createdBy: update.created_by,
+        mergedCount: (update.merged_updates?.length ?? 0) + 1,
       }));
 
       return output;

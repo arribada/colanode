@@ -15,12 +15,14 @@ import {
 } from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
+import { Textarea } from '@colanode/ui/components/ui/textarea';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@colanode/ui/components/ui/popover';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
 interface PageVersionEntry {
   version: string;
@@ -43,6 +45,8 @@ export const PageVersionButton = ({
   const workspace = useWorkspace();
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState('');
+  const [note, setNote] = useState('');
+  const { mutate } = useMutation();
 
   const current = page.version ?? null;
   const log: PageVersionEntry[] = page.versionLog ?? [];
@@ -69,11 +73,31 @@ export const PageVersionButton = ({
         version: normalized,
         at: new Date().toISOString(),
         by: workspace.userId,
+        note: note.trim() || null,
       };
       draft.version = normalized;
       draft.versionLog = [...(draft.versionLog ?? []), entry];
     });
+    // The tag alone says nothing about what the page looked like at the time.
+    // Cutting a version also asks the server for a snapshot under that tag, so
+    // the version can be read back later instead of only being named.
+    mutate({
+      input: {
+        type: 'document.snapshot.create',
+        userId: workspace.userId,
+        documentId: page.id,
+        name: normalized,
+        note: note.trim() || null,
+      },
+      onError(error) {
+        toast.error(
+          `${normalized} was tagged, but not captured: ${error.message}`
+        );
+      },
+    });
+
     setCustom('');
+    setNote('');
     setOpen(false);
     toast.success(`Version ${normalized} cut`);
   };
@@ -99,6 +123,23 @@ export const PageVersionButton = ({
             </p>
             <p className="text-sm font-semibold tabular-nums">
               {current ?? 'None yet'}
+            </p>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              What changed (optional)
+            </p>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Added the noise measurements for GW 2"
+              rows={2}
+              className="min-h-16 text-sm"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Shown in the version history and in the revision table of the PDF
+              export.
             </p>
           </div>
 
@@ -164,17 +205,24 @@ export const PageVersionButton = ({
                 {[...log].reverse().map((entry, index) => (
                   <div
                     key={`${entry.version}-${index}`}
-                    className="flex items-center justify-between rounded-md px-2 py-1 text-xs hover:bg-accent"
+                    className="rounded-md px-2 py-1 text-xs hover:bg-accent"
                   >
-                    <span className="font-medium tabular-nums">
-                      {entry.version}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {new Date(entry.at).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium tabular-nums">
+                        {entry.version}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {new Date(entry.at).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </span>
+                    </div>
+                    {entry.note && (
+                      <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
+                        {entry.note}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

@@ -82,6 +82,8 @@ export const documentSnapshotGetRoute: FastifyPluginCallbackZod = (
         revision: snapshot.revision,
         createdAt: snapshot.created_at.toISOString(),
         createdBy: snapshot.created_by,
+        name: snapshot.name,
+        note: snapshot.note,
         content: snapshot.content,
       };
 

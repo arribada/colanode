@@ -11,6 +11,8 @@ import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
 import { DocumentGetQueryHandler } from './documents/document-get';
 import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
+import { DocumentServerUpdateGetQueryHandler } from './documents/document-server-update-get';
+import { DocumentServerUpdateListQueryHandler } from './documents/document-server-update-list';
 import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
 import { DocumentUpdateContentQueryHandler } from './documents/document-update-content';
@@ -101,6 +103,10 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'file.download.request.get': new FileDownloadRequestGetQueryHandler(app),
     'document.get': new DocumentGetQueryHandler(app),
     'document.snapshot.get': new DocumentSnapshotGetQueryHandler(app),
+    'document.server.update.list': new DocumentServerUpdateListQueryHandler(
+      app
+    ),
+    'document.server.update.get': new DocumentServerUpdateGetQueryHandler(app),
     'document.snapshot.list': new DocumentSnapshotListQueryHandler(app),
     'node.snapshot.get': new NodeSnapshotGetQueryHandler(app),
     'node.snapshot.list': new NodeSnapshotListQueryHandler(app),

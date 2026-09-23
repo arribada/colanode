@@ -262,6 +262,11 @@ interface DocumentSnapshotTable {
   content: JSONColumnType<DocumentContent, string, never>;
   created_at: ColumnType<Date, Date, never>;
   created_by: ColumnType<string, string, never>;
+  // A snapshot cut by hand carries the version tag and the changelog written
+  // with it. Both stay updatable: cutting a tag at a revision that already has
+  // a snapshot labels that one instead of writing a duplicate.
+  name: ColumnType<string | null, string | null, string | null>;
+  note: ColumnType<string | null, string | null, string | null>;
 }
 
 export type SelectDocumentSnapshot = Selectable<DocumentSnapshotTable>;
@@ -553,7 +558,11 @@ interface McpOauthClientTable {
   grant_types: JSONColumnType<string[] | null, string | null, string | null>;
   response_types: JSONColumnType<string[] | null, string | null, string | null>;
   scope: ColumnType<string | null, string | null, string | null>;
-  token_endpoint_auth_method: ColumnType<string | null, string | null, string | null>;
+  token_endpoint_auth_method: ColumnType<
+    string | null,
+    string | null,
+    string | null
+  >;
   metadata: JSONColumnType<
     Record<string, unknown> | null,
     string | null,
