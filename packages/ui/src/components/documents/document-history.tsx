@@ -214,6 +214,21 @@ export const DocumentHistoryDialog = ({
     });
   };
 
+  // Escape closes the full-screen reader first, not the dialog under it.
+  useEffect(() => {
+    if (!fullScreen) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [fullScreen]);
+
   const previewTitle =
     tab === 'versions'
       ? (activeVersion?.name ?? 'Version')
