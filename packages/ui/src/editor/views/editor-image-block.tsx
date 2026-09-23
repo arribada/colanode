@@ -2,7 +2,7 @@
 // ABOUTME: caption that carries a live, auto-updating "Figure N" number.
 import { type NodeViewProps } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { Captions, CaptionsOff, Copy, Maximize2 } from 'lucide-react';
+import { Captions, CaptionsOff, Copy, Download, Maximize2 } from 'lucide-react';
 import { Resizable } from 're-resizable';
 import { useState } from 'react';
 
@@ -20,6 +20,7 @@ import {
   MediaLightbox,
   copyPicture,
 } from '@colanode/ui/editor/views/media-lightbox';
+import { useFileDownload } from '@colanode/ui/hooks/use-file-download';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { imageUrlToPng } from '@colanode/ui/lib/image-export';
 import { cn } from '@colanode/ui/lib/utils';
@@ -66,6 +67,9 @@ export const EditorImageBlock = ({
   // back in the wiki does not upload a second file).
   const [viewerOpen, setViewerOpen] = useState(false);
   const copy = url ? () => copyPicture(() => imageUrlToPng(url)) : undefined;
+  // Saved as the file that was uploaded, not as a re-encoded PNG, so a photo
+  // keeps its original format and quality.
+  const { download } = useFileDownload(file);
 
   // This figure's live ordinal among ALL captioned file nodes in the document,
   // in document order -- recomputed on every change so adding, removing or
@@ -208,6 +212,13 @@ export const EditorImageBlock = ({
               <Copy className="size-4" />
               Copy image
             </ContextMenuItem>
+            <ContextMenuItem
+              onClick={download}
+              className="flex items-center gap-2"
+            >
+              <Download className="size-4" />
+              Download
+            </ContextMenuItem>
             {editable && <ContextMenuSeparator />}
           </>
         )}
@@ -235,6 +246,7 @@ export const EditorImageBlock = ({
           onOpenChange={setViewerOpen}
           title={file.name}
           onCopy={copy}
+          onDownload={download}
         >
           <img
             src={url}

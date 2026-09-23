@@ -1,6 +1,6 @@
 // ABOUTME: Full-screen viewer for an image or a diagram of the editor, opened by
-// ABOUTME: a double-click, with a button to copy the picture to the clipboard.
-import { Copy } from 'lucide-react';
+// ABOUTME: a double-click, with buttons to copy or save the picture.
+import { Copy, Download } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { toast } from 'sonner';
 
@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@colanode/ui/components/ui/dialog';
+import { downloadBlob } from '@colanode/ui/lib/download';
 import {
   canCopyImages,
   copyPngToClipboard,
@@ -27,11 +28,24 @@ export const copyPicture = (png: () => Promise<Blob>): void => {
   );
 };
 
+// Saves a picture that has to be rendered first (a diagram), as opposed to a
+// file already on the device, which the file download path saves as it is.
+export const downloadPicture = (
+  png: () => Promise<Blob>,
+  filename: string
+): void => {
+  png().then(
+    (blob) => downloadBlob(blob, filename),
+    () => toast.error("Couldn't prepare the image")
+  );
+};
+
 interface MediaLightboxProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   onCopy?: () => void;
+  onDownload?: () => void;
   children: ReactNode;
 }
 
@@ -40,6 +54,7 @@ export const MediaLightbox = ({
   onOpenChange,
   title,
   onCopy,
+  onDownload,
   children,
 }: MediaLightboxProps) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
@@ -58,6 +73,17 @@ export const MediaLightbox = ({
           <Button variant="outline" size="sm" onClick={onCopy}>
             <Copy className="size-4" />
             Copy image
+          </Button>
+        )}
+        {onDownload && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDownload}
+            data-testid="media-download"
+          >
+            <Download className="size-4" />
+            Download
           </Button>
         )}
       </div>

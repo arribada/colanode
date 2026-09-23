@@ -3,6 +3,7 @@
 // it lives outside the unit-tested pure helpers.
 
 import { Rect } from '@colanode/ui/lib/board/geometry';
+import { downloadBlob } from '@colanode/ui/lib/download';
 
 const XMLNS = 'http://www.w3.org/2000/svg';
 
@@ -77,16 +78,9 @@ export const exportScenePng = async (
   );
 };
 
-export const downloadBlob = (blob: Blob, filename: string): void => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
+// Still exported from here: the whiteboard has always imported it from this
+// module, the implementation just moved next to the other download helpers.
+export { downloadBlob };
 
 /**
  * Serialize a scene <g> region to a standalone SVG string. Mirrors the PNG

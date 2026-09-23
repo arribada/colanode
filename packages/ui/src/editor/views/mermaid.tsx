@@ -1,6 +1,6 @@
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
-import { Copy, Maximize2, Pencil } from 'lucide-react';
+import { Copy, Download, Maximize2, Pencil } from 'lucide-react';
 import { useState } from 'react';
 
 import {
@@ -14,6 +14,7 @@ import { MermaidRender } from '@colanode/ui/editor/mermaid-render';
 import {
   MediaLightbox,
   copyPicture,
+  downloadPicture,
 } from '@colanode/ui/editor/views/media-lightbox';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -47,6 +48,8 @@ export const MermaidNodeView = ({
   // opens its source on a click, since there is nothing to look at yet.
   const startEditing = () => setEditing(true);
   const copy = () => copyPicture(() => diagramPng(source));
+  const download = () =>
+    downloadPicture(() => diagramPng(source), 'diagram.png');
 
   return (
     <NodeViewWrapper
@@ -133,6 +136,15 @@ export const MermaidNodeView = ({
                 Copy as image
               </ContextMenuItem>
             )}
+            {hasSource && (
+              <ContextMenuItem
+                onClick={download}
+                className="flex items-center gap-2"
+              >
+                <Download className="size-4" />
+                Download as PNG
+              </ContextMenuItem>
+            )}
           </ContextMenuContent>
         </ContextMenu>
         {editable && editing && (
@@ -171,6 +183,7 @@ export const MermaidNodeView = ({
           onOpenChange={setViewerOpen}
           title="Diagram"
           onCopy={copy}
+          onDownload={download}
         >
           <MermaidRender
             source={source}
