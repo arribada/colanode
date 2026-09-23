@@ -63,17 +63,35 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Build output, named after a hash of its own content: the same URL can
+    # never mean anything else, so a browser may keep it and stop asking. No
+    # header was sent before, which left every visitor without a service
+    # worker revalidating the whole shell on each load.
+    location ~ "^/assets/.+-[A-Za-z0-9_-]{8,}\.(js|css|woff2?)$" {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
     # A hashed asset that no longer exists must 404, never fall through to
     # the SPA shell. Answering index.html under a .js URL makes the browser
     # try to execute HTML as a module, and - far worse - lets the service
     # worker cache that HTML under the .js URL, after which no reload,
     # however hard, can recover the tab.
+    #
+    # The rest of /assets/ keeps its name from one build to the next (the
+    # emoji and icon sprites, the app images, the fonts), so it is held for a
+    # day only: long enough to stop the repeated requests, short enough that
+    # a replaced image reaches everyone the next day.
     location /assets/ {
         try_files $uri =404;
+        add_header Cache-Control "public, max-age=86400" always;
     }
 
+    # The shell and the service worker decide what every other file is, so
+    # they are always revalidated.
     location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache" always;
     }
 }
 EOF

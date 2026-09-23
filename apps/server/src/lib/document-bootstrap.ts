@@ -22,6 +22,41 @@ export interface DocumentStatesPage {
   next: string | null;
 }
 
+export interface DocumentSyncEstimate {
+  /** Bytes of update rows this client has not received yet. */
+  pending: number;
+  /** Bytes of the whole space's update log. */
+  total: number;
+}
+
+/**
+ * What catching up would cost, both ways, for a client sitting at `cursor`.
+ *
+ * The stream sends the rows themselves, base64 and uncompressed; the hand-over
+ * sends the collected state of every document, gzipped, which measures about
+ * a tenth of the log it stands for. The client compares the two and picks.
+ */
+export const estimateDocumentSync = async (input: {
+  rootId: string;
+  cursor: string;
+}): Promise<DocumentSyncEstimate> => {
+  const result = await sql<{ pending: string; total: string }>`
+    select
+      coalesce(
+        sum(length(data)) filter (where revision > ${input.cursor}::bigint), 0
+      )::text as pending,
+      coalesce(sum(length(data)), 0)::text as total
+    from document_updates
+    where root_id = ${input.rootId}
+  `.execute(database);
+
+  const row = result.rows[0];
+  return {
+    pending: Number(row?.pending ?? 0),
+    total: Number(row?.total ?? 0),
+  };
+};
+
 export const fetchDocumentStates = async (input: {
   rootId: string;
   after: string | null;

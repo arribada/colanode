@@ -6,6 +6,7 @@ import {
   apiErrorOutputSchema,
   extractNodeRole,
   hasNodeRole,
+  isNodeTrashed,
 } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import {
@@ -65,6 +66,10 @@ export const nodeSyncGetRoute: FastifyPluginCallbackZod = (
       }),
       response: {
         200: z.object({
+          // A page in the trash is not shown by the app, so a client that
+          // cannot find it has to be told why instead of waiting for a sync
+          // that will never bring it back.
+          trashed: z.boolean(),
           nodes: z.array(z.object({ ...updateFields, nodeId: z.string() })),
           documents: z.array(
             z.object({ ...updateFields, documentId: z.string() })
@@ -130,6 +135,7 @@ export const nodeSyncGetRoute: FastifyPluginCallbackZod = (
         .execute();
 
       return {
+        trashed: nodes.some((node) => isNodeTrashed(node)),
         nodes: nodeUpdates.map(mapNodeUpdate),
         documents: documentUpdates.map(mapDocumentUpdate),
       };

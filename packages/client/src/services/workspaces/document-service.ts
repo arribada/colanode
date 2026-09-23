@@ -40,6 +40,11 @@ interface DocumentStatesPage {
   next: string | null;
 }
 
+interface DocumentSyncEstimate {
+  pending: number;
+  total: number;
+}
+
 export class DocumentService {
   private readonly workspace: WorkspaceService;
 
@@ -667,6 +672,28 @@ export class DocumentService {
     }
 
     return true;
+  }
+
+  /**
+   * What catching up with a space would cost this client, in bytes of update
+   * log: `pending` is what it has not received, `total` the whole log. Null
+   * when the server cannot be asked, which simply means "carry on streaming".
+   */
+  public async estimateRootSync(
+    rootId: string,
+    cursor: string
+  ): Promise<DocumentSyncEstimate | null> {
+    try {
+      return await this.workspace.account.client
+        .get(
+          `v1/workspaces/${this.workspace.workspaceId}/nodes/${rootId}/documents/estimate`,
+          { searchParams: { cursor } }
+        )
+        .json<DocumentSyncEstimate>();
+    } catch (error) {
+      debug(`Failed to estimate the sync of root ${rootId}: ${error}`);
+      return null;
+    }
   }
 
   /**

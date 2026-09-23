@@ -10,6 +10,7 @@ import { AppService } from '@colanode/client/services/app-service';
 import { SyncDocumentUpdateData, SyncNodeUpdateData } from '@colanode/core';
 
 type NodeSyncOutput = {
+  trashed?: boolean;
   nodes: SyncNodeUpdateData[];
   documents: SyncDocumentUpdateData[];
 };
@@ -63,6 +64,7 @@ export class NodeFetchMutationHandler implements MutationHandler<NodeFetchMutati
     return {
       nodes: output.nodes.length,
       documents: output.documents.length,
+      trashed: output.trashed ?? false,
     };
   }
 }

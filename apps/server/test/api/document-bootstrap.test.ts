@@ -9,7 +9,10 @@ import {
 } from '@colanode/core';
 import { decodeState, YDoc } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
-import { fetchDocumentStates } from '@colanode/server/lib/document-bootstrap';
+import {
+  estimateDocumentSync,
+  fetchDocumentStates,
+} from '@colanode/server/lib/document-bootstrap';
 
 import { buildTestApp } from '../helpers/app';
 import {
@@ -277,6 +280,89 @@ describe('document states of a space', () => {
     expect(pages).toBe(4);
   });
 
+  it('tells a client how far behind it is, so it can choose how to catch up', async () => {
+    const account = await createAccount();
+    const workspace = await createWorkspace({ createdBy: account.id });
+    const user = await createUser({
+      workspaceId: workspace.id,
+      account,
+      role: 'owner',
+    });
+    const base = { workspaceId: workspace.id, userId: user.id };
+    const rootId = await createSpaceNode({ ...base, name: 'Space' });
+
+    const documentId = await createPageNode({
+      ...base,
+      parentId: rootId,
+      rootId,
+    });
+    const ydoc = new YDoc();
+    await writeUpdate({
+      ...base,
+      documentId,
+      rootId,
+      ydoc,
+      blocks: paragraph(documentId, 'a0', 'first'),
+    });
+
+    const afterFirst = await database
+      .selectFrom('document_updates')
+      .select(['revision'])
+      .where('root_id', '=', rootId)
+      .orderBy('revision', 'desc')
+      .executeTakeFirstOrThrow();
+
+    await writeUpdate({
+      ...base,
+      documentId,
+      rootId,
+      ydoc,
+      blocks: {
+        ...paragraph(documentId, 'a0', 'first'),
+        ...paragraph(documentId, 'a1', 'second, much longer edit '.repeat(40)),
+      },
+    });
+
+    // A client that has everything owes nothing.
+    const latest = await database
+      .selectFrom('document_updates')
+      .select(['revision'])
+      .where('root_id', '=', rootId)
+      .orderBy('revision', 'desc')
+      .executeTakeFirstOrThrow();
+
+    const caughtUp = await estimateDocumentSync({
+      rootId,
+      cursor: latest.revision.toString(),
+    });
+    expect(caughtUp.pending).toBe(0);
+    expect(caughtUp.total).toBeGreaterThan(0);
+
+    // A fresh client owes the whole log.
+    const cold = await estimateDocumentSync({ rootId, cursor: '0' });
+    expect(cold.pending).toBe(cold.total);
+
+    // One behind: what it owes is the second update, not the whole log.
+    const behind = await estimateDocumentSync({
+      rootId,
+      cursor: afterFirst.revision.toString(),
+    });
+    expect(behind.pending).toBeGreaterThan(0);
+    expect(behind.pending).toBeLessThan(behind.total);
+
+    const { token } = await createDevice({ accountId: account.id });
+    const response = await app.inject({
+      method: 'GET',
+      url: `/client/v1/workspaces/${workspace.id}/nodes/${rootId}/documents/estimate?cursor=${afterFirst.revision}`,
+      headers: buildAuthHeader(token),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      pending: behind.pending,
+      total: behind.total,
+    });
+  });
+
   it('is refused to a member with no role on the space, and to a page', async () => {
     const ownerAccount = await createAccount();
     const workspace = await createWorkspace({ createdBy: ownerAccount.id });
@@ -320,5 +406,20 @@ describe('document states of a space', () => {
       headers: buildAuthHeader(ownerDevice.token),
     });
     expect(allowed.statusCode).toBe(200);
+
+    // The estimate answers about the same space, so it is gated the same way.
+    const refusedEstimate = await app.inject({
+      method: 'GET',
+      url: `/client/v1/workspaces/${workspace.id}/nodes/${rootId}/documents/estimate?cursor=0`,
+      headers: buildAuthHeader(outsider.token),
+    });
+    expect(refusedEstimate.statusCode).toBe(403);
+
+    const pageEstimate = await app.inject({
+      method: 'GET',
+      url: `/client/v1/workspaces/${workspace.id}/nodes/${pageId}/documents/estimate?cursor=0`,
+      headers: buildAuthHeader(ownerDevice.token),
+    });
+    expect(pageEstimate.statusCode).toBe(404);
   });
 });

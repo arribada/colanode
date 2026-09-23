@@ -7,6 +7,8 @@ export type NodeFetchMutationInput = {
 export type NodeFetchMutationOutput = {
   nodes: number;
   documents: number;
+  /** The node, or one of its ancestors, is in the trash. */
+  trashed: boolean;
 };
 
 declare module '@colanode/client/mutations' {

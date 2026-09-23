@@ -26,7 +26,19 @@ export const initApp = () => {
   server.setValidatorCompiler(validatorCompiler);
 
   server.register(corsPlugin);
-  server.register(fastifyWebsocket);
+  server.register(fastifyWebsocket, {
+    options: {
+      // The sync stream is JSON carrying base64, which deflates to about a
+      // third: measured on a first sync, 6.6 MB of node updates, tombstones
+      // and interactions went over this socket uncompressed. Browsers ask for
+      // the extension themselves, so this only has to accept it.
+      perMessageDeflate: {
+        threshold: 1024,
+        zlibDeflateOptions: { level: 6, memLevel: 8 },
+        concurrencyLimit: 10,
+      },
+    },
+  });
   server.register(clientDecorator);
   server.register(apiRoutes);
 

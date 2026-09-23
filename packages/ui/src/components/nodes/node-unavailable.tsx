@@ -1,7 +1,9 @@
-import { CloudDownload } from 'lucide-react';
+import { CloudDownload, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 import { NodeContainerSkeleton } from '@colanode/ui/components/nodes/node-container-skeleton';
+import { Button } from '@colanode/ui/components/ui/button';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 
@@ -25,11 +27,14 @@ const MAX_ATTEMPTS = 4;
 // ahead of the stream. A cold client receives every space in revision order,
 // so a recently written page can be minutes behind -- which is what a phone
 // hits on every visit, since mobile browsers drop the local database between
-// visits.
+// visits. The server also says whether the page is in the trash, which is the
+// other reason a page never appears, and which waiting would never fix.
 export const NodeUnavailable = ({ nodeId }: { nodeId?: string }) => {
   const workspace = useWorkspace();
   const mutation = useMutation();
+  const restore = useMutation();
   const [waited, setWaited] = useState(false);
+  const [trashed, setTrashed] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), GRACE_MS);
@@ -42,6 +47,7 @@ export const NodeUnavailable = ({ nodeId }: { nodeId?: string }) => {
     }
 
     let attempts = 0;
+    let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchNode = () => {
@@ -51,6 +57,21 @@ export const NodeUnavailable = ({ nodeId }: { nodeId?: string }) => {
           type: 'node.fetch',
           userId: workspace.userId,
           nodeId,
+        },
+        onSuccess: (output) => {
+          if (stopped) {
+            return;
+          }
+
+          if (output.trashed) {
+            // Nothing will ever bring it back on its own; stop asking.
+            setTrashed(true);
+            setWaited(true);
+            if (timer) {
+              clearTimeout(timer);
+              timer = null;
+            }
+          }
         },
       });
 
@@ -62,6 +83,7 @@ export const NodeUnavailable = ({ nodeId }: { nodeId?: string }) => {
     fetchNode();
 
     return () => {
+      stopped = true;
       if (timer) {
         clearTimeout(timer);
       }
@@ -72,6 +94,38 @@ export const NodeUnavailable = ({ nodeId }: { nodeId?: string }) => {
 
   if (!waited) {
     return <NodeContainerSkeleton />;
+  }
+
+  if (trashed) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-6 text-center">
+        <Trash2 className="mb-4 size-12 text-muted-foreground" />
+        <h1 className="text-2xl font-semibold tracking-tight">In the trash</h1>
+        <p className="mt-2 max-w-md text-sm font-medium text-muted-foreground">
+          This page was deleted. Restore it to read it again, or find it with
+          everything else in the workspace trash.
+        </p>
+        {nodeId && (
+          <Button
+            variant="outline"
+            className="mt-4"
+            disabled={restore.isPending}
+            onClick={() =>
+              restore.mutate({
+                input: {
+                  type: 'node.restore',
+                  userId: workspace.userId,
+                  nodeId,
+                },
+                onError: (error) => toast.error(error.message),
+              })
+            }
+          >
+            Restore this page
+          </Button>
+        )}
+      </div>
+    );
   }
 
   return (
