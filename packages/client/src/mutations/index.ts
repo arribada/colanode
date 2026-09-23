@@ -51,6 +51,7 @@ export * from './nodes/node-share-suggestions-list';
 export * from './nodes/node-share-suggestion-resolve';
 export * from './nodes/node-share-workspace-list';
 export * from './nodes/node-favorite-add';
+export * from './nodes/node-fetch';
 export * from './nodes/node-favorite-remove';
 export * from './nodes/node-favorite-list';
 export * from './nodes/node-view-record';

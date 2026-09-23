@@ -3,10 +3,10 @@ import {
   SyncDocumentUpdatesInput,
   SyncDocumentUpdateData,
 } from '@colanode/core';
-import { encodeState } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
 import { SelectDocumentUpdate } from '@colanode/server/data/schema';
 import { createLogger } from '@colanode/server/lib/logger';
+import { mapDocumentUpdate } from '@colanode/server/lib/node-sync';
 import { BaseSynchronizer } from '@colanode/server/synchronizers/base';
 import { Event } from '@colanode/server/types/events';
 
@@ -67,19 +67,8 @@ export class DocumentUpdateSynchronizer extends BaseSynchronizer<SyncDocumentUpd
   private buildMessage(
     unsyncedDocumentUpdates: SelectDocumentUpdate[]
   ): SynchronizerOutputMessage<SyncDocumentUpdatesInput> {
-    const items: SyncDocumentUpdateData[] = unsyncedDocumentUpdates.map(
-      (documentUpdate) => ({
-        id: documentUpdate.id,
-        documentId: documentUpdate.document_id,
-        rootId: documentUpdate.root_id,
-        workspaceId: documentUpdate.workspace_id,
-        revision: documentUpdate.revision.toString(),
-        data: encodeState(documentUpdate.data),
-        createdAt: documentUpdate.created_at.toISOString(),
-        createdBy: documentUpdate.created_by,
-        mergedUpdates: documentUpdate.merged_updates,
-      })
-    );
+    const items: SyncDocumentUpdateData[] =
+      unsyncedDocumentUpdates.map(mapDocumentUpdate);
 
     return {
       type: 'synchronizer.output',

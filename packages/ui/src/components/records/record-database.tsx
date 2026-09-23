@@ -34,7 +34,7 @@ export const RecordDatabase = ({ id, role, children }: RecordDatabaseProps) => {
   // self-healing "syncing" state instead of a blank body; the live query
   // re-renders this away once the database node is delivered.
   if (!databaseGetQuery.data || databaseGetQuery.data.type !== 'database') {
-    return <NodeUnavailable />;
+    return <NodeUnavailable nodeId={id} />;
   }
 
   const database = databaseGetQuery.data as LocalDatabaseNode;

@@ -48,6 +48,7 @@ import { NodeDeleteMutationHandler } from './nodes/node-delete';
 import { NodeFavoriteAddMutationHandler } from './nodes/node-favorite-add';
 import { NodeFavoriteListMutationHandler } from './nodes/node-favorite-list';
 import { NodeFavoriteRemoveMutationHandler } from './nodes/node-favorite-remove';
+import { NodeFetchMutationHandler } from './nodes/node-fetch';
 import { NodeInteractionOpenedMutationHandler } from './nodes/node-interaction-opened';
 import { NodeInteractionSeenMutationHandler } from './nodes/node-interaction-seen';
 import { NodeReactionCreateMutationHandler } from './nodes/node-reaction-create';
@@ -147,6 +148,7 @@ export const buildMutationHandlerMap = (
     'node.favorite.add': new NodeFavoriteAddMutationHandler(app),
     'node.favorite.remove': new NodeFavoriteRemoveMutationHandler(app),
     'node.favorite.list': new NodeFavoriteListMutationHandler(app),
+    'node.fetch': new NodeFetchMutationHandler(app),
     'node.view.record': new NodeViewRecordMutationHandler(app),
     'node.view.list': new NodeViewListMutationHandler(app),
     'avatar.upload': new AvatarUploadMutationHandler(app),

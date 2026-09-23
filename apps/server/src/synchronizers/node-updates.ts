@@ -3,10 +3,10 @@ import {
   SyncNodeUpdatesInput,
   SyncNodeUpdateData,
 } from '@colanode/core';
-import { encodeState } from '@colanode/crdt';
 import { database } from '@colanode/server/data/database';
 import { SelectNodeUpdate } from '@colanode/server/data/schema';
 import { createLogger } from '@colanode/server/lib/logger';
+import { mapNodeUpdate } from '@colanode/server/lib/node-sync';
 import { BaseSynchronizer } from '@colanode/server/synchronizers/base';
 import { Event } from '@colanode/server/types/events';
 
@@ -67,21 +67,7 @@ export class NodeUpdatesSynchronizer extends BaseSynchronizer<SyncNodeUpdatesInp
   private buildMessage(
     unsyncedNodeUpdates: SelectNodeUpdate[]
   ): SynchronizerOutputMessage<SyncNodeUpdatesInput> {
-    const items: SyncNodeUpdateData[] = unsyncedNodeUpdates.map(
-      (nodeUpdate) => {
-        return {
-          id: nodeUpdate.id,
-          nodeId: nodeUpdate.node_id,
-          rootId: nodeUpdate.root_id,
-          workspaceId: nodeUpdate.workspace_id,
-          revision: nodeUpdate.revision.toString(),
-          data: encodeState(nodeUpdate.data),
-          createdAt: nodeUpdate.created_at.toISOString(),
-          createdBy: nodeUpdate.created_by,
-          mergedUpdates: nodeUpdate.merged_updates,
-        };
-      }
-    );
+    const items: SyncNodeUpdateData[] = unsyncedNodeUpdates.map(mapNodeUpdate);
 
     return {
       type: 'synchronizer.output',

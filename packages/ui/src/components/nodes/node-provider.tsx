@@ -68,7 +68,7 @@ export const NodeProvider = ({ nodeId, children }: NodeProviderProps) => {
 
   const node = nodeQuery.data;
   if (!node) {
-    return <NodeUnavailable />;
+    return <NodeUnavailable nodeId={nodeId} />;
   }
 
   if (node.parentId) {
