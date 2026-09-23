@@ -57,6 +57,10 @@ contextBridge.exposeInMainWorld('colanode', {
     return ipcRenderer.invoke('open-external-url', url);
   },
 
+  openOidcLogin: async (options: { url: string; redirectUri: string }) => {
+    return ipcRenderer.invoke('oidc-login', options);
+  },
+
   showItemInFolder: async (path: string) => {
     return ipcRenderer.invoke('show-item-in-folder', path);
   },

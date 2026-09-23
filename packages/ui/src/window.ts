@@ -25,6 +25,12 @@ export interface ColanodeWindowApi {
   unsubscribeQuery: (key: string) => Promise<void>;
   saveTempFile: (file: File) => Promise<TempFile>;
   openExternalUrl: (url: string) => Promise<void>;
+  // Desktop only: runs an identity provider's redirect in a window of its own
+  // and hands back what it came back with.
+  openOidcLogin: (options: {
+    url: string;
+    redirectUri: string;
+  }) => Promise<{ code?: string; state?: string; error?: string }>;
   showItemInFolder: (path: string) => Promise<void>;
   showFileSaveDialog: (
     options: SaveDialogOptions

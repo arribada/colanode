@@ -361,6 +361,95 @@ ipcMain.handle('open-external-url', (_, url: string) => {
   shell.openExternal(url);
 });
 
+// Signing in with an identity provider is a redirect: the browser goes to the
+// provider and comes back to the server's callback address with a code. In the
+// app there is no browser to send away, so the provider is opened in a window
+// of its own and the return is caught before it is followed -- the code never
+// reaches the web page, which would have nothing to do with it, and the window
+// closes as soon as it is read. The session is kept, so signing in a second
+// time does not ask for the password again.
+ipcMain.handle(
+  'oidc-login',
+  (_, options: { url: string; redirectUri: string }) => {
+    return new Promise<{ code?: string; state?: string; error?: string }>(
+      (resolve) => {
+        const authWindow = new BrowserWindow({
+          width: 520,
+          height: 760,
+          autoHideMenuBar: true,
+          title: 'Sign in',
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            partition: 'persist:oidc-login',
+          },
+        });
+
+        let settled = false;
+        const finish = (result: {
+          code?: string;
+          state?: string;
+          error?: string;
+        }) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          resolve(result);
+          if (!authWindow.isDestroyed()) {
+            authWindow.destroy();
+          }
+        };
+
+        const isReturn = (target: string): boolean => {
+          if (!target.startsWith(options.redirectUri)) {
+            return false;
+          }
+
+          try {
+            const parsed = new URL(target);
+            finish({
+              code: parsed.searchParams.get('code') ?? undefined,
+              state: parsed.searchParams.get('state') ?? undefined,
+              error: parsed.searchParams.get('error') ?? undefined,
+            });
+          } catch {
+            finish({ error: 'invalid_callback' });
+          }
+
+          return true;
+        };
+
+        authWindow.webContents.on('will-redirect', (event, target) => {
+          if (isReturn(target)) {
+            event.preventDefault();
+          }
+        });
+
+        authWindow.webContents.on('will-navigate', (event, target) => {
+          if (isReturn(target)) {
+            event.preventDefault();
+          }
+        });
+
+        // A redirect that neither of those two catches still passes here.
+        authWindow.webContents.on(
+          'did-start-navigation',
+          (_event, target, _isInPlace, isMainFrame) => {
+            if (isMainFrame) {
+              isReturn(target);
+            }
+          }
+        );
+
+        authWindow.on('closed', () => finish({ error: 'cancelled' }));
+
+        authWindow.loadURL(options.url);
+      }
+    );
+  }
+);
+
 ipcMain.handle('show-item-in-folder', (_, path: string) => {
   shell.showItemInFolder(path);
 });
