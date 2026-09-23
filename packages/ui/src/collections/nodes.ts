@@ -96,11 +96,25 @@ export const createNodesCollection = (userId: string) => {
               // Fall back to loading a bounded set of records with no server
               // filter and let react-db apply the predicate in memory.
               parsedOptions = {
-                filters: [{ field: ['type'], operator: 'in', value: ['record'] }],
+                filters: [
+                  { field: ['type'], operator: 'in', value: ['record'] },
+                ],
                 sorts: [],
                 limit: 2000,
               };
             }
+
+            // A query that names one node by id is not browsing the tree: it
+            // is a page or a record being opened. Templates are hidden from
+            // every listing, which meant opening one (the block handle's
+            // "Edit template", or a template manager) left the node out of the
+            // collection and the screen blank. Asked for by id, it loads.
+            const byId = parsedOptions.filters.some(
+              (filter) =>
+                Array.isArray(filter.field) &&
+                filter.field.length === 1 &&
+                filter.field[0] === 'id'
+            );
 
             const nodes = await window.colanode.executeQuery({
               type: 'node.list',
@@ -108,6 +122,7 @@ export const createNodesCollection = (userId: string) => {
               filters: parsedOptions.filters,
               sorts: parsedOptions.sorts,
               limit: parsedOptions.limit,
+              includeTemplates: byId,
             });
 
             begin();

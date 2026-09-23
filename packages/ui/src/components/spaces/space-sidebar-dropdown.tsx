@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   Database,
   Ellipsis,
+  FileStack,
   MessageCircle,
   Presentation,
   Settings,
@@ -18,6 +19,7 @@ import {
   PageTemplateSubmenu,
   useCreatePageFromTemplate,
 } from '@colanode/ui/components/pages/page-template-submenu';
+import { PageTemplatesDialog } from '@colanode/ui/components/pages/page-templates-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +48,7 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
   const [openCreateChannel, setOpenCreateChannel] = useState(false);
   const [openCreateDatabase, setOpenCreateDatabase] = useState(false);
   const [openCreateWhiteboard, setOpenCreateWhiteboard] = useState(false);
+  const [openTemplates, setOpenTemplates] = useState(false);
 
   const createPageFromTemplate = useCreatePageFromTemplate({
     spaceId: space.id,
@@ -80,6 +83,15 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
               spaceId={space.id}
               onSelect={createPageFromTemplate}
             />
+          )}
+          {canCreate && (
+            <DropdownMenuItem
+              onSelect={() => setOpenTemplates(true)}
+              className="flex flex-row items-center gap-2 cursor-pointer"
+            >
+              <FileStack className="size-4" />
+              <span>Manage templates</span>
+            </DropdownMenuItem>
           )}
           {canCreate && showChat && (
             <DropdownMenuItem
@@ -149,6 +161,14 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
           spaceId={space.id}
           open={openCreateWhiteboard}
           onOpenChange={setOpenCreateWhiteboard}
+        />
+      )}
+      {openTemplates && spaceRole !== null && (
+        <PageTemplatesDialog
+          space={space}
+          role={spaceRole}
+          open={openTemplates}
+          onOpenChange={setOpenTemplates}
         />
       )}
     </Fragment>

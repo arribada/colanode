@@ -40,7 +40,10 @@ export class NodeListQueryHandler
     // trash view uses the dedicated node.trash.list query instead. Template
     // records/pages are excluded the same way; record.template.list /
     // page.template.list query them explicitly for "New from template" menus.
-    let queryString = `SELECT * FROM nodes n WHERE ${notTrashedSql('n')} AND ${notTemplateSql('n')} ${filterQuery}`;
+    const templateClause = input.includeTemplates
+      ? ''
+      : `AND ${notTemplateSql('n')}`;
+    let queryString = `SELECT * FROM nodes n WHERE ${notTrashedSql('n')} ${templateClause} ${filterQuery}`;
 
     if (sortQuery) {
       queryString += ` ORDER BY ${sortQuery}`;

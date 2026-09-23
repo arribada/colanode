@@ -8,7 +8,10 @@ import {
   buildSnippet,
   tokenizeSearchQuery,
 } from '@colanode/client/lib/fts';
-import { notInTrashedTreeSql } from '@colanode/client/lib/nodes';
+import {
+  notInTrashedTreeSql,
+  notTemplateSql,
+} from '@colanode/client/lib/nodes';
 import {
   NodeSearchMatchSource,
   NodeSearchQueryInput,
@@ -178,6 +181,7 @@ export class NodeSearchQueryHandler
       ) m
       JOIN nodes n ON n.id = m.id
       WHERE ${sql.raw(notInTrashedTreeSql('n'))}
+        AND ${sql.raw(notTemplateSql('n'))}
       ORDER BY m.rank
     `.compile(workspace.database);
 
