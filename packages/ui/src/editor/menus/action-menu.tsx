@@ -464,7 +464,9 @@ export const ActionMenu = ({
   // A divider is two pixels tall: its style picker only appeared while the
   // pointer stayed on the line itself, which is hard to hold. The handle menu
   // carries it too.
-  const isDivider = menuState.pmNode?.type.name === 'divider';
+  // The divider node is TipTap's HorizontalRule extended, so its type is
+  // named horizontalRule even though everything around it says divider.
+  const isDivider = menuState.pmNode?.type.name === 'horizontalRule';
   const dividerVariant =
     (menuState.pmNode?.attrs?.variant as string | undefined) ?? 'line';
 

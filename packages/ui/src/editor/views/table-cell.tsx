@@ -205,7 +205,13 @@ export const TableCellNodeView = (props: NodeViewProps) => {
               align === 'left' && 'text-left',
               align === 'center' && 'text-center',
               align === 'right' && 'text-right',
-              (isAggregate || showFormatted) && 'invisible'
+              // NOT `invisible`: visibility:hidden takes the text layer out of
+              // hit testing, so ProseMirror could not resolve a position inside
+              // a summary or formatted cell. Dragging across two of them made
+              // no cell selection at all and the highlight flickered instead.
+              // opacity-0 hides the raw value just the same and keeps the cell
+              // selectable.
+              (isAggregate || showFormatted) && 'opacity-0'
             )}
           />
         </Resizable>
