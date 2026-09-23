@@ -293,6 +293,10 @@ interface UndoRedoParams {
   // Commit any debounced (not-yet-persisted) editor edit into the YDoc so the
   // undo/redo below operate on the real latest state, not a 500ms-stale copy.
   flushPendingSave: () => Promise<unknown> | unknown;
+  // Drop anything the undo itself scheduled: putting the undone content back
+  // in the editor looks like an edit to TipTap, and saving it would record
+  // the undo as a brand new change (see below).
+  cancelPendingSave: () => void;
 }
 
 const performUndo = async ({
@@ -301,6 +305,7 @@ const performUndo = async ({
   nodeId,
   userId,
   flushPendingSave,
+  cancelPendingSave,
 }: UndoRedoParams) => {
   await flushPendingSave();
 
@@ -318,7 +323,14 @@ const performUndo = async ({
   }
 
   const editorContent = buildEditorContent(nodeId, afterContent);
-  editor.chain().setContent(editorContent).run();
+  // `emitUpdate: false` is what makes undo behave. Undo rewinds the YDoc and
+  // then puts the result back in the editor; with the update emitted, TipTap
+  // called onUpdate, the debounced save wrote that same content BACK into the
+  // YDoc as a fresh change, and the next Ctrl+Z undid that instead -- so undo
+  // appeared to work every other press, and adding a table column then undoing
+  // did nothing at all.
+  editor.commands.setContent(editorContent, { emitUpdate: false });
+  cancelPendingSave();
 
   const result = await window.colanode.executeMutation({
     type: 'document.update',
@@ -338,6 +350,7 @@ const performRedo = async ({
   nodeId,
   userId,
   flushPendingSave,
+  cancelPendingSave,
 }: UndoRedoParams) => {
   await flushPendingSave();
 
@@ -355,7 +368,8 @@ const performRedo = async ({
   }
 
   const editorContent = buildEditorContent(nodeId, afterContent);
-  editor.chain().setContent(editorContent).run();
+  editor.commands.setContent(editorContent, { emitUpdate: false });
+  cancelPendingSave();
 
   const result = await window.colanode.executeMutation({
     type: 'document.update',
@@ -828,6 +842,7 @@ export const DocumentEditor = ({
           // only checked metaKey, so Ctrl+Z/Ctrl+Y did nothing on Windows/Linux.
           const mod = event.metaKey || event.ctrlKey;
           const flushPendingSave = () => debouncedSave.flush();
+          const cancelPendingSave = () => debouncedSave.cancel();
 
           if (event.key === 'z' && mod && !event.shiftKey) {
             event.preventDefault();
@@ -837,6 +852,7 @@ export const DocumentEditor = ({
               nodeId: node.id,
               userId: workspace.userId,
               flushPendingSave,
+              cancelPendingSave,
             });
             return true;
           }
@@ -848,6 +864,7 @@ export const DocumentEditor = ({
               nodeId: node.id,
               userId: workspace.userId,
               flushPendingSave,
+              cancelPendingSave,
             });
             return true;
           }
@@ -859,6 +876,7 @@ export const DocumentEditor = ({
               nodeId: node.id,
               userId: workspace.userId,
               flushPendingSave,
+              cancelPendingSave,
             });
             return true;
           }

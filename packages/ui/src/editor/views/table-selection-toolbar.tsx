@@ -3,7 +3,14 @@
 import { type Editor } from '@tiptap/core';
 import { CellSelection } from '@tiptap/pm/tables';
 import { useEditorState } from '@tiptap/react';
-import { AlignCenter, AlignLeft, AlignRight, Eraser } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Eraser,
+  Italic,
+} from 'lucide-react';
 import { type RefObject, useLayoutEffect, useState } from 'react';
 
 import { editorColors } from '@colanode/ui/lib/editor';
@@ -103,6 +110,23 @@ export const TableSelectionToolbar = ({
       <span className="px-1 text-xs tabular-nums text-muted-foreground">
         {info.count}
       </span>
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      <button
+        type="button"
+        className={iconButton}
+        title="Bold"
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      >
+        <Bold className="size-4" />
+      </button>
+      <button
+        type="button"
+        className={iconButton}
+        title="Italic"
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      >
+        <Italic className="size-4" />
+      </button>
       <div className="mx-0.5 h-4 w-px bg-border" />
       <button
         type="button"

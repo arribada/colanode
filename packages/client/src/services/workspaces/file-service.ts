@@ -556,8 +556,8 @@ export class FileService {
             fileId: fileId,
           });
 
-          const requeuedUrl = await this.app.fs.url(requeuedLocalFile.path);
-          const mappedLocalFile = mapLocalFile(requeuedLocalFile, requeuedUrl);
+          // Just re-queued, so nothing is downloaded yet (see above).
+          const mappedLocalFile = mapLocalFile(requeuedLocalFile, null);
           eventBus.publish({
             type: 'local.file.updated',
             workspace: {
@@ -572,7 +572,16 @@ export class FileService {
         }
       }
 
-      const url = await this.app.fs.url(updatedLocalFile.path);
+      // A download streams into this path: until it finishes, the file on
+      // disk is a prefix of the real one. Handing its address out anyway is
+      // what drew a picture with only its top band -- the browser decoded the
+      // rows it had, cached that, and kept showing it afterwards. Nobody gets
+      // an address until the bytes are all there; the callers already show a
+      // placeholder while the download runs.
+      const url =
+        updatedLocalFile.download_status === DownloadStatus.Completed
+          ? await this.app.fs.url(updatedLocalFile.path)
+          : null;
       return mapLocalFile(updatedLocalFile, url);
     }
 

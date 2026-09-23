@@ -55,6 +55,7 @@ export const EditorImageBlock = ({
   });
 
   const url = localFileQuery.data?.url ?? null;
+  const downloadProgress = localFileQuery.data?.downloadProgress ?? 0;
   const width =
     typeof node.attrs.width === 'number' && node.attrs.width > 0
       ? node.attrs.width
@@ -165,8 +166,20 @@ export const EditorImageBlock = ({
                 Couldn't load this image.
               </div>
             ) : (
-              <div className="flex h-40 w-full items-center justify-center bg-muted text-xs text-muted-foreground">
-                Loading image…
+              <div className="flex h-40 w-full flex-col items-center justify-center gap-2 bg-muted text-xs text-muted-foreground">
+                <span>Loading image…</span>
+                {downloadProgress > 0 && (
+                  <span
+                    className="h-1 w-24 overflow-hidden rounded-full bg-border"
+                    role="progressbar"
+                    aria-valuenow={downloadProgress}
+                  >
+                    <span
+                      className="block h-full bg-primary transition-all"
+                      style={{ width: `${downloadProgress}%` }}
+                    />
+                  </span>
+                )}
               </div>
             )}
           </Resizable>

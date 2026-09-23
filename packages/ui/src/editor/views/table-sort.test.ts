@@ -72,6 +72,7 @@ const schema = new Schema({
         align: { default: null },
         backgroundColor: { default: null },
         borderStyle: { default: null },
+        aggregate: { default: null },
       },
     }),
   },
@@ -130,6 +131,35 @@ describe('buildColumnSort', () => {
     // cursor no longer collapses to the document start.
     expect(state.selection).toBeInstanceOf(CellSelection);
     expect((state.selection as CellSelection).isColSelection()).toBe(true);
+  });
+
+  it('leaves a summary row under the data instead of sorting it in', () => {
+    const summaryCell = (text: string) =>
+      schema.nodes.table_cell!.create({ aggregate: 'sum' }, p(text));
+    // Its first cell would sort FIRST if the row were treated as data.
+    const original = doc(
+      table(
+        row(header('Name'), header('Qty')),
+        row(cell('banana'), cell('3')),
+        row(cell('apple'), cell('10')),
+        row(cell('cherry'), cell('2')),
+        row(cell('aaa total'), summaryCell('15'))
+      )
+    );
+    let state = stateOf(original);
+    const tp = tablePosOf(state.doc);
+
+    const { tr, result } = buildColumnSort(state, tp, 0, 'asc');
+    expect(result).toBe('sorted');
+    state = state.apply(tr!);
+
+    const sorted = state.doc.nodeAt(tp)!;
+    expect(sorted.child(1).child(0).textContent).toBe('apple');
+    expect(sorted.child(2).child(0).textContent).toBe('banana');
+    expect(sorted.child(3).child(0).textContent).toBe('cherry');
+    // The total is still the last row, whatever it holds.
+    expect(sorted.child(4).child(0).textContent).toBe('aaa total');
+    expect(sorted.child(4).child(1).attrs.aggregate).toBe('sum');
   });
 
   it('sorts numeric columns numerically and descending on request', () => {

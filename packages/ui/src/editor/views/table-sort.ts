@@ -88,6 +88,21 @@ const columnText = (row: PMNode, colIndex: number): string => {
 };
 
 // Build the transaction that sorts the table at `tablePos` by column `colIndex`.
+// A row holding a column summary (sum, average, count...) is not data: it is
+// the total under the data. Sorting used to carry it off into the middle of
+// the table, where it looked like a wrong value. Such rows are kept out of the
+// sort and put back underneath, in their original order.
+export const isSummaryRow = (row: PMNode): boolean => {
+  let summary = false;
+  row.forEach((cell) => {
+    const aggregate = cell.attrs.aggregate as string | null | undefined;
+    if (aggregate != null && aggregate !== 'none') {
+      summary = true;
+    }
+  });
+  return summary;
+};
+
 export const buildColumnSort = (
   state: EditorState,
   tablePos: number,
@@ -114,7 +129,9 @@ export const buildColumnSort = (
     headerCount++;
   }
   const headerRows = rows.slice(0, headerCount);
-  const bodyRows = rows.slice(headerCount);
+  const allBodyRows = rows.slice(headerCount);
+  const bodyRows = allBodyRows.filter((row) => !isSummaryRow(row));
+  const summaryRows = allBodyRows.filter((row) => isSummaryRow(row));
   if (bodyRows.length < 2) {
     return { tr: null, result: 'noop' };
   }
@@ -129,8 +146,11 @@ export const buildColumnSort = (
     return signed !== 0 ? signed : x.index - y.index; // stable
   });
 
-  const sorted = decorated.map((entry) => entry.row);
-  if (sorted.every((row, index) => row === bodyRows[index])) {
+  const sorted = [
+    ...decorated.map((entry) => entry.row),
+    ...summaryRows,
+  ];
+  if (sorted.every((row, index) => row === allBodyRows[index])) {
     return { tr: null, result: 'noop' };
   }
 

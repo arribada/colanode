@@ -3,6 +3,7 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { NodeSelection } from '@tiptap/pm/state';
 import { Editor } from '@tiptap/react';
 import {
+  Minus,
   Baseline,
   Check,
   ChevronRight,
@@ -49,6 +50,7 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
+import { DIVIDER_VARIANTS } from '@colanode/ui/editor/views/divider';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -451,6 +453,37 @@ export const ActionMenu = ({
   // blocks (lists, embeds, tables…) are left without the sub-menu.
   const canTurnInto = menuState.pmNode?.isTextblock ?? false;
 
+  // A quote or a callout holds its text in paragraphs of its own, so it is not
+  // a text block and the colour submenu passed it by -- there was no way to
+  // colour a quote from its handle. Its inner range takes marks just the same.
+  const canChangeColor =
+    canTurnInto ||
+    menuState.pmNode?.type.name === 'blockquote' ||
+    menuState.pmNode?.type.name === 'callout';
+
+  // A divider is two pixels tall: its style picker only appeared while the
+  // pointer stayed on the line itself, which is hard to hold. The handle menu
+  // carries it too.
+  const isDivider = menuState.pmNode?.type.name === 'divider';
+  const dividerVariant =
+    (menuState.pmNode?.attrs?.variant as string | undefined) ?? 'line';
+
+  const setDividerVariant = (variant: string) => {
+    if (menuState.pos === undefined) {
+      return;
+    }
+
+    const pos = menuState.pos;
+    editor
+      .chain()
+      .focus()
+      .command(({ tr }) => {
+        tr.setNodeAttribute(pos, 'variant', variant);
+        return true;
+      })
+      .run();
+  };
+
   // Reference embeds point at a backing node via attrs.id (not a block id), so
   // they cannot be duplicated by copying their serialized content (see
   // duplicateBlock). Hide the Duplicate action for these node types.
@@ -813,7 +846,41 @@ export const ActionMenu = ({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
-            {canTurnInto && (
+            {isDivider && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="flex items-center gap-2">
+                  <Minus className="size-4 text-muted-foreground" />
+                  Divider style
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-40">
+                  {DIVIDER_VARIANTS.map((variant) => (
+                    <DropdownMenuItem
+                      key={variant.key}
+                      onClick={() => setDividerVariant(variant.key)}
+                      className="flex items-center gap-3"
+                    >
+                      <span
+                        className={cn(
+                          'w-8',
+                          variant.key === 'thick'
+                            ? 'h-1 rounded-sm bg-foreground/70'
+                            : variant.key === 'dashed'
+                              ? 'border-t-2 border-dashed border-foreground/70'
+                              : variant.key === 'dotted'
+                                ? 'border-t-2 border-dotted border-foreground/70'
+                                : 'h-0.5 rounded-sm bg-foreground/60'
+                        )}
+                      />
+                      {variant.label}
+                      {dividerVariant === variant.key && (
+                        <Check className="ml-auto size-4" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            {canChangeColor && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="flex items-center gap-2">
                   <Palette className="size-4 text-muted-foreground" />

@@ -1,4 +1,5 @@
 import { EditorState } from '@tiptap/pm/state';
+import { CellSelection } from '@tiptap/pm/tables';
 import { Editor, isNodeSelection, useEditorState } from '@tiptap/react';
 import { BubbleMenu, type BubbleMenuProps } from '@tiptap/react/menus';
 import {
@@ -82,6 +83,20 @@ export const ToolbarMenu = (props: ToolbarMenuProps) => {
 
       if (isNodeSelection(selection)) {
         return false;
+      }
+
+      // Several table cells selected: the table's own toolbar is shown for
+      // that, right over the same place. Two bars on top of each other is
+      // what it looked like, so this one stands down -- the cell toolbar
+      // carries the text buttons that apply to a range of cells.
+      if (selection instanceof CellSelection) {
+        let cells = 0;
+        selection.forEachCell(() => {
+          cells++;
+        });
+        if (cells > 1) {
+          return false;
+        }
       }
 
       if (

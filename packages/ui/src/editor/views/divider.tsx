@@ -5,12 +5,15 @@ import { NodeViewWrapper } from '@tiptap/react';
 
 import { cn } from '@colanode/ui/lib/utils';
 
-const VARIANTS = [
+// Shared with the block handle's menu, which offers the same four styles.
+export const DIVIDER_VARIANTS = [
   { key: 'line', label: 'Thin' },
   { key: 'thick', label: 'Thick' },
   { key: 'dashed', label: 'Dashed' },
   { key: 'dotted', label: 'Dotted' },
 ] as const;
+
+const VARIANTS = DIVIDER_VARIANTS;
 
 const lineClass = (variant: string): string => {
   switch (variant) {
@@ -43,19 +46,32 @@ export const DividerNodeView = ({
   node,
   updateAttributes,
   editor,
+  selected,
 }: NodeViewProps) => {
   const variant = (node.attrs.variant as string) ?? 'line';
   const editable = editor.isEditable;
 
   return (
+    // The rule is two pixels tall, which is nothing to aim at: the block keeps
+    // its own spacing but reserves a band around the line, so pointing at it,
+    // clicking it and hovering it all work on something the size of a line of
+    // text. The picker also stays up while the block is selected.
     <NodeViewWrapper
       data-type="divider"
-      className="group/divider relative my-2"
+      className={cn(
+        'group/divider relative my-1 flex cursor-pointer items-center py-2',
+        selected && 'rounded-sm ring-2 ring-primary ring-offset-2'
+      )}
       contentEditable={false}
     >
       <div className={cn('w-full', lineClass(variant))} />
       {editable && (
-        <div className="absolute right-0 -top-3.5 z-10 hidden gap-0.5 rounded-md border bg-popover p-0.5 shadow-sm group-hover/divider:flex">
+        <div
+          className={cn(
+            'absolute right-0 -top-2 z-10 gap-0.5 rounded-md border bg-popover p-0.5 shadow-sm',
+            selected ? 'flex' : 'hidden group-hover/divider:flex'
+          )}
+        >
           {VARIANTS.map((v) => (
             <button
               key={v.key}
