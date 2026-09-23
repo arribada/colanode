@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { SelectNode } from '@colanode/client/databases';
 import { WorkspaceQueryHandlerBase } from '@colanode/client/handlers/queries/workspace-query-handler-base';
 import { mapNode } from '@colanode/client/lib';
+import { notTrashedSql } from '@colanode/client/lib/nodes';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib/types';
 import { RecordTemplateListQueryInput } from '@colanode/client/queries/records/record-template-list';
 import { Event } from '@colanode/client/types/events';
@@ -67,6 +68,7 @@ export class RecordTemplateListQueryHandler
       WHERE json_extract(n.attributes, '$.databaseId') = ${input.databaseId}
         AND n.type = 'record'
         AND json_extract(n.attributes, '$.isTemplate') = 1
+        AND ${sql.raw(notTrashedSql('n'))}
       ORDER BY json_extract(n.attributes, '$.name') ASC
     `.compile(workspace.database);
 

@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import { SelectNode } from '@colanode/client/databases';
 import { WorkspaceQueryHandlerBase } from '@colanode/client/handlers/queries/workspace-query-handler-base';
 import { mapNode } from '@colanode/client/lib';
+import { notTrashedSql } from '@colanode/client/lib/nodes';
 import { ChangeCheckResult, QueryHandler } from '@colanode/client/lib/types';
 import { PageTemplateListQueryInput } from '@colanode/client/queries/pages/page-template-list';
 import { Event } from '@colanode/client/types/events';
@@ -68,6 +69,7 @@ export class PageTemplateListQueryHandler
       WHERE n.parent_id = ${input.spaceId}
         AND n.type = 'page'
         AND json_extract(n.attributes, '$.isTemplate') = 1
+        AND ${sql.raw(notTrashedSql('n'))}
       ORDER BY json_extract(n.attributes, '$.name') ASC
     `.compile(workspace.database);
 
