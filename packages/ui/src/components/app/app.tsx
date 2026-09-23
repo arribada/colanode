@@ -5,6 +5,7 @@ import { DndProvider } from 'react-dnd';
 import { AppType } from '@colanode/client/types';
 import { AppErrorBoundary } from '@colanode/ui/components/app/app-error-boundary';
 import { AppProvider } from '@colanode/ui/components/app/app-provider';
+import { AppUpdateBanner } from '@colanode/ui/components/app/app-update';
 import { Toaster } from '@colanode/ui/components/ui/sonner';
 import { TooltipProvider } from '@colanode/ui/components/ui/tooltip';
 import { HTML5Backend } from '@colanode/ui/lib/dnd-backend';
@@ -26,6 +27,7 @@ export const App = ({ type }: AppProps) => {
         <DndProvider backend={HTML5Backend}>
           <TooltipProvider>
             <AppProvider type={type} />
+            <AppUpdateBanner type={type} />
           </TooltipProvider>
           <Toaster />
         </DndProvider>

@@ -68,6 +68,10 @@ registerRoute(
   ({ url, request }) =>
     url.origin === self.location.origin &&
     request.mode !== 'navigate' &&
+    // The app asks "/?__v=<now>" to read which build is being served; caching
+    // those would both answer with a stale build and fill the cache with one
+    // entry per check.
+    !url.searchParams.has('__v') &&
     !url.pathname.startsWith('/share-api') &&
     !url.pathname.startsWith('/api') &&
     !url.pathname.startsWith('/client'),
