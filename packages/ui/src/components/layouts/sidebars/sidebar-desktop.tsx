@@ -86,6 +86,7 @@ export const SidebarDesktop = () => {
       <Sidebar
         collapsed={isCollapsed}
         onToggleCollapsed={() => setCollapsed(!isCollapsed)}
+        onExpand={() => setCollapsed(false)}
       />
     </Resizable>
   );

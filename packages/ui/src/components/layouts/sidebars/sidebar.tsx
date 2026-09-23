@@ -14,11 +14,13 @@ import { cn } from '@colanode/ui/lib/utils';
 interface SidebarProps {
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  onExpand?: () => void;
 }
 
 export const Sidebar = ({
   collapsed = false,
   onToggleCollapsed,
+  onExpand,
 }: SidebarProps) => {
   const app = useApp();
   const workspace = useWorkspace();
@@ -29,6 +31,17 @@ export const Sidebar = ({
   // the sidebar never shows a panel that no longer has a menu entry.
   const menu = selectedMenu === 'chats' && !showChat ? 'spaces' : selectedMenu;
 
+  // Asking for a panel is asking to see it: clicking spaces, chats, the inbox
+  // or the settings while the sidebar is collapsed used to change which panel
+  // was selected behind a rail that stayed shut, so the click did nothing at
+  // all. It opens the sidebar on the panel asked for.
+  const openMenu = (value: SidebarMenuType) => {
+    setMenu(value);
+    if (collapsed) {
+      onExpand?.();
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -38,7 +51,7 @@ export const Sidebar = ({
     >
       <SidebarMenu
         value={menu}
-        onChange={setMenu}
+        onChange={openMenu}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
       />

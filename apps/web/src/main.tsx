@@ -159,6 +159,9 @@ const initializeApp = async () => {
     showItemInFolder: async () => {
       // No-op on web
     },
+    // The web app sends the whole tab to the identity provider and comes back
+    // on the callback route; only the desktop app needs a window of its own.
+    openOidcLogin: async () => ({ error: 'unsupported' }),
     showFileSaveDialog: async () => undefined,
     push: {
       enable: (userId, vapidPublicKey) =>
