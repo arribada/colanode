@@ -74,16 +74,17 @@ export class SyncService {
   // promoted to priority -- the moment that node arrives via sync.
   private pendingPriorityNodeId: string | null = null;
 
+  // Roots being handed over as document states. Their document stream holds
+  // off until that is done, so the two never fetch the same thing at once.
+  private readonly bootstrappingRoots: Set<string> = new Set();
+
   private userSynchronizer: Synchronizer<SyncUsersInput> | undefined;
   private collaborationSynchronizer:
-    | Synchronizer<SyncCollaborationsInput>
-    | undefined;
+    Synchronizer<SyncCollaborationsInput> | undefined;
   private notificationSynchronizer:
-    | Synchronizer<SyncNotificationsInput>
-    | undefined;
+    Synchronizer<SyncNotificationsInput> | undefined;
   private notificationMuteSynchronizer:
-    | Synchronizer<SyncNotificationMutesInput>
-    | undefined;
+    Synchronizer<SyncNotificationMutesInput> | undefined;
 
   constructor(workspaceService: WorkspaceService) {
     this.workspace = workspaceService;
@@ -109,10 +110,9 @@ export class SyncService {
       documentUpdates: this.workspace.documents.syncServerDocumentUpdate.bind(
         this.workspace.documents
       ),
-      notifications:
-        this.workspace.notifications.syncServerNotification.bind(
-          this.workspace.notifications
-        ),
+      notifications: this.workspace.notifications.syncServerNotification.bind(
+        this.workspace.notifications
+      ),
       notificationMutes:
         this.workspace.notificationMutes.syncServerNotificationMute.bind(
           this.workspace.notificationMutes
@@ -259,6 +259,17 @@ export class SyncService {
     // priority, this root holds its pulls (bounded by PRIORITY_WINDOW_MS).
     const canPull = () => this.canSyncRoot(rootId);
 
+    // The documents of a space are handed over as states on a first sync (see
+    // bootstrapRoot); until that finishes, its stream would replay the very
+    // log the hand-over exists to avoid.
+    const needsBootstrap = await this.needsDocumentBootstrap(rootId);
+    if (needsBootstrap) {
+      this.bootstrappingRoots.add(rootId);
+    }
+
+    const canPullDocuments = () =>
+      canPull() && !this.bootstrappingRoots.has(rootId);
+
     const rootSynchronizers = {
       nodeUpdates: new Synchronizer(
         this.workspace,
@@ -295,7 +306,7 @@ export class SyncService {
         { type: 'document.updates', rootId },
         `${rootId}.document.updates`,
         this.syncHandlers.documentUpdates,
-        canPull,
+        canPullDocuments,
         true
       ),
     };
@@ -306,6 +317,48 @@ export class SyncService {
         synchronizer.init()
       )
     );
+
+    if (needsBootstrap) {
+      // Deliberately not awaited: the other spaces, and everything else this
+      // workspace syncs, carry on while this one is handed over.
+      void this.bootstrapDocuments(rootId, rootSynchronizers.documentUpdates);
+    }
+  }
+
+  /**
+   * True when this root's document stream has never run. The hand-over only
+   * replaces a FIRST sync; a client that is merely behind resumes normally.
+   */
+  private async needsDocumentBootstrap(rootId: string): Promise<boolean> {
+    try {
+      const cursor = await this.workspace.database
+        .selectFrom('cursors')
+        .select('value')
+        .where('key', '=', `${rootId}.document.updates`)
+        .executeTakeFirst();
+
+      return !cursor || cursor.value === '0';
+    } catch (error) {
+      debug(`Error reading the document cursor of root ${rootId}: ${error}`);
+      return false;
+    }
+  }
+
+  private async bootstrapDocuments(
+    rootId: string,
+    synchronizer: Synchronizer<SyncDocumentUpdatesInput>
+  ): Promise<void> {
+    try {
+      const revision = await this.workspace.documents.bootstrapRoot(rootId);
+      if (revision) {
+        await synchronizer.setCursor(revision);
+      }
+    } finally {
+      // Whatever happened, the stream takes over from here: on success from
+      // the revision above, otherwise from where it already was.
+      this.bootstrappingRoots.delete(rootId);
+      synchronizer.pull();
+    }
   }
 
   private removeRootSynchronizers(rootId: string): void {

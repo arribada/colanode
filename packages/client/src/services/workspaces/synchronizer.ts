@@ -179,10 +179,7 @@ export class Synchronizer<TInput extends SynchronizerInput> {
         // restart the same slow batch from scratch next time. Not while
         // healing: a heal re-pulls below the saved cursor, and saving there
         // would move the persisted cursor backwards.
-        if (
-          !this.healing &&
-          processedCount % CURSOR_SAVE_INTERVAL === 0
-        ) {
+        if (!this.healing && processedCount % CURSOR_SAVE_INTERVAL === 0) {
           this.cursor = lastCursor;
           await this.saveCursor(lastCursor);
         }
@@ -226,6 +223,17 @@ export class Synchronizer<TInput extends SynchronizerInput> {
    */
   public pull() {
     this.initConsumer();
+  }
+
+  /**
+   * Move this synchronizer to a cursor obtained some other way, in memory and
+   * on disk. Used once after a space has been handed over as document states:
+   * everything up to that revision is already applied, so the stream resumes
+   * from there instead of replaying the whole log.
+   */
+  public async setCursor(cursor: string) {
+    this.cursor = cursor;
+    await this.saveCursor(cursor);
   }
 
   private initConsumer() {

@@ -34,6 +34,12 @@ const UPDATE_RETRIES_LIMIT = 10;
 
 const debug = createDebugger('desktop:service:document');
 
+interface DocumentStatesPage {
+  revision: string;
+  items: SyncDocumentUpdateData[];
+  next: string | null;
+}
+
 export class DocumentService {
   private readonly workspace: WorkspaceService;
 
@@ -661,6 +667,87 @@ export class DocumentService {
     }
 
     return true;
+  }
+
+  /**
+   * First sync of a space: fetch one state per document instead of replaying
+   * its whole update log. Yjs keeps deleted content in the log, so the log is
+   * about twice the size of the state the client ends up holding anyway -- on
+   * this wiki 66.9 MB against 32.8 MB, which a phone pays on every visit since
+   * mobile browsers drop the local database between visits.
+   *
+   * Returns the revision the stream should resume from, or null when there is
+   * nothing to do or the hand-over could not be completed -- in which case the
+   * caller simply leaves the normal stream to do the work, as before.
+   *
+   * Progress is remembered, so a phone that is interrupted halfway does not
+   * start the space again from the beginning.
+   */
+  public async bootstrapRoot(rootId: string): Promise<string | null> {
+    const progressKey = `${rootId}.document.bootstrap`;
+
+    try {
+      const progressRow = await this.workspace.database
+        .selectFrom('cursors')
+        .select('value')
+        .where('key', '=', progressKey)
+        .executeTakeFirst();
+
+      // "<revision>|<last document id>": the revision is the one read when the
+      // hand-over started, so an interrupted run resumes with the same one.
+      const progress = progressRow?.value?.split('|') ?? [];
+      let revision: string | null = progress[0] ?? null;
+      let after: string | null = progress[1] ?? null;
+
+      for (;;) {
+        const page = await this.workspace.account.client
+          .get(
+            `v1/workspaces/${this.workspace.workspaceId}/nodes/${rootId}/documents`,
+            after ? { searchParams: { after } } : undefined
+          )
+          .json<DocumentStatesPage>();
+
+        revision = revision ?? page.revision;
+
+        for (const item of page.items) {
+          await this.syncServerDocumentUpdate(item);
+        }
+
+        if (!page.next) {
+          break;
+        }
+
+        after = page.next;
+        await this.saveBootstrapProgress(progressKey, `${revision}|${after}`);
+      }
+
+      await this.workspace.database
+        .deleteFrom('cursors')
+        .where('key', '=', progressKey)
+        .execute();
+
+      return revision;
+    } catch (error) {
+      debug(`Failed to bootstrap documents of root ${rootId}: ${error}`);
+      return null;
+    }
+  }
+
+  private async saveBootstrapProgress(key: string, value: string) {
+    await this.workspace.database
+      .insertInto('cursors')
+      .values({
+        key,
+        value,
+        created_at: new Date().toISOString(),
+      })
+      .onConflict((cb) =>
+        cb.column('key').doUpdateSet({
+          value,
+          updated_at: new Date().toISOString(),
+        })
+      )
+      .execute();
   }
 
   public async syncServerDocumentUpdate(data: SyncDocumentUpdateData) {
