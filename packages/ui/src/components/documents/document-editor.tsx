@@ -1,7 +1,5 @@
 import '@colanode/ui/styles/editor.css';
 
-
-
 import { useRouter } from '@tanstack/react-router';
 import {
   EditorContent,
@@ -242,9 +240,8 @@ const resolveMarkdownLink = async (
     });
     const matches = pages.filter(
       (page) =>
-        slugifyLinkTarget(
-          (page as { name?: string | null }).name ?? ''
-        ) === slug
+        slugifyLinkTarget((page as { name?: string | null }).name ?? '') ===
+        slug
     );
     const chosen =
       matches.find((page) => page.parentId === parentId) ??
@@ -500,7 +497,18 @@ export const DocumentEditor = ({
 
   const debouncedSave = useMemo(
     () =>
-      debounce(async (content: JSONContent) => {
+      // No argument: the content is read HERE, when the save actually runs.
+      // Taking it as an argument meant editor.getJSON() -- a copy of the whole
+      // document -- was built on every keystroke and thrown away 499 times out
+      // of 500. On a page of a few hundred blocks that allocation alone drove
+      // the garbage collector into 300 ms pauses in the middle of typing.
+      debounce(async () => {
+        const editor = editorRef.current;
+        if (!editor || editor.isDestroyed) {
+          return;
+        }
+
+        const content: JSONContent = editor.getJSON();
         const beforeContent = ydocRef.current.getObject<RichTextContent>();
         const beforeBlocks = beforeContent?.blocks;
         const indexMap = new Map<string, string>();
@@ -772,8 +780,8 @@ export const DocumentEditor = ({
             NumberHeadingsCommand,
             NumberHeadingsFlatCommand,
             CreateAdrCommand,
-  MeetingNotesCommand,
-  SpecCommand,
+            MeetingNotesCommand,
+            SpecCommand,
             BulletListCommand,
             CodeBlockCommand,
             OrderedListCommand,
@@ -895,7 +903,7 @@ export const DocumentEditor = ({
       onUpdate: async ({ editor, transaction }) => {
         if (transaction.docChanged) {
           hasPendingChanges.current = true;
-          debouncedSave(editor.getJSON());
+          debouncedSave();
         }
       },
     },
@@ -978,6 +986,9 @@ export const DocumentEditor = ({
       },
     });
 
+    // getText() walks the entire document. Running it on every update meant a
+    // full walk per keystroke, for a number in the footer that nobody reads
+    // while typing.
     const recount = () => {
       // TipTap destroys an editor whose mount effect has not run within a
       // millisecond, leaving a null schema: getText then threw, and the
@@ -992,11 +1003,14 @@ export const DocumentEditor = ({
         // Leave the previous count.
       }
     };
+    const debouncedRecount = debounce(recount, 600);
+
     recount();
-    editor.on('update', recount);
+    editor.on('update', debouncedRecount);
 
     return () => {
-      editor.off('update', recount);
+      editor.off('update', debouncedRecount);
+      debouncedRecount.cancel();
       unregister();
     };
   }, [editor, node.id]);
@@ -1096,110 +1110,108 @@ export const DocumentEditor = ({
       return;
     }
     try {
-    const databaseId = generateId(IdType.Database);
-    const viewId = generateId(IdType.DatabaseView);
+      const databaseId = generateId(IdType.Database);
+      const viewId = generateId(IdType.DatabaseView);
 
-    const fields: LocalDatabaseNode['fields'] = {};
-    let previousIndex: string | null = null;
-    for (const property of values.properties) {
-      const fieldId = generateId(IdType.Field);
-      const index = generateFractionalIndex(previousIndex, null);
-      previousIndex = index;
-      const base = {
-        id: fieldId,
-        type: property.type,
-        index,
-        name: property.name,
-      };
-      if (property.type === 'relation') {
-        fields[fieldId] = {
-          ...base,
-          databaseId: property.relationDatabaseId ?? null,
-        } as LocalDatabaseNode['fields'][string];
-      } else if (
-        (property.type === 'select' || property.type === 'multi_select') &&
-        property.options &&
-        property.options.length > 0
-      ) {
-        const options: Record<string, unknown> = {};
-        let optionIndex: string | null = null;
-        for (const label of property.options) {
-          const optionId = generateId(IdType.SelectOption);
-          const optIdx = generateFractionalIndex(optionIndex, null);
-          optionIndex = optIdx;
-          options[optionId] = {
-            id: optionId,
-            name: label,
-            color: getRandomSelectOptionColor(),
-            index: optIdx,
-          };
+      const fields: LocalDatabaseNode['fields'] = {};
+      let previousIndex: string | null = null;
+      for (const property of values.properties) {
+        const fieldId = generateId(IdType.Field);
+        const index = generateFractionalIndex(previousIndex, null);
+        previousIndex = index;
+        const base = {
+          id: fieldId,
+          type: property.type,
+          index,
+          name: property.name,
+        };
+        if (property.type === 'relation') {
+          fields[fieldId] = {
+            ...base,
+            databaseId: property.relationDatabaseId ?? null,
+          } as LocalDatabaseNode['fields'][string];
+        } else if (
+          (property.type === 'select' || property.type === 'multi_select') &&
+          property.options &&
+          property.options.length > 0
+        ) {
+          const options: Record<string, unknown> = {};
+          let optionIndex: string | null = null;
+          for (const label of property.options) {
+            const optionId = generateId(IdType.SelectOption);
+            const optIdx = generateFractionalIndex(optionIndex, null);
+            optionIndex = optIdx;
+            options[optionId] = {
+              id: optionId,
+              name: label,
+              color: getRandomSelectOptionColor(),
+              index: optIdx,
+            };
+          }
+          fields[fieldId] = {
+            ...base,
+            options,
+          } as LocalDatabaseNode['fields'][string];
+        } else {
+          fields[fieldId] = base as LocalDatabaseNode['fields'][string];
         }
-        fields[fieldId] = {
-          ...base,
-          options,
-        } as LocalDatabaseNode['fields'][string];
-      } else {
-        fields[fieldId] = base as LocalDatabaseNode['fields'][string];
       }
-    }
 
-    const database: LocalDatabaseNode = {
-      id: databaseId,
-      type: 'database',
-      name: values.name,
-      // Parent the database to the SPACE (rootId), not the page/document: a
-      // database under a page node is a parent relationship the role/sync
-      // resolution chokes on, which left the fresh embed stuck on 'still
-      // downloading' (the whiteboard embed hit + fixed the same thing). The
-      // embed only references it by id, so the space is the right parent.
-      parentId: node.rootId,
-      fields,
-      rootId: node.rootId,
-      createdAt: new Date().toISOString(),
-      createdBy: workspace.userId,
-      updatedAt: null,
-      updatedBy: null,
-      localRevision: '0',
-      serverRevision: '0',
-    };
-
-    const view: LocalDatabaseViewNode = {
-      id: viewId,
-      type: 'database_view',
-      name: 'Default',
-      index: generateFractionalIndex(null, null),
-      layout: 'table',
-      parentId: databaseId,
-      rootId: databaseId,
-      createdAt: new Date().toISOString(),
-      createdBy: workspace.userId,
-      updatedAt: null,
-      updatedBy: null,
-      localRevision: '0',
-      serverRevision: '0',
-    };
-
-    workspace.collections.nodes.insert([database, view]);
-    const insertPos = inlineDbInsertPosRef.current;
-    const chain = activeEditor.chain().focus();
-    if (insertPos != null) {
-      chain.insertContentAt(insertPos, {
+      const database: LocalDatabaseNode = {
+        id: databaseId,
         type: 'database',
-        attrs: { id: databaseId, inline: true },
-      });
-    } else {
-      chain.insertContent({
-        type: 'database',
-        attrs: { id: databaseId, inline: true },
-      });
-    }
-    chain.run();
-    inlineDbInsertPosRef.current = null;
+        name: values.name,
+        // Parent the database to the SPACE (rootId), not the page/document: a
+        // database under a page node is a parent relationship the role/sync
+        // resolution chokes on, which left the fresh embed stuck on 'still
+        // downloading' (the whiteboard embed hit + fixed the same thing). The
+        // embed only references it by id, so the space is the right parent.
+        parentId: node.rootId,
+        fields,
+        rootId: node.rootId,
+        createdAt: new Date().toISOString(),
+        createdBy: workspace.userId,
+        updatedAt: null,
+        updatedBy: null,
+        localRevision: '0',
+        serverRevision: '0',
+      };
+
+      const view: LocalDatabaseViewNode = {
+        id: viewId,
+        type: 'database_view',
+        name: 'Default',
+        index: generateFractionalIndex(null, null),
+        layout: 'table',
+        parentId: databaseId,
+        rootId: databaseId,
+        createdAt: new Date().toISOString(),
+        createdBy: workspace.userId,
+        updatedAt: null,
+        updatedBy: null,
+        localRevision: '0',
+        serverRevision: '0',
+      };
+
+      workspace.collections.nodes.insert([database, view]);
+      const insertPos = inlineDbInsertPosRef.current;
+      const chain = activeEditor.chain().focus();
+      if (insertPos != null) {
+        chain.insertContentAt(insertPos, {
+          type: 'database',
+          attrs: { id: databaseId, inline: true },
+        });
+      } else {
+        chain.insertContent({
+          type: 'database',
+          attrs: { id: databaseId, inline: true },
+        });
+      }
+      chain.run();
+      inlineDbInsertPosRef.current = null;
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Could not create the database'
+        error instanceof Error ? error.message : 'Could not create the database'
       );
     }
   };
@@ -1218,9 +1230,7 @@ export const DocumentEditor = ({
             userId={workspace.userId}
             pageId={node.id}
             onAddComment={
-              isPage
-                ? (threadId) => openComments(node.id, threadId)
-                : undefined
+              isPage ? (threadId) => openComments(node.id, threadId) : undefined
             }
             onSuggestEdit={
               supportsLock

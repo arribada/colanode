@@ -16,7 +16,12 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalNode, LocalPageNode } from '@colanode/client/types';
-import { extractNodeRole, generateId, hasNodeRole, IdType } from '@colanode/core';
+import {
+  extractNodeRole,
+  generateId,
+  hasNodeRole,
+  IdType,
+} from '@colanode/core';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
 import { SidebarDropIndicator } from '@colanode/ui/components/layouts/sidebars/sidebar-drop-indicator';
 import {
@@ -94,6 +99,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const { mutate: duplicatePage, isPending: isDuplicating } = useMutation();
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rowHovered, setRowHovered] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -130,7 +136,10 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
     nameEmoji ? (
       <span
         aria-hidden
-        className={cn('flex items-center justify-center leading-none', className)}
+        className={cn(
+          'flex items-center justify-center leading-none',
+          className
+        )}
         style={{ fontSize: 13 }}
       >
         {nameEmoji}
@@ -248,6 +257,8 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
               the toggle is no longer a <button> nested in an <a>. */}
           <div
             ref={ref}
+            onPointerEnter={() => setRowHovered(true)}
+            onPointerLeave={() => setRowHovered(false)}
             className={cn(
               'group/page-row relative text-sm flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer',
               // Active row: the child Link carries aria-current on its route, and
@@ -306,14 +317,16 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
               </Link>
             )}
             {/* Hover actions, siblings of the Link so a click never navigates.
-                Kept visible while the "…" menu is open. Hidden during rename. */}
-            {!isRenaming && (
-              <div
-                className={cn(
-                  'shrink-0 items-center gap-0.5',
-                  menuOpen ? 'flex' : 'hidden group-hover/page-row:flex'
-                )}
-              >
+                Kept visible while the "…" menu is open. Hidden during rename.
+
+                Mounted on hover rather than merely hidden with CSS. The "…"
+                menu is a Radix menu, and a Radix menu root attaches two
+                document listeners on EVERY keydown for as long as it is
+                mounted. With one per sidebar row that was a few hundred
+                listener registrations per keystroke, on every page, whether or
+                not a menu was ever opened. */}
+            {!isRenaming && (rowHovered || menuOpen) && (
+              <div className="flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
                   aria-label="Create subpage"
@@ -468,7 +481,11 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
         </CollapsibleContent>
       )}
       {moveOpen && (
-        <PageMoveDialog page={page} open={moveOpen} onOpenChange={setMoveOpen} />
+        <PageMoveDialog
+          page={page}
+          open={moveOpen}
+          onOpenChange={setMoveOpen}
+        />
       )}
       {transferOpen && (
         <PageTransferDialog
