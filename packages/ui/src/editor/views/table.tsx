@@ -12,10 +12,6 @@ import {
   TooltipContent,
 } from '@colanode/ui/components/ui/tooltip';
 import { defaultClasses } from '@colanode/ui/editor/classes';
-import {
-  armTable,
-  TABLE_HOST_ATTRIBUTE,
-} from '@colanode/ui/editor/views/table-armed';
 import { TableHandles } from '@colanode/ui/editor/views/table-handles';
 import { TableSelectionToolbar } from '@colanode/ui/editor/views/table-selection-toolbar';
 
@@ -169,17 +165,11 @@ export const TableNodeView = ({
   return (
     <NodeViewWrapper
       ref={wrapperRef}
-      // Marks this node view as the table its cells belong to, and arms them:
-      // a cell mounts its context menu only once the pointer has been here.
-      {...{ [TABLE_HOST_ATTRIBUTE]: '' }}
       // Wider than the page on desktop the wrapper grows with the table
       // (md:w-max), so its "+" column button and handles follow the real right
       // edge. On mobile it stays clamped and the table scrolls in its own box.
       className="relative pl-4 pr-4 pb-4 pt-4 w-fit max-w-full md:w-max md:max-w-none"
-      onMouseEnter={(event: React.MouseEvent) => {
-        armTable(wrapperRef.current);
-        handleMouseEnter(event);
-      }}
+      onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
