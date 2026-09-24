@@ -2,9 +2,11 @@
 // ABOUTME: applies the layout plans: image sizes and pages, compact or landscape tables.
 import {
   columnPercentages,
+  fitsOnOnePage,
   ImageFit,
   planImagePrint,
   planTablePrint,
+  PRINT_AREA,
   tableFitScale,
 } from '@colanode/ui/lib/print-layout';
 
@@ -120,6 +122,18 @@ const layoutTables = (doc: Document) => {
       if (scale < 1) {
         table.style.zoom = String(scale);
       }
+
+      // Measured last, with the placement and the scale already applied: a
+      // table that fits on a page is told not to break, so it moves to the
+      // next page whole instead of leaving two rows behind.
+      const landscape =
+        placement === 'landscape' || placement === 'landscape-compact';
+      const height =
+        table.getBoundingClientRect().height * (scale < 1 ? scale : 1);
+      if (fitsOnOnePage(height, landscape ? 'landscape' : 'portrait')) {
+        table.classList.add('print-table-whole');
+        topLevelBlock(table).classList.add('print-table-whole');
+      }
     });
 };
 
@@ -180,7 +194,40 @@ const layoutImages = (doc: Document, fit: ImageFit) => {
     } else if (plan.placement === 'portrait-page') {
       block.classList.add('print-portrait-page', 'print-own-page');
     }
+
+    // "Do not break inside" is ignored on anything taller than the page, and
+    // the picture gets cut in half across two sheets. If the block with its
+    // caption is taller than a page, the picture is brought down until the
+    // whole thing fits on one.
+    const pageHeight =
+      plan.placement === 'landscape-page'
+        ? PRINT_AREA.landscape.height
+        : PRINT_AREA.portrait.height;
+    const blockHeight = block.getBoundingClientRect().height;
+    if (blockHeight > pageHeight && blockHeight > 0) {
+      const shrink = (pageHeight * 0.94) / blockHeight;
+      const width = Math.floor(plan.width * shrink);
+      if (width > 0) {
+        img.style.width = `${width}px`;
+        block.querySelectorAll<HTMLElement>('figcaption').forEach((caption) => {
+          caption.style.width = `${width}px`;
+        });
+      }
+    }
   });
+};
+
+// A contents that runs past its page leaves two half-empty pages. Measured,
+// and run in two columns when it does not fit in one.
+const layoutToc = (doc: Document) => {
+  const toc = doc.querySelector<HTMLElement>('.toc');
+  if (!toc) {
+    return;
+  }
+
+  if (toc.getBoundingClientRect().height > PRINT_AREA.portrait.height) {
+    toc.classList.add('toc-dense');
+  }
 };
 
 /**
@@ -194,4 +241,5 @@ export const applyPrintLayout = (
 ): void => {
   layoutTables(doc);
   layoutImages(doc, options?.imageFit ?? 'auto');
+  layoutToc(doc);
 };

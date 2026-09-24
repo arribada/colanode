@@ -223,6 +223,23 @@ export const planTablePrint = ({
   return 'landscape-compact';
 };
 
+/**
+ * Does a block of this height fit on one page of the orientation it was given?
+ * A little is taken off the page to allow for what sits above it: a heading,
+ * the paragraph it follows. A table or a picture that fits is kept whole; one
+ * that does not still has to break, or it would run off the paper.
+ */
+export const fitsOnOnePage = (
+  heightPx: number,
+  placement: 'portrait' | 'landscape'
+): boolean => {
+  const page =
+    placement === 'landscape'
+      ? PRINT_AREA.landscape.height
+      : PRINT_AREA.portrait.height;
+  return heightPx > 0 && heightPx <= page * 0.9;
+};
+
 export interface VersionLogEntry {
   version: string;
   at: string;

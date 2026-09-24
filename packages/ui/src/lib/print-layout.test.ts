@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDocumentLink,
   buildRevisionRows,
+  fitsOnOnePage,
   DEFAULT_FIRST_VERSION,
   planImagePrint,
   planTablePrint,
@@ -182,6 +183,31 @@ describe('planTablePrint', () => {
         compactMinWidth: landscape + 50,
       })
     ).toBe('landscape-compact');
+  });
+});
+
+describe('fitsOnOnePage', () => {
+  it('keeps a block that fits inside the page, with room above it', () => {
+    expect(fitsOnOnePage(PRINT_AREA.portrait.height * 0.5, 'portrait')).toBe(
+      true
+    );
+  });
+
+  it('refuses a block as tall as the page, which has to break somewhere', () => {
+    expect(fitsOnOnePage(PRINT_AREA.portrait.height, 'portrait')).toBe(false);
+  });
+
+  it('measures a landscape block against the landscape page', () => {
+    const height = PRINT_AREA.landscape.height * 0.8;
+    expect(fitsOnOnePage(height, 'landscape')).toBe(true);
+    expect(fitsOnOnePage(height, 'portrait')).toBe(true);
+    const tall = PRINT_AREA.portrait.height * 0.8;
+    expect(fitsOnOnePage(tall, 'landscape')).toBe(false);
+  });
+
+  it('refuses a height it cannot measure', () => {
+    expect(fitsOnOnePage(0, 'portrait')).toBe(false);
+    expect(fitsOnOnePage(-10, 'portrait')).toBe(false);
   });
 });
 

@@ -59,7 +59,9 @@ const sanitizeForExport = (html: string): string => {
     callout
       .querySelectorAll('[aria-label="Change callout color"]')
       .forEach((el) => el.remove());
-    const pickers = callout.querySelectorAll('[aria-label="Change callout icon"]');
+    const pickers = callout.querySelectorAll(
+      '[aria-label="Change callout icon"]'
+    );
     pickers.forEach((picker) => {
       const icon = doc.createElement('span');
       icon.className = 'print-callout-icon';
@@ -114,7 +116,9 @@ const sanitizeForExport = (html: string): string => {
     table.style.removeProperty('min-width');
     table.style.removeProperty('width');
   });
-  body.querySelectorAll('col').forEach((col) => col.style.removeProperty('width'));
+  body
+    .querySelectorAll('col')
+    .forEach((col) => col.style.removeProperty('width'));
 
   // Nothing interactive belongs on paper: row and column grips, copy buttons,
   // embed toolbars. Last, so the callout icon has already left its button.
@@ -170,7 +174,10 @@ export const extractMentionTargets = (html: string): string[] => {
 const injectHeadingIds = (
   html: string,
   prefix: string
-): { html: string; headings: { id: string; text: string; level: number }[] } => {
+): {
+  html: string;
+  headings: { id: string; text: string; level: number }[];
+} => {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const headings: { id: string; text: string; level: number }[] = [];
   doc.querySelectorAll('h1, h2, h3, h4, h5').forEach((el, i) => {
@@ -314,9 +321,7 @@ export const assemblePrintHtml = (params: {
         `<div class="cover-body">` +
         `<h1 class="cover-title">${escapeHtml(documentTitle)}</h1>` +
         `<div class="cover-rule"></div>` +
-        (version
-          ? `<p class="cover-version">${escapeHtml(version)}</p>`
-          : '') +
+        (version ? `<p class="cover-version">${escapeHtml(version)}</p>` : '') +
         (meta ? `<p class="cover-meta">${meta}</p>` : '') +
         `</div></section>`
     );
@@ -375,18 +380,20 @@ const PAGE_NUMBER = `content: counter(page) " / " counter(pages); font: 9pt ui-s
 
 // Print CSS layered on top of the base print stylesheet and the app's own.
 //
-// Page margins: top and bottom are ZERO and the space is page PADDING instead.
-// Chrome's print dialog only offers its "Headers and footers" (the date, the
-// title, the URL) when the document leaves a top or bottom margin to draw them
-// in, so this is what keeps them off. The page number lives in the right-hand
-// margin box, which still has room.
+// The vertical space used to be written as page PADDING, with the margins at
+// zero, to deny Chrome the room it needs to draw its own header and footer
+// (the date, the title, the URL). Chrome does not implement padding on @page,
+// so what that actually produced was no top space at all: the text started at
+// the very edge of the paper. The margin is real now, on all four sides, and
+// the page number keeps its margin box. If Chrome's own header and footer
+// appear, untick "Headers and footers" in its print dialog.
 export const PRINT_EXPORT_CSS = `
-  @page { size: A4 portrait; margin: 0 16mm; padding: 16mm 0;
-    @right-bottom { ${PAGE_NUMBER} padding-bottom: 8mm; } }
+  @page { size: A4 portrait; margin: 16mm;
+    @right-bottom { ${PAGE_NUMBER} padding-bottom: 6mm; } }
   @page :first { @right-bottom { content: none; } }
   /* Same 16 mm as portrait: a page that turns must not move the text block. */
-  @page landscapePage { size: A4 landscape; margin: 0 16mm; padding: 16mm 0;
-    @right-bottom { ${PAGE_NUMBER} padding-bottom: 8mm; } }
+  @page landscapePage { size: A4 landscape; margin: 16mm;
+    @right-bottom { ${PAGE_NUMBER} padding-bottom: 6mm; } }
 
   /* Backgrounds are part of the design (callouts, covers, table headers):
      print them even with the dialog's "Background graphics" unticked. */
@@ -424,7 +431,12 @@ export const PRINT_EXPORT_CSS = `
 
   .toc { break-after: page; }
   .toc ul { list-style: none; padding: 0; margin: 0; }
-  .toc-row { padding: 4px 0; border-bottom: 1px dotted #e5e7eb; }
+  .toc-row { padding: 2px 0; font-size: 12px; border-bottom: 1px dotted #e5e7eb; }
+  /* A long contents ran onto a second page and left both half empty. Past the
+     point where it no longer fits, it runs in two columns instead. */
+  .toc-dense ul { columns: 2; column-gap: 10mm; }
+  .toc-dense .toc-row { break-inside: avoid; }
+  .toc-dense .toc-row { padding: 1px 0; font-size: 11px; }
   .toc-row a { color: #111827; text-decoration: none; }
   .toc-appendix { margin-top: 6px; }
   .toc-tag { color: #9ca3af; font-size: 0.85em; }
@@ -452,18 +464,33 @@ export const PRINT_EXPORT_CSS = `
   /* Headings keep their text with what follows. */
   .print-body h1, .print-body h2, .print-body h3, .print-body h4, .print-body h5 { break-after: avoid; }
 
-  /* Tables: headers repeat, rows stay whole, text wraps at word boundaries. */
+  /* Tables: headers repeat, rows stay whole, text wraps at word boundaries.
+     A table that fits on one page is marked by the layout pass and kept
+     whole; one that cannot fit still breaks, because the alternative is
+     losing it off the end of the paper. */
   table { break-inside: auto; }
+  .print-table-whole { break-inside: avoid; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
   td, th { overflow-wrap: break-word; word-break: normal; }
   [class*="overflow-"], [style*="overflow"] { overflow: visible !important; max-height: none !important; }
+  /* A cell's border is drawn by a wrapper inside the <td>, by the app's own
+     "border" class, whose colour is a theme variable. Anything that leaves
+     that variable unresolved in the print document prints a border with no
+     colour, which is the missing line. A colour is stated here; a cell with a
+     border of its own carries it inline and still wins. */
+  .print-body table td > div, .print-body table th > div { border-color: #cbd5e1; }
+  .print-body table td, .print-body table th { border-color: #cbd5e1; }
+
   table.print-table-compact { font-size: 10px; }
   table.print-table-compact td, table.print-table-compact th { padding: 3px 5px !important; }
 
   /* Images: centred, sized by the layout pass, never split across pages. */
-  .print-image { display: block; margin-left: auto !important; margin-right: auto !important; }
+  .print-image { display: block; margin-left: auto !important; margin-right: auto !important; break-inside: avoid; }
   .print-image-block { break-inside: avoid; }
+  /* The frame the editor draws around a picture is a block of its own between
+     the two, and a break could still be taken inside it. */
+  .print-image-block * { break-inside: avoid; }
   .print-image-block figcaption { text-align: center; }
   .print-own-page { break-before: page; break-after: page; display: flex; flex-direction: column; justify-content: center; }
   .print-portrait-page { min-height: 255mm; }
