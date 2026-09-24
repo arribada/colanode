@@ -5,7 +5,7 @@ import {
   useEditorState,
 } from '@tiptap/react';
 import { Resizable } from 're-resizable';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import { updateColumnWidth } from '@colanode/client/lib';
 import { defaultClasses } from '@colanode/ui/editor/classes';
@@ -17,6 +17,12 @@ import {
   formatAggregate,
 } from '@colanode/ui/editor/views/table-aggregate';
 import { applyFillFromDrag } from '@colanode/ui/editor/views/table-fill-handle';
+import {
+  getTableArmedVersion,
+  isTableArmed,
+  subscribeTableArmed,
+  tableHostOf,
+} from '@colanode/ui/editor/views/table-armed';
 import { parseNumberLoose } from '@colanode/ui/editor/views/table-sort';
 import { formatNumber, isNumericFormat } from '@colanode/ui/lib/number-format';
 import { cn } from '@colanode/ui/lib/utils';
@@ -93,129 +99,149 @@ export const TableCellNodeView = (props: NodeViewProps) => {
   // column's fixed width is exactly what made merges render misaligned.
   const isMerged = colspan > 1 || rowspan > 1;
   const cellWidth = isMerged ? '100%' : `${colWidth}px`;
-  return (
-    <NodeViewWrapper className="h-full w-full">
-      <TableCellContextMenu {...props}>
-        <Resizable
-          className={cn(
-            defaultClasses.tableCell,
-            'relative h-full',
-            isActive &&
-              'outline outline-2 outline-primary [outline-offset:-2px]',
-            align === 'left' && 'justify-start',
-            align === 'center' && 'justify-center',
-            align === 'right' && 'justify-end',
-            valign === 'top' && 'items-start',
-            valign === 'middle' && 'items-center',
-            valign === 'bottom' && 'items-end'
-          )}
-          defaultSize={{
-            width: cellWidth,
-          }}
-          minWidth={100}
-          maxWidth={500}
-          size={{
-            width: cellWidth,
-          }}
-          enable={{
-            bottom: false,
-            bottomLeft: false,
-            bottomRight: false,
-            left: false,
-            // Kept on while the cell is selected: the cell menu button sits
-            // above it (z-10) mid-height, the rest of the border still drags.
-            right: !isMerged,
-            top: false,
-            topLeft: false,
-            topRight: false,
-          }}
-          handleClasses={{
-            right: 'opacity-0 hover:opacity-100 bg-blue-300 dark:bg-blue-900',
-          }}
-          handleStyles={{
-            right: {
-              width: '8px',
-              right: '-4px',
-            },
-          }}
-          onResizeStop={(_e, _direction, ref) => {
-            const newWidth = ref.offsetWidth;
-            const pos = props.getPos();
-            if (!pos) {
+  // A Radix context menu per cell is what made typing on a page of tables
+  // stall: each mounted menu registers two document listeners on every
+  // keydown. A cell whose table has never been pointed at cannot have its
+  // menu opened, so it does not mount one.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const armedVersion = useSyncExternalStore(
+    subscribeTableArmed,
+    getTableArmedVersion,
+    getTableArmedVersion
+  );
+  const menuArmed = useMemo(
+    () => isTableArmed(tableHostOf(wrapperRef.current)),
+    [armedVersion]
+  );
+
+  const cellBody = (
+    <Resizable
+      className={cn(
+        defaultClasses.tableCell,
+        'relative h-full',
+        isActive && 'outline outline-2 outline-primary [outline-offset:-2px]',
+        align === 'left' && 'justify-start',
+        align === 'center' && 'justify-center',
+        align === 'right' && 'justify-end',
+        valign === 'top' && 'items-start',
+        valign === 'middle' && 'items-center',
+        valign === 'bottom' && 'items-end'
+      )}
+      defaultSize={{
+        width: cellWidth,
+      }}
+      minWidth={100}
+      maxWidth={500}
+      size={{
+        width: cellWidth,
+      }}
+      enable={{
+        bottom: false,
+        bottomLeft: false,
+        bottomRight: false,
+        left: false,
+        // Kept on while the cell is selected: the cell menu button sits
+        // above it (z-10) mid-height, the rest of the border still drags.
+        right: !isMerged,
+        top: false,
+        topLeft: false,
+        topRight: false,
+      }}
+      handleClasses={{
+        right: 'opacity-0 hover:opacity-100 bg-blue-300 dark:bg-blue-900',
+      }}
+      handleStyles={{
+        right: {
+          width: '8px',
+          right: '-4px',
+        },
+      }}
+      onResizeStop={(_e, _direction, ref) => {
+        const newWidth = ref.offsetWidth;
+        const pos = props.getPos();
+        if (!pos) {
+          return;
+        }
+
+        updateColumnWidth(props.editor.view, pos, newWidth);
+      }}
+    >
+      {isActive && <TableCellDropdownMenu {...props} />}
+      {isActive && !isMerged && !isAggregate && (
+        <div
+          className="absolute -bottom-[3px] -right-[3px] z-20 size-2 cursor-crosshair rounded-[1px] border border-background bg-primary transition-transform hover:scale-125"
+          title="Drag to fill a series (e.g. REQ-1 → REQ-2)"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof props.getPos !== 'function') {
               return;
             }
-
-            updateColumnWidth(props.editor.view, pos, newWidth);
+            const onUp = (up: PointerEvent) => {
+              document.removeEventListener('pointerup', onUp, true);
+              fillUpRef.current = null;
+              document.body.classList.remove('colanode-table-filling');
+              // Resolve the source cell position at DROP -- getPos() is a
+              // live getter, so a concurrent edit during the drag can't make
+              // it stale and target the wrong cell.
+              const pos = props.getPos();
+              if (pos === undefined || pos === null) {
+                return;
+              }
+              applyFillFromDrag(props.editor, pos, up.clientX, up.clientY);
+            };
+            fillUpRef.current = onUp;
+            document.body.classList.add('colanode-table-filling');
+            document.addEventListener('pointerup', onUp, true);
           }}
+        />
+      )}
+      {isAggregate && (
+        <span
+          contentEditable={false}
+          className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 font-medium tabular-nums text-foreground"
+          title="Column summary"
         >
-          {isActive && <TableCellDropdownMenu {...props} />}
-          {isActive && !isMerged && !isAggregate && (
-            <div
-              className="absolute -bottom-[3px] -right-[3px] z-20 size-2 cursor-crosshair rounded-[1px] border border-background bg-primary transition-transform hover:scale-125"
-              title="Drag to fill a series (e.g. REQ-1 → REQ-2)"
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (typeof props.getPos !== 'function') {
-                  return;
-                }
-                const onUp = (up: PointerEvent) => {
-                  document.removeEventListener('pointerup', onUp, true);
-                  fillUpRef.current = null;
-                  document.body.classList.remove('colanode-table-filling');
-                  // Resolve the source cell position at DROP -- getPos() is a
-                  // live getter, so a concurrent edit during the drag can't make
-                  // it stale and target the wrong cell.
-                  const pos = props.getPos();
-                  if (pos === undefined || pos === null) {
-                    return;
-                  }
-                  applyFillFromDrag(props.editor, pos, up.clientX, up.clientY);
-                };
-                fillUpRef.current = onUp;
-                document.body.classList.add('colanode-table-filling');
-                document.addEventListener('pointerup', onUp, true);
-              }}
-            />
-          )}
-          {isAggregate && (
-            <span
-              contentEditable={false}
-              className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 font-medium tabular-nums text-foreground"
-              title="Column summary"
-            >
-              {state.aggregateValue !== null &&
-              isNumericFormat(numberFormat) &&
-              aggregateKind !== 'count'
-                ? formatNumber(state.aggregateValue, numberFormat)
-                : formatAggregate(state.aggregateValue, aggregateKind)}
-            </span>
-          )}
-          {!isAggregate && showFormatted && (
-            <span
-              contentEditable={false}
-              className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 tabular-nums"
-            >
-              {formattedValue}
-            </span>
-          )}
-          <NodeViewContent
-            className={cn(
-              'z-0 h-full w-full',
-              align === 'left' && 'text-left',
-              align === 'center' && 'text-center',
-              align === 'right' && 'text-right',
-              // NOT `invisible`: visibility:hidden takes the text layer out of
-              // hit testing, so ProseMirror could not resolve a position inside
-              // a summary or formatted cell. Dragging across two of them made
-              // no cell selection at all and the highlight flickered instead.
-              // opacity-0 hides the raw value just the same and keeps the cell
-              // selectable.
-              (isAggregate || showFormatted) && 'opacity-0'
-            )}
-          />
-        </Resizable>
-      </TableCellContextMenu>
+          {state.aggregateValue !== null &&
+          isNumericFormat(numberFormat) &&
+          aggregateKind !== 'count'
+            ? formatNumber(state.aggregateValue, numberFormat)
+            : formatAggregate(state.aggregateValue, aggregateKind)}
+        </span>
+      )}
+      {!isAggregate && showFormatted && (
+        <span
+          contentEditable={false}
+          className="pointer-events-none absolute inset-0 flex items-center justify-end px-2 tabular-nums"
+        >
+          {formattedValue}
+        </span>
+      )}
+      <NodeViewContent
+        className={cn(
+          'z-0 h-full w-full',
+          align === 'left' && 'text-left',
+          align === 'center' && 'text-center',
+          align === 'right' && 'text-right',
+          // NOT `invisible`: visibility:hidden takes the text layer out of
+          // hit testing, so ProseMirror could not resolve a position inside
+          // a summary or formatted cell. Dragging across two of them made
+          // no cell selection at all and the highlight flickered instead.
+          // opacity-0 hides the raw value just the same and keeps the cell
+          // selectable.
+          (isAggregate || showFormatted) && 'opacity-0'
+        )}
+      />
+    </Resizable>
+  );
+
+  return (
+    <NodeViewWrapper ref={wrapperRef} className="h-full w-full">
+      {menuArmed ? (
+        <TableCellContextMenu {...props}>{cellBody}</TableCellContextMenu>
+      ) : (
+        cellBody
+      )}
     </NodeViewWrapper>
   );
 };
