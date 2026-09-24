@@ -27,7 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # Pinned: windows-latest moved to Visual Studio 18 (2026), which the
+          # node-gyp bundled with Electron does not recognise, so better-sqlite3
+          # could not be compiled. windows-2022 ships Visual Studio 2022.
+          - os: windows-2022
             name: windows
           - os: ubuntu-latest
             name: linux
@@ -37,6 +40,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # This workflow also lives on the default branch, because GitHub only
+      # offers "Run workflow" for a workflow present there. The default branch
+      # is the upstream mirror: building it produces Colanode, pointed at
+      # colanode.com, and would publish it under an Arribada release. Started
+      # from the wrong ref the run stops here and says what to do, rather than
+      # dying later on an unrelated npm error or, worse, succeeding.
+      - name: Check this is the Arribada fork
+        shell: bash
+        run: |
+          product=$(node -p "require('./apps/desktop/package.json').productName")
+          echo "productName: ${product}"
+          if [ "${product}" != "Arribada Wiki" ]; then
+            echo "::error::This ref builds \"${product}\", not the Arribada Wiki."
+            echo "::error::Run this workflow on the arribada/features branch, or"
+            echo "::error::push a desktop-v* tag created on that branch."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
