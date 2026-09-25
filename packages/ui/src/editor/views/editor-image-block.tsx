@@ -20,6 +20,7 @@ import {
   MediaLightbox,
   copyPicture,
 } from '@colanode/ui/editor/views/media-lightbox';
+import { CaptionField } from '@colanode/ui/editor/views/caption-field';
 import { useFileDownload } from '@colanode/ui/hooks/use-file-download';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { imageUrlToPng } from '@colanode/ui/lib/image-export';
@@ -185,24 +186,21 @@ export const EditorImageBlock = ({
           </Resizable>
           {hasCaption && (
             <figcaption
-              className="text-sm text-muted-foreground"
+              // A row, so that a caption too long for one line wraps under
+              // itself rather than pushing the figure number about.
+              className="flex items-start justify-center gap-1 text-sm leading-5 text-muted-foreground"
               style={{ width, maxWidth: '100%' }}
             >
-              <span className="font-medium text-foreground">
-                Figure {figureNumber ?? '?'}
+              <span className="shrink-0 font-medium text-foreground">
+                Figure {figureNumber ?? '?'} ·
               </span>
-              {' — '}
               {editable ? (
-                <input
-                  // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the caption right after "Add caption"
+                <CaptionField
                   autoFocus={caption === ''}
                   value={caption ?? ''}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    updateAttributes({ caption: event.target.value })
-                  }
+                  onChange={(value) => updateAttributes({ caption: value })}
                   placeholder="Describe this figure…"
-                  className="w-64 max-w-full border-none bg-transparent italic outline-none placeholder:not-italic placeholder:text-muted-foreground"
+                  className="min-w-0 flex-1"
                 />
               ) : (
                 <span className="italic">{caption}</span>

@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@colanode/ui/components/ui/tooltip';
+import { CaptionField } from '@colanode/ui/editor/views/caption-field';
 import { defaultClasses } from '@colanode/ui/editor/classes';
 import { TableHandles } from '@colanode/ui/editor/views/table-handles';
 import { TableSelectionToolbar } from '@colanode/ui/editor/views/table-selection-toolbar';
@@ -188,23 +189,20 @@ export const TableNodeView = ({
         {hasCaption && (
           <figcaption
             contentEditable={false}
-            className="mt-1 text-sm text-muted-foreground"
+            // A row, so that a caption too long for one line wraps under itself
+            // rather than scrolling out of the field.
+            className="mt-1 flex items-start gap-1 text-sm leading-5 text-muted-foreground"
           >
-            <span className="font-medium text-foreground">
-              Table {tableNumber ?? '?'}
+            <span className="shrink-0 font-medium text-foreground">
+              Table {tableNumber ?? '?'} ·
             </span>
-            {' — '}
             {editor.isEditable ? (
-              <input
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the caption right after "Add table caption"
+              <CaptionField
                 autoFocus={caption === ''}
                 value={caption ?? ''}
-                onPointerDown={(event) => event.stopPropagation()}
-                onChange={(event) =>
-                  updateAttributes({ caption: event.target.value })
-                }
+                onChange={(value) => updateAttributes({ caption: value })}
                 placeholder="Describe this table…"
-                className="w-64 max-w-full border-none bg-transparent italic outline-none placeholder:not-italic placeholder:text-muted-foreground"
+                className="min-w-0 flex-1"
               />
             ) : (
               <span className="italic">{caption}</span>
