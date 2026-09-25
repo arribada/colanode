@@ -103,12 +103,18 @@ const sanitizeForExport = (html: string): string => {
   body
     .querySelectorAll('[class*="cn-img-resize-handle"]')
     .forEach((el) => el.remove());
-  body.querySelectorAll('figcaption input').forEach((input) => {
-    const text = doc.createElement('span');
-    text.className = 'italic';
-    text.textContent = input.getAttribute('value') ?? '';
-    input.replaceWith(text);
-  });
+  // The caption is edited in a field, and a field prints as an empty box. It
+  // is replaced by its text: `data-caption` for the text box the editor uses
+  // now, the value attribute for a document exported from an older client.
+  body
+    .querySelectorAll('figcaption input, figcaption textarea')
+    .forEach((field) => {
+      const text = doc.createElement('span');
+      text.className = 'italic';
+      text.textContent =
+        field.getAttribute('data-caption') ?? field.getAttribute('value') ?? '';
+      field.replaceWith(text);
+    });
 
   // Tables: the widths set for the screen column never suit a page. The print
   // layout pass sizes them against the real printable width instead.
@@ -463,6 +469,11 @@ export const PRINT_EXPORT_CSS = `
 
   /* Headings keep their text with what follows. */
   .print-body h1, .print-body h2, .print-body h3, .print-body h4, .print-body h5 { break-after: avoid; }
+  /* What actually keeps a heading with what it introduces: adding and removing
+     the rule above changed nothing on a measured export, because the block that
+     moves is a picture or a table, and neither is an ordinary block sibling of
+     the heading. The layout pass puts the two in this box instead. */
+  .print-keep { break-inside: avoid; }
 
   /* Tables: headers repeat, rows stay whole, text wraps at word boundaries.
      A table that fits on one page is marked by the layout pass and kept
@@ -487,11 +498,16 @@ export const PRINT_EXPORT_CSS = `
 
   /* Images: centred, sized by the layout pass, never split across pages. */
   .print-image { display: block; margin-left: auto !important; margin-right: auto !important; break-inside: avoid; }
-  .print-image-block { break-inside: avoid; }
+  /* A picture block is a custom element, so without this it is an INLINE box:
+     "do not break inside" does not apply to one, and neither does the heading's
+     "do not break after". */
+  .print-image-block { display: block; break-inside: avoid; }
   /* The frame the editor draws around a picture is a block of its own between
      the two, and a break could still be taken inside it. */
   .print-image-block * { break-inside: avoid; }
-  .print-image-block figcaption { text-align: center; }
+  /* The caption is a row of two: its number and its text. Centred as a row,
+     since text-align does not reach the boxes inside it. */
+  .print-image-block figcaption { text-align: center; justify-content: center; }
   .print-own-page { break-before: page; break-after: page; display: flex; flex-direction: column; justify-content: center; }
   .print-portrait-page { min-height: 255mm; }
   .print-landscape.print-own-page { min-height: 180mm; }

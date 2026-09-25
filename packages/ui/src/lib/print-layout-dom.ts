@@ -4,6 +4,7 @@ import {
   columnPercentages,
   fitsOnOnePage,
   ImageFit,
+  keepHeadingWithBlock,
   planImagePrint,
   planTablePrint,
   PRINT_AREA,
@@ -217,6 +218,104 @@ const layoutImages = (doc: Document, fit: ImageFit) => {
   });
 };
 
+const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
+
+// A block the browser will not split: a picture, a table measured to fit on one
+// page, a callout.
+const isUnbreakable = (el: HTMLElement, view: Window | null): boolean =>
+  el.classList.contains('print-image-block') ||
+  el.classList.contains('print-table-whole') ||
+  view?.getComputedStyle(el).breakInside === 'avoid';
+
+/**
+ * A heading left at the foot of a page with nothing under it, while the thing
+ * it introduces starts the next one. It happens when that content cannot be
+ * split -- a picture, a table kept whole -- because the browser moves the block
+ * on its own and the heading stays behind. `break-after: avoid` on the heading
+ * is what should prevent it and does not: measured on a real export, adding or
+ * removing it changed nothing in any of those cases.
+ *
+ * So the heading and the block it introduces are put in one box that cannot be
+ * broken, which Chrome does honour, and they travel together. When the block
+ * already starts a page of its own, the heading is moved onto that page
+ * instead, and the page's minimum height gives way to it.
+ */
+const layoutHeadings = (doc: Document) => {
+  const view = doc.defaultView;
+
+  doc.querySelectorAll('.print-body').forEach((body) => {
+    const children = Array.from(body.children) as HTMLElement[];
+
+    for (let index = 0; index < children.length; index++) {
+      if (!children[index]?.matches(HEADING_SELECTOR)) {
+        continue;
+      }
+
+      // Consecutive headings ("Annex A" then "A.1") all belong to what follows.
+      const run: HTMLElement[] = [];
+      let after = index;
+      while (
+        after < children.length &&
+        children[after]?.matches(HEADING_SELECTOR)
+      ) {
+        run.push(children[after] as HTMLElement);
+        after++;
+      }
+      index = after - 1;
+
+      const block = children[after];
+      if (!block || !isUnbreakable(block, view)) {
+        continue;
+      }
+
+      // Wrapping makes the first heading a first child, and the editor's own
+      // rules give a first child a smaller margin above it. The measured margin
+      // is written back, so the spacing on the page does not change.
+      run.forEach((heading) => {
+        const marginTop = view?.getComputedStyle(heading).marginTop;
+        if (marginTop) {
+          heading.style.marginTop = marginTop;
+        }
+      });
+
+      const headingHeight = run.reduce(
+        (total, heading) => total + heading.getBoundingClientRect().height,
+        0
+      );
+      const blockStyle = view?.getComputedStyle(block);
+      const action = keepHeadingWithBlock({
+        headingHeight,
+        blockHeight: block.getBoundingClientRect().height,
+        placement: block.classList.contains('print-landscape')
+          ? 'landscape'
+          : 'portrait',
+        startsOwnPage: blockStyle?.breakBefore === 'page',
+      });
+
+      if (action === 'leave') {
+        continue;
+      }
+
+      if (action === 'into') {
+        const minHeight = Number.parseFloat(blockStyle?.minHeight ?? '') || 0;
+        for (let i = run.length - 1; i >= 0; i--) {
+          block.insertBefore(run[i] as HTMLElement, block.firstChild);
+        }
+        if (minHeight > 0) {
+          block.style.minHeight = `${Math.max(0, minHeight - headingHeight)}px`;
+        }
+        continue;
+      }
+
+      const keep = doc.createElement('div');
+      keep.className = 'print-keep';
+      body.insertBefore(keep, run[0] as HTMLElement);
+      run.forEach((heading) => keep.appendChild(heading));
+      keep.appendChild(block);
+    }
+  });
+};
+
 // A contents that runs past its page leaves two half-empty pages. Measured,
 // and run in two columns when it does not fit in one.
 const layoutToc = (doc: Document) => {
@@ -242,4 +341,7 @@ export const applyPrintLayout = (
   layoutTables(doc);
   layoutImages(doc, options?.imageFit ?? 'auto');
   layoutToc(doc);
+  // Last of all: it reads the heights and the forced pages the passes above
+  // have just decided.
+  layoutHeadings(doc);
 };

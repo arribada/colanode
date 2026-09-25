@@ -4,6 +4,7 @@ import {
   buildDocumentLink,
   buildRevisionRows,
   fitsOnOnePage,
+  keepHeadingWithBlock,
   DEFAULT_FIRST_VERSION,
   planImagePrint,
   planTablePrint,
@@ -208,6 +209,82 @@ describe('fitsOnOnePage', () => {
   it('refuses a height it cannot measure', () => {
     expect(fitsOnOnePage(0, 'portrait')).toBe(false);
     expect(fitsOnOnePage(-10, 'portrait')).toBe(false);
+  });
+});
+
+describe('keepHeadingWithBlock', () => {
+  const portrait = PRINT_AREA.portrait.height;
+
+  it('keeps a heading with a picture that leaves room for it', () => {
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 40,
+        blockHeight: portrait * 0.5,
+        placement: 'portrait',
+        startsOwnPage: false,
+      })
+    ).toBe('wrap');
+  });
+
+  it('gives up when the heading and the block cannot share a page', () => {
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 40,
+        blockHeight: portrait * 0.95,
+        placement: 'portrait',
+        startsOwnPage: false,
+      })
+    ).toBe('leave');
+  });
+
+  it('counts the heading itself: what fits alone can stop fitting with it', () => {
+    const blockHeight = portrait * 0.9 - 10;
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 4,
+        blockHeight,
+        placement: 'portrait',
+        startsOwnPage: false,
+      })
+    ).toBe('wrap');
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 60,
+        blockHeight,
+        placement: 'portrait',
+        startsOwnPage: false,
+      })
+    ).toBe('leave');
+  });
+
+  it('moves the heading onto a page the block already starts, however tall', () => {
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 40,
+        blockHeight: portrait * 3,
+        placement: 'landscape',
+        startsOwnPage: true,
+      })
+    ).toBe('into');
+  });
+
+  it('measures a landscape block against the landscape page', () => {
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 30,
+        blockHeight: PRINT_AREA.landscape.height * 0.8,
+        placement: 'landscape',
+        startsOwnPage: false,
+      })
+    ).toBe('wrap');
+    expect(
+      keepHeadingWithBlock({
+        headingHeight: 30,
+        blockHeight: PRINT_AREA.landscape.height * 0.95,
+        placement: 'landscape',
+        startsOwnPage: false,
+      })
+    ).toBe('leave');
   });
 });
 

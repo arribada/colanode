@@ -240,6 +240,32 @@ export const fitsOnOnePage = (
   return heightPx > 0 && heightPx <= page * 0.9;
 };
 
+/**
+ * What to do with a heading that introduces a block the browser will not split.
+ *
+ * 'into'  -- the block already starts a page of its own (a wide table turned
+ *            landscape, a picture given a full page), so the heading moves onto
+ *            that page with it.
+ * 'wrap'  -- heading and block go in one box that cannot be broken, so they
+ *            move to the next page together.
+ * 'leave' -- together they are taller than a page: a break between them is the
+ *            lesser evil, since keeping them would leave a page nearly empty.
+ */
+export const keepHeadingWithBlock = (input: {
+  headingHeight: number;
+  blockHeight: number;
+  placement: 'portrait' | 'landscape';
+  startsOwnPage: boolean;
+}): 'into' | 'wrap' | 'leave' => {
+  if (input.startsOwnPage) {
+    return 'into';
+  }
+
+  return fitsOnOnePage(input.headingHeight + input.blockHeight, input.placement)
+    ? 'wrap'
+    : 'leave';
+};
+
 export interface VersionLogEntry {
   version: string;
   at: string;
