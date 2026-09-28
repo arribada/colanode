@@ -50,6 +50,7 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
+import { columnChildDepth } from '@colanode/ui/editor/extensions/columns-drag';
 import { DIVIDER_VARIANTS } from '@colanode/ui/editor/views/divider';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
@@ -248,6 +249,34 @@ export const ActionMenu = ({
           show: false,
         });
         return;
+      }
+
+      // A block living inside a column layout must keep its own handle. The
+      // loop above always climbs to the outermost block, which for column
+      // content is the whole `columns` container -- leaving the individual
+      // blocks ungrabbable (drop a block into a second column and you could
+      // never move it again). When the hover landed inside a column, drill
+      // back down to the specific block that is the column's direct child.
+      if (
+        pmNode.type.name === 'columns' ||
+        pmNode.type.name === 'column'
+      ) {
+        const $pos = view.current.state.doc.resolve(pos);
+        const ancestorTypes: string[] = [];
+        for (let d = 0; d <= $pos.depth; d++) {
+          ancestorTypes.push($pos.node(d).type.name);
+        }
+        const childDepth = columnChildDepth(ancestorTypes);
+        if (childDepth != null) {
+          const childPos = $pos.before(childDepth);
+          const childNode = $pos.node(childDepth);
+          const childDom = view.current.nodeDOM(childPos);
+          if (childDom instanceof HTMLElement) {
+            pmNode = childNode;
+            domNode = childDom;
+            nodePos = childPos;
+          }
+        }
       }
 
       const nodeRect = domNode.getBoundingClientRect();

@@ -403,3 +403,19 @@ export const ColumnsDragExtension = Extension.create({
     ];
   },
 });
+
+// Depth, within a ProseMirror resolved position, of the block that is a
+// direct child of a `column` -- the block that should carry its own drag
+// handle when the cursor is inside a column layout. `ancestorTypes[d]` is the
+// node type name at depth d (0 = doc). Returns null when the position is not
+// inside a column, so callers keep their normal top-level handle behaviour.
+export const columnChildDepth = (
+  ancestorTypes: readonly string[]
+): number | null => {
+  for (let d = ancestorTypes.length - 1; d > 0; d--) {
+    if (ancestorTypes[d - 1] === 'column') {
+      return d;
+    }
+  }
+  return null;
+};
