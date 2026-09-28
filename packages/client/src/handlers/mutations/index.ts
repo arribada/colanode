@@ -78,6 +78,7 @@ import { PresenceLeaveMutationHandler } from './presence/presence-leave';
 import { PresenceUpdateMutationHandler } from './presence/presence-update';
 import { PushSubscriptionCreateMutationHandler } from './push-subscriptions/push-subscription-create';
 import { PushSubscriptionDeleteMutationHandler } from './push-subscriptions/push-subscription-delete';
+import { RecordDuplicateMutationHandler } from './records/record-duplicate';
 import { RecordTemplateCreateMutationHandler } from './records/record-template-create';
 import { RecordTemplateSaveMutationHandler } from './records/record-template-save';
 import { ServerCreateMutationHandler } from './servers/server-create';
@@ -190,6 +191,7 @@ export const buildMutationHandlerMap = (
     'apnsSubscription.create': new ApnsSubscriptionCreateMutationHandler(app),
     'apnsSubscription.delete': new ApnsSubscriptionDeleteMutationHandler(app),
     'record.template.save': new RecordTemplateSaveMutationHandler(app),
+    'record.duplicate': new RecordDuplicateMutationHandler(app),
     'record.template.create': new RecordTemplateCreateMutationHandler(app),
     'page.template.save': new PageTemplateSaveMutationHandler(app),
     'page.template.create': new PageTemplateCreateMutationHandler(app),

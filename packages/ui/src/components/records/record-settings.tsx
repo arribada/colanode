@@ -11,7 +11,7 @@ import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
 import { LocalRecordNode } from '@colanode/client/types';
-import { generateId, IdType, NodeRole, hasNodeRole } from '@colanode/core';
+import { NodeRole, hasNodeRole } from '@colanode/core';
 import { NodeCollaboratorAudit } from '@colanode/ui/components/collaborators/node-collaborator-audit';
 import { PrintExportDialog } from '@colanode/ui/components/documents/print/print-export-dialog';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
@@ -44,6 +44,8 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const database = useDatabase();
   const { mutate: saveAsTemplate, isPending: isSavingAsTemplate } =
     useMutation();
+  const { mutate: duplicateRecordMutation, isPending: isDuplicating } =
+    useMutation();
   const [showDeleteDialog, setShowDeleteModal] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
@@ -53,29 +55,22 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
   const canShare = hasNodeRole(role, 'editor');
 
   const duplicateRecord = () => {
-    if (!canDuplicate) {
+    if (!canDuplicate || isDuplicating) {
       return;
     }
-    const recordId = generateId(IdType.Record);
-    const duplicate: LocalRecordNode = {
-      id: recordId,
-      type: 'record',
-      parentId: record.databaseId,
-      rootId: record.rootId,
-      databaseId: record.databaseId,
-      name: record.name ? `${record.name} (copy)` : '',
-      avatar: record.avatar,
-      cover: record.cover,
-      fields: { ...record.fields },
-      createdAt: new Date().toISOString(),
-      createdBy: workspace.userId,
-      updatedAt: null,
-      updatedBy: null,
-      localRevision: '0',
-      serverRevision: '0',
-    };
-    workspace.collections.nodes.insert(duplicate);
-    toast.success('Record duplicated');
+    duplicateRecordMutation({
+      input: {
+        type: 'record.duplicate',
+        userId: workspace.userId,
+        recordId: record.id,
+      },
+      onSuccess() {
+        toast.success('Record duplicated');
+      },
+      onError(error) {
+        toast.error(error.message);
+      },
+    });
   };
   const canSaveAsTemplate =
     hasNodeRole(role, 'collaborator') && !record.isTemplate;
@@ -178,7 +173,7 @@ export const RecordSettings = ({ record, role }: RecordSettingsProps) => {
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
             data-testid="record-duplicate-button"
-            disabled={!canDuplicate}
+            disabled={!canDuplicate || isDuplicating}
             onClick={duplicateRecord}
           >
             <Copy className="size-4" />
