@@ -7,33 +7,23 @@ import { useSystemTheme } from '@colanode/ui/hooks/use-system-theme';
 import { getThemeVariables } from '@colanode/ui/lib/themes';
 
 const useApplyTheme = (mode: ThemeMode, color?: ThemeColor) => {
+  // Toggle the `.dark` class and the CSS variables together, in ONE effect keyed
+  // on the same inputs. They used to live in two effects with different deps
+  // (`[mode]` vs `[mode, color]`) and a cleanup that stripped `.dark` on every
+  // re-run/unmount. That let the two drift apart -- notably a dark app (dark
+  // variables applied) whose `.dark` class had been removed, so Tailwind
+  // `dark:` variants (e.g. the select-option badges) fell back to their pale
+  // light-mode colours while everything variable-driven stayed dark. Applying
+  // both from the same signal makes that state impossible.
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
     const htmlElement = document.documentElement;
-
-    if (mode === 'dark') {
-      htmlElement.classList.add('dark');
-    } else {
-      htmlElement.classList.remove('dark');
-    }
-
-    // Ensure cleanup removes the class on unmount or before next effect
-    return () => {
-      htmlElement.classList.remove('dark');
-    };
-  }, [mode]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+    htmlElement.classList.toggle('dark', mode === 'dark');
 
     const themeVariables = getThemeVariables(mode, color);
-    const htmlElement = document.documentElement;
-
     Object.entries(themeVariables).forEach(([key, value]) => {
       htmlElement.style.setProperty(key, value);
     });
