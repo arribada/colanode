@@ -381,7 +381,10 @@ ipcMain.handle(
           webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            partition: 'persist:oidc-login',
+            // Non-persistent: every sign-in starts from a clean session, so a
+            // stale/wrong account can't get stuck here and dead-end the SSO
+            // consent (which is what stranded the login on a 404 before).
+            partition: 'oidc-login',
           },
         });
 
@@ -444,6 +447,12 @@ ipcMain.handle(
 
         authWindow.on('closed', () => finish({ error: 'cancelled' }));
 
+        authWindow.webContents.setUserAgent(
+          authWindow.webContents
+            .getUserAgent()
+            .replace(/ArribadaWiki\/\S+\s*/, '')
+            .replace(/Electron\/\S+\s*/, '')
+        );
         authWindow.loadURL(options.url);
       }
     );
