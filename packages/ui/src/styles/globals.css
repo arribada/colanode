@@ -166,3 +166,39 @@ html[data-testing] *::after {
     visibility: visible !important;
   }
 }
+
+/*
+ * Native scrollbars, themed. The sidebar and other plain overflow areas used
+ * the browser's default scrollbar, which renders a bright track in dark mode
+ * and looked out of place next to the rest of the app. Radix ScrollArea
+ * viewports hide their own native scrollbar with a more specific selector, so
+ * those custom scrollbars are unaffected -- this only restyles the native ones.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
