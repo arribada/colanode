@@ -2513,11 +2513,21 @@ export const WhiteboardCanvas = ({
                   ((p.x - start.x) * dx + (p.y - start.y) * dy) / len2
                 )
               );
+        // Anchor the label on the wire (chord projection) and store its free
+        // 2-D offset from that anchor, so it can be dragged off the line and a
+        // dashed leader ties it back.
+        const ax = start.x + dx * t;
+        const ay = start.y + dy * t;
         const next = {
           ...sceneRef.current,
           [it.id]: {
             ...el,
-            connector: { ...el.connector, labelT: t },
+            connector: {
+              ...el.connector,
+              labelT: t,
+              labelDx: p.x - ax,
+              labelDy: p.y - ay,
+            },
           },
         };
         applyLocal(next);

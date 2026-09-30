@@ -132,6 +132,11 @@ export const boardConnectorSchema = z.object({
   // Where the label sits ALONG the wire, 0..1 (0 = start, 1 = end). Absent =
   // the routed midpoint. Set by dragging the label.
   labelT: z.number().min(0).max(1).optional(),
+  // Free 2-D offset of the label from its along-wire anchor, in scene units.
+  // Set by dragging the label off the wire; a dashed leader is drawn back to
+  // the anchor when the label sits clear of it. Absent = pinned on the wire.
+  labelDx: z.number().optional(),
+  labelDy: z.number().optional(),
   // Line shape: straight segment (default), an orthogonal rounded elbow, or a
   // quadratic curve. Optional + backward-compatible — absent reads as
   // 'straight'.

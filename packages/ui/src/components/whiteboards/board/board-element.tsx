@@ -743,13 +743,22 @@ export const BoardElementView = ({
     // Label position along the wire: connector.labelT (0..1, dragged) lerped on
     // the straight chord, else the routed midpoint.
     const labelT = c.labelT;
-    const labelPos =
+    // Anchor on the wire (chord point at labelT, else the routed midpoint); the
+    // label then floats at its free 2-D offset from that anchor.
+    const labelAnchor =
       labelT != null
         ? {
             x: start.x + (end.x - start.x) * labelT,
             y: start.y + (end.y - start.y) * labelT,
           }
         : mid;
+    const labelPos = {
+      x: labelAnchor.x + (c.labelDx ?? 0),
+      y: labelAnchor.y + (c.labelDy ?? 0),
+    };
+    // A dashed tether appears once the label sits clear of its anchor, so a
+    // label dragged off the line still reads as belonging to it.
+    const labelLeader = Math.hypot(c.labelDx ?? 0, c.labelDy ?? 0) > 22;
     return (
       <g opacity={opacity}>
         <path
@@ -772,6 +781,17 @@ export const BoardElementView = ({
             data-connector-label={element.id}
             style={{ userSelect: 'none', cursor: 'move' }}
           >
+            {labelLeader && (
+              <line
+                x1={labelAnchor.x}
+                y1={labelAnchor.y}
+                x2={labelPos.x}
+                y2={labelPos.y}
+                stroke="#94a3b8"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+              />
+            )}
             <rect
               x={labelPos.x - labelWidth / 2}
               y={labelPos.y - 10}
