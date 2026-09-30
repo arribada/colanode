@@ -208,6 +208,10 @@ type Interaction =
       start: Point;
       before: BoardScene;
       origin: Record<string, Point>;
+      // Alt was held when the drag began: the first real movement duplicates
+      // the selection in place and drags the copies, leaving the originals put.
+      duplicate?: boolean;
+      duplicated?: boolean;
     }
   | {
       mode: 'resize';
@@ -2024,6 +2028,7 @@ export const WhiteboardCanvas = ({
         start: p,
         before: cloneScene(sceneRef.current),
         origin,
+        duplicate: e.altKey,
       };
       return;
     }
@@ -2144,6 +2149,22 @@ export const WhiteboardCanvas = ({
         break;
       }
       case 'move': {
+        // Alt-drag: on the first real movement, duplicate the selection in
+        // place and drag the copies, so the originals are left behind. Deferred
+        // to real movement so a plain Alt-click still only digs/selects.
+        if (it.duplicate && !it.duplicated) {
+          const th = 3 / viewportRef.current.zoom;
+          if (
+            Math.abs(p.x - it.start.x) > th ||
+            Math.abs(p.y - it.start.y) > th
+          ) {
+            const newOrigin = duplicateInPlaceForDrag(Object.keys(it.origin));
+            if (Object.keys(newOrigin).length > 0) {
+              it.origin = newOrigin;
+            }
+            it.duplicated = true;
+          }
+        }
         // One mind-map node dragged over another re-parents it on release.
         const dragged = Object.keys(it.origin);
         if (
@@ -3042,6 +3063,68 @@ export const WhiteboardCanvas = ({
     }
     setSelection([]);
     commit(before, next, ids);
+  };
+
+  // Clone the given elements in place (same position, fresh remapped ids, top
+  // z) for an Alt-drag duplicate, and select the copies. Returns the new
+  // id -> origin-position map so the ongoing move can carry on dragging the
+  // copies while the originals stay put. No history push here: the surrounding
+  // move commits once on pointer-up, so the duplicate + move undo as one step.
+  const duplicateInPlaceForDrag = (ids: string[]): Record<string, Point> => {
+    const sources = ids
+      .map((id) => sceneRef.current[id])
+      .filter((el): el is BoardElement => Boolean(el));
+    if (sources.length === 0) {
+      return {};
+    }
+    const idMap: Record<string, string> = {};
+    for (const el of sources) {
+      idMap[el.id] = createElementId();
+    }
+    const ordered = [...sources].sort((a, c) =>
+      a.z < c.z ? -1 : a.z > c.z ? 1 : 0
+    );
+    const zKeys = generateNKeysBetween(
+      topZ(sceneRef.current),
+      null,
+      ordered.length
+    );
+    const next = { ...sceneRef.current };
+    const newOrigin: Record<string, Point> = {};
+    ordered.forEach((src, i) => {
+      const el = cloneElement(src);
+      const nid = idMap[src.id]!;
+      const remapped: BoardElement = { ...el, id: nid, z: zKeys[i]! };
+      // Rewrite internal references to the copies so a duplicated connector /
+      // frame child / mind-map node points at its sibling copy, not the source.
+      if (el.frameId && idMap[el.frameId]) {
+        remapped.frameId = idMap[el.frameId];
+      }
+      if (el.connector) {
+        remapped.connector = {
+          ...el.connector,
+          fromId: el.connector.fromId
+            ? idMap[el.connector.fromId] ?? el.connector.fromId
+            : el.connector.fromId,
+          toId: el.connector.toId
+            ? idMap[el.connector.toId] ?? el.connector.toId
+            : el.connector.toId,
+        };
+      }
+      if (el.mindmap) {
+        remapped.mindmap = {
+          ...el.mindmap,
+          parentId: el.mindmap.parentId
+            ? idMap[el.mindmap.parentId] ?? el.mindmap.parentId
+            : el.mindmap.parentId,
+        };
+      }
+      next[nid] = remapped;
+      newOrigin[nid] = { x: remapped.x, y: remapped.y };
+    });
+    applyLocal(next);
+    setSelection(Object.keys(newOrigin));
+    return newOrigin;
   };
 
   const duplicateSelection = () => {
