@@ -2445,11 +2445,31 @@ export const WhiteboardCanvas = ({
             )
           : undefined;
         setLinkHoverAnchor(typeof anchor === 'string' ? anchor : null);
+        // Magnetic straighten: with no shape to attach to, snap the dragged
+        // end onto the other end's horizontal or vertical axis so the line
+        // clicks back to straight. Only one axis snaps, so a near-corner drag
+        // never collapses the line onto the other end.
+        const { start: fromPt, end: toPt } = resolveConnectorEndpoints(
+          el,
+          sceneRef.current
+        );
+        const fixed = it.end === 'from' ? toPt : fromPt;
+        let sp = { x: p.x, y: p.y };
+        if (!target) {
+          const axisSnap = 8 / viewportRef.current.zoom;
+          const ddx = Math.abs(sp.x - fixed.x);
+          const ddy = Math.abs(sp.y - fixed.y);
+          if (ddy < axisSnap && ddy <= ddx) {
+            sp = { x: sp.x, y: fixed.y };
+          } else if (ddx < axisSnap) {
+            sp = { x: fixed.x, y: sp.y };
+          }
+        }
         const points = (el.points ?? [[0, 0], [0, 0]]).map((pt) => [...pt]);
         if (it.end === 'from') {
-          points[0] = [p.x, p.y];
+          points[0] = [sp.x, sp.y];
         } else {
-          points[points.length - 1] = [p.x, p.y];
+          points[points.length - 1] = [sp.x, sp.y];
         }
         const next = {
           ...sceneRef.current,
