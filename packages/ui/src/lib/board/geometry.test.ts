@@ -5,6 +5,7 @@ import {
   arrowHeadPoints,
   arrowHeadShape,
   buildConnectorPath,
+  closestPointOnPolyline,
   computeAlignmentSnap,
   connectorArrowFrom,
   distance,
@@ -415,6 +416,38 @@ describe('connectorArrowFrom', () => {
     expect(connectorArrowFrom('elbow', start, end, undefined, 'top')).toEqual({
       x: 100,
       y: 50,
+    });
+  });
+});
+
+describe('closestPointOnPolyline', () => {
+  it('projects onto the nearest segment, not just the vertices', () => {
+    // An L-shaped elbow: (0,0) -> (100,0) -> (100,100). A point beside the
+    // horizontal leg must snap onto that leg, not to the far corner.
+    const elbow = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ];
+    expect(closestPointOnPolyline(elbow, { x: 40, y: 25 })).toEqual({
+      x: 40,
+      y: 0,
+    });
+    // A point beside the vertical leg snaps onto it.
+    expect(closestPointOnPolyline(elbow, { x: 130, y: 60 })).toEqual({
+      x: 100,
+      y: 60,
+    });
+  });
+
+  it('clamps to an endpoint when the point is past the ends', () => {
+    const seg = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ];
+    expect(closestPointOnPolyline(seg, { x: -50, y: 10 })).toEqual({
+      x: 0,
+      y: 0,
     });
   });
 });

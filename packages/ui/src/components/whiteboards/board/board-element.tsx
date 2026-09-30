@@ -12,6 +12,7 @@ import {
   arrowHeadShape,
   ArrowHeadShape,
   buildConnectorPath,
+  closestPointOnPolyline,
   connectorArrowFrom,
   connectorBendPoints,
   connectorHandlePoint,
@@ -696,6 +697,9 @@ export const BoardElementView = ({
     let headFrom: Point;
     let tailFrom: Point;
     let mid: Point;
+    // A polyline that traces the ACTUAL drawn path, used to anchor the label
+    // leader onto the wire (sampled for the curved case, exact otherwise).
+    let routePoly: Point[];
     if (anchored) {
       const { c1, c2 } = anchoredCurveControls(
         start,
@@ -709,6 +713,9 @@ export const BoardElementView = ({
       headFrom = c2;
       tailFrom = c1;
       mid = cubicPoint(start, c1, c2, end, 0.5);
+      routePoly = Array.from({ length: 25 }, (_, i) =>
+        cubicPoint(start, c1, c2, end, i / 24)
+      );
     } else {
       // The anchored side decides which way the line leaves the shape, so an
       // arrow attached low on a right edge goes out to the right instead of
@@ -728,6 +735,7 @@ export const BoardElementView = ({
       headFrom = connectorArrowFrom(routing, start, end, bends, exitSide);
       tailFrom = wpts[1] ?? end;
       mid = connectorHandlePoint(routing, start, end, bends);
+      routePoly = wpts;
     }
     // A head type of undefined falls back to the old booleans, so every
     // existing connector keeps exactly the head it had.
@@ -756,9 +764,13 @@ export const BoardElementView = ({
       x: labelAnchor.x + (c.labelDx ?? 0),
       y: labelAnchor.y + (c.labelDy ?? 0),
     };
-    // A dashed tether appears once the label sits clear of its anchor, so a
-    // label dragged off the line still reads as belonging to it.
-    const labelLeader = Math.hypot(c.labelDx ?? 0, c.labelDy ?? 0) > 22;
+    // Tie the dashed leader to the CLOSEST point on the actual routed path, not
+    // the straight chord: on an elbow or curved line the chord runs off the
+    // wire, so a chord-anchored leader pointed into empty space. It appears once
+    // the label sits clear of the line.
+    const leaderAnchor = closestPointOnPolyline(routePoly, labelPos);
+    const labelLeader =
+      Math.hypot(labelPos.x - leaderAnchor.x, labelPos.y - leaderAnchor.y) > 22;
     return (
       <g opacity={opacity}>
         <path
@@ -783,8 +795,8 @@ export const BoardElementView = ({
           >
             {labelLeader && (
               <line
-                x1={labelAnchor.x}
-                y1={labelAnchor.y}
+                x1={leaderAnchor.x}
+                y1={leaderAnchor.y}
                 x2={labelPos.x}
                 y2={labelPos.y}
                 stroke="#94a3b8"

@@ -753,6 +753,35 @@ export const polylineHitTest = (
   return false;
 };
 
+/** The point on a polyline nearest to `p`, projected onto its segments. Used to
+ * anchor a connector's label leader onto the wire whatever its routing. */
+export const closestPointOnPolyline = (pts: Point[], p: Point): Point => {
+  if (pts.length === 0) {
+    return p;
+  }
+  if (pts.length === 1) {
+    return pts[0]!;
+  }
+  let best = pts[0]!;
+  let bestD = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 === 0 ? 0 : ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const q = { x: a.x + t * dx, y: a.y + t * dy };
+    const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = q;
+    }
+  }
+  return best;
+};
+
 export const nearestSegmentIndex = (pts: Point[], p: Point): number => {
   let best = 0, bestD = Infinity;
   for (let i = 0; i < pts.length - 1; i++) {
