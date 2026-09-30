@@ -1010,10 +1010,12 @@ export const BoardElementView = ({
         <text
           x={element.x + 4}
           y={element.y - 8}
-          fontSize={13}
-          fontWeight="600"
-          fill="#64748b"
-          fontFamily="Inter, system-ui, sans-serif"
+          fontSize={element.style.fontSize ?? 13}
+          fontWeight={element.style.fontWeight ?? '600'}
+          fill={element.style.color ?? '#64748b'}
+          fontFamily={
+            element.style.fontFamily === 'mono' ? MONO_FAMILY : SANS_FAMILY
+          }
           style={{ userSelect: 'none' }}
         >
           {element.text}
