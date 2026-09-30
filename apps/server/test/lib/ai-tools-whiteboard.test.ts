@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { generateId, IdType, NodeAttributes } from '@colanode/core';
 import {
+  createWhiteboard,
+  editWhiteboard,
   getWhiteboard,
   summariseBoardScene,
 } from '@colanode/server/lib/ai/tools';
@@ -271,5 +273,122 @@ describe('get_whiteboard', () => {
     ]);
 
     await expect(getWhiteboard(ctx, { id: pageA })).rejects.toThrow(/no board/);
+  });
+});
+
+
+describe('create_whiteboard + edit_whiteboard', () => {
+  const seed = async () => {
+    const account = await createAccount({ name: 'Alice' });
+    const workspace = await createWorkspace({ createdBy: account.id });
+    const user = await createUser({
+      workspaceId: workspace.id,
+      account,
+      role: 'owner',
+    });
+    const space = await createSpaceNode({
+      workspaceId: workspace.id,
+      userId: user.id,
+    });
+    return { user, workspace, space };
+  };
+
+  it('creates a board, adds wired elements, then updates and deletes them', async () => {
+    const { user, workspace, space } = await seed();
+    const ctx = { userId: user.id, workspaceId: workspace.id };
+
+    const wb = await createWhiteboard(ctx, { parentId: space, name: 'Plan' });
+    expect(wb.name).toBe('Plan');
+
+    let board = await getWhiteboard(ctx, { id: wb.id });
+    expect(board.type).toBe('whiteboard');
+    expect(board.elementCount).toBe(0);
+
+    const edit = await editWhiteboard(ctx, {
+      id: wb.id,
+      add: [
+        { type: 'rect', ref: 'a', x: 0, y: 0, text: 'Start' },
+        { type: 'rect', ref: 'b', x: 300, y: 0, text: 'End' },
+        {
+          type: 'connector',
+          x: 0,
+          y: 0,
+          connector: { fromRef: 'a', toRef: 'b', label: 'then', kind: 'blocks' },
+        },
+      ],
+    });
+    expect(edit.added).toHaveLength(3);
+    const [a, b] = edit.added;
+
+    board = await getWhiteboard(ctx, { id: wb.id, includeGeometry: true });
+    expect(board.elements.map((e) => e.text)).toEqual(['Start', 'End']);
+    // default rect size is filled in when omitted
+    expect(board.elements[0]?.geometry).toMatchObject({ w: 160, h: 100 });
+    expect(board.connectors).toHaveLength(1);
+    expect(board.connectors[0]).toMatchObject({
+      fromId: a,
+      toId: b,
+      label: 'then',
+      kind: 'blocks',
+    });
+
+    await editWhiteboard(ctx, {
+      id: wb.id,
+      update: [{ id: a!, text: 'Kickoff', x: 50 }],
+      delete: [b!],
+    });
+
+    board = await getWhiteboard(ctx, { id: wb.id, includeGeometry: true });
+    const kept = board.elements.find((e) => e.id === a);
+    expect(kept?.text).toBe('Kickoff');
+    expect(kept?.geometry?.x).toBe(50);
+    expect(board.elements.find((e) => e.id === b)).toBeUndefined();
+  });
+
+  it('refuses a connector pointing at an id that is not on the board', async () => {
+    const { user, workspace, space } = await seed();
+    const ctx = { userId: user.id, workspaceId: workspace.id };
+    const wb = await createWhiteboard(ctx, { parentId: space, name: 'Plan' });
+
+    await expect(
+      editWhiteboard(ctx, {
+        id: wb.id,
+        add: [
+          {
+            type: 'connector',
+            x: 0,
+            y: 0,
+            connector: { fromId: 'nope', toId: 'nope2' },
+          },
+        ],
+      })
+    ).rejects.toThrow(/not an element on this board/);
+  });
+
+  it('refuses updating an element that is not on the board', async () => {
+    const { user, workspace, space } = await seed();
+    const ctx = { userId: user.id, workspaceId: workspace.id };
+    const wb = await createWhiteboard(ctx, { parentId: space, name: 'Plan' });
+
+    await expect(
+      editWhiteboard(ctx, { id: wb.id, update: [{ id: 'ghost', text: 'x' }] })
+    ).rejects.toThrow(/not on this board/);
+  });
+
+  it('refuses editing a node that has no board', async () => {
+    const { user, workspace, space } = await seed();
+    const ctx = { userId: user.id, workspaceId: workspace.id };
+    await expect(
+      editWhiteboard(ctx, { id: space, add: [{ type: 'rect', x: 0, y: 0 }] })
+    ).rejects.toThrow(/no board/);
+  });
+
+  it('does nothing when given no operations', async () => {
+    const { user, workspace, space } = await seed();
+    const ctx = { userId: user.id, workspaceId: workspace.id };
+    const wb = await createWhiteboard(ctx, { parentId: space, name: 'Plan' });
+    await expect(editWhiteboard(ctx, { id: wb.id })).rejects.toThrow(
+      /Nothing to do/
+    );
   });
 });

@@ -17,6 +17,16 @@ import { z } from 'zod/v4';
 import {
   Block,
   BlockLeaf,
+  BoardAnchor,
+  BoardConnector,
+  BoardElement,
+  BoardElementStyle,
+  BoardElementType,
+  boardAnchorSchema,
+  boardElementSchema,
+  boardElementStyleSchema,
+  boardElementTypeSchema,
+  boardSceneSchema,
   CanCreateNodeContext,
   CanUpdateAttributesContext,
   CanUpdateDocumentContext,
@@ -40,6 +50,7 @@ import {
   PageAttributes,
   RecordAttributes,
   RichTextContent,
+  WhiteboardAttributes,
   WorkspaceRole,
 } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
@@ -1763,6 +1774,19 @@ export interface GetWhiteboardResult extends BoardSceneSummary {
   type: string;
 }
 
+export interface CreateWhiteboardResult {
+  id: string;
+  name: string;
+}
+
+export interface EditWhiteboardResult {
+  id: string;
+  // The ids of the elements added / updated / deleted, in the order given.
+  added: string[];
+  updated: string[];
+  deleted: string[];
+}
+
 export interface NodePathEntry {
   id: string;
   name: string;
@@ -2790,6 +2814,381 @@ export const getWhiteboard = async (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Whiteboard write (create_whiteboard / edit_whiteboard)
+// ---------------------------------------------------------------------------
+
+// Default element sizes, mirroring ELEMENT_DEFAULTS in packages/ui
+// (lib/board/elements.ts). The canvas fills these in when a tool drops a
+// shape; a board authored here needs the same sizes or an element comes out
+// zero-height. A plain Record so a new element type in core forces an entry.
+const BOARD_ELEMENT_DEFAULT_SIZE: Record<
+  BoardElementType,
+  { w: number; h: number }
+> = {
+  sticky: { w: 180, h: 140 },
+  rect: { w: 160, h: 100 },
+  ellipse: { w: 150, h: 120 },
+  diamond: { w: 150, h: 120 },
+  text: { w: 200, h: 40 },
+  connector: { w: 0, h: 0 },
+  freehand: { w: 0, h: 0 },
+  frame: { w: 480, h: 320 },
+  mindmap: { w: 170, h: 52 },
+  image: { w: 240, h: 180 },
+  icon: { w: 96, h: 96 },
+  nodeCard: { w: 300, h: 260 },
+  poll: { w: 260, h: 144 },
+};
+
+// The scene lives under a different key depending on the node: a whiteboard
+// keeps it in `scene`, a page or folder opened as a board keeps its own in
+// `boardScene`. Covering both is what get_whiteboard already reads.
+const boardSceneKey = (type: NodeType): 'scene' | 'boardScene' | null =>
+  type === 'whiteboard'
+    ? 'scene'
+    : type === 'page' || type === 'folder'
+      ? 'boardScene'
+      : null;
+
+// The z key painting on top of everything currently in the scene, so a freshly
+// added element is not hidden behind the others. Fractional-index strings sort
+// lexicographically back to front (whiteboard.ts).
+const topSceneZ = (scene: Record<string, BoardElement>): string | null => {
+  let top: string | null = null;
+  for (const element of Object.values(scene)) {
+    const z = element.z;
+    if (typeof z === 'string' && (top === null || z > top)) {
+      top = z;
+    }
+  }
+  return top;
+};
+
+export interface BoardConnectorInput {
+  fromId?: string;
+  toId?: string;
+  fromRef?: string;
+  toRef?: string;
+  fromAnchor?: BoardAnchor;
+  toAnchor?: BoardAnchor;
+  arrowStartType?: 'none' | 'arrow' | 'triangle' | 'circle' | 'diamond';
+  arrowEndType?: 'none' | 'arrow' | 'triangle' | 'circle' | 'diamond';
+  label?: string;
+  routing?: 'straight' | 'elbow' | 'curved';
+  kind?: 'blocks' | 'dependsOn' | 'relatesTo';
+}
+
+export interface BoardElementAddInput {
+  type: BoardElementType;
+  ref?: string;
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  text?: string;
+  shape?: string;
+  badge?: string;
+  style?: BoardElementStyle;
+  points?: number[][];
+  frameId?: string;
+  groupId?: string;
+  nodeId?: string;
+  nodeName?: string;
+  fileId?: string;
+  icon?: string;
+  connector?: BoardConnectorInput;
+}
+
+export interface BoardElementUpdateInput {
+  id: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  rotation?: number;
+  text?: string;
+  shape?: string;
+  badge?: string;
+  hidden?: boolean;
+  style?: BoardElementStyle;
+  points?: number[][];
+  frameId?: string | null;
+  groupId?: string | null;
+  connector?: BoardConnectorInput;
+}
+
+export const createWhiteboard = async (
+  ctx: WikiToolContext,
+  input: { parentId: string; name: string }
+): Promise<CreateWhiteboardResult> => {
+  const { tree } = await requireAccessibleNode(input.parentId, ctx);
+  const user = await fetchWorkspaceUser(ctx);
+
+  const attributes: WhiteboardAttributes = {
+    type: 'whiteboard',
+    name: input.name,
+    parentId: input.parentId,
+  };
+
+  const model = getNodeModel('whiteboard');
+  const canCreateContext: CanCreateNodeContext = {
+    user: {
+      id: user.id,
+      role: user.role,
+      workspaceId: user.workspaceId,
+      accountId: user.accountId,
+    },
+    tree: tree.map(mapNode),
+    attributes,
+  };
+
+  if (!model.canCreate(canCreateContext)) {
+    throw new WikiToolError(
+      'You do not have permission to create a whiteboard here.'
+    );
+  }
+
+  const whiteboardId = generateId(IdType.Whiteboard);
+  const rootId = tree[0]?.id ?? whiteboardId;
+
+  const created = await createNode({
+    nodeId: whiteboardId,
+    rootId,
+    attributes,
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+  });
+
+  if (!created) {
+    throw new WikiToolError('Failed to create the whiteboard.');
+  }
+
+  return { id: whiteboardId, name: input.name };
+};
+
+export const editWhiteboard = async (
+  ctx: WikiToolContext,
+  input: {
+    id: string;
+    add?: BoardElementAddInput[];
+    update?: BoardElementUpdateInput[];
+    delete?: string[];
+  }
+): Promise<EditWhiteboardResult> => {
+  const adds = input.add ?? [];
+  const updates = input.update ?? [];
+  const deletes = input.delete ?? [];
+  if (adds.length === 0 && updates.length === 0 && deletes.length === 0) {
+    throw new WikiToolError(
+      'Nothing to do: pass at least one of add, update or delete.'
+    );
+  }
+
+  const { tree, node } = await requireAccessibleNode(input.id, ctx);
+  const sceneKey = boardSceneKey(node.type);
+  if (!sceneKey) {
+    throw new WikiToolError(
+      `Node ${input.id} is a ${node.type}, which has no board to edit.`
+    );
+  }
+
+  const user = await fetchWorkspaceUser(ctx);
+  const model = getNodeModel(node.type);
+  const canUpdateContext: CanUpdateAttributesContext = {
+    user: {
+      id: user.id,
+      role: user.role,
+      workspaceId: user.workspaceId,
+      accountId: user.accountId,
+    },
+    node: mapNode(node),
+    tree: tree.map(mapNode),
+    attributes: node.attributes as NodeAttributes,
+  };
+  if (!model.canUpdateAttributes(canUpdateContext)) {
+    throw new WikiToolError('You do not have permission to edit this board.');
+  }
+
+  // Pre-mint every added element's id, so a connector added in the same call
+  // can reference a shape by the caller's `ref`, and so the ids can be
+  // returned. Deterministic across an updateNode retry (same ids reused).
+  const refToId = new Map<string, string>();
+  const addedIds: string[] = [];
+  for (const add of adds) {
+    const id = generateId(IdType.Node);
+    addedIds.push(id);
+    if (add.ref !== undefined) {
+      if (refToId.has(add.ref)) {
+        throw new WikiToolError(`Duplicate ref "${add.ref}" in add.`);
+      }
+      refToId.set(add.ref, id);
+    }
+  }
+  const newIds = new Set(addedIds);
+
+  const updated = await updateNode({
+    nodeId: input.id,
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+    updater: (attributes) => {
+      const attrs = attributes as Record<string, unknown>;
+      const scene: Record<string, BoardElement> = {
+        ...((attrs[sceneKey] as Record<string, BoardElement> | undefined) ??
+          {}),
+      };
+
+      const resolveEnd = (
+        plainId: string | undefined,
+        ref: string | undefined,
+        side: 'from' | 'to'
+      ): string | undefined => {
+        if (ref !== undefined) {
+          const resolved = refToId.get(ref);
+          if (!resolved) {
+            throw new WikiToolError(
+              `Connector ${side}Ref "${ref}" matches no element added in this call.`
+            );
+          }
+          return resolved;
+        }
+        if (plainId !== undefined) {
+          if (!scene[plainId] && !newIds.has(plainId)) {
+            throw new WikiToolError(
+              `Connector ${side}Id "${plainId}" is not an element on this board; use ${side}Ref for an element added in the same call.`
+            );
+          }
+          return plainId;
+        }
+        return undefined;
+      };
+
+      const buildConnector = (c: BoardConnectorInput): BoardConnector => {
+        const connector: BoardConnector = {};
+        const fromId = resolveEnd(c.fromId, c.fromRef, 'from');
+        const toId = resolveEnd(c.toId, c.toRef, 'to');
+        if (fromId !== undefined) connector.fromId = fromId;
+        if (toId !== undefined) connector.toId = toId;
+        if (c.fromAnchor !== undefined) connector.fromAnchor = c.fromAnchor;
+        if (c.toAnchor !== undefined) connector.toAnchor = c.toAnchor;
+        if (c.arrowStartType !== undefined)
+          connector.arrowStartType = c.arrowStartType;
+        if (c.arrowEndType !== undefined)
+          connector.arrowEndType = c.arrowEndType;
+        if (c.label !== undefined) connector.label = c.label;
+        if (c.routing !== undefined) connector.routing = c.routing;
+        if (c.kind !== undefined) connector.kind = c.kind;
+        return connector;
+      };
+
+      // Deletes first, so an id freed here is gone before adds/updates run.
+      for (const id of deletes) {
+        delete scene[id];
+      }
+
+      // Adds, each stacked on top in the order given.
+      let z = topSceneZ(scene);
+      for (let i = 0; i < adds.length; i++) {
+        const add = adds[i]!;
+        const id = addedIds[i]!;
+        const size = BOARD_ELEMENT_DEFAULT_SIZE[add.type];
+        z = generateFractionalIndex(z, null);
+        const element: BoardElement = {
+          id,
+          type: add.type,
+          x: add.x,
+          y: add.y,
+          w: add.w ?? size.w,
+          h: add.h ?? size.h,
+          z,
+          style: add.style ?? {},
+        };
+        if (add.text !== undefined) element.text = add.text;
+        if (add.shape !== undefined) element.shape = add.shape;
+        if (add.badge !== undefined) element.badge = add.badge;
+        if (add.points !== undefined) element.points = add.points;
+        if (add.frameId !== undefined) element.frameId = add.frameId;
+        if (add.groupId !== undefined) element.groupId = add.groupId;
+        if (add.nodeId !== undefined) element.nodeId = add.nodeId;
+        if (add.nodeName !== undefined) element.nodeName = add.nodeName;
+        if (add.fileId !== undefined) element.fileId = add.fileId;
+        if (add.icon !== undefined) element.icon = add.icon;
+        if (add.connector !== undefined)
+          element.connector = buildConnector(add.connector);
+        const parsed = boardElementSchema.safeParse(element);
+        if (!parsed.success) {
+          throw new WikiToolError(
+            `Invalid ${add.type} element: ${parsed.error.issues[0]?.message ?? 'does not match the board element schema'}.`
+          );
+        }
+        scene[id] = parsed.data;
+      }
+
+      // Updates: patch-merge into existing elements by id.
+      for (const patch of updates) {
+        const existing = scene[patch.id];
+        if (!existing) {
+          throw new WikiToolError(
+            `Cannot update element ${patch.id}: it is not on this board.`
+          );
+        }
+        const next: BoardElement = { ...existing };
+        if (patch.x !== undefined) next.x = patch.x;
+        if (patch.y !== undefined) next.y = patch.y;
+        if (patch.w !== undefined) next.w = patch.w;
+        if (patch.h !== undefined) next.h = patch.h;
+        if (patch.rotation !== undefined) next.rotation = patch.rotation;
+        if (patch.text !== undefined) next.text = patch.text;
+        if (patch.shape !== undefined) next.shape = patch.shape;
+        if (patch.badge !== undefined) next.badge = patch.badge;
+        if (patch.hidden !== undefined) next.hidden = patch.hidden;
+        if (patch.points !== undefined) next.points = patch.points;
+        if (patch.style !== undefined)
+          next.style = { ...next.style, ...patch.style };
+        if (patch.frameId !== undefined) {
+          if (patch.frameId === null) delete next.frameId;
+          else next.frameId = patch.frameId;
+        }
+        if (patch.groupId !== undefined) {
+          if (patch.groupId === null) delete next.groupId;
+          else next.groupId = patch.groupId;
+        }
+        if (patch.connector !== undefined) {
+          next.connector = {
+            ...(next.connector ?? {}),
+            ...buildConnector(patch.connector),
+          };
+        }
+        const parsed = boardElementSchema.safeParse(next);
+        if (!parsed.success) {
+          throw new WikiToolError(
+            `Invalid update to element ${patch.id}: ${parsed.error.issues[0]?.message ?? 'does not match the board element schema'}.`
+          );
+        }
+        scene[patch.id] = parsed.data;
+      }
+
+      const sceneParsed = boardSceneSchema.safeParse(scene);
+      if (!sceneParsed.success) {
+        throw new WikiToolError('The resulting board is not valid.');
+      }
+      attrs[sceneKey] = sceneParsed.data;
+      return attributes;
+    },
+  });
+
+  if (!updated) {
+    throw new WikiToolError('Failed to edit the whiteboard.');
+  }
+
+  return {
+    id: input.id,
+    added: addedIds,
+    updated: updates.map((u) => u.id),
+    deleted: deletes,
+  };
+};
+
 export const LIST_TRASH_DEFAULT_LIMIT = 50;
 export const LIST_TRASH_MAX_LIMIT = 200;
 
@@ -3556,6 +3955,203 @@ const getWhiteboardInput = z.object({
     .optional()
     .describe('Also return elements hidden on the board. Default false.'),
 });
+const boardConnectorToolInput = z
+  .object({
+    fromId: z
+      .string()
+      .optional()
+      .describe('Id of an existing board element the line starts at.'),
+    toId: z
+      .string()
+      .optional()
+      .describe('Id of an existing board element the line ends at.'),
+    fromRef: z
+      .string()
+      .optional()
+      .describe(
+        'ref of an element added in THIS call to start the line at (use instead of fromId for a just-added element).'
+      ),
+    toRef: z
+      .string()
+      .optional()
+      .describe('ref of an element added in THIS call to end the line at.'),
+    fromAnchor: boardAnchorSchema
+      .optional()
+      .describe(
+        'Where on the start element the line attaches: a side name (top/right/bottom/left/center) or a normalised { x, y } point in 0..1.'
+      ),
+    toAnchor: boardAnchorSchema
+      .optional()
+      .describe('Where on the end element the line attaches.'),
+    arrowStartType: z
+      .enum(['none', 'arrow', 'triangle', 'circle', 'diamond'])
+      .optional()
+      .describe('Arrow head at the start. Default: no head.'),
+    arrowEndType: z
+      .enum(['none', 'arrow', 'triangle', 'circle', 'diamond'])
+      .optional()
+      .describe('Arrow head at the end. Default: a plain arrow.'),
+    label: z.string().optional().describe('Text drawn on the line.'),
+    routing: z
+      .enum(['straight', 'elbow', 'curved'])
+      .optional()
+      .describe('Line shape. Default straight.'),
+    kind: z
+      .enum(['blocks', 'dependsOn', 'relatesTo'])
+      .optional()
+      .describe('What the line means. Default: a plain connector.'),
+  })
+  .describe('Wiring for an element of type "connector".');
+
+const boardElementAddToolInput = z
+  .object({
+    type: boardElementTypeSchema.describe(
+      'Element kind: sticky, rect, ellipse, diamond, text, connector, freehand, frame, mindmap, image, icon, nodeCard or poll.'
+    ),
+    ref: z
+      .string()
+      .optional()
+      .describe(
+        'A temporary key you choose so a connector added in the same call can point at this element via fromRef/toRef. Not stored.'
+      ),
+    x: z.number().describe('X of the top-left corner in scene coordinates.'),
+    y: z.number().describe('Y of the top-left corner in scene coordinates.'),
+    w: z
+      .number()
+      .optional()
+      .describe('Width in scene units; a per-type default is used if omitted.'),
+    h: z
+      .number()
+      .optional()
+      .describe('Height in scene units; a per-type default is used if omitted.'),
+    text: z
+      .string()
+      .optional()
+      .describe('Label text (sticky, shapes, text, frame).'),
+    shape: z
+      .string()
+      .optional()
+      .describe("Named outline for a shape, e.g. 'hexagon' or 'cylinder'."),
+    badge: z
+      .string()
+      .optional()
+      .describe('Short corner chip, e.g. "3" or "REQ-14".'),
+    style: boardElementStyleSchema
+      .optional()
+      .describe(
+        'Fill, stroke, colour, font size/family, text alignment, opacity.'
+      ),
+    points: z
+      .array(z.array(z.number()))
+      .optional()
+      .describe(
+        'Points as [x, y] pairs in scene coordinates (freehand strokes, or explicit connector routing).'
+      ),
+    frameId: z
+      .string()
+      .optional()
+      .describe('Id of a frame element this element sits inside.'),
+    groupId: z
+      .string()
+      .optional()
+      .describe('Elements sharing a groupId move as one.'),
+    nodeId: z
+      .string()
+      .optional()
+      .describe('For a nodeCard: the id of the node the card shows.'),
+    nodeName: z
+      .string()
+      .optional()
+      .describe(
+        'For a nodeCard: a fallback name shown if the target becomes unreadable.'
+      ),
+    fileId: z
+      .string()
+      .optional()
+      .describe(
+        'For an image element: the uploaded file id (see upload_image).'
+      ),
+    icon: z
+      .string()
+      .optional()
+      .describe('For an icon element: the sprite id from the icon picker.'),
+    connector: boardConnectorToolInput
+      .optional()
+      .describe(
+        'For a connector element: its ends, arrow heads, label, routing and kind.'
+      ),
+  })
+  .describe('A new board element.');
+
+const boardElementUpdateToolInput = z
+  .object({
+    id: z.string().describe('Id of the existing element to change.'),
+    x: z.number().optional().describe('New top-left X.'),
+    y: z.number().optional().describe('New top-left Y.'),
+    w: z.number().optional().describe('New width.'),
+    h: z.number().optional().describe('New height.'),
+    rotation: z.number().optional().describe('Rotation in degrees.'),
+    text: z.string().optional().describe('New label text.'),
+    shape: z.string().optional().describe('New named outline.'),
+    badge: z.string().optional().describe('New corner chip text.'),
+    hidden: z
+      .boolean()
+      .optional()
+      .describe(
+        'Hide the element without deleting it (true) or show it again (false).'
+      ),
+    style: boardElementStyleSchema
+      .optional()
+      .describe('Style fields to merge into the existing style.'),
+    points: z
+      .array(z.array(z.number()))
+      .optional()
+      .describe('Replacement points as [x, y] pairs.'),
+    frameId: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('Move into a frame (its id), or null to take it out of one.'),
+    groupId: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('Join a group (its id), or null to leave the group.'),
+    connector: boardConnectorToolInput
+      .optional()
+      .describe('Connector fields to merge (for a connector element).'),
+  })
+  .describe('A change to one existing element.');
+
+const createWhiteboardInput = z.object({
+  parentId: z
+    .string()
+    .describe(
+      'The id of the parent node (space, folder or page) to create the whiteboard under.'
+    ),
+  name: nameInput('Title of the new whiteboard.'),
+});
+const editWhiteboardInput = z.object({
+  id: z
+    .string()
+    .describe(
+      'The id of the whiteboard (or of a page/folder opened as a board) to edit.'
+    ),
+  add: z
+    .array(boardElementAddToolInput)
+    .optional()
+    .describe(
+      'Elements to add. Each is placed on top in order; give one a ref to wire a connector to it in the same call.'
+    ),
+  update: z
+    .array(boardElementUpdateToolInput)
+    .optional()
+    .describe('Changes to existing elements, by id.'),
+  delete: z
+    .array(z.string())
+    .optional()
+    .describe('Ids of elements to remove from the board.'),
+});
 const moveNodeInput = z.object({
   id: z.string().describe('The node id to move.'),
   parentId: z
@@ -3650,6 +4246,30 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
       type: 'get_whiteboard',
       nodeId: input.id,
       summary: `Read the board "${result.name}"`,
+    }),
+  }),
+  defineTool({
+    name: 'create_whiteboard',
+    description:
+      'Create a new whiteboard (an empty board) under a parent node (space, folder or page). Add elements to it with edit_whiteboard. Returns { id, name }.',
+    inputSchema: createWhiteboardInput,
+    run: createWhiteboard,
+    action: (input, result) => ({
+      type: 'create_whiteboard',
+      nodeId: result.id,
+      summary: `Created whiteboard "${input.name}"`,
+    }),
+  }),
+  defineTool({
+    name: 'edit_whiteboard',
+    description:
+      'Edit a whiteboard by adding, updating and deleting elements in one call. add creates elements (sticky notes, rect/ellipse/diamond shapes, text, connectors, frames, freehand, mindmap nodes, images, icons, node cards, polls) -- each added element is placed on top, and you may give it a ref so a connector added in the same call points at it with fromRef/toRef, while existing elements are wired with fromId/toId. update patches elements by id (position, size, text, style, hidden, and so on). delete removes elements by id. Coordinates are scene units, matching get_whiteboard geometry. Returns { id, added, updated, deleted } listing the ids touched.',
+    inputSchema: editWhiteboardInput,
+    run: editWhiteboard,
+    action: (input, result) => ({
+      type: 'edit_whiteboard',
+      nodeId: input.id,
+      summary: `Edited the board: +${result.added.length} ~${result.updated.length} -${result.deleted.length}`,
     }),
   }),
   defineTool({
