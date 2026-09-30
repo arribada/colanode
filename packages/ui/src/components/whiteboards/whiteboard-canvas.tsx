@@ -2897,6 +2897,18 @@ export const WhiteboardCanvas = ({
         duplicateSelection();
         return;
       }
+      // Ctrl/Cmd+V pastes the board's own element clipboard. The OS `paste`
+      // event only fires this when the pointer happens to hover the board, so
+      // copy-then-paste silently did nothing once the mouse had moved away;
+      // handling it on keydown makes it work whenever the board holds focus. An
+      // empty element clipboard is left to the OS handler (external image/text).
+      if (meta && e.key.toLowerCase() === 'v') {
+        if (clipboardRef.current.length > 0) {
+          e.preventDefault();
+          pasteClipboard();
+        }
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         deleteSelection();
