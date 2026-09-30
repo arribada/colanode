@@ -725,7 +725,7 @@ export const BoardElementView = ({
           ? polylineCrossings(wpts, crossableRoutes(element, scene))
           : undefined
       );
-      headFrom = connectorArrowFrom(routing, start, end, bends);
+      headFrom = connectorArrowFrom(routing, start, end, bends, exitSide);
       tailFrom = wpts[1] ?? end;
       mid = connectorHandlePoint(routing, start, end, bends);
     }

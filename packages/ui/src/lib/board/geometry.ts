@@ -648,11 +648,16 @@ export const connectorHandlePoint = (
   return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
 };
 
-/** Penultimate route point, so the END arrowhead points along the last segment. */
+/** Penultimate route point, so the END arrowhead points along the last segment.
+ * Takes the anchored exit side: an elbow route leaves along that side, so the
+ * arrowhead must be measured against the SAME waypoints the path was drawn
+ * from — computing them without `exitSide` can pick the other elbow
+ * orientation and point the head off at 90 degrees to the real last segment. */
 export const connectorArrowFrom = (
-  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[]
+  routing: ConnectorRouting, start: Point, end: Point, bends?: Point[],
+  exitSide?: NamedAnchor
 ): Point => {
-  const pts = connectorWaypoints(routing, start, end, bends);
+  const pts = connectorWaypoints(routing, start, end, bends, exitSide);
   return pts[pts.length - 2] ?? start;
 };
 

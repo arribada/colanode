@@ -6,6 +6,7 @@ import {
   arrowHeadShape,
   buildConnectorPath,
   computeAlignmentSnap,
+  connectorArrowFrom,
   distance,
   moveConnectorSegment,
   polylineCrossings,
@@ -393,5 +394,27 @@ describe('arrowHeadShape', () => {
     const diagonal = arrowHeadShape('triangle', { x: 50, y: 50 }, { x: 0, y: 0 })!;
     const flat = arrowHeadShape('triangle', tip, from)!;
     expect(diagonal.points[0]!.y).not.toBeCloseTo(flat.points[0]!.y, 1);
+  });
+});
+
+describe('connectorArrowFrom', () => {
+  const start = { x: 0, y: 0 };
+  const end = { x: 100, y: 100 };
+
+  it('takes the penultimate point of a free elbow route', () => {
+    // |dx| === |dy| leaves horizontally, so the last segment is horizontal and
+    // the penultimate point sits level with the end: the head points sideways.
+    expect(connectorArrowFrom('elbow', start, end)).toEqual({ x: 50, y: 100 });
+  });
+
+  it('follows the anchored exit side instead of guessing from dx/dy', () => {
+    // A top/bottom anchor forces a vertical exit, so the last segment is now
+    // vertical and the penultimate point sits directly above the end: the head
+    // points straight down. Measuring this without the exit side would keep the
+    // horizontal answer above and aim the arrowhead 90 degrees off the wire.
+    expect(connectorArrowFrom('elbow', start, end, undefined, 'top')).toEqual({
+      x: 100,
+      y: 50,
+    });
   });
 });
