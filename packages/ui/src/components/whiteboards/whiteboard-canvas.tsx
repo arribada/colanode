@@ -1359,6 +1359,37 @@ export const WhiteboardCanvas = ({
     return null;
   };
 
+  // Connectors carry no box, so `elementAt` skips them; hit them by distance to
+  // their routed polyline instead. The double-click fallback needs this: a
+  // pointer-capture set on pointer-down can retarget the dblclick off the
+  // connector's <g data-el-id>, and without a geometric hit the click would
+  // land on the bare canvas and drop a stray text element beside the line
+  // instead of editing the line's own label.
+  const connectorAt = (p: Point): BoardElement | null => {
+    const tolerance = 12 / viewportRef.current.zoom;
+    const list = sortedElements(sceneRef.current);
+    for (let i = list.length - 1; i >= 0; i--) {
+      const el = list[i]!;
+      if (el.type !== 'connector') {
+        continue;
+      }
+      const c = el.connector ?? {};
+      const { start, end } = resolveConnectorEndpoints(el, sceneRef.current);
+      const exitSide = c.fromAnchor ? anchorSide(c.fromAnchor) : undefined;
+      const pts = connectorWaypoints(
+        c.routing ?? 'straight',
+        start,
+        end,
+        connectorBendPoints(c.bends, c.bend),
+        exitSide
+      );
+      if (polylineHitTest(pts, p, tolerance + (el.style.strokeWidth ?? 2) / 2)) {
+        return el;
+      }
+    }
+    return null;
+  };
+
   // ----- pointer interaction ----------------------------------------------
   const beginPan = (e: ReactPointerEvent) => {
     cancelFollow();
@@ -4682,7 +4713,7 @@ export const WhiteboardCanvas = ({
           // treating this as an empty-canvas double-click. Double-clicking an
           // existing shape must edit its text, not spawn a new one.
           const p = clientToScene(e.clientX, e.clientY);
-          const hit = elementAt(p);
+          const hit = elementAt(p) ?? connectorAt(p);
           if (hit) {
             onElementDoubleClick(hit.id);
           } else if (canEdit && tool === 'select') {
