@@ -728,6 +728,7 @@ export const BoardElementView = ({
       // arrow attached low on a right edge goes out to the right instead of
       // cutting back across the shape.
       const exitSide = c.fromAnchor ? anchorSide(c.fromAnchor) : undefined;
+      const entrySide = c.toAnchor ? anchorSide(c.toAnchor) : undefined;
       // 'avoid' routes orthogonally AROUND other shapes: compute the detour
       // waypoints from the scene and draw them as a rounded elbow through them.
       const drawRouting = routing === 'avoid' ? 'elbow' : routing;
@@ -738,7 +739,8 @@ export const BoardElementView = ({
         start,
         end,
         drawBends,
-        exitSide
+        exitSide,
+        entrySide
       );
       d = buildConnectorPath(
         drawRouting,
@@ -748,9 +750,17 @@ export const BoardElementView = ({
         exitSide,
         c.jumps
           ? polylineCrossings(wpts, crossableRoutes(element, scene))
-          : undefined
+          : undefined,
+        entrySide
       );
-      headFrom = connectorArrowFrom(drawRouting, start, end, drawBends, exitSide);
+      headFrom = connectorArrowFrom(
+        drawRouting,
+        start,
+        end,
+        drawBends,
+        exitSide,
+        entrySide
+      );
       tailFrom = wpts[1] ?? end;
       mid = connectorHandlePoint(drawRouting, start, end, drawBends);
       routePoly = wpts;

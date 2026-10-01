@@ -7,6 +7,7 @@ import {
   avoidWaypoints,
   buildConnectorPath,
   closestPointOnPolyline,
+  connectorWaypoints,
   computeAlignmentSnap,
   connectorArrowFrom,
   distance,
@@ -409,15 +410,12 @@ describe('connectorArrowFrom', () => {
     expect(connectorArrowFrom('elbow', start, end)).toEqual({ x: 50, y: 100 });
   });
 
-  it('follows the anchored exit side instead of guessing from dx/dy', () => {
-    // A top/bottom anchor forces a vertical exit, so the last segment is now
-    // vertical and the penultimate point sits directly above the end: the head
-    // points straight down. Measuring this without the exit side would keep the
-    // horizontal answer above and aim the arrowhead 90 degrees off the wire.
-    expect(connectorArrowFrom('elbow', start, end, undefined, 'top')).toEqual({
-      x: 100,
-      y: 50,
-    });
+  it('leaves along the anchored exit side (perpendicular stub)', () => {
+    // Forced to exit the top, the route leaves the start vertically and upward,
+    // wherever the end sits — the exit side drives the geometry, not dx/dy.
+    const pts = connectorWaypoints('elbow', start, end, undefined, 'top');
+    expect(pts[1]!.x).toBe(start.x);
+    expect(pts[1]!.y).toBeLessThan(start.y);
   });
 });
 
@@ -482,5 +480,42 @@ describe('avoidWaypoints', () => {
         p.x > box.x && p.x < box.x + box.w && p.y > box.y && p.y < box.y + box.h;
       expect(inside).toBe(false);
     }
+  });
+});
+
+describe('elbow stubs (entry/exit perpendicular)', () => {
+  it('honours the entry side even when the exit would route otherwise', () => {
+    // Same row, exit the start's right, but enter the end from BELOW. Without
+    // the entry stub the line would arrive horizontally (penult.x === 0); the
+    // entry side forces a vertical approach into the box from underneath.
+    const pts = connectorWaypoints(
+      'elbow',
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      undefined,
+      'right',
+      'bottom'
+    );
+    const last = pts[pts.length - 1]!;
+    const penult = pts[pts.length - 2]!;
+    expect(last).toEqual({ x: 200, y: 0 });
+    expect(penult.x).toBe(200); // vertical approach, aligned with the end
+    expect(penult.y).toBeGreaterThan(0); // from below
+  });
+
+  it('enters a top anchor from above (vertical last segment)', () => {
+    const pts = connectorWaypoints(
+      'elbow',
+      { x: 0, y: 0 },
+      { x: 120, y: 200 },
+      undefined,
+      'right',
+      'top'
+    );
+    const last = pts[pts.length - 1]!;
+    const penult = pts[pts.length - 2]!;
+    expect(last).toEqual({ x: 120, y: 200 });
+    expect(penult.x).toBe(120); // vertical approach
+    expect(penult.y).toBeLessThan(200); // from above
   });
 });

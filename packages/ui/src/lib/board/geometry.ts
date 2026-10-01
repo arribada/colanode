@@ -408,19 +408,108 @@ const leavesHorizontally = (
   return Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
 };
 
+const SIDE_DIR: Record<string, { x: number; y: number }> = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  top: { x: 0, y: -1 },
+  bottom: { x: 0, y: 1 },
+};
+
+// How far an elbow leaves / enters a shape before turning, so the arrowhead
+// meets the box head-on with a little clearance instead of gluing to its edge.
+// Must exceed ELBOW_RADIUS so the rounded corner still fits on the stub.
+const ELBOW_STUB = 24;
+
+// Drop consecutive duplicate and collinear points from an orthogonal polyline.
+const simplifyOrtho = (pts: Point[]): Point[] => {
+  const dedup: Point[] = [];
+  for (const p of pts) {
+    const prev = dedup[dedup.length - 1];
+    if (prev && Math.abs(prev.x - p.x) < 1e-6 && Math.abs(prev.y - p.y) < 1e-6) {
+      continue;
+    }
+    dedup.push(p);
+  }
+  const res: Point[] = [];
+  for (let i = 0; i < dedup.length; i++) {
+    const p = dedup[i]!;
+    if (i > 0 && i < dedup.length - 1) {
+      const a = dedup[i - 1]!;
+      const b = dedup[i + 1]!;
+      const vert = Math.abs(a.x - p.x) < 1e-6 && Math.abs(p.x - b.x) < 1e-6;
+      const horiz = Math.abs(a.y - p.y) < 1e-6 && Math.abs(p.y - b.y) < 1e-6;
+      // Drop a midpoint only when it lies BETWEEN its neighbours; a collinear
+      // point that reverses direction (a perpendicular exit/entry stub) stays.
+      if (vert && (p.y - a.y) * (b.y - p.y) >= 0) {
+        continue;
+      }
+      if (horiz && (p.x - a.x) * (b.x - p.x) >= 0) {
+        continue;
+      }
+    }
+    res.push(p);
+  }
+  return res.length >= 2 ? res : pts;
+};
+
 const elbowWaypoints = (
   start: Point,
   end: Point,
   bend?: Point,
-  exitSide?: NamedAnchor
+  exitSide?: NamedAnchor,
+  entrySide?: NamedAnchor
 ): Point[] => {
-  const horizontal = leavesHorizontally(start, end, exitSide);
-  if (horizontal) {
-    const midX = bend ? bend.x : (start.x + end.x) / 2;
-    return [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
+  // Manual reshape: keep the simple mid-based route through the dragged bend.
+  if (bend) {
+    const horizontal = leavesHorizontally(start, end, exitSide);
+    if (horizontal) {
+      return [start, { x: bend.x, y: start.y }, { x: bend.x, y: end.y }, end];
+    }
+    return [start, { x: start.x, y: bend.y }, { x: end.x, y: bend.y }, end];
   }
-  const midY = bend ? bend.y : (start.y + end.y) / 2;
-  return [start, { x: start.x, y: midY }, { x: end.x, y: midY }, end];
+
+  const ed = exitSide ? SIDE_DIR[exitSide] : undefined;
+  const nd = entrySide ? SIDE_DIR[entrySide] : undefined;
+
+  // Neither end anchored to a side: fall back to the dx/dy S-route.
+  if (!ed && !nd) {
+    const horizontal = leavesHorizontally(start, end, undefined);
+    if (horizontal) {
+      const midX = (start.x + end.x) / 2;
+      return [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
+    }
+    const midY = (start.y + end.y) / 2;
+    return [start, { x: start.x, y: midY }, { x: end.x, y: midY }, end];
+  }
+
+  // Leave the start shape and enter the end shape PERPENDICULAR, each with a
+  // stub of clearance, so the arrowhead points straight into the box.
+  const p1 = ed
+    ? { x: start.x + ed.x * ELBOW_STUB, y: start.y + ed.y * ELBOW_STUB }
+    : start;
+  const pN = nd
+    ? { x: end.x + nd.x * ELBOW_STUB, y: end.y + nd.y * ELBOW_STUB }
+    : end;
+
+  // A stub is horizontal when it leaves a left/right side; when one end is free,
+  // mirror the other so the connecting run stays a clean single elbow.
+  const exitH = ed ? ed.x !== 0 : nd ? nd.x === 0 : true;
+  const entryH = nd ? nd.x !== 0 : ed ? ed.x === 0 : true;
+
+  const mids: Point[] = [];
+  if (exitH && entryH) {
+    const mx = (p1.x + pN.x) / 2;
+    mids.push({ x: mx, y: p1.y }, { x: mx, y: pN.y });
+  } else if (!exitH && !entryH) {
+    const my = (p1.y + pN.y) / 2;
+    mids.push({ x: p1.x, y: my }, { x: pN.x, y: my });
+  } else if (exitH && !entryH) {
+    mids.push({ x: pN.x, y: p1.y });
+  } else {
+    mids.push({ x: p1.x, y: pN.y });
+  }
+
+  return simplifyOrtho([start, p1, ...mids, pN, end]);
 };
 
 /** SVG path over a polyline with small rounded (quadratic) corners. */
@@ -594,13 +683,13 @@ const smoothPath = (pts: Point[]): string => {
 
 export const connectorWaypoints = (
   routing: ConnectorRouting, start: Point, end: Point, bends?: Point[],
-  exitSide?: NamedAnchor
+  exitSide?: NamedAnchor, entrySide?: NamedAnchor
 ): Point[] => {
   const list = bends ?? [];
   if (list.length > 0) return [start, ...list, end];
   if (routing === 'curved') return [start, defaultCurveControl(start, end), end];
   if (routing === 'elbow' || routing === 'avoid')
-    return elbowWaypoints(start, end, undefined, exitSide);
+    return elbowWaypoints(start, end, undefined, exitSide, entrySide);
   return [start, end];
 };
 
@@ -610,7 +699,8 @@ export const buildConnectorPath = (
   // Points where this route crosses another one. Straight and elbow routes hop
   // over them; a curve is left alone, since hopping on a bezier needs
   // bezier/bezier intersection and a curve already reads clearly at a crossing.
-  crossings?: Point[]
+  crossings?: Point[],
+  entrySide?: NamedAnchor
 ): string => {
   const list = bends ?? [];
   if (list.length > 0) {
@@ -626,7 +716,7 @@ export const buildConnectorPath = (
   }
   if (routing === 'elbow' || routing === 'avoid')
     return roundedPath(
-      elbowWaypoints(start, end, undefined, exitSide),
+      elbowWaypoints(start, end, undefined, exitSide, entrySide),
       ELBOW_RADIUS,
       crossings
     );
@@ -657,9 +747,9 @@ export const connectorHandlePoint = (
  * orientation and point the head off at 90 degrees to the real last segment. */
 export const connectorArrowFrom = (
   routing: ConnectorRouting, start: Point, end: Point, bends?: Point[],
-  exitSide?: NamedAnchor
+  exitSide?: NamedAnchor, entrySide?: NamedAnchor
 ): Point => {
-  const pts = connectorWaypoints(routing, start, end, bends, exitSide);
+  const pts = connectorWaypoints(routing, start, end, bends, exitSide, entrySide);
   return pts[pts.length - 2] ?? start;
 };
 
