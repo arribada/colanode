@@ -167,8 +167,10 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
                 <NodeFavoriteButton nodeId={data.node.id} />
               )}
               {(data.node.type === 'page' ||
-                data.node.type === 'record') && (
-                <PageVersionButton page={data.node} />
+                data.node.type === 'record' ||
+                data.node.type === 'whiteboard' ||
+                data.node.type === 'database') && (
+                <PageVersionButton node={data.node} />
               )}
               {data.node.type === 'whiteboard' && (
                 <WhiteboardHistoryButton

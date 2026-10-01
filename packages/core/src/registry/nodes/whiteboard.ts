@@ -261,6 +261,20 @@ export const whiteboardAttributesSchema = z.object({
   // Board scene: { [elementId]: BoardElement }. Stored as a record so the CRDT
   // layer merges edits at element granularity (near-real-time collaboration).
   scene: boardSceneSchema.optional(),
+  // Git-like version tag (e.g. "v1.2.0") + append-only log of cut versions,
+  // mirrored from pages so the header's version control works the same here.
+  version: z.string().nullable().optional(),
+  versionLog: z
+    .array(
+      z.object({
+        version: z.string(),
+        at: z.string(),
+        by: z.string(),
+        note: z.string().nullable().optional(),
+      })
+    )
+    .nullable()
+    .optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),
 });

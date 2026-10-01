@@ -73,6 +73,20 @@ export const databaseAttributesSchema = z.object({
   // when set, the plain add-record action clones this template instead of
   // inserting a blank record. Absent on older databases (backward-compatible).
   defaultTemplateId: z.string().nullable().optional(),
+  // Git-like version tag (e.g. "v1.2.0") + append-only log of cut versions,
+  // mirrored from pages so the header's version control works the same here.
+  version: z.string().nullable().optional(),
+  versionLog: z
+    .array(
+      z.object({
+        version: z.string(),
+        at: z.string(),
+        by: z.string(),
+        note: z.string().nullable().optional(),
+      })
+    )
+    .nullable()
+    .optional(),
   collaborators: z.record(z.string(), nodeRoleEnum).optional(),
   deletedAt: z.string().nullable().optional(),
   deletedBy: z.string().nullable().optional(),

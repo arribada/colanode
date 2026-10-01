@@ -5,7 +5,12 @@ import { Tag } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { LocalPageNode, LocalRecordNode } from '@colanode/client/types';
+import {
+  LocalDatabaseNode,
+  LocalPageNode,
+  LocalRecordNode,
+  LocalWhiteboardNode,
+} from '@colanode/client/types';
 import {
   VersionBump,
   compareVersions,
@@ -38,9 +43,13 @@ const BUMPS: { key: VersionBump; label: string }[] = [
 ];
 
 export const PageVersionButton = ({
-  page,
+  node,
 }: {
-  page: LocalPageNode | LocalRecordNode;
+  node:
+    | LocalPageNode
+    | LocalRecordNode
+    | LocalWhiteboardNode
+    | LocalDatabaseNode;
 }) => {
   const workspace = useWorkspace();
   const [open, setOpen] = useState(false);
@@ -48,8 +57,8 @@ export const PageVersionButton = ({
   const [note, setNote] = useState('');
   const { mutate } = useMutation();
 
-  const current = page.version ?? null;
-  const log: PageVersionEntry[] = page.versionLog ?? [];
+  const current = node.version ?? null;
+  const log: PageVersionEntry[] = node.versionLog ?? [];
 
   const cut = (raw: string) => {
     const normalized = normalizeVersion(raw);
@@ -62,11 +71,16 @@ export const PageVersionButton = ({
       return;
     }
     const nodes = workspace.collections.nodes;
-    if (!nodes.has(page.id)) {
+    if (!nodes.has(node.id)) {
       return;
     }
-    nodes.update(page.id, (draft) => {
-      if (draft.type !== 'page' && draft.type !== 'record') {
+    nodes.update(node.id, (draft) => {
+      if (
+        draft.type !== 'page' &&
+        draft.type !== 'record' &&
+        draft.type !== 'whiteboard' &&
+        draft.type !== 'database'
+      ) {
         return;
       }
       const entry: PageVersionEntry = {
@@ -79,22 +93,26 @@ export const PageVersionButton = ({
       draft.versionLog = [...(draft.versionLog ?? []), entry];
     });
     // The tag alone says nothing about what the page looked like at the time.
-    // Cutting a version also asks the server for a snapshot under that tag, so
-    // the version can be read back later instead of only being named.
-    mutate({
-      input: {
-        type: 'document.snapshot.create',
-        userId: workspace.userId,
-        documentId: page.id,
-        name: normalized,
-        note: note.trim() || null,
-      },
-      onError(error) {
-        toast.error(
-          `${normalized} was tagged, but not captured: ${error.message}`
-        );
-      },
-    });
+    // Cutting a version also asks the server for a document snapshot under that
+    // tag, so the version can be read back later. Only page/record carry a
+    // document; a whiteboard keeps its own scene snapshots and a database is
+    // tagged by log alone.
+    if (node.type === 'page' || node.type === 'record') {
+      mutate({
+        input: {
+          type: 'document.snapshot.create',
+          userId: workspace.userId,
+          documentId: node.id,
+          name: normalized,
+          note: note.trim() || null,
+        },
+        onError(error) {
+          toast.error(
+            `${normalized} was tagged, but not captured: ${error.message}`
+          );
+        },
+      });
+    }
 
     setCustom('');
     setNote('');
@@ -107,8 +125,8 @@ export const PageVersionButton = ({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Page version"
-          title="Page version"
+          aria-label="Version"
+          title="Version"
           className="flex h-8 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Tag className="size-3.5" />
