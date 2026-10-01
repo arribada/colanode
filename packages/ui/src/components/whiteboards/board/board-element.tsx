@@ -7,6 +7,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import {
   connectorAvoidBends,
+  frameOrder,
   resolveConnectorEndpoints,
 } from '@colanode/ui/lib/board/elements';
 import {
@@ -1060,13 +1061,37 @@ export const BoardElementView = ({
       break;
   }
 
+  // A frame's number is its position in the Present order (reading order:
+  // top-to-bottom by row, then left-to-right), shown as a small badge so the
+  // sequence a slideshow will follow is visible on the board.
+  const frameNumber =
+    element.type === 'frame'
+      ? frameOrder(scene).findIndex((f) => f.id === element.id) + 1
+      : 0;
+
   return (
     <g transform={transform} opacity={opacity}>
       {shape}
       <BadgeChip element={element} />
+      {element.type === 'frame' && frameNumber > 0 && (
+        <g style={{ userSelect: 'none' }}>
+          <circle cx={element.x + 9} cy={element.y - 11} r={8} fill="#64748b" />
+          <text
+            x={element.x + 9}
+            y={element.y - 11 + 3}
+            textAnchor="middle"
+            fontSize={10}
+            fontWeight={700}
+            fill="#ffffff"
+            fontFamily={SANS_FAMILY}
+          >
+            {frameNumber}
+          </text>
+        </g>
+      )}
       {element.type === 'frame' && element.text && (
         <text
-          x={element.x + 4}
+          x={element.x + 22}
           y={element.y - 8}
           fontSize={element.style.fontSize ?? 13}
           fontWeight={element.style.fontWeight ?? '600'}
