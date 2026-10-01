@@ -750,7 +750,16 @@ export const BoardElementView = ({
     const tail = arrowHeadShape(startKind, start, tailFrom, 13);
     // A named dependency labels itself, unless the user wrote their own text.
     const lineLabel = c.label || (c.kind ? DEPENDENCY_LABEL[c.kind] : '');
-    const labelWidth = lineLabel ? Math.max(24, lineLabel.length * 7 + 12) : 0;
+    // The label honours the connector's OWN text style, and its chip grows
+    // with the font so a bigger label is not clipped.
+    const labelFontSize = style.fontSize ?? 12;
+    const labelColor = style.color ?? '#475569';
+    const labelWeight = style.fontWeight ?? 500;
+    const labelFamily = style.fontFamily === 'mono' ? MONO_FAMILY : SANS_FAMILY;
+    const labelHeight = labelFontSize + 10;
+    const labelWidth = lineLabel
+      ? Math.max(labelFontSize * 2, lineLabel.length * labelFontSize * 0.6 + 16)
+      : 0;
     // Label position along the wire: connector.labelT (0..1, dragged) lerped on
     // the straight chord, else the routed midpoint.
     const labelT = c.labelT;
@@ -809,9 +818,9 @@ export const BoardElementView = ({
             )}
             <rect
               x={labelPos.x - labelWidth / 2}
-              y={labelPos.y - 10}
+              y={labelPos.y - labelHeight / 2}
               width={labelWidth}
-              height={20}
+              height={labelHeight}
               rx={5}
               fill="#ffffff"
               stroke="#e2e8f0"
@@ -819,12 +828,12 @@ export const BoardElementView = ({
             />
             <text
               x={labelPos.x}
-              y={labelPos.y + 4}
+              y={labelPos.y + labelFontSize * 0.35}
               textAnchor="middle"
-              fontSize={12}
-              fontWeight={500}
-              fill="#475569"
-              fontFamily="Inter, system-ui, sans-serif"
+              fontSize={labelFontSize}
+              fontWeight={labelWeight}
+              fill={labelColor}
+              fontFamily={labelFamily}
             >
               {lineLabel}
             </text>

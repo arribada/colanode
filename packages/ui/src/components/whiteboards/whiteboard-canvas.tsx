@@ -145,6 +145,9 @@ const TEXT_CAPABLE_TYPES: BoardElementType[] = [
   'text',
   'mindmap',
   'frame',
+  // A connector carries an on-wire label, so the font size / colour controls
+  // must reach it too.
+  'connector',
 ];
 
 // Sides a quick-connect "+" handle can sit on / a new shape can be spawned to.
