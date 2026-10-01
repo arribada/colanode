@@ -688,8 +688,11 @@ export const BoardElementView = ({
     const c = element.connector ?? {};
     const routing = c.routing ?? 'straight';
     const bends = connectorBendPoints(c.bends, c.bend);
+    // Only a connector explicitly set to 'curved' bends into the anchored
+    // S-curve. A 'straight' (or default) line between two anchored shapes must
+    // stay straight — it was drawing a bezier whatever routing the user picked.
     const anchored =
-      routing !== 'elbow' &&
+      routing === 'curved' &&
       bends.length === 0 &&
       (c.fromAnchor != null || c.toAnchor != null);
 
