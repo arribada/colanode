@@ -17,6 +17,7 @@ import { NodePresenceViewers } from '@colanode/ui/components/nodes/node-presence
 import { NodeProvider } from '@colanode/ui/components/nodes/node-provider';
 import { NodeSettings } from '@colanode/ui/components/nodes/node-settings';
 import { PageVersionButton } from '@colanode/ui/components/nodes/page-version-button';
+import { WhiteboardHistoryButton } from '@colanode/ui/components/whiteboards/whiteboard-history-button';
 import { PageContainer } from '@colanode/ui/components/pages/page-container';
 import { RecordContainer } from '@colanode/ui/components/records/record-container';
 import { SpaceContainer } from '@colanode/ui/components/spaces/space-container';
@@ -168,6 +169,12 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
               {(data.node.type === 'page' ||
                 data.node.type === 'record') && (
                 <PageVersionButton page={data.node} />
+              )}
+              {data.node.type === 'whiteboard' && (
+                <WhiteboardHistoryButton
+                  whiteboard={data.node}
+                  role={data.role}
+                />
               )}
             </>
           )}
