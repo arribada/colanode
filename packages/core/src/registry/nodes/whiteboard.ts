@@ -140,7 +140,7 @@ export const boardConnectorSchema = z.object({
   // Line shape: straight segment (default), an orthogonal rounded elbow, or a
   // quadratic curve. Optional + backward-compatible — absent reads as
   // 'straight'.
-  routing: z.enum(['straight', 'elbow', 'curved']).optional(),
+  routing: z.enum(['straight', 'elbow', 'curved', 'avoid']).optional(),
   // A single reshape waypoint in SCENE coordinates: the elbow corner / curve
   // control point the user dragged. Absent = auto-routed.
   bend: z.object({ x: z.number(), y: z.number() }).optional(),

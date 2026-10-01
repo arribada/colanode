@@ -72,6 +72,7 @@ import {
   createElementId,
   defaultForType,
   ELEMENT_DEFAULTS,
+  connectorAvoidBends,
   elementRect,
   frameChildIds,
   frameOrder,
@@ -1383,13 +1384,16 @@ export const WhiteboardCanvas = ({
       const c = el.connector ?? {};
       const { start, end } = resolveConnectorEndpoints(el, sceneRef.current);
       const exitSide = c.fromAnchor ? anchorSide(c.fromAnchor) : undefined;
-      const pts = connectorWaypoints(
-        c.routing ?? 'straight',
-        start,
-        end,
-        connectorBendPoints(c.bends, c.bend),
-        exitSide
-      );
+      const pts =
+        c.routing === 'avoid'
+          ? [start, ...connectorAvoidBends(el, sceneRef.current), end]
+          : connectorWaypoints(
+              c.routing ?? 'straight',
+              start,
+              end,
+              connectorBendPoints(c.bends, c.bend),
+              exitSide
+            );
       if (polylineHitTest(pts, p, tolerance + (el.style.strokeWidth ?? 2) / 2)) {
         return el;
       }
@@ -6526,10 +6530,12 @@ const ElementHitArea = ({
     return (
       <path
         d={buildConnectorPath(
-          c.routing ?? 'straight',
+          c.routing === 'avoid' ? 'elbow' : c.routing ?? 'straight',
           start,
           end,
-          connectorBendPoints(c.bends, c.bend),
+          c.routing === 'avoid'
+            ? connectorAvoidBends(element, scene)
+            : connectorBendPoints(c.bends, c.bend),
           // Same exit side as the drawn path, otherwise the invisible hit
           // stroke runs somewhere else than the visible line and grabbing a
           // segment picks the wrong one.

@@ -4,6 +4,7 @@ import {
   anchorPoint,
   arrowHeadPoints,
   arrowHeadShape,
+  avoidWaypoints,
   buildConnectorPath,
   closestPointOnPolyline,
   computeAlignmentSnap,
@@ -449,5 +450,37 @@ describe('closestPointOnPolyline', () => {
       x: 0,
       y: 0,
     });
+  });
+});
+
+describe('avoidWaypoints', () => {
+  it('goes straight to the endpoint when nothing blocks the path', () => {
+    expect(avoidWaypoints({ x: 0, y: 0 }, { x: 100, y: 0 }, [])).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ]);
+  });
+
+  it('detours around a box sitting on the straight path', () => {
+    const start = { x: 0, y: 50 };
+    const end = { x: 300, y: 50 };
+    const box = { x: 120, y: 20, w: 60, h: 60 };
+    const route = avoidWaypoints(start, end, [box]);
+    expect(route[0]).toEqual(start);
+    expect(route[route.length - 1]).toEqual(end);
+    // every segment is axis-aligned
+    for (let i = 1; i < route.length; i++) {
+      const a = route[i - 1]!;
+      const b = route[i]!;
+      expect(a.x === b.x || a.y === b.y).toBe(true);
+    }
+    // it actually had to bend (a clear path would be just the two endpoints)
+    expect(route.length).toBeGreaterThan(2);
+    // no vertex lands strictly inside the obstacle
+    for (const p of route) {
+      const inside =
+        p.x > box.x && p.x < box.x + box.w && p.y > box.y && p.y < box.y + box.h;
+      expect(inside).toBe(false);
+    }
   });
 });

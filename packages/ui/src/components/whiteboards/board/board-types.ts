@@ -17,7 +17,7 @@ export type BoardTool =
 
 // Connector line shape, mirrored from the core `boardConnectorSchema.routing`
 // enum. Drives the toolbar's 3-way routing toggle.
-export type ConnectorRouting = 'straight' | 'elbow' | 'curved';
+export type ConnectorRouting = 'straight' | 'elbow' | 'curved' | 'avoid';
 
 export interface BoardStyleState {
   fill: string;

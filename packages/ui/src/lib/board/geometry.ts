@@ -366,7 +366,7 @@ export const computeAlignmentSnap = (
 export const connectorPath = (start: Point, end: Point): string =>
   `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
 
-export type ConnectorRouting = 'straight' | 'elbow' | 'curved';
+export type ConnectorRouting = 'straight' | 'elbow' | 'curved' | 'avoid';
 
 const ELBOW_RADIUS = 14;
 
@@ -599,7 +599,8 @@ export const connectorWaypoints = (
   const list = bends ?? [];
   if (list.length > 0) return [start, ...list, end];
   if (routing === 'curved') return [start, defaultCurveControl(start, end), end];
-  if (routing === 'elbow') return elbowWaypoints(start, end, undefined, exitSide);
+  if (routing === 'elbow' || routing === 'avoid')
+    return elbowWaypoints(start, end, undefined, exitSide);
   return [start, end];
 };
 
@@ -615,14 +616,15 @@ export const buildConnectorPath = (
   if (list.length > 0) {
     const pts = [start, ...list, end];
     if (routing === 'curved') return smoothPath(pts);
-    if (routing === 'elbow') return roundedPath(pts, ELBOW_RADIUS, crossings);
+    if (routing === 'elbow' || routing === 'avoid')
+      return roundedPath(pts, ELBOW_RADIUS, crossings);
     return polylinePath(pts, crossings);
   }
   if (routing === 'curved') {
     const c = defaultCurveControl(start, end);
     return `M ${start.x} ${start.y} Q ${c.x} ${c.y} ${end.x} ${end.y}`;
   }
-  if (routing === 'elbow')
+  if (routing === 'elbow' || routing === 'avoid')
     return roundedPath(
       elbowWaypoints(start, end, undefined, exitSide),
       ELBOW_RADIUS,
@@ -641,7 +643,7 @@ export const connectorHandlePoint = (
     const c = defaultCurveControl(start, end);
     return { x: 0.25 * start.x + 0.5 * c.x + 0.25 * end.x, y: 0.25 * start.y + 0.5 * c.y + 0.25 * end.y };
   }
-  if (routing === 'elbow') {
+  if (routing === 'elbow' || routing === 'avoid') {
     const pts = elbowWaypoints(start, end);
     return { x: (pts[1]!.x + pts[2]!.x) / 2, y: (pts[1]!.y + pts[2]!.y) / 2 };
   }
@@ -780,6 +782,163 @@ export const closestPointOnPolyline = (pts: Point[], p: Point): Point => {
     }
   }
   return best;
+};
+
+/**
+ * Orthogonal, obstacle-avoiding route from `start` to `end` that steps around
+ * `obstacles` (shape rects, already EXCLUDING the connector's own endpoints).
+ * Returns the full point list `[start, ...bends, end]`, every segment axis
+ * aligned. Falls back to a plain orthogonal elbow when no route is found.
+ *
+ * Method: a sparse grid whose candidate lines are each obstacle edge grown by a
+ * margin plus the two endpoints, then A* over that grid with a turn penalty so
+ * it prefers few, clean 90-degree bends.
+ */
+export const avoidWaypoints = (
+  start: Point,
+  end: Point,
+  obstacles: Rect[],
+  margin = 16
+): Point[] => {
+  const directElbow = (): Point[] => {
+    if (start.x === end.x || start.y === end.y) {
+      return [start, end];
+    }
+    const midX = (start.x + end.x) / 2;
+    return [
+      start,
+      { x: midX, y: start.y },
+      { x: midX, y: end.y },
+      end,
+    ];
+  };
+  if (obstacles.length === 0) {
+    return directElbow();
+  }
+
+  const EPS = 0.5;
+  const xsSet = new Set<number>([start.x, end.x]);
+  const ysSet = new Set<number>([start.y, end.y]);
+  for (const o of obstacles) {
+    xsSet.add(o.x - margin);
+    xsSet.add(o.x + o.w + margin);
+    ysSet.add(o.y - margin);
+    ysSet.add(o.y + o.h + margin);
+  }
+  const xs = [...xsSet].sort((a, b) => a - b);
+  const ys = [...ysSet].sort((a, b) => a - b);
+  const nx = xs.length;
+  const ny = ys.length;
+  if (nx * ny > 2500) {
+    return directElbow();
+  }
+
+  const insideObstacle = (px: number, py: number): boolean =>
+    obstacles.some(
+      (o) =>
+        px > o.x - margin + EPS &&
+        px < o.x + o.w + margin - EPS &&
+        py > o.y - margin + EPS &&
+        py < o.y + o.h + margin - EPS
+    );
+
+  const sX = xs.indexOf(start.x);
+  const sY = ys.indexOf(start.y);
+  const eX = xs.indexOf(end.x);
+  const eY = ys.indexOf(end.y);
+  if (sX < 0 || sY < 0 || eX < 0 || eY < 0) {
+    return directElbow();
+  }
+
+  const idx = (ix: number, iy: number) => ix * ny + iy;
+  const passable = (ax: number, ay: number, bx: number, by: number): boolean =>
+    !insideObstacle((xs[ax]! + xs[bx]!) / 2, (ys[ay]! + ys[by]!) / 2);
+
+  const N = nx * ny;
+  const gScore = new Array<number>(N).fill(Infinity);
+  const cameFrom = new Array<number>(N).fill(-1);
+  const fScore = new Array<number>(N).fill(Infinity);
+  const startNode = idx(sX, sY);
+  const endNode = idx(eX, eY);
+  gScore[startNode] = 0;
+  fScore[startNode] =
+    Math.abs(start.x - end.x) + Math.abs(start.y - end.y);
+  const open: number[] = [startNode];
+  const BEND = margin * 3;
+
+  while (open.length > 0) {
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) {
+      if (fScore[open[i]!]! < fScore[open[bi]!]!) {
+        bi = i;
+      }
+    }
+    const current = open.splice(bi, 1)[0]!;
+    if (current === endNode) {
+      break;
+    }
+    const cx = Math.floor(current / ny);
+    const cy = current % ny;
+    const prev = cameFrom[current]!;
+    const prevHoriz = prev >= 0 ? Math.floor(prev / ny) !== cx : null;
+    const steps: Array<[number, number]> = [
+      [cx - 1, cy],
+      [cx + 1, cy],
+      [cx, cy - 1],
+      [cx, cy + 1],
+    ];
+    for (const [ni, nj] of steps) {
+      if (ni < 0 || ni >= nx || nj < 0 || nj >= ny) {
+        continue;
+      }
+      if (!passable(cx, cy, ni, nj)) {
+        continue;
+      }
+      const nnode = idx(ni, nj);
+      const stepLen =
+        Math.abs(xs[ni]! - xs[cx]!) + Math.abs(ys[nj]! - ys[cy]!);
+      const horiz = ni !== cx;
+      const turn = prevHoriz !== null && prevHoriz !== horiz ? BEND : 0;
+      const tentative = gScore[current]! + stepLen + turn;
+      if (tentative < gScore[nnode]!) {
+        cameFrom[nnode] = current;
+        gScore[nnode] = tentative;
+        fScore[nnode] =
+          tentative + Math.abs(xs[ni]! - end.x) + Math.abs(ys[nj]! - end.y);
+        if (!open.includes(nnode)) {
+          open.push(nnode);
+        }
+      }
+    }
+  }
+
+  if (startNode !== endNode && cameFrom[endNode]! < 0) {
+    return directElbow();
+  }
+  const path: Point[] = [];
+  let cur = endNode;
+  let guard = 0;
+  while (cur !== -1 && guard++ < N + 2) {
+    path.push({ x: xs[Math.floor(cur / ny)]!, y: ys[cur % ny]! });
+    if (cur === startNode) {
+      break;
+    }
+    cur = cameFrom[cur]!;
+  }
+  path.reverse();
+  const out: Point[] = [];
+  for (let i = 0; i < path.length; i++) {
+    const p = path[i]!;
+    if (i > 0 && i < path.length - 1) {
+      const a = path[i - 1]!;
+      const b = path[i + 1]!;
+      if ((a.x === p.x && p.x === b.x) || (a.y === p.y && p.y === b.y)) {
+        continue;
+      }
+    }
+    out.push(p);
+  }
+  return out.length >= 2 ? out : [start, end];
 };
 
 export const nearestSegmentIndex = (pts: Point[], p: Point): number => {

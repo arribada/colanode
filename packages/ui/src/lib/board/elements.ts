@@ -15,6 +15,7 @@ import {
 import {
   Anchor,
   anchorPoint,
+  avoidWaypoints,
   nearestAnchor,
   Point,
   Rect,
@@ -415,4 +416,60 @@ export const frameChildIds = (
     }
   }
   return ids;
+};
+
+// Shape types a routed line should steer around. Thin or container-like things
+// (frames, text, icons, other lines, ink) are deliberately not obstacles.
+const OBSTACLE_TYPES: BoardElementType[] = [
+  'rect',
+  'sticky',
+  'ellipse',
+  'diamond',
+  'mindmap',
+  'image',
+  'nodeCard',
+  'poll',
+];
+
+/**
+ * Interior waypoints for an obstacle-avoiding ('avoid') connector: the detour
+ * points it needs to step around every bodied shape except the two it links.
+ * Returns [] for any other routing. Obstacles are limited to those near the
+ * start->end box so a big board stays cheap to route.
+ */
+export const connectorAvoidBends = (
+  el: BoardElement,
+  scene: BoardScene
+): Point[] => {
+  if (el.type !== 'connector' || el.connector?.routing !== 'avoid') {
+    return [];
+  }
+  const { start, end } = resolveConnectorEndpoints(el, scene);
+  const fromId = el.connector?.fromId;
+  const toId = el.connector?.toId;
+  const pad = 240;
+  const bx0 = Math.min(start.x, end.x) - pad;
+  const by0 = Math.min(start.y, end.y) - pad;
+  const bx1 = Math.max(start.x, end.x) + pad;
+  const by1 = Math.max(start.y, end.y) + pad;
+  const obstacles: Rect[] = [];
+  for (const s of Object.values(scene)) {
+    if (
+      !OBSTACLE_TYPES.includes(s.type) ||
+      s.id === fromId ||
+      s.id === toId ||
+      (s.rotation ?? 0) !== 0
+    ) {
+      continue;
+    }
+    const r = elementRect(s);
+    if (r.x > bx1 || r.x + r.w < bx0 || r.y > by1 || r.y + r.h < by0) {
+      continue;
+    }
+    obstacles.push(r);
+    if (obstacles.length >= 28) {
+      break;
+    }
+  }
+  return avoidWaypoints(start, end, obstacles).slice(1, -1);
 };

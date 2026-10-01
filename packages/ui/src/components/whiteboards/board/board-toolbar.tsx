@@ -1006,21 +1006,29 @@ export const BoardToolbar = ({
             >
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-1">
-                  {(['straight', 'elbow', 'curved'] as const).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      aria-label={`${r} connector`}
-                      title={`${r} connector`}
-                      onClick={() => onConnectorRouting(r)}
-                      className={cn(
-                        'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
-                        connectorRouting === r && 'bg-primary/10 text-primary'
-                      )}
-                    >
-                      {r}
-                    </button>
-                  ))}
+                  {(['straight', 'elbow', 'curved', 'avoid'] as const).map(
+                    (r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        aria-label={
+                          r === 'avoid' ? 'smart connector' : `${r} connector`
+                        }
+                        title={
+                          r === 'avoid'
+                            ? 'Smart — routes around shapes'
+                            : `${r} connector`
+                        }
+                        onClick={() => onConnectorRouting(r)}
+                        className={cn(
+                          'rounded-md px-2 py-1 text-xs capitalize hover:bg-accent',
+                          connectorRouting === r && 'bg-primary/10 text-primary'
+                        )}
+                      >
+                        {r === 'avoid' ? 'Smart' : r}
+                      </button>
+                    )
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">

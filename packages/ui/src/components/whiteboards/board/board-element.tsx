@@ -5,7 +5,10 @@ import { BoardElement, BoardScene } from '@colanode/core';
 import { Document } from '@colanode/ui/components/documents/document';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
-import { resolveConnectorEndpoints } from '@colanode/ui/lib/board/elements';
+import {
+  connectorAvoidBends,
+  resolveConnectorEndpoints,
+} from '@colanode/ui/lib/board/elements';
 import {
   anchoredCurveControls,
   ArrowHead,
@@ -724,20 +727,31 @@ export const BoardElementView = ({
       // arrow attached low on a right edge goes out to the right instead of
       // cutting back across the shape.
       const exitSide = c.fromAnchor ? anchorSide(c.fromAnchor) : undefined;
-      const wpts = connectorWaypoints(routing, start, end, bends, exitSide);
-      d = buildConnectorPath(
-        routing,
+      // 'avoid' routes orthogonally AROUND other shapes: compute the detour
+      // waypoints from the scene and draw them as a rounded elbow through them.
+      const drawRouting = routing === 'avoid' ? 'elbow' : routing;
+      const drawBends =
+        routing === 'avoid' ? connectorAvoidBends(element, scene) : bends;
+      const wpts = connectorWaypoints(
+        drawRouting,
         start,
         end,
-        bends,
+        drawBends,
+        exitSide
+      );
+      d = buildConnectorPath(
+        drawRouting,
+        start,
+        end,
+        drawBends,
         exitSide,
         c.jumps
           ? polylineCrossings(wpts, crossableRoutes(element, scene))
           : undefined
       );
-      headFrom = connectorArrowFrom(routing, start, end, bends, exitSide);
+      headFrom = connectorArrowFrom(drawRouting, start, end, drawBends, exitSide);
       tailFrom = wpts[1] ?? end;
-      mid = connectorHandlePoint(routing, start, end, bends);
+      mid = connectorHandlePoint(drawRouting, start, end, drawBends);
       routePoly = wpts;
     }
     // A head type of undefined falls back to the old booleans, so every
