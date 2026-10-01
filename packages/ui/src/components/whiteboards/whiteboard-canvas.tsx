@@ -2738,6 +2738,42 @@ export const WhiteboardCanvas = ({
       }
     }
 
+    // When a shape moves, an ELBOW connector attached to it keeps its stored
+    // bends in absolute scene coords, so the segment to the moved end turns
+    // diagonal. Drop those bends so the elbow re-routes at clean 90-degree
+    // angles, and persist the connectors alongside the shapes that moved.
+    if (it.mode === 'move') {
+      const movingSet = new Set(ids);
+      const next2 = { ...sceneRef.current };
+      const rerouted: string[] = [];
+      for (const cel of Object.values(sceneRef.current)) {
+        if (
+          cel.type !== 'connector' ||
+          (cel.connector?.routing ?? 'straight') !== 'elbow'
+        ) {
+          continue;
+        }
+        const touches =
+          (!!cel.connector?.fromId && movingSet.has(cel.connector.fromId)) ||
+          (!!cel.connector?.toId && movingSet.has(cel.connector.toId));
+        const hasBends =
+          (cel.connector?.bends?.length ?? 0) > 0 || cel.connector?.bend != null;
+        if (!touches || !hasBends) {
+          continue;
+        }
+        next2[cel.id] = {
+          ...cel,
+          connector: { ...cel.connector, bends: undefined, bend: undefined },
+        };
+        rerouted.push(cel.id);
+      }
+      if (rerouted.length > 0) {
+        applyLocal(next2);
+        commit(it.before, next2, [...ids, ...rerouted]);
+        return;
+      }
+    }
+
     commit(it.before, sceneRef.current, ids);
   };
 
