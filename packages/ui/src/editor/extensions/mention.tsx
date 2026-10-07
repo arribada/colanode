@@ -252,7 +252,16 @@ const CommandList = ({
 
   return items.length > 0 ? (
     <FloatingPortal>
-      <div ref={refs.setFloating} style={{ ...floatingStyles, zIndex: 60 }}>
+      {/*
+        pointerEvents 'auto': a modal Radix Dialog (a record opened as a peek)
+        sets pointer-events:none on <body>, and this portal hangs off <body>, so
+        without it every click falls through to the dialog underneath. Radix
+        re-enables its own layers the same way.
+      */}
+      <div
+        ref={refs.setFloating}
+        style={{ ...floatingStyles, zIndex: 60, pointerEvents: 'auto' }}
+      >
         <div
           id="mention-command"
           role="listbox"

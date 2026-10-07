@@ -655,9 +655,15 @@ export const ActionMenu = ({
 
   return (
     <FloatingPortal>
+      {/*
+        pointerEvents 'auto': a modal Radix Dialog (a record opened as a peek)
+        sets pointer-events:none on <body>, and this portal hangs off <body>, so
+        without it every click falls through to the dialog underneath. Radix
+        re-enables its own layers the same way.
+      */}
       <div
         ref={refs.setFloating}
-        style={{ ...floatingStyles, zIndex: 50 }}
+        style={{ ...floatingStyles, zIndex: 50, pointerEvents: 'auto' }}
         className="flex items-center -space-x-0.5 text-muted-foreground p-0.5"
       >
         <button
