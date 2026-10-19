@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  axisLabels,
   formatChartValue,
   niceTicks,
   type TableChartData,
@@ -142,7 +143,7 @@ const CartesianChart = ({
   const min = ticks[0] ?? rawMin;
   const max = ticks[ticks.length - 1] ?? rawMax;
 
-  const tickLabels = ticks.map((tick) => formatChartValue(tick, style));
+  const tickLabels = axisLabels(ticks, style);
   const padLeft =
     Math.max(...tickLabels.map((label) => label.length)) * 6.4 + 14;
   const plotWidth = Math.max(40, width - padLeft - PAD_RIGHT);

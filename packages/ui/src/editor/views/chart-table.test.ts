@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  axisLabels,
   buildTableChart,
   formatChartValue,
   niceTicks,
   parseChartNumber,
   resolveColumn,
+  sharedStyle,
   suggestTableChart,
   valueDomain,
 } from '@colanode/ui/editor/views/chart-table';
@@ -223,5 +225,29 @@ describe('valueDomain', () => {
     expect(valueDomain(data, 'line', false)).toEqual([15_000, 173_000]);
     expect(valueDomain(data, 'line', true)).toEqual([0, 173_000]);
     expect(valueDomain(data, 'bar', false)).toEqual([0, 173_000]);
+  });
+});
+
+describe('axis labels', () => {
+  it('writes every tick in the same notation', () => {
+    const units = { prefix: '', percent: false, compact: false };
+    expect(axisLabels([0, 50_000, 100_000, 150_000], units)).toEqual([
+      '0',
+      '50k',
+      '100k',
+      '150k',
+    ]);
+    expect(axisLabels([0, 100, 200], units)).toEqual(['0', '100', '200']);
+  });
+
+  it('keeps a currency only when every series is in it', () => {
+    const pounds = { prefix: '\u00a3', percent: false, compact: true };
+    const units = { prefix: '', percent: false, compact: false };
+    expect(sharedStyle([pounds, pounds])).toEqual(pounds);
+    expect(sharedStyle([units, pounds])).toEqual({
+      prefix: '',
+      percent: false,
+      compact: true,
+    });
   });
 });

@@ -184,6 +184,36 @@ const styleOf = (numbers: ChartNumber[]): ChartValueStyle => ({
   compact: numbers.some((n) => n.compact),
 });
 
+/**
+ * How the one y axis writes its values when several series share it: a
+ * currency or a percent sign only when every series carries it, compact
+ * units as soon as one series uses them.
+ */
+export const sharedStyle = (styles: ChartValueStyle[]): ChartValueStyle => {
+  const first = styles[0];
+  if (!first) {
+    return { prefix: '', percent: false, compact: false };
+  }
+  return {
+    prefix: styles.every((s) => s.prefix === first.prefix) ? first.prefix : '',
+    percent: styles.every((s) => s.percent),
+    compact: styles.some((s) => s.compact),
+  };
+};
+
+/**
+ * The labels of the y axis, all in one notation: when any tick needs compact
+ * units they all get them, so the axis never reads 50,000 then 100k.
+ */
+export const axisLabels = (
+  ticks: number[],
+  style: ChartValueStyle
+): string[] => {
+  const compact =
+    style.compact || ticks.some((tick) => Math.abs(tick) >= 10_000);
+  return ticks.map((tick) => formatChartValue(tick, { ...style, compact }));
+};
+
 const trimZeros = (text: string): string =>
   text.includes('.') ? text.replace(/\.?0+$/, '') : text;
 
@@ -368,7 +398,7 @@ export const buildTableChart = (
   return {
     categories: rows.map((row, i) => row.label || `#${i + 1}`),
     series,
-    style: series[0]?.style ?? { prefix: '', percent: false, compact: false },
+    style: sharedStyle(series.map((s) => s.style)),
   };
 };
 
