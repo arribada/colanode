@@ -5,6 +5,8 @@ import {
   loadImageFromBase64,
   loadImageFromUrl,
   MAX_IMAGE_BYTES,
+  nameWithExtension,
+  sniffImageType,
   WikiImageError,
 } from '@colanode/server/lib/ai/wiki-image';
 
@@ -77,9 +79,30 @@ describe('loadImageFromBase64', () => {
     expect(image.buffer.length).toBeGreaterThan(50);
   });
 
-  it('reads a data: URL and takes its declared type', () => {
+  it('takes the type from the bytes, not from the data: URL', () => {
     const image = loadImageFromBase64(`data:image/gif;base64,${PNG_BASE64}`);
-    expect(image.extension).toBe('.gif');
+    expect(image.mimeType).toBe('image/png');
+    expect(image.extension).toBe('.png');
+  });
+
+  it('stores bare base64 SVG as SVG, so it is cleaned and can render', () => {
+    // What an agent sent for the sales-grid charts: SVG text, no data: prefix,
+    // named *.svg.png. It used to be stored as image/png and never displayed.
+    const svg =
+      '<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>';
+    const image = loadImageFromBase64(Buffer.from(svg).toString('base64'));
+    expect(image.mimeType).toBe('image/svg+xml');
+    expect(image.extension).toBe('.svg');
+  });
+
+  it('refuses bytes that are no image, whatever the label says', () => {
+    const html = Buffer.from('<html><script>x</script></html>').toString(
+      'base64'
+    );
+    expect(() => loadImageFromBase64(`data:image/png;base64,${html}`)).toThrow(
+      /not an image/
+    );
+    expect(() => loadImageFromBase64(html)).toThrow(WikiImageError);
   });
 
   it('refuses a type it cannot display', () => {
@@ -100,6 +123,52 @@ describe('loadImageFromBase64', () => {
     expect(() => loadImageFromBase64(`data:image/png;base64,${huge}`)).toThrow(
       /limit is/
     );
+  });
+});
+
+describe('sniffImageType', () => {
+  const bytes = (...values: number[]) => Buffer.from(values);
+
+  it('recognises each raster type by its signature', () => {
+    expect(sniffImageType(Buffer.from(PNG_BASE64, 'base64'))).toBe('image/png');
+    expect(sniffImageType(bytes(0xff, 0xd8, 0xff, 0xe0, 0, 0))).toBe(
+      'image/jpeg'
+    );
+    expect(sniffImageType(Buffer.from('GIF89a......'))).toBe('image/gif');
+    expect(sniffImageType(Buffer.from('RIFF\0\0\0\0WEBPVP8 '))).toBe(
+      'image/webp'
+    );
+    expect(sniffImageType(Buffer.from('\0\0\0\x1cftypavif\0\0'))).toBe(
+      'image/avif'
+    );
+  });
+
+  it('recognises an SVG behind a BOM, a declaration, comments and a doctype', () => {
+    const svg =
+      '\uFEFF<?xml version="1.0" encoding="UTF-8"?>\n<!-- chart -->\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x">\n<svg width="4">';
+    expect(sniffImageType(Buffer.from(svg))).toBe('image/svg+xml');
+  });
+
+  it('does not take another XML or HTML document for an SVG', () => {
+    expect(
+      sniffImageType(Buffer.from('<?xml version="1.0"?><html/>'))
+    ).toBeNull();
+    expect(sniffImageType(Buffer.from('<svgx/>'))).toBeNull();
+    expect(sniffImageType(Buffer.from('hello'))).toBeNull();
+  });
+});
+
+describe('nameWithExtension', () => {
+  it('replaces a wrong image extension instead of stacking a second one', () => {
+    expect(nameWithExtension('chart.svg.png', '.svg')).toBe('chart.svg');
+    expect(nameWithExtension('photo.jpeg', '.png')).toBe('photo.png');
+  });
+
+  it('keeps a right extension and adds a missing one', () => {
+    expect(nameWithExtension('chart.PNG', '.png')).toBe('chart.PNG');
+    expect(nameWithExtension('power chain', '.png')).toBe('power chain.png');
+    expect(nameWithExtension('v1.2', '.png')).toBe('v1.2.png');
+    expect(nameWithExtension('  ', '.gif')).toBe('image.gif');
   });
 });
 

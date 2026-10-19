@@ -64,6 +64,7 @@ import {
   loadImageFromBase64,
   loadImageFromUrl,
   MAX_IMAGE_BYTES,
+  nameWithExtension,
 } from '@colanode/server/lib/ai/wiki-image';
 import {
   createDocument,
@@ -3767,13 +3768,7 @@ export const uploadImage = async (
 
   const fileId = generateId(IdType.File);
   const version = generateId(IdType.Version);
-  const given = input.name.trim();
-  const name =
-    given.length > 0
-      ? given.toLowerCase().endsWith(loaded.extension)
-        ? given
-        : given + loaded.extension
-      : `image${loaded.extension}`;
+  const name = nameWithExtension(input.name, loaded.extension);
 
   const attributes: FileAttributes = {
     type: 'file',

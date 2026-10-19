@@ -77,13 +77,99 @@ const fromMime = (mimeType: string): string => {
   return extension;
 };
 
+const startsWith = (buffer: Buffer, bytes: number[], offset = 0): boolean =>
+  buffer.length >= offset + bytes.length &&
+  bytes.every((byte, index) => buffer[offset + index] === byte);
+
+/**
+ * The image type the bytes themselves carry, or null for anything that is not
+ * an image the wiki can display. The declared type cannot be trusted: an agent
+ * sent SVG documents as bare base64 named "chart.svg.png", they were stored as
+ * image/png, and no browser renders an SVG served under that type -- the page
+ * showed a file chip instead of the chart, and the SVG skipped cleaning.
+ */
+export const sniffImageType = (buffer: Buffer): string | null => {
+  if (startsWith(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    return 'image/png';
+  }
+  if (startsWith(buffer, [0xff, 0xd8, 0xff])) {
+    return 'image/jpeg';
+  }
+  if (/^GIF8[79]a$/.test(buffer.subarray(0, 6).toString('latin1'))) {
+    return 'image/gif';
+  }
+  if (
+    buffer.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  if (
+    buffer.subarray(4, 8).toString('latin1') === 'ftyp' &&
+    /^avi[fs]$/.test(buffer.subarray(8, 12).toString('latin1'))
+  ) {
+    return 'image/avif';
+  }
+
+  // An SVG may open with a BOM, an XML declaration, comments or a doctype
+  // before its root element; past that preamble the root must be <svg.
+  const head = buffer
+    .subarray(0, 4096)
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .replace(/^\s*<\?xml[\s\S]*?\?>/, '')
+    .replace(/^(\s*(<!--[\s\S]*?-->|<!DOCTYPE[^>]*>))*/i, '')
+    .trimStart();
+  if (/^<svg[\s>/]/i.test(head)) {
+    return 'image/svg+xml';
+  }
+  return null;
+};
+
+/**
+ * The type to store an image under: the one its bytes carry. A declared type
+ * outside the allowed list is still refused, so a caller cannot slip in a
+ * document by labelling it, and bytes no browser can draw are refused too.
+ */
+const resolveImageType = (buffer: Buffer, declared: string | null): string => {
+  if (declared) {
+    fromMime(declared);
+  }
+  const sniffed = sniffImageType(buffer);
+  if (!sniffed) {
+    throw new WikiImageError(
+      `These bytes are not an image the wiki can display. Allowed: ${Object.keys(ALLOWED_MIME).join(', ')}.`
+    );
+  }
+  return sniffed;
+};
+
+/**
+ * The file name with the extension of its real type: "chart.svg.png" holding
+ * an SVG becomes "chart.svg", not "chart.svg.png.svg".
+ */
+export const nameWithExtension = (given: string, extension: string): string => {
+  const trimmed = given.trim();
+  if (trimmed.length === 0) {
+    return `image${extension}`;
+  }
+  if (trimmed.toLowerCase().endsWith(extension)) {
+    return trimmed;
+  }
+  const knownExtensions = new Set([...Object.values(ALLOWED_MIME), '.jpeg']);
+  const dot = trimmed.lastIndexOf('.');
+  const current = dot > 0 ? trimmed.slice(dot).toLowerCase() : '';
+  const stem = knownExtensions.has(current) ? trimmed.slice(0, dot) : trimmed;
+  return stem.toLowerCase().endsWith(extension) ? stem : stem + extension;
+};
+
 export const loadImageFromBase64 = (data: string): LoadedImage => {
-  let mimeType = 'image/png';
+  let declared: string | null = null;
   let payload = data.trim();
 
   const dataUrl = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(payload);
   if (dataUrl) {
-    mimeType = dataUrl[1] ?? mimeType;
+    declared = dataUrl[1] ?? null;
     payload = dataUrl[3] ?? '';
   }
 
@@ -96,6 +182,7 @@ export const loadImageFromBase64 = (data: string): LoadedImage => {
       `Image is ${Math.round(buffer.length / 1024)}KB; the limit is ${MAX_IMAGE_BYTES / 1024 / 1024}MB.`
     );
   }
+  const mimeType = resolveImageType(buffer, declared);
   return { buffer, mimeType, extension: fromMime(mimeType) };
 };
 
@@ -155,15 +242,16 @@ export const loadImageFromUrl = async (raw: string): Promise<LoadedImage> => {
         `Image is ${Math.round(declared / 1024)}KB; the limit is ${MAX_IMAGE_BYTES / 1024 / 1024}MB.`
       );
     }
-    const mimeType = response.headers.get('content-type') ?? '';
-    const extension = fromMime(mimeType);
+    const contentType = response.headers.get('content-type') ?? '';
+    fromMime(contentType);
     const buffer = Buffer.from(await response.arrayBuffer());
     if (buffer.length > MAX_IMAGE_BYTES) {
       throw new WikiImageError(
         `Image is ${Math.round(buffer.length / 1024)}KB; the limit is ${MAX_IMAGE_BYTES / 1024 / 1024}MB.`
       );
     }
-    return { buffer, mimeType: mimeType.split(';')[0]?.trim() ?? mimeType, extension };
+    const mimeType = resolveImageType(buffer, contentType);
+    return { buffer, mimeType, extension: fromMime(mimeType) };
   } catch (error) {
     if (error instanceof WikiImageError) {
       throw error;

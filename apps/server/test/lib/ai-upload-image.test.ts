@@ -102,4 +102,30 @@ describe('uploadImage', () => {
     expect(stored).not.toMatch(/script|alert/i);
     expect(Number(upload.size)).toBe(Buffer.byteLength(stored, 'utf8'));
   });
+
+  it('cleans and labels an SVG sent as bare base64 under a .png name', async () => {
+    const { ctx, pageId } = await seedPage();
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="4" height="4"/></svg>';
+    const result = await uploadImage(ctx, {
+      pageId,
+      name: 'sales-grid.svg.png',
+      data: Buffer.from(svg).toString('base64'),
+    });
+
+    const upload = await database
+      .selectFrom('uploads')
+      .selectAll()
+      .where('file_id', '=', result.fileId)
+      .executeTakeFirstOrThrow();
+    const stored = (
+      await readAll((await storage.download(upload.path)).stream)
+    ).toString('utf8');
+
+    expect(result.name).toBe('sales-grid.svg');
+    expect(upload.mime_type).toBe('image/svg+xml');
+    expect(upload.path).toMatch(/\.svg$/);
+    expect(stored).toContain('<rect');
+    expect(stored).not.toMatch(/onload|alert/i);
+  });
 });
