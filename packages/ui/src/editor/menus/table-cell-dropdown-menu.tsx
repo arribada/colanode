@@ -22,6 +22,7 @@ import {
   Sigma,
   Hash,
   Download,
+  ChartColumnBig,
 } from 'lucide-react';
 
 import {
@@ -35,6 +36,10 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
+import {
+  insertChartAfterTable,
+  tableAtSelection,
+} from '@colanode/ui/editor/views/chart-insert';
 import { editorBorderStyles, editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 import {
@@ -442,6 +447,18 @@ export const TableCellDropdownMenu = ({
         >
           <Download className="size-4" />
           Copy as CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="editor-table-dropdown-create-chart"
+          onClick={() => {
+            const table = tableAtSelection(editor.state);
+            if (table) {
+              insertChartAfterTable(editor, table.pos, table.node);
+            }
+          }}
+        >
+          <ChartColumnBig className="size-4" />
+          Create chart from table
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,5 +1,5 @@
-// ABOUTME: Chart block node view — renders a CSP-safe SVG chart from data the
-// ABOUTME: user types into a modal (type, title, rows of label/value/color).
+// ABOUTME: Chart block node view — an SVG chart either drawn live from a table of
+// ABOUTME: the page (columns picked in a dialog) or from rows typed into a modal.
 import { type NodeViewProps } from '@tiptap/core';
 import { NodeViewWrapper } from '@tiptap/react';
 import { BarChart3, LineChart, PieChart, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '@colanode/ui/components/ui/dialog';
 import { Input } from '@colanode/ui/components/ui/input';
+import { TableChart } from '@colanode/ui/editor/views/chart-linked';
 import { cn } from '@colanode/ui/lib/utils';
 
 const PALETTE = [
@@ -63,11 +64,7 @@ const toBuckets = (rows: ChartRow[]): ChartBucket[] =>
     };
   });
 
-export const ChartNodeView = ({
-  node,
-  updateAttributes,
-  editor,
-}: NodeViewProps) => {
+const ManualChart = ({ node, updateAttributes, editor }: NodeViewProps) => {
   const editable = editor.isEditable;
   const chartType = (node.attrs.chartType as ChartType) ?? 'bar';
   const title = (node.attrs.title as string) ?? '';
@@ -277,3 +274,10 @@ export const ChartNodeView = ({
     </NodeViewWrapper>
   );
 };
+
+export const ChartNodeView = (props: NodeViewProps) =>
+  props.node.attrs.source?.tableId ? (
+    <TableChart {...props} />
+  ) : (
+    <ManualChart {...props} />
+  );

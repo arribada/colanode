@@ -19,6 +19,7 @@ import {
   ClipboardPaste,
   Wand2,
   Captions,
+  ChartColumnBig,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -38,6 +39,10 @@ import {
   getCopiedCellStyle,
 } from '@colanode/ui/editor/menus/table-cell-style';
 import { TableConditionalColorsDialog } from '@colanode/ui/editor/menus/table-conditional-colors-dialog';
+import {
+  insertChartAfterTable,
+  tableAround,
+} from '@colanode/ui/editor/views/chart-insert';
 import {
   type ConditionalColorRule,
   parseColorRules,
@@ -211,6 +216,20 @@ export const TableCellContextMenu = ({
         >
           <Captions className="size-4" />
           {parentTableHasCaption ? 'Remove table caption' : 'Add table caption'}
+        </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="editor-table-create-chart"
+          onSelect={() => {
+            const pos = typeof getPos === 'function' ? getPos() : undefined;
+            const table =
+              pos == null ? null : tableAround(editor.state, pos + 1);
+            if (table) {
+              insertChartAfterTable(editor, table.pos, table.node);
+            }
+          }}
+        >
+          <ChartColumnBig className="size-4" />
+          Create chart from table
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuSub>

@@ -27,6 +27,9 @@ const types = [
   EditorNodeTypes.ToggleContent,
   EditorNodeTypes.Callout,
   EditorNodeTypes.MathBlock,
+  // A chart's id is what its "open settings once inserted" hand-off keys on,
+  // and without one its block was re-created under a new id on every save.
+  'chart',
 ];
 
 export const IdExtension = Extension.create({
