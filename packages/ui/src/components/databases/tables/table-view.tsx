@@ -4,6 +4,7 @@ import { FieldValue } from '@colanode/core';
 import { parseNumberLoose } from '@colanode/ui/editor/views/table-sort';
 import { LocalRecordNode } from '@colanode/client/types';
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
+import { ViewQuickSearch } from '@colanode/ui/components/databases/search/view-quick-search';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
 import { ViewSortButton } from '@colanode/ui/components/databases/search/view-sort-button';
 import { TableSelectionBar } from '@colanode/ui/components/databases/tables/table-selection-bar';
@@ -515,6 +516,7 @@ export const TableView = () => {
                   <ViewFullscreenButton />
                   <ViewSettingsPopover />
                 </div>
+                <ViewQuickSearch />
                 <ViewSortButton />
                 <ViewFilterButton />
               </div>

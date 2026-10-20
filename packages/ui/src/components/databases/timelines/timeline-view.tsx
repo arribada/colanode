@@ -4,6 +4,7 @@
 import { Fragment } from 'react';
 
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
+import { ViewQuickSearch } from '@colanode/ui/components/databases/search/view-quick-search';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
 import { ViewSortButton } from '@colanode/ui/components/databases/search/view-sort-button';
 import { TimelineConfigSettings } from '@colanode/ui/components/databases/timelines/timeline-config-settings';
@@ -37,6 +38,7 @@ export const TimelineView = () => {
               <TimelineConfigSettings />
             </ViewSettingsPopover>
           </div>
+          <ViewQuickSearch />
           <ViewSortButton />
           <ViewFilterButton />
         </div>

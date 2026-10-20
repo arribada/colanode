@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 
 import { GalleryViewBody } from '@colanode/ui/components/databases/galleries/gallery-view-body';
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
+import { ViewQuickSearch } from '@colanode/ui/components/databases/search/view-quick-search';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
 import { ViewSortButton } from '@colanode/ui/components/databases/search/view-sort-button';
 import { ViewFullscreenButton } from '@colanode/ui/components/databases/view-fullscreen-button';
@@ -18,6 +19,7 @@ export const GalleryView = () => {
             <ViewFullscreenButton />
             <ViewSettingsPopover />
           </div>
+          <ViewQuickSearch />
           <ViewSortButton />
           <ViewFilterButton />
         </div>

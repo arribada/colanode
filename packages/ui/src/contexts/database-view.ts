@@ -19,6 +19,13 @@ interface DatabaseViewContext {
   fields: ViewField[];
   filters: DatabaseViewFilterAttributes[];
   sorts: DatabaseViewSortAttributes[];
+  // Words typed in the toolbar's search box. Never saved: it narrows what this
+  // reader sees right now, like a find-in-page over the database's records.
+  searchText: string;
+  setSearchText: (text: string) => void;
+  // Ids of the records containing every typed word, or null while the box is
+  // empty. useRecordsQuery narrows every layout's query to them.
+  searchMatchIds: string[] | null;
   scopeMode: 'shared' | 'personal';
   setScopeMode: (mode: 'shared' | 'personal') => void;
   clearPersonal: () => void;

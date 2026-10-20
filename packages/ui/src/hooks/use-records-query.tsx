@@ -28,6 +28,7 @@ import {
   isStringArray,
 } from '@colanode/core';
 import { useDatabase } from '@colanode/ui/contexts/database';
+import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import {
@@ -64,6 +65,7 @@ export const useRecordsQuery = (
   const workspace = useWorkspace();
   const database = useDatabase();
   const { extraFilters } = useDatabaseViews();
+  const { searchMatchIds } = useDatabaseView();
 
   const mergedFilters = useMemo(
     () =>
@@ -106,6 +108,14 @@ export const useRecordsQuery = (
         });
       }
 
+      // The toolbar's search box matched these records across the whole
+      // database (see useRecordSearch); narrow this layout's rows to them.
+      if (searchMatchIds) {
+        query = query.where(({ nodes }) =>
+          inArray((nodes as unknown as RecordRef).id, searchMatchIds)
+        );
+      }
+
       // tanstack-db orderBy only targets top-level columns, not the nested JSON
       // field values, so per-field sorts silently no-op at the DB level. Order
       // by id here purely for stable pagination; the user's sort is applied
@@ -122,7 +132,14 @@ export const useRecordsQuery = (
       getNextPageParam: (lastPage, allPages) =>
         lastPage.length === pageSize ? allPages.length : undefined,
     },
-    [database.id, database.fields, pageSize, mergedFilters, sorts]
+    [
+      database.id,
+      database.fields,
+      pageSize,
+      mergedFilters,
+      sorts,
+      searchMatchIds,
+    ]
   );
 
   const sortDefinitions = useMemo(

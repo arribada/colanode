@@ -5,6 +5,7 @@ import { Fragment } from 'react';
 import { ChartConfigSettings } from '@colanode/ui/components/databases/charts/chart-config-settings';
 import { ChartViewBody } from '@colanode/ui/components/databases/charts/chart-view-body';
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
+import { ViewQuickSearch } from '@colanode/ui/components/databases/search/view-quick-search';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
 import { ViewSortButton } from '@colanode/ui/components/databases/search/view-sort-button';
 import { ViewFullscreenButton } from '@colanode/ui/components/databases/view-fullscreen-button';
@@ -27,6 +28,7 @@ export const ChartView = () => {
               <ChartConfigSettings />
             </ViewSettingsPopover>
           </div>
+          <ViewQuickSearch />
           <ViewSortButton />
           <ViewFilterButton />
         </div>

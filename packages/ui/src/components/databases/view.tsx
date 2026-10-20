@@ -20,8 +20,10 @@ import { ViewSkeleton } from '@colanode/ui/components/databases/view-skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewContext } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useDebouncedValue } from '@colanode/ui/hooks/use-debounced-value';
 import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
+import { useRecordSearch } from '@colanode/ui/hooks/use-record-search';
 import { useViewScope } from '@colanode/ui/hooks/use-view-scope';
 import {
   generateFieldValuesFromFilters,
@@ -118,6 +120,16 @@ export const View = ({ view }: ViewProps) => {
   const [isSortsOpened, setIsSortsOpened] = useState(false);
   const [openedFieldFilters, setOpenedFieldFilters] = useState<string[]>([]);
 
+  // The search belongs to the database being read: it carries over between
+  // its views, and is dropped when this View is handed another database.
+  const [search, setSearch] = useState({ databaseId: database.id, text: '' });
+  const searchText = search.databaseId === database.id ? search.text : '';
+  const debouncedSearchText = useDebouncedValue(searchText, 150);
+  // Only typing is debounced: clearing the box restores the view at once.
+  const searchMatchIds = useRecordSearch(
+    searchText === '' ? '' : debouncedSearchText
+  );
+
   return (
     <DatabaseViewContext.Provider
       value={{
@@ -128,6 +140,10 @@ export const View = ({ view }: ViewProps) => {
         fields,
         filters: effectiveFilters,
         sorts: effectiveSorts,
+        searchText,
+        setSearchText: (text: string) =>
+          setSearch({ databaseId: database.id, text }),
+        searchMatchIds,
         scopeMode: scope.mode,
         setScopeMode: scope.setMode,
         clearPersonal: scope.clearPersonal,

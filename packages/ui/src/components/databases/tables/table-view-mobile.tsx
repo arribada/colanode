@@ -3,6 +3,7 @@ import { InView } from 'react-intersection-observer';
 import { extractNodeRole } from '@colanode/core';
 import { EmptyDatabaseState } from '@colanode/ui/components/databases/empty-database-state';
 import { ViewFilterButton } from '@colanode/ui/components/databases/search/view-filter-button';
+import { ViewQuickSearch } from '@colanode/ui/components/databases/search/view-quick-search';
 import { ViewSearchBar } from '@colanode/ui/components/databases/search/view-search-bar';
 import { ViewSortButton } from '@colanode/ui/components/databases/search/view-sort-button';
 import { TableViewMobileCard } from '@colanode/ui/components/databases/tables/table-view-mobile-card';
@@ -36,6 +37,7 @@ export const TableViewMobile = () => {
       <div className="sticky top-0 left-0 z-30 flex w-full min-w-0 max-w-full flex-row justify-between border-b bg-background">
         <ViewTabs />
         <div className="sticky right-0 flex shrink-0 flex-row items-center justify-end bg-background pl-2">
+          <ViewQuickSearch />
           <ViewSortButton />
           <ViewFilterButton />
         </div>
