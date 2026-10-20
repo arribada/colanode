@@ -2,7 +2,7 @@
 // ABOUTME: columns" — a conservative ProseMirror plugin that falls back to the
 // ABOUTME: default vertical drop whenever anything is uncertain (never corrupts).
 import { Extension } from '@tiptap/core';
-import { Fragment, Node as PMNode, Slice } from '@tiptap/pm/model';
+import { Fragment, Node as PMNode, NodeType, Slice } from '@tiptap/pm/model';
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
 
@@ -82,6 +82,15 @@ const key = new PluginKey('columnsDrag');
 // Which side of a block the pointer arms, or null in the middle band. The
 // band is measured on what the block shows: past its right edge (the empty
 // space beside a narrow image) counts as the right side.
+// Whether what is being dragged could sit in a column. A list item cannot: it
+// only lives inside its list. Arming a side-drop for one made the drop fail
+// after it had already claimed the event, so the item went nowhere.
+export const canSideDrop = (
+  columnType: NodeType | undefined,
+  content: Fragment
+): boolean =>
+  !!columnType && content.childCount > 0 && columnType.validContent(content);
+
 export const sideForPointer = (
   x: number,
   rect: { left: number; right: number; width: number }
@@ -224,8 +233,15 @@ export const ColumnsDragExtension = Extension.create({
               // the column-specific early-outs below.
               autoScrollOnDrag(view, event.clientY);
 
-              // Only meaningful while an internal block is being dragged.
-              if (!view.dragging) {
+              // Only meaningful while an internal block is being dragged, and
+              // one a column can hold.
+              if (
+                !view.dragging ||
+                !canSideDrop(
+                  view.state.schema.nodes[COLUMN],
+                  view.dragging.slice.content
+                )
+              ) {
                 hide();
                 return false;
               }
@@ -343,8 +359,6 @@ export const ColumnsDragExtension = Extension.create({
                 return false;
               }
 
-              event.preventDefault();
-
               try {
                 const tr = view.state.tr;
 
@@ -387,6 +401,10 @@ export const ColumnsDragExtension = Extension.create({
                   tr.replaceRangeWith(start, end, columnsNode);
                 }
 
+                // Claimed only now: a failure above falls through to
+                // ProseMirror's own vertical drop, which an early
+                // preventDefault would have skipped -- the block went nowhere.
+                event.preventDefault();
                 // Clear the internal drag so PM's default handler doesn't also
                 // delete the source (we already did) or re-insert the slice.
                 view.dragging = null;
