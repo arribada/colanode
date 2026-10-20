@@ -51,6 +51,12 @@ import {
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 import { columnChildDepth } from '@colanode/ui/editor/extensions/columns-drag';
+import {
+  blockBelow,
+  innerHandleTarget,
+  LIST_ITEM_TYPES,
+  PathStep,
+} from '@colanode/ui/editor/menus/block-target';
 import { DIVIDER_VARIANTS } from '@colanode/ui/editor/views/divider';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
@@ -279,16 +285,78 @@ export const ActionMenu = ({
         }
       }
 
+      // Each item of a list keeps a handle of its own, at any depth, and so
+      // does each block in a toggle's body or after a callout's or quote's
+      // first line -- the loop above stopped at the outer block, which left a
+      // checklist's lines impossible to reorder. The row under the pointer
+      // decides which: on the way left to a sub-item's handle the pointer
+      // crosses its parent's box, and the DOM target there would hand the
+      // handle to the parent.
+      const hit = view.current.posAtCoords({
+        left: event.clientX,
+        top: event.clientY,
+      });
+      const $hit = view.current.state.doc.resolve(hit ? hit.pos : pos);
+      const hitPath: PathStep[] = [];
+      for (let d = 0; d <= $hit.depth; d++) {
+        hitPath.push({
+          type: $hit.node(d).type.name,
+          index: d > 0 ? $hit.index(d - 1) : 0,
+        });
+      }
+      const inner = innerHandleTarget(hitPath);
+      let anchorElement: HTMLElement | null = null;
+      if (inner) {
+        const innerPos = $hit.before(inner.depth);
+        const innerDom = view.current.nodeDOM(innerPos);
+        if (
+          innerDom instanceof HTMLElement &&
+          innerPos >= nodePos &&
+          innerPos < nodePos + pmNode.nodeSize
+        ) {
+          pmNode = $hit.node(inner.depth);
+          domNode = innerDom;
+          nodePos = innerPos;
+          if (inner.anchor === 'list') {
+            // The list's own edge, left of the bullet or the checkbox.
+            anchorElement = innerDom.parentElement;
+          } else if (inner.anchor === 'container') {
+            // The callout's edge, clear of its icon, in line with its handle.
+            const containerDom = view.current.nodeDOM(
+              $hit.before(inner.depth - 1)
+            );
+            anchorElement =
+              containerDom instanceof HTMLElement ? containerDom : null;
+          }
+        }
+      }
+
       const nodeRect = domNode.getBoundingClientRect();
+      const anchorX = (anchorElement ?? domNode).getBoundingClientRect().x;
+      let anchorY = nodeRect.y;
+      let anchorHeight = nodeRect.height;
+      if (LIST_ITEM_TYPES.has(pmNode.type.name)) {
+        // An item's box runs down through its sub-items; centre the handle on
+        // the item's own first line instead of the middle of all of them.
+        const firstLine = view.current.nodeDOM(nodePos + 1);
+        if (firstLine instanceof HTMLElement) {
+          const lineRect = firstLine.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(firstLine).lineHeight);
+          anchorY = lineRect.y;
+          anchorHeight = Number.isFinite(lineHeight)
+            ? Math.min(lineRect.height, lineHeight)
+            : lineRect.height;
+        }
+      }
       const menuRect = DOMRect.fromRect({
         // Anchor to the block's own left edge, i.e. its text, not the editor box
         // edge which sits against the sidebar. The handle then lives in the
         // block's left margin inside the content area, never over the sidebar,
         // and it follows the text horizontally when the side panel is resized.
-        x: nodeRect.x,
-        y: nodeRect.y,
+        x: anchorX,
+        y: anchorY,
         width: 0,
-        height: nodeRect.height,
+        height: anchorHeight,
       });
 
       hoverSeqRef.current += 1;
@@ -420,10 +488,14 @@ export const ActionMenu = ({
       return;
     }
 
+    // Below a list item, a new item of the same list: a paragraph cannot sit
+    // between two items. The caret goes into the new block's first line.
     const insertPos = menuState.pos + menuState.pmNode.nodeSize;
+    const block = blockBelow(menuState.pmNode.type.name);
     editor
       .chain()
-      .insertContentAt(insertPos, { type: 'paragraph' })
+      .insertContentAt(insertPos, block)
+      .setTextSelection(insertPos + (block.type === 'paragraph' ? 1 : 2))
       .focus()
       .run();
   };
@@ -488,7 +560,8 @@ export const ActionMenu = ({
   const canChangeColor =
     canTurnInto ||
     menuState.pmNode?.type.name === 'blockquote' ||
-    menuState.pmNode?.type.name === 'callout';
+    menuState.pmNode?.type.name === 'callout' ||
+    LIST_ITEM_TYPES.has(menuState.pmNode?.type.name ?? '');
 
   // A divider is two pixels tall: its style picker only appeared while the
   // pointer stayed on the line itself, which is hard to hold. The handle menu
