@@ -462,7 +462,9 @@ export const MentionExtension = Node.create<MentionOptions>({
               type: 'user.search',
               userId,
               searchQuery: query,
-              exclude: [userId],
+              // Yourself included: a checklist line names who does it, and that
+              // is you as often as anyone else. A mention of yourself notifies
+              // no one -- the server skips the actor.
               activeOnly: true,
             }),
             window.colanode.executeQuery({
