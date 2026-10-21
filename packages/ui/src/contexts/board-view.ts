@@ -29,6 +29,17 @@ interface BoardViewContext {
   // group fields (e.g. created_by) cannot be seeded from a filter, so the
   // create card is hidden for those columns.
   canCreateInColumn?: boolean;
+  // A column standing for a select option can be dragged among the others:
+  // that reorders the field's options, which is the columns' order.
+  columnReorder?: {
+    id: string;
+    canReorder: boolean;
+    move: (
+      draggedId: string,
+      targetId: string,
+      edge: 'before' | 'after'
+    ) => void;
+  };
 }
 
 export const BoardViewContext = createContext<BoardViewContext>(

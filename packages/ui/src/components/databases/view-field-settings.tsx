@@ -1,6 +1,8 @@
-import { Eye, EyeOff, Trash2 } from 'lucide-react';
-import { Fragment, useCallback, useState } from 'react';
+import { Eye, EyeOff, GripVertical, Trash2 } from 'lucide-react';
+import { Fragment, useCallback, useMemo, useState } from 'react';
 
+import { FieldAttributes } from '@colanode/core';
+import { DropIndicator } from '@colanode/ui/components/databases/drop-indicator';
 import { FieldDeleteDialog } from '@colanode/ui/components/databases/fields/field-delete-dialog';
 import { FieldIcon } from '@colanode/ui/components/databases/fields/field-icon';
 import {
@@ -10,7 +12,11 @@ import {
 } from '@colanode/ui/components/ui/tooltip';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMoveViewField } from '@colanode/ui/hooks/use-field-reorder';
+import { useReorderItem } from '@colanode/ui/hooks/use-index-reorder';
+import { ReorderEdge, sortByIndex } from '@colanode/ui/lib/reorder-index';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface MutationInput {
@@ -24,6 +30,23 @@ export const ViewFieldSettings = () => {
   const view = useDatabaseView();
 
   const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
+
+  // The properties in this view's order -- its own index for a property, else
+  // the database's -- not in the order the database happens to store them.
+  const { views } = useDatabaseViews();
+  const viewFieldIndexes = views.find((v) => v.id === view.id)?.fields;
+  const items = useMemo(
+    () =>
+      database.fields.map((field) => ({
+        id: field.id,
+        index: viewFieldIndexes?.[field.id]?.index ?? field.index,
+      })),
+    [database.fields, viewFieldIndexes]
+  );
+  const orderedFields = sortByIndex(items)
+    .map((item) => database.fields.find((field) => field.id === item.id))
+    .filter((field): field is FieldAttributes => field !== undefined);
+  const fieldsReorder = useMoveViewField(view.id, items);
 
   const handleDisplayChange = useCallback(
     (input: MutationInput) => {
@@ -61,19 +84,21 @@ export const ViewFieldSettings = () => {
           Property visibility{' '}
           <span className="text-muted-foreground">({view.fields.length})</span>
         </p>
-        {database.fields.map((field) => {
+        {orderedFields.map((field) => {
           const isDisplayed =
             view.fields.find((f) => f.field.id === field.id)?.display ?? false;
 
           return (
-            <div
+            <ViewFieldSettingsRow
               key={field.id}
-              className={cn(
-                'flex flex-row items-center justify-between gap-2 p-0.5',
-                'cursor-pointer rounded-md hover:bg-accent'
-              )}
+              fieldId={field.id}
+              canReorder={fieldsReorder.canReorder}
+              onMove={fieldsReorder.move}
             >
               <div className="flex flex-row items-center gap-2">
+                {fieldsReorder.canReorder && (
+                  <GripVertical className="size-3.5 cursor-grab text-muted-foreground opacity-0 group-hover/field:opacity-100" />
+                )}
                 <FieldIcon type={field.type} className="size-4" />
                 <div>{field.name}</div>
               </div>
@@ -124,7 +149,7 @@ export const ViewFieldSettings = () => {
                   </Tooltip>
                 )}
               </div>
-            </div>
+            </ViewFieldSettingsRow>
           );
         })}
       </div>
@@ -140,5 +165,48 @@ export const ViewFieldSettings = () => {
         />
       )}
     </Fragment>
+  );
+};
+
+interface ViewFieldSettingsRowProps {
+  fieldId: string;
+  canReorder: boolean;
+  onMove: (draggedId: string, targetId: string, edge: ReorderEdge) => void;
+  children: React.ReactNode;
+}
+
+// One property in the view's list, dragged above or below another to reorder
+// the view's columns and card fields.
+const ViewFieldSettingsRow = ({
+  fieldId,
+  canReorder,
+  onMove,
+  children,
+}: ViewFieldSettingsRowProps) => {
+  const view = useDatabaseView();
+  const dnd = useReorderItem({
+    type: `view-field:${view.id}`,
+    id: fieldId,
+    axis: 'vertical',
+    enabled: canReorder,
+    onMove,
+  });
+
+  return (
+    <div
+      ref={(node) => {
+        dnd.elementRef.current = node;
+        dnd.drag(dnd.drop(node));
+      }}
+      data-testid={`view-field-settings-row-${fieldId}`}
+      className={cn(
+        'group/field relative flex flex-row items-center justify-between gap-2 p-0.5',
+        'cursor-pointer rounded-md hover:bg-accent',
+        dnd.isDragging && 'opacity-40'
+      )}
+    >
+      <DropIndicator edge={dnd.dropEdge} axis="vertical" />
+      {children}
+    </div>
   );
 };

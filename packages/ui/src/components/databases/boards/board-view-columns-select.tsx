@@ -11,6 +11,7 @@ import { BoardViewContext } from '@colanode/ui/contexts/board-view';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useMoveSelectOption } from '@colanode/ui/hooks/use-field-reorder';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { getSelectOptionLightColorClass } from '@colanode/ui/lib/databases';
 import { sortByIndex } from '@colanode/ui/lib/reorder-index';
@@ -25,6 +26,7 @@ export const BoardViewColumnsSelect = ({
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
+  const optionsReorder = useMoveSelectOption(field);
 
   const selectOptionCountQuery = useLiveQuery({
     type: 'record.field.value.count',
@@ -96,6 +98,11 @@ export const BoardViewColumnsSelect = ({
               },
               dragOverClass: draggingClass,
               columnClass: draggingClass,
+              columnReorder: {
+                id: option.id,
+                canReorder: optionsReorder.canReorder,
+                move: optionsReorder.move,
+              },
               header: (
                 <BoardViewColumnSelectHeader
                   field={field}
