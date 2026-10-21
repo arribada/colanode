@@ -1,5 +1,5 @@
 import { LocalRecordNode } from '@colanode/client/types';
-import { RecordDropIndicator } from '@colanode/ui/components/databases/record-drop-indicator';
+import { DropIndicator } from '@colanode/ui/components/databases/drop-indicator';
 import { RecordFieldValue } from '@colanode/ui/components/records/record-field-value';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useDatabase } from '@colanode/ui/contexts/database';
@@ -50,7 +50,7 @@ export const ListViewRow = ({ ordered }: ListViewRowProps) => {
       title={dnd.hint ?? undefined}
       className={cn('relative', dnd.isDragging && 'opacity-40')}
     >
-      <RecordDropIndicator edge={dnd.dropEdge} axis="vertical" />
+      <DropIndicator edge={dnd.dropEdge} axis="vertical" />
       <Link
         from="/workspace/$userId/$nodeId"
         to="modal/$modalNodeId"

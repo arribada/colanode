@@ -13,6 +13,7 @@ import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { getSelectOptionLightColorClass } from '@colanode/ui/lib/databases';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 interface BoardViewColumnsSelectProps {
   field: SelectFieldAttributes;
@@ -33,7 +34,7 @@ export const BoardViewColumnsSelect = ({
     userId: workspace.userId,
   });
 
-  const selectOptions = Object.values(field.options ?? {});
+  const selectOptions = sortByIndex(Object.values(field.options ?? {}));
   // Options hidden via the column "hide" button: an is_not_in filter on this
   // field. Skipping them removes the whole column while the (editable) filter
   // keeps the records out.

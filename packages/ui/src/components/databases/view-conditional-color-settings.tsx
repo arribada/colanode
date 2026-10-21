@@ -17,6 +17,7 @@ import {
   getSelectOptionLightColorClass,
   selectOptionColors,
 } from '@colanode/ui/lib/databases';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 import { cn } from '@colanode/ui/lib/utils';
 
 // Field types a conditional-color rule can target. Formula/rollup are derived
@@ -43,7 +44,7 @@ const getFieldOptions = (field: FieldAttributes) => {
   const options =
     (field as SelectFieldAttributes | MultiSelectFieldAttributes).options ?? {};
 
-  return Object.values(options).sort((a, b) => a.index.localeCompare(b.index));
+  return sortByIndex(Object.values(options));
 };
 
 const defaultRuleForField = (

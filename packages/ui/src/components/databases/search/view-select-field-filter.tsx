@@ -22,6 +22,7 @@ import {
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useViewFilter } from '@colanode/ui/hooks/use-view-filter';
 import { selectFieldFilterOperators } from '@colanode/ui/lib/databases';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 interface ViewSelectFieldFilterProps {
   field: SelectFieldAttributes;
@@ -41,7 +42,7 @@ export const ViewSelectFieldFilter = ({
     viewId: view.id,
     filterId: filter.id,
   });
-  const selectOptions = Object.values(field.options ?? {});
+  const selectOptions = sortByIndex(Object.values(field.options ?? {}));
   const operator =
     selectFieldFilterOperators.find(
       (operator) => operator.value === filter.operator

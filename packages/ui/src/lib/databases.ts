@@ -14,6 +14,7 @@ import {
   DatabaseViewFieldFilterAttributes,
   DatabaseViewConditionalColorAttributes,
 } from '@colanode/core';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 export const getDefaultFieldWidth = (type: FieldType): number => {
   if (!type) return 0;
@@ -1635,7 +1636,7 @@ const generateMultiSelectValue = (
     field.options &&
     Object.keys(field.options).length > 0
   ) {
-    const firstOption = Object.values(field.options)[0];
+    const firstOption = sortByIndex(Object.values(field.options))[0];
     if (!firstOption) {
       return null;
     }
@@ -1720,7 +1721,7 @@ const generateSelectValue = (
     field.options &&
     Object.keys(field.options).length > 0
   ) {
-    const firstOption = Object.values(field.options)[0];
+    const firstOption = sortByIndex(Object.values(field.options))[0];
     if (!firstOption) {
       return null;
     }

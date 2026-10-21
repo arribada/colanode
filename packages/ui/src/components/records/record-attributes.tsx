@@ -9,6 +9,7 @@ import { RecordLinkedReferences } from '@colanode/ui/components/records/record-l
 import { RecordName } from '@colanode/ui/components/records/record-name';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useRecordPropertiesThreshold } from '@colanode/ui/hooks/use-record-properties-threshold';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 export const RecordAttributes = () => {
   const database = useDatabase();
@@ -16,10 +17,9 @@ export const RecordAttributes = () => {
   const [threshold] = useRecordPropertiesThreshold();
   const [expanded, setExpanded] = useState(false);
 
-  // Copy before sorting — never mutate the store-provided fields array in place.
-  const fields = [...database.fields].sort((a, b) =>
-    a.index.localeCompare(b.index)
-  );
+  // In the order the properties are arranged in (sortByIndex copies, so the
+  // store's array is never sorted in place).
+  const fields = sortByIndex(database.fields);
 
   // Collapse only when there are strictly more fields than the threshold. When
   // collapsed, show the first `threshold` fields and hide the rest behind a

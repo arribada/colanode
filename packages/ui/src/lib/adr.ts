@@ -81,7 +81,10 @@ const mapAdrColorValueToColor = (color: string): AdrStatusColor | null => {
 const sortOptionsByIndex = (
   options: Record<string, SelectOptionAttributes> | undefined
 ): SelectOptionAttributes[] =>
-  Object.values(options ?? {}).sort((a, b) => a.index.localeCompare(b.index));
+  // Code-unit order, as the indexes are made: localeCompare puts aa before aZ.
+  Object.values(options ?? {}).sort((a, b) =>
+    a.index < b.index ? -1 : a.index > b.index ? 1 : 0
+  );
 
 // The ADR database's Status select field, resolved by name (then the first
 // select field) from the live DB node; null when the DB isn't available.

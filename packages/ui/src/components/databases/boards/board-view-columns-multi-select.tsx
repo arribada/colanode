@@ -14,6 +14,7 @@ import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { getSelectOptionLightColorClass } from '@colanode/ui/lib/databases';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 interface BoardViewColumnsMultiSelectProps {
   field: MultiSelectFieldAttributes;
@@ -34,7 +35,7 @@ export const BoardViewColumnsMultiSelect = ({
     userId: workspace.userId,
   });
 
-  const selectOptions = Object.values(field.options ?? {});
+  const selectOptions = sortByIndex(Object.values(field.options ?? {}));
   const noValueFilter: DatabaseViewFilterAttributes = {
     id: '1',
     type: 'field',

@@ -29,7 +29,10 @@ interface WikiTaskButtonProps {
 const sortByIndex = (
   options: Record<string, SelectOptionAttributes> | undefined
 ): SelectOptionAttributes[] =>
-  Object.values(options ?? {}).sort((a, b) => a.index.localeCompare(b.index));
+  // Code-unit order, as the indexes are made: localeCompare puts aa before aZ.
+  Object.values(options ?? {}).sort((a, b) =>
+    a.index < b.index ? -1 : a.index > b.index ? 1 : 0
+  );
 
 export const WikiTaskButton = ({ editor, pageId }: WikiTaskButtonProps) => {
   const workspace = useWorkspace();

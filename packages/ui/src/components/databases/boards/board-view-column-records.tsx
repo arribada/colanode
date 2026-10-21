@@ -6,7 +6,7 @@ import { extractNodeRole } from '@colanode/core';
 import { BoardViewColumnSummary } from '@colanode/ui/components/databases/boards/board-view-column-summary';
 import { BoardViewRecordCard } from '@colanode/ui/components/databases/boards/board-view-record-card';
 import { BoardViewRecordCreateCard } from '@colanode/ui/components/databases/boards/board-view-record-create-card';
-import { RecordDropIndicator } from '@colanode/ui/components/databases/record-drop-indicator';
+import { DropIndicator } from '@colanode/ui/components/databases/drop-indicator';
 import { RecordProvider } from '@colanode/ui/components/records/record-provider';
 import { useBoardView } from '@colanode/ui/contexts/board-view';
 import { useDatabase } from '@colanode/ui/contexts/database';
@@ -87,10 +87,7 @@ export const BoardViewColumnRecords = ({
           className="relative min-h-16"
           data-testid={`board-column-tail-${columnId}`}
         >
-          <RecordDropIndicator
-            edge={isOverTail ? 'before' : null}
-            axis="vertical"
-          />
+          <DropIndicator edge={isOverTail ? 'before' : null} axis="vertical" />
         </div>
       </div>
     </div>

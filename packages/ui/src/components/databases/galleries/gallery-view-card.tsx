@@ -1,6 +1,6 @@
 import { LocalRecordNode } from '@colanode/client/types';
 import { Avatar } from '@colanode/ui/components/avatars/avatar';
-import { RecordDropIndicator } from '@colanode/ui/components/databases/record-drop-indicator';
+import { DropIndicator } from '@colanode/ui/components/databases/drop-indicator';
 import { RecordFieldValue } from '@colanode/ui/components/records/record-field-value';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useDatabase } from '@colanode/ui/contexts/database';
@@ -54,7 +54,7 @@ export const GalleryViewCard = ({ ordered }: GalleryViewCardProps) => {
       title={dnd.hint ?? undefined}
       className={cn('relative flex', dnd.isDragging && 'opacity-40')}
     >
-      <RecordDropIndicator edge={dnd.dropEdge} axis="horizontal" />
+      <DropIndicator edge={dnd.dropEdge} axis="horizontal" />
       <Link
         from="/workspace/$userId/$nodeId"
         to="modal/$modalNodeId"

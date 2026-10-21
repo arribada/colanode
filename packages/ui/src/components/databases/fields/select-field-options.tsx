@@ -22,6 +22,7 @@ import {
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { getRandomSelectOptionColor } from '@colanode/ui/lib/databases';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 interface SelectFieldOptionsProps {
   field: SelectFieldAttributes | MultiSelectFieldAttributes;
@@ -39,7 +40,7 @@ export const SelectFieldOptions = ({
   const workspace = useWorkspace();
   const database = useDatabase();
 
-  const selectOptions = Object.values(field.options ?? {});
+  const selectOptions = sortByIndex(Object.values(field.options ?? {}));
 
   const [inputValue, setInputValue] = useState('');
   const [color, setColor] = useState(getRandomSelectOptionColor());

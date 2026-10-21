@@ -11,6 +11,7 @@ import {
 } from '@colanode/core';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 // Field types an automation can write to (derived/read-only fields excluded).
 const ASSIGNABLE_TYPES = [
@@ -177,8 +178,8 @@ export const ViewAutomationsSettings = () => {
     }
 
     if (field.type === 'select') {
-      const options = Object.values(
-        (field as SelectFieldAttributes).options ?? {}
+      const options = sortByIndex(
+        Object.values((field as SelectFieldAttributes).options ?? {})
       );
       const selectValue = typeof action.value === 'string' ? action.value : '';
       return (

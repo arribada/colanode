@@ -3,7 +3,7 @@ import { useDrag, useDrop } from 'react-dnd';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { FieldValue } from '@colanode/core';
-import { RecordDropIndicator } from '@colanode/ui/components/databases/record-drop-indicator';
+import { DropIndicator } from '@colanode/ui/components/databases/drop-indicator';
 import { RecordFieldValue } from '@colanode/ui/components/records/record-field-value';
 import { Link } from '@colanode/ui/components/ui/link';
 import { useBoardView } from '@colanode/ui/contexts/board-view';
@@ -116,7 +116,7 @@ export const BoardViewRecordCard = ({ ordered }: BoardViewRecordCardProps) => {
         colorClass
       )}
     >
-      <RecordDropIndicator edge={isOver ? edge : null} axis="vertical" />
+      <DropIndicator edge={isOver ? edge : null} axis="vertical" />
       <Link
         from="/workspace/$userId/$nodeId"
         to="modal/$modalNodeId"

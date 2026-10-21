@@ -13,6 +13,7 @@ import {
 } from '@colanode/ui/components/ui/popover';
 import { useRecord } from '@colanode/ui/contexts/record';
 import { useRecordField } from '@colanode/ui/hooks/use-record-field';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 interface RecordMultiSelectValueProps {
   field: MultiSelectFieldAttributes;
@@ -32,7 +33,7 @@ export const RecordMultiSelectValue = ({
     }
   );
 
-  const selectOptions = Object.values(field.options ?? {});
+  const selectOptions = sortByIndex(Object.values(field.options ?? {}));
   const selectedOptionIds = value?.value ?? [];
   const selectedOptions = selectOptions.filter((option) =>
     selectedOptionIds.includes(option.id)

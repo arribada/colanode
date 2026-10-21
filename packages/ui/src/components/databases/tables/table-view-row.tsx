@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { extractNodeRole, hasNodeRole } from '@colanode/core';
-import { RecordDropIndicator } from '@colanode/ui/components/databases/record-drop-indicator';
+import { DropIndicator } from '@colanode/ui/components/databases/drop-indicator';
 import { TableViewNameCell } from '@colanode/ui/components/databases/tables/table-view-name-cell';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
@@ -130,7 +130,7 @@ export const TableViewRow = ({ index, record, ordered }: TableViewRowProps) => {
               colorClass
             )}
           >
-            <RecordDropIndicator edge={dnd.dropEdge} axis="vertical" />
+            <DropIndicator edge={dnd.dropEdge} axis="vertical" />
             <span
               className="flex shrink-0 items-center justify-center gap-0.5 text-sm text-muted-foreground"
               style={{ width: '30px', minWidth: '30px' }}

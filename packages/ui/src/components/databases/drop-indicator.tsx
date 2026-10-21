@@ -1,19 +1,16 @@
-// ABOUTME: The blue bar that shows where a dragged record will land: above or
-// ABOUTME: below a row or card, or left or right of a gallery card.
+// ABOUTME: The blue bar that shows where a dragged item will land: above or
+// ABOUTME: below a row, card, option or property, or beside a card or a tab.
 import { DropEdge } from '@colanode/ui/lib/record-position';
 import { cn } from '@colanode/ui/lib/utils';
 
-interface RecordDropIndicatorProps {
+interface DropIndicatorProps {
   edge: DropEdge | null;
   axis: 'vertical' | 'horizontal';
 }
 
 // The parent must be `relative`. The bar sits half outside its edge so two
 // neighbours' bars meet in the gap between them rather than doubling up.
-export const RecordDropIndicator = ({
-  edge,
-  axis,
-}: RecordDropIndicatorProps) => {
+export const DropIndicator = ({ edge, axis }: DropIndicatorProps) => {
   if (!edge) {
     return null;
   }

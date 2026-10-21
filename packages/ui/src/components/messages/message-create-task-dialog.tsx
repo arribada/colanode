@@ -37,6 +37,7 @@ import { useMessage } from '@colanode/ui/contexts/message';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useMetadata } from '@colanode/ui/hooks/use-metadata';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
+import { sortByIndex } from '@colanode/ui/lib/reorder-index';
 
 interface MessageCreateTaskDialogProps {
   open: boolean;
@@ -147,9 +148,7 @@ export const MessageCreateTaskDialog = ({
     : null;
 
   const statusOptions = statusField
-    ? Object.values(statusField.options ?? {}).sort((a, b) =>
-        a.index.localeCompare(b.index)
-      )
+    ? sortByIndex(Object.values(statusField.options ?? {}))
     : [];
 
   const selectedStatusOption = selectedStatusOptionId
