@@ -16,7 +16,10 @@ export const TabsHeader = () => {
     (q) =>
       q
         .from({ tabs: collections.tabs })
-        .orderBy(({ tabs }) => tabs.index, `asc`)
+        .orderBy(({ tabs }) => tabs.index, {
+          direction: 'asc',
+          stringSort: 'lexical',
+        })
         .select(({ tabs }) => {
           return {
             id: tabs.id,

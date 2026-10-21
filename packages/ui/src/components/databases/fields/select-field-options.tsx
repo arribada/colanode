@@ -181,26 +181,24 @@ const SelectFieldOptionItem = ({
 
   return (
     <CommandItem
+      ref={(node: HTMLDivElement | null) => {
+        dnd.elementRef.current = node;
+        dnd.drop(node);
+        dnd.preview(node);
+      }}
       value={option.name}
       onSelect={() => {
         onSelect(option.id);
       }}
-      className="group flex w-full cursor-pointer flex-row items-center gap-1"
+      className={cn(
+        'group flex w-full cursor-pointer flex-row items-center gap-1',
+        dnd.isDragging && 'opacity-40'
+      )}
       data-testid={`select-field-option-${option.id}`}
       aria-checked={isSelected}
     >
-      <div
-        ref={(node) => {
-          dnd.elementRef.current = node;
-          dnd.drop(node);
-          dnd.preview(node);
-        }}
-        className={cn(
-          'relative flex w-full min-w-0 flex-row items-center gap-1',
-          dnd.isDragging && 'opacity-40'
-        )}
-      >
-        <DropIndicator edge={dnd.dropEdge} axis="vertical" />
+      <DropIndicator edge={dnd.dropEdge} axis="vertical" />
+      <div className="flex w-full min-w-0 flex-row items-center gap-1">
         {canReorder && (
           <span
             ref={(node) => {

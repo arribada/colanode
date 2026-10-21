@@ -8,7 +8,10 @@ export const TabsContent = () => {
     (q) =>
       q
         .from({ tabs: collections.tabs })
-        .orderBy(({ tabs }) => tabs.index, `asc`)
+        .orderBy(({ tabs }) => tabs.index, {
+          direction: 'asc',
+          stringSort: 'lexical',
+        })
         .select(({ tabs }) => ({
           id: tabs.id,
           lastActiveAt: tabs.lastActiveAt,

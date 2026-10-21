@@ -38,9 +38,11 @@ export const DatabaseViews = ({
         .from({ nodes: workspace.collections.nodes })
         .where(({ nodes }) => eq(nodes.type, 'database_view'))
         .where(({ nodes }) => eq(nodes.parentId, database.id))
+        // Code-unit order, as fractional indexes are made: the default locale
+        // order ranks 'Zz' (a view dropped first) after 'a0'.
         .orderBy(
           ({ nodes }) => (nodes as unknown as LocalDatabaseViewNode).index,
-          'asc'
+          { direction: 'asc', stringSort: 'lexical' }
         ),
     [workspace.userId, database.id]
   );

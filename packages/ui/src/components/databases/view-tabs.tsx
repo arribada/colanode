@@ -126,25 +126,21 @@ const ViewMenuItem = ({
 
   return (
     <DropdownMenuItem
+      ref={(node: HTMLDivElement | null) => {
+        dnd.elementRef.current = node;
+        dnd.drop(node);
+        dnd.preview(node);
+      }}
       onClick={onSelect}
       data-testid={`view-menu-item-${view.id}`}
       className={cn(
-        'group flex cursor-pointer flex-row items-center gap-2',
-        isActive && 'bg-accent'
+        'group relative flex cursor-pointer flex-row items-center gap-2',
+        isActive && 'bg-accent',
+        dnd.isDragging && 'opacity-40'
       )}
     >
-      <div
-        ref={(node) => {
-          dnd.elementRef.current = node;
-          dnd.drop(node);
-          dnd.preview(node);
-        }}
-        className={cn(
-          'relative flex w-full min-w-0 flex-row items-center gap-2',
-          dnd.isDragging && 'opacity-40'
-        )}
-      >
-        <DropIndicator edge={dnd.dropEdge} axis="vertical" />
+      <DropIndicator edge={dnd.dropEdge} axis="vertical" />
+      <div className="flex w-full min-w-0 flex-row items-center gap-2">
         {canReorder && (
           <span
             ref={(node) => {

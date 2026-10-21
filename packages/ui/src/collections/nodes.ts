@@ -153,9 +153,13 @@ export const createNodesCollection = (userId: string) => {
               includeTemplates: byId,
             });
 
+            // Rows another query already loaded come back here too, and may
+            // have changed since -- a record just moved, say. An insert of a
+            // key the collection holds with another value throws; with
+            // rowUpdateMode 'full' an update stores the row whole, new or not.
             begin();
             for (const node of nodes) {
-              write({ type: 'insert', value: node });
+              write({ type: 'update', value: node });
             }
             commit();
           },
