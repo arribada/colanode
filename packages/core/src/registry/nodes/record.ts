@@ -25,6 +25,11 @@ export const recordAttributesSchema = z.object({
   // menus. Saving a record as a template deep-copies its fields + document
   // into a new record with this flag set; the source record is untouched.
   isTemplate: z.boolean().nullable().optional(),
+  // Hand-made order of the database's records: what a record sorts by in a
+  // view with no sort. Absent until the record is first dragged; its id stands
+  // in until then, so records keep their creation order. Positions and ids
+  // share one alphabet and compare as plain strings (see record-position.ts).
+  position: z.string().nullable().optional(),
   // Lock + version, mirrored from pages so a database record page has the same
   // controls. lockMode gates document edits (canUpdateDocument); version /
   // versionLog are a git-like tag + append-only log shown in the header.
