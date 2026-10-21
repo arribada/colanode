@@ -17,7 +17,12 @@ export const BoardViewColumn = () => {
 
   const [{ isOver }, drop] = useDrop({
     accept: 'board-record',
-    drop: (item) => {
+    drop: (item, monitor) => {
+      // A card or the column's tail took the drop, with the record's new
+      // place: keep their result rather than overwrite it.
+      if (monitor.didDrop()) {
+        return undefined;
+      }
       const value = boardView.drop(item);
       return {
         value,

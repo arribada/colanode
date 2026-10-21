@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { LocalRecordNode } from '@colanode/client/types';
 import { extractNodeRole, hasNodeRole } from '@colanode/core';
+import { RecordDropIndicator } from '@colanode/ui/components/databases/record-drop-indicator';
 import { TableViewNameCell } from '@colanode/ui/components/databases/tables/table-view-name-cell';
 import { CopyLinkAction } from '@colanode/ui/components/nodes/node-copy-link-action';
 import { NodeDeleteDialog } from '@colanode/ui/components/nodes/node-delete-dialog';
@@ -35,15 +36,18 @@ import {
   useInvalidateFavorites,
 } from '@colanode/ui/hooks/use-favorites';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
+import { useRecordDragDrop } from '@colanode/ui/hooks/use-record-reorder';
 import { getRecordConditionalColorClass } from '@colanode/ui/lib/databases';
 import { cn } from '@colanode/ui/lib/utils';
 
 interface TableViewRowProps {
   index: number;
   record: LocalRecordNode;
+  // The rows as the table shows them: where a dropped row lands.
+  ordered: readonly LocalRecordNode[];
 }
 
-export const TableViewRow = ({ index, record }: TableViewRowProps) => {
+export const TableViewRow = ({ index, record, ordered }: TableViewRowProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
   const view = useDatabaseView();
@@ -65,6 +69,9 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
   // of actions via a context menu.
   const [rowMenuOpen, setRowMenuOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // The grip also moves the row: drag it above or below another row.
+  const dnd = useRecordDragDrop({ record, ordered, axis: 'vertical' });
 
   // Delete rights mirror record-settings.tsx: the creator, or anyone with an
   // editor (or higher) role on the record.
@@ -109,14 +116,21 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
+            ref={(node) => {
+              dnd.elementRef.current = node;
+              dnd.drop(node);
+              dnd.preview(node);
+            }}
             data-testid={`table-row-${record.id}`}
             className={cn(
-              'group/row animate-fade-in flex flex-row items-center gap-0.5 border-b transition-colors hover:bg-muted/30',
+              'group/row animate-fade-in relative flex flex-row items-center gap-0.5 border-b transition-colors hover:bg-muted/30',
               view.zebra && index % 2 === 1 && 'bg-muted/25',
               selected && 'bg-accent/40',
+              dnd.isDragging && 'opacity-40',
               colorClass
             )}
           >
+            <RecordDropIndicator edge={dnd.dropEdge} axis="vertical" />
             <span
               className="flex shrink-0 items-center justify-center gap-0.5 text-sm text-muted-foreground"
               style={{ width: '30px', minWidth: '30px' }}
@@ -131,20 +145,48 @@ export const TableViewRow = ({ index, record }: TableViewRowProps) => {
                 onOpenChange={setRowMenuOpen}
                 modal={false}
               >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Row actions"
-                    data-testid={`table-row-actions-${record.id}`}
-                    className={cn(
-                      'flex size-3.5 shrink-0 items-center justify-center rounded cursor-pointer hover:bg-accent hover:text-foreground',
-                      'hidden group-hover/row:flex',
-                      rowMenuOpen && 'flex'
-                    )}
-                  >
-                    <GripVertical className="size-3.5" />
-                  </button>
-                </DropdownMenuTrigger>
+                {/*
+                  The grip drags the row and a click opens its actions. A Radix
+                  trigger opens on pointer-down and cancels the native drag, so
+                  the menu is opened by hand and anchored to an inert box.
+                */}
+                <div
+                  ref={(node) => {
+                    dnd.drag(node);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Row actions"
+                  aria-haspopup="menu"
+                  aria-expanded={rowMenuOpen}
+                  title={
+                    dnd.canReorder
+                      ? 'Drag to move, click for actions'
+                      : (dnd.hint ?? 'Row actions')
+                  }
+                  data-testid={`table-row-actions-${record.id}`}
+                  onClick={() => setRowMenuOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setRowMenuOpen(true);
+                    }
+                  }}
+                  className={cn(
+                    'relative flex size-3.5 shrink-0 items-center justify-center rounded hover:bg-accent hover:text-foreground',
+                    dnd.canReorder ? 'cursor-grab' : 'cursor-pointer',
+                    'hidden group-hover/row:flex',
+                    rowMenuOpen && 'flex'
+                  )}
+                >
+                  <GripVertical className="size-3.5" />
+                  <DropdownMenuTrigger asChild>
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0"
+                    />
+                  </DropdownMenuTrigger>
+                </div>
                 <DropdownMenuContent side="bottom" align="start" className="w-56">
                   <DropdownMenuItem asChild>
                     <Link

@@ -40,7 +40,12 @@ export const TableViewBody = () => {
     <div className="border-t">
       {records.length === 0 && <TableViewEmptyPlaceholder />}
       {records.map((record, index) => (
-        <TableViewRow key={record.id} index={index} record={record} />
+        <TableViewRow
+          key={record.id}
+          index={index}
+          record={record}
+          ordered={records}
+        />
       ))}
       <InView
         rootMargin="200px"

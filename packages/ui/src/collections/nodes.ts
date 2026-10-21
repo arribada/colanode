@@ -1,7 +1,9 @@
 import {
   BasicIndex,
   createCollection,
+  extractSimpleComparisons,
   parseLoadSubsetOptions,
+  SimpleComparison,
 } from '@tanstack/react-db';
 
 import { LocalNode } from '@colanode/client/types';
@@ -89,7 +91,33 @@ export const createNodesCollection = (userId: string) => {
             let parsedOptions;
             try {
               parsedOptions = parseLoadSubsetOptions(options);
+              // A later page comes with the rows already sent as its offset.
+              // node.list has no cursor, so load up to the end of this page:
+              // asking for just `limit` rows again returned the first page and
+              // the view could not grow past what other queries had loaded.
+              if (parsedOptions.limit !== undefined && options?.offset) {
+                parsedOptions = {
+                  ...parsedOptions,
+                  limit: parsedOptions.limit + options.offset,
+                };
+              }
             } catch {
+              // An order SQL cannot express -- records in their hand-made order,
+              // by position else id -- still has plain filters: load every
+              // matching row (one database's records) and let the view order
+              // them. Falling straight to the bounded load below took 2000
+              // records of any database, which could miss this one's.
+              let filters: SimpleComparison[] | null = null;
+              try {
+                filters = extractSimpleComparisons(options?.where);
+              } catch {
+                filters = null;
+              }
+              if (filters && filters.length > 0) {
+                parsedOptions = { filters, sorts: [], limit: undefined };
+              }
+            }
+            if (!parsedOptions) {
               // A view filtered by a relation / multi_select field builds an
               // expression react-db's push-down parser rejects (or/length/
               // coalesce), which otherwise throws and breaks the whole view.

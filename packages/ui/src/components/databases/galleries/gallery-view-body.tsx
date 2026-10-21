@@ -41,7 +41,7 @@ export const GalleryViewBody = () => {
 
         return (
           <RecordProvider key={record.id} record={record} role={role}>
-            <GalleryViewCard />
+            <GalleryViewCard ordered={records} />
           </RecordProvider>
         );
       })}

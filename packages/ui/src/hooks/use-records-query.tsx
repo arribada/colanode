@@ -116,13 +116,19 @@ export const useRecordsQuery = (
         );
       }
 
-      // tanstack-db orderBy only targets top-level columns, not the nested JSON
-      // field values, so per-field sorts silently no-op at the DB level. Order
-      // by id here purely for stable pagination; the user's sort is applied
-      // client-side (see below) over the loaded records.
+      // The records' hand-made order: a record's position, or its id until it
+      // is first moved (recordOrderKey), compared code unit by code unit like
+      // SQLite and the keys record-position.ts makes -- the default locale
+      // order would not match them. tanstack-db cannot order by a nested field
+      // value, so a view's own sort is applied client-side (see below) over
+      // the loaded records.
       query = query.orderBy(
-        ({ nodes }) => (nodes as unknown as RecordRef).id,
-        'asc'
+        ({ nodes }) =>
+          coalesce(
+            (nodes as unknown as RecordRef).position,
+            (nodes as unknown as RecordRef).id
+          ),
+        { direction: 'asc', stringSort: 'lexical' }
       );
 
       return query;

@@ -47,7 +47,7 @@ export const ListViewBody = () => {
 
         return (
           <RecordProvider key={record.id} record={record} role={role}>
-            <ListViewRow />
+            <ListViewRow ordered={records} />
           </RecordProvider>
         );
       })}
