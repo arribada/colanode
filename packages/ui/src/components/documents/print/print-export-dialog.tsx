@@ -118,9 +118,15 @@ export const PrintExportDialog = ({
     return pages;
   }, [pagesQuery.data, page]);
 
+  // Every node of the space, not only its pages: a page's place in the sidebar
+  // is worked out among all its siblings, whatever their type.
+  const spaceNodes = useMemo<LocalNode[]>(
+    () => (pagesQuery.data ?? []) as unknown as LocalNode[],
+    [pagesQuery.data]
+  );
   const tree = useMemo(
-    () => collectPageTree(page.id, allPages),
-    [page.id, allPages]
+    () => collectPageTree(page.id, spaceNodes),
+    [page.id, spaceNodes]
   );
   const subCount = tree.length - 1;
 

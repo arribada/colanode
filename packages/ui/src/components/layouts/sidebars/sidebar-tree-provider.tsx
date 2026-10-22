@@ -2,34 +2,17 @@ import { inArray, useLiveQuery } from '@tanstack/react-db';
 import { ReactNode, useMemo } from 'react';
 
 import { LocalNode, LocalSpaceNode } from '@colanode/client/types';
-import { compareString, generateFractionalIndex } from '@colanode/core';
 import {
   SidebarTree,
   SidebarTreeContext,
 } from '@colanode/ui/contexts/sidebar-tree';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
-
-// Every node type the sidebar knows how to draw. Anything else (files, records,
-// messages) never appears in the tree, so it stays out of the index.
-const SIDEBAR_NODE_TYPES = [
-  'space',
-  'channel',
-  'chat',
-  'page',
-  'database',
-  'database_view',
-  'folder',
-  'whiteboard',
-];
+import {
+  orderSiblings,
+  SIDEBAR_NODE_TYPES,
+} from '@colanode/ui/lib/sibling-order';
 
 const NO_CHILDREN: LocalNode[] = [];
-
-const customIndexOf = (node: LocalNode): string | null =>
-  'index' in node &&
-  typeof node.index === 'string' &&
-  node.index.length > 0
-    ? node.index
-    : null;
 
 /**
  * Holds the whole sidebar tree behind a single live query.
@@ -80,39 +63,15 @@ export const SidebarTreeProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    spaces.sort((a, b) => compareString(a.id, b.id));
-
-    // Ordering model (mirrors space-child-reorder): within each parent, sort by
-    // id, hand each sibling a sequential *default* fractional key, then let a
-    // node's own `index` (written when it was dragged) override that key.
-    // Sorting by the effective key gives a stable, user-defined order without
-    // ever having to backfill an index onto the siblings that weren't moved.
     const keyById = new Map<string, string>();
     for (const siblings of byParent.values()) {
-      siblings.sort((a, b) => compareString(a.id, b.id));
-      let lastDefault: string | null = null;
-      for (const sibling of siblings) {
-        lastDefault = generateFractionalIndex(lastDefault, null);
-        keyById.set(sibling.id, customIndexOf(sibling) ?? lastDefault);
-      }
-      siblings.sort((a, b) =>
-        compareString(keyById.get(a.id) ?? a.id, keyById.get(b.id) ?? b.id)
-      );
+      orderSiblings(siblings, keyById);
     }
 
     // Spaces have no parent row, so key them as their own sibling group: id
     // order is the default, a space's own `index` (written on drag-reorder)
     // overrides it — the same model as the children above.
-    {
-      let lastDefault: string | null = null;
-      for (const space of spaces) {
-        lastDefault = generateFractionalIndex(lastDefault, null);
-        keyById.set(space.id, customIndexOf(space) ?? lastDefault);
-      }
-      spaces.sort((a, b) =>
-        compareString(keyById.get(a.id) ?? a.id, keyById.get(b.id) ?? b.id)
-      );
-    }
+    orderSiblings(spaces, keyById);
 
     return {
       spaces,

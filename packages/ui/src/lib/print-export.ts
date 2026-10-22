@@ -5,6 +5,10 @@ import {
   RevisionRow,
   ruleStyleFromClasses,
 } from '@colanode/ui/lib/print-layout';
+import {
+  isSidebarNodeType,
+  orderSiblings,
+} from '@colanode/ui/lib/sibling-order';
 
 export interface PrintChapter {
   id: string;
@@ -133,28 +137,37 @@ const sanitizeForExport = (html: string): string => {
   return body.innerHTML;
 };
 
-// Depth-first list of a page and its page descendants, in sidebar order
-// (by node id, matching how children are ordered elsewhere).
+// Depth-first list of a page and its page descendants, in the order the user
+// arranged them in the sidebar. `nodes` is every node of the space, not only
+// its pages: a page is ordered among all its siblings (databases, folders,
+// whiteboards too), so the order only matches the sidebar's when it is worked
+// out over that same group.
 export const collectPageTree = (
   rootId: string,
-  allPages: LocalNode[]
+  nodes: readonly LocalNode[]
 ): { id: string; depth: number }[] => {
   const byParent = new Map<string, LocalNode[]>();
-  for (const node of allPages) {
+  for (const node of nodes) {
+    if (node.type === 'space' || !isSidebarNodeType(node.type)) {
+      continue;
+    }
     const parent = node.parentId ?? '';
     const list = byParent.get(parent) ?? [];
     list.push(node);
     byParent.set(parent, list);
   }
+  const keyById = new Map<string, string>();
   for (const list of byParent.values()) {
-    list.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    orderSiblings(list, keyById);
   }
 
   const out: { id: string; depth: number }[] = [];
   const visit = (id: string, depth: number) => {
     out.push({ id, depth });
     for (const child of byParent.get(id) ?? []) {
-      visit(child.id, depth + 1);
+      if (child.type === 'page') {
+        visit(child.id, depth + 1);
+      }
     }
   };
   visit(rootId, 0);
