@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  carryPositions,
   DEFAULT_LAYOUT_OPTIONS,
   distance,
+  fitView,
   layoutBounds,
   runLayout,
   seedPositions,
   stepLayout,
+  zoomAt,
   type LayoutEdge,
+  type LayoutPoint,
 } from '@colanode/ui/lib/graph/layout';
 
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `n${i}`);
@@ -111,5 +115,152 @@ describe('layoutBounds', () => {
       maxX: 7,
       maxY: 2,
     });
+  });
+});
+
+describe('carryPositions', () => {
+  const at = (id: string, x: number, y: number): LayoutPoint => ({
+    id,
+    x,
+    y,
+    vx: 3,
+    vy: -2,
+  });
+
+  it('leaves every node that was already drawn exactly where it was', () => {
+    const previous = [at('a', 10, 20), at('b', -40, 5), at('gone', 99, 99)];
+    const next = carryPositions(
+      previous,
+      ['a', 'b', 'new'],
+      [{ from: 'a', to: 'new' }]
+    );
+    expect(next.find((p) => p.id === 'a')).toMatchObject({ x: 10, y: 20 });
+    expect(next.find((p) => p.id === 'b')).toMatchObject({ x: -40, y: 5 });
+    expect(next.map((p) => p.id)).toEqual(['a', 'b', 'new']);
+  });
+
+  it('drops the momentum of the last layout', () => {
+    const next = carryPositions([at('a', 1, 2)], ['a'], []);
+    expect(next[0]).toMatchObject({ vx: 0, vy: 0 });
+  });
+
+  it('starts a new node next to the neighbour it already has on screen', () => {
+    const previous = [at('hub', 500, 500), at('other', -500, -500)];
+    const next = carryPositions(
+      previous,
+      ['hub', 'other', 'leaf'],
+      [{ from: 'hub', to: 'leaf' }],
+      40
+    );
+    const leaf = next.find((p) => p.id === 'leaf')!;
+    const hub = next.find((p) => p.id === 'hub')!;
+    const other = next.find((p) => p.id === 'other')!;
+    expect(distance(leaf, hub)).toBeCloseTo(40, 6);
+    expect(distance(leaf, other)).toBeGreaterThan(1000);
+  });
+
+  it('unrolls a chain of new nodes outward from the drawn one', () => {
+    const next = carryPositions(
+      [at('a', 0, 0)],
+      ['a', 'b', 'c'],
+      [
+        { from: 'a', to: 'b' },
+        { from: 'b', to: 'c' },
+      ],
+      40
+    );
+    const [a, b, c] = next;
+    expect(distance(a!, b!)).toBeCloseTo(40, 6);
+    expect(distance(b!, c!)).toBeCloseTo(40, 6);
+    expect(finite(next)).toBe(true);
+  });
+
+  it('puts a new node with no drawn neighbour outside the current picture', () => {
+    const previous = [at('a', 30, 0), at('b', -30, 0)];
+    const next = carryPositions(previous, ['a', 'b', 'island'], [], 40);
+    const island = next.find((p) => p.id === 'island')!;
+    expect(Math.hypot(island.x, island.y)).toBeGreaterThan(30);
+  });
+
+  it('falls back to the seed spiral when nothing carries over', () => {
+    expect(carryPositions([at('x', 1, 1)], ['a', 'b'], [], 40)).toEqual(
+      seedPositions(['a', 'b'], 40)
+    );
+  });
+
+  it('does not depend on the order the edges come in', () => {
+    const previous = [at('a', 0, 0)];
+    const edges = [
+      { from: 'a', to: 'b' },
+      { from: 'a', to: 'c' },
+    ];
+    const forward = carryPositions(previous, ['a', 'b', 'c'], edges);
+    const backward = carryPositions(
+      previous,
+      ['a', 'b', 'c'],
+      [...edges].reverse()
+    );
+    expect(backward).toEqual(forward);
+  });
+});
+
+describe('fitView', () => {
+  const frames = (
+    points: LayoutPoint[],
+    width: number,
+    height: number
+  ): boolean => {
+    const view = fitView(layoutBounds(points), width, height);
+    return points.every((p) => {
+      const sx = view.x + p.x * view.zoom;
+      const sy = view.y + p.y * view.zoom;
+      return Math.abs(sx) <= width / 2 && Math.abs(sy) <= height / 2;
+    });
+  };
+
+  it('zooms out until a graph wider than the pane fits in it', () => {
+    const points = [
+      { id: 'a', x: -2000, y: 0, vx: 0, vy: 0 },
+      { id: 'b', x: 2400, y: 300, vx: 0, vy: 0 },
+    ];
+    expect(frames(points, 1300, 850)).toBe(true);
+    expect(fitView(layoutBounds(points), 1300, 850).zoom).toBeLessThan(1);
+  });
+
+  it('recentres an off-centre graph', () => {
+    const view = fitView(
+      { minX: 100, minY: 100, maxX: 200, maxY: 200 },
+      800,
+      600
+    );
+    expect(view.x + 150 * view.zoom).toBeCloseTo(0, 6);
+    expect(view.y + 150 * view.zoom).toBeCloseTo(0, 6);
+  });
+
+  it('never blows a small graph up past the default zoom', () => {
+    expect(
+      fitView({ minX: -5, minY: -5, maxX: 5, maxY: 5 }, 1300, 850).zoom
+    ).toBe(1);
+  });
+
+  it('survives a single point and a pane smaller than its padding', () => {
+    const view = fitView({ minX: 3, minY: 3, maxX: 3, maxY: 3 }, 40, 40);
+    expect(Number.isFinite(view.x) && Number.isFinite(view.zoom)).toBe(true);
+  });
+});
+
+describe('zoomAt', () => {
+  it('keeps the point under the cursor in place', () => {
+    const view = { x: 40, y: -25, zoom: 0.8 };
+    const sceneX = (120 - view.x) / view.zoom;
+    const sceneY = (60 - view.y) / view.zoom;
+    const next = zoomAt(view, 1.12, 120, 60);
+    expect(next.x + sceneX * next.zoom).toBeCloseTo(120, 6);
+    expect(next.y + sceneY * next.zoom).toBeCloseTo(60, 6);
+  });
+
+  it('stops at the zoom limits', () => {
+    expect(zoomAt({ x: 0, y: 0, zoom: 3.9 }, 2, 0, 0).zoom).toBe(4);
+    expect(zoomAt({ x: 0, y: 0, zoom: 0.13 }, 0.5, 0, 0).zoom).toBe(0.12);
   });
 });

@@ -1,10 +1,18 @@
 // ABOUTME: Knowledge-graph canvas — a force layout that settles on screen, with
 // ABOUTME: pan, zoom, draggable nodes and neighbourhood highlighting.
+import { keepPreviousData } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Maximize2, Minus, Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
-import type { GraphEdgeMode } from '@colanode/client/lib';
+import type { GraphEdgeMode, NodeGraph } from '@colanode/client/lib';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
 import {
@@ -15,11 +23,16 @@ import {
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import {
+  carryPositions,
   DEFAULT_LAYOUT_OPTIONS,
+  fitView,
+  layoutBounds,
   seedPositions,
   stepLayout,
+  zoomAt,
   type LayoutOptions,
   type LayoutPoint,
+  type ViewTransform,
 } from '@colanode/ui/lib/graph/layout';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -64,8 +77,18 @@ const MAX_FRAMES = 900;
 // Past this many, only the best connected are drawn and the view says so.
 const MAX_NODES = 300;
 
+// Scene units kept around the outermost nodes when the view frames them, so
+// their circles and labels are not cut by the pane edge.
+const NODE_MARGIN = 24;
+
+// Share of the remaining distance the camera covers each frame while it
+// follows a layout that is still unfolding: smooth, and there in ~20 frames.
+const FOLLOW_EASE = 0.2;
+
 const radiusFor = (degree: number): number =>
   4 + Math.min(9, Math.sqrt(degree) * 2.4);
+
+const spreadFor = (count: number): number => Math.max(26, 70 - count / 10);
 
 // A bigger graph needs more room, or every node piles into the middle and the
 // result is the hairball the user saw at depth 3.
@@ -75,6 +98,17 @@ const optionsForSize = (count: number): LayoutOptions => ({
   repulsion: Math.min(16000, 4200 + count * 28),
   centerStrength: count > 120 ? 0.02 : 0.012,
 });
+
+const indexById = (points: LayoutPoint[]): Map<string, LayoutPoint> => {
+  const index = new Map<string, LayoutPoint>();
+  for (const point of points) {
+    index.set(point.id, point);
+  }
+  return index;
+};
+
+const transformOf = (view: ViewTransform): string =>
+  `translate(${view.x} ${view.y}) scale(${view.zoom})`;
 
 interface GraphViewProps {
   // Local graph when set; whole workspace when absent.
@@ -93,10 +127,18 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
   const [depth, setDepth] = useState(focusNodeId ? 1 : 2);
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState<string | null>(null);
-  const [view, setView] = useState({ x: 0, y: 0, zoom: 1 });
+  const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, zoom: 1 });
   const [size, setSize] = useState({ width: 800, height: 600 });
 
+  // On a page's own graph the orphans are its sub-pages that nothing links to,
+  // and once nesting is drawn there are none: the switch only means something
+  // on Links there.
+  const orphansApply = !focusNodeId || edgeMode === 'links';
+  const showOrphans = includeOrphans && orphansApply;
+  const optionsKey = `${focusNodeId ?? ''}|${edgeMode}|${showOrphans}|${depth}`;
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<SVGGElement>(null);
   const nodeRefs = useRef(new Map<string, SVGGElement | null>());
   const edgeRefs = useRef<Array<SVGLineElement | null>>([]);
   const pointsRef = useRef<LayoutPoint[]>([]);
@@ -105,16 +147,30 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
     id: null,
     panFrom: null,
   });
+  const graphRef = useRef<NodeGraph | undefined>(undefined);
+  const sizeRef = useRef(size);
+  // What is on screen. While the camera follows an unfolding layout it moves
+  // without React, so the handlers read this rather than `view`.
+  const viewRef = useRef(view);
+  const followRef = useRef(false);
+  const runningRef = useRef<number | null>(null);
+  const laidOutKeyRef = useRef<string | null>(null);
 
-  const graphQuery = useLiveQuery({
-    type: 'node.graph.get',
-    userId: workspace.userId,
-    edgeMode,
-    includeOrphans,
-    focusNodeId: focusNodeId ?? null,
-    depth,
-    maxNodes: MAX_NODES,
-  });
+  const graphQuery = useLiveQuery(
+    {
+      type: 'node.graph.get',
+      userId: workspace.userId,
+      edgeMode,
+      includeOrphans: showOrphans,
+      focusNodeId: focusNodeId ?? null,
+      depth,
+      maxNodes: MAX_NODES,
+    },
+    // Each option is its own query, so without this every click on a filter
+    // or the depth swapped the whole view, toolbar included, for a loading
+    // line until the new graph came back.
+    { placeholderData: keepPreviousData }
+  );
 
   const graph = graphQuery.data;
 
@@ -126,12 +182,69 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
       if (rect) {
-        setSize({ width: rect.width, height: rect.height });
+        sizeRef.current = { width: rect.width, height: rect.height };
+        setSize(sizeRef.current);
       }
     });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  const commitView = useCallback((next: ViewTransform) => {
+    viewRef.current = next;
+    setView(next);
+  }, []);
+
+  // Hands the camera back to the user: what is on screen becomes the state.
+  const stopFollowing = useCallback(() => {
+    if (followRef.current) {
+      followRef.current = false;
+      setView(viewRef.current);
+    }
+  }, []);
+
+  // Client coordinates to viewport units, origin at the centre like the viewBox.
+  const toViewport = useCallback((clientX: number, clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) {
+      return { x: 0, y: 0 };
+    }
+    // The viewBox follows the container, so this is 1 once the observer has
+    // reported; dividing by it keeps a dragged node under the cursor anyway.
+    const scale = Math.min(
+      rect.width / sizeRef.current.width,
+      rect.height / sizeRef.current.height
+    );
+    return {
+      x: (clientX - rect.left - rect.width / 2) / scale,
+      y: (clientY - rect.top - rect.height / 2) / scale,
+    };
+  }, []);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+    // React listens to wheel events passively, so preventDefault in an onWheel
+    // prop is ignored with a console warning and whatever is behind scrolls
+    // along with the zoom. A listener of our own can claim the event.
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      stopFollowing();
+      const point = toViewport(event.clientX, event.clientY);
+      commitView(
+        zoomAt(
+          viewRef.current,
+          event.deltaY < 0 ? 1.12 : 0.89,
+          point.x,
+          point.y
+        )
+      );
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [commitView, stopFollowing, toViewport]);
 
   // The simulation drives the DOM directly. Re-rendering ~280 groups and ~900
   // lines through React on every frame would make the animation the slowest
@@ -144,7 +257,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
         element.setAttribute('transform', `translate(${point.x} ${point.y})`);
       }
     }
-    const edges = graph?.edges ?? [];
+    const edges = graphRef.current?.edges ?? [];
     for (let i = 0; i < edges.length; i++) {
       const line = edgeRefs.current[i];
       const edge = edges[i];
@@ -161,54 +274,120 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
       line.setAttribute('x2', String(b.x));
       line.setAttribute('y2', String(b.y));
     }
-  }, [graph]);
+  }, []);
 
-  const runningRef = useRef<number | null>(null);
-  const startSimulation = useCallback(() => {
-    if (!graph || graph.nodes.length === 0) {
-      return;
-    }
+  // Moves the camera one step toward framing the whole layout, straight on the
+  // DOM like the nodes. Returns whether it still has a visible way to go.
+  const followStep = useCallback((): boolean => {
+    const bounds = layoutBounds(pointsRef.current);
+    const target = fitView(
+      {
+        minX: bounds.minX - NODE_MARGIN,
+        minY: bounds.minY - NODE_MARGIN,
+        maxX: bounds.maxX + NODE_MARGIN,
+        maxY: bounds.maxY + NODE_MARGIN,
+      },
+      sizeRef.current.width,
+      sizeRef.current.height
+    );
+    const current = viewRef.current;
+    const next = {
+      x: current.x + (target.x - current.x) * FOLLOW_EASE,
+      y: current.y + (target.y - current.y) * FOLLOW_EASE,
+      zoom: current.zoom + (target.zoom - current.zoom) * FOLLOW_EASE,
+    };
+    viewRef.current = next;
+    sceneRef.current?.setAttribute('transform', transformOf(next));
+    return (
+      Math.abs(target.x - next.x) + Math.abs(target.y - next.y) > 0.5 ||
+      Math.abs(target.zoom - next.zoom) > 0.001
+    );
+  }, []);
+
+  const stopSimulation = useCallback(() => {
     if (runningRef.current !== null) {
       cancelAnimationFrame(runningRef.current);
+      runningRef.current = null;
     }
-    const options = optionsForSize(graph.nodes.length);
+  }, []);
+
+  const startSimulation = useCallback(() => {
+    const current = graphRef.current;
+    if (!current || current.nodes.length === 0) {
+      return;
+    }
+    stopSimulation();
+    const options = optionsForSize(current.nodes.length);
     let frames = 0;
     const loop = () => {
-      const moved = stepLayout(pointsRef.current, graph.edges, options);
+      const moved = stepLayout(pointsRef.current, current.edges, options);
       paint();
+      const cameraMoving = followRef.current && followStep();
       frames++;
-      if (draggingRef.current.id || (moved > SETTLE_THRESHOLD && frames < MAX_FRAMES)) {
+      if (
+        draggingRef.current.id ||
+        ((moved > SETTLE_THRESHOLD || cameraMoving) && frames < MAX_FRAMES)
+      ) {
         runningRef.current = requestAnimationFrame(loop);
       } else {
         runningRef.current = null;
+        stopFollowing();
       }
     };
     runningRef.current = requestAnimationFrame(loop);
-  }, [graph, paint]);
+  }, [paint, followStep, stopFollowing, stopSimulation]);
 
-  useEffect(() => {
+  // A layout effect, so a new graph is placed before the browser paints and
+  // its nodes never flash at the origin for a frame.
+  useLayoutEffect(() => {
+    graphRef.current = graph;
     if (!graph || graph.nodes.length === 0) {
       pointsRef.current = [];
       pointIndex.current = new Map();
       return;
     }
-    pointsRef.current = seedPositions(
+    // Carried over, not re-seeded: re-seeding every node on every new graph is
+    // what made each filter or depth change throw the whole picture away.
+    pointsRef.current = carryPositions(
+      pointsRef.current,
       graph.nodes.map((n) => n.id),
-      Math.max(26, 70 - graph.nodes.length / 10)
+      graph.edges,
+      spreadFor(graph.nodes.length)
     );
-    const index = new Map<string, LayoutPoint>();
-    for (const point of pointsRef.current) {
-      index.set(point.id, point);
+    pointIndex.current = indexById(pointsRef.current);
+    paint();
+    // A graph the user asked for (first open, another mode, depth or filter)
+    // is framed as it unfolds. One that changed because somebody edited the
+    // wiki is not: the camera stays where the user left it. `optionsKey` comes
+    // from the render in which this graph first showed, so it names the
+    // options the graph was computed for.
+    if (laidOutKeyRef.current !== optionsKey) {
+      laidOutKeyRef.current = optionsKey;
+      followRef.current = true;
     }
-    pointIndex.current = index;
     startSimulation();
-    return () => {
-      if (runningRef.current !== null) {
-        cancelAnimationFrame(runningRef.current);
-        runningRef.current = null;
-      }
-    };
-  }, [graph, startSimulation]);
+    return stopSimulation;
+  }, [graph, paint, startSimulation, stopSimulation]);
+
+  const resetLayout = () => {
+    const current = graphRef.current;
+    if (!current || current.nodes.length === 0) {
+      return;
+    }
+    pointsRef.current = seedPositions(
+      current.nodes.map((n) => n.id),
+      spreadFor(current.nodes.length)
+    );
+    pointIndex.current = indexById(pointsRef.current);
+    paint();
+    followRef.current = true;
+    startSimulation();
+  };
+
+  const nodeIds = useMemo(
+    () => new Set(graph?.nodes.map((n) => n.id) ?? []),
+    [graph]
+  );
 
   const neighbours = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -231,39 +410,35 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
     );
   }, [search, graph]);
 
+  // A node removed from under the cursor never fires mouseleave, and a stale
+  // hover dims the whole new graph.
+  const activeHover = hovered !== null && nodeIds.has(hovered) ? hovered : null;
+
   const isDimmed = (id: string): boolean => {
     if (matches) {
       return !matches.has(id);
     }
-    if (!hovered) {
+    if (!activeHover) {
       return false;
     }
-    return id !== hovered && !neighbours.get(hovered)?.has(id);
+    return id !== activeHover && !neighbours.get(activeHover)?.has(id);
   };
 
   const toScene = (clientX: number, clientY: number) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) {
-      return { x: 0, y: 0 };
-    }
+    const point = toViewport(clientX, clientY);
+    const current = viewRef.current;
     return {
-      x: (clientX - rect.left - rect.width / 2 - view.x) / view.zoom,
-      y: (clientY - rect.top - rect.height / 2 - view.y) / view.zoom,
+      x: (point.x - current.x) / current.zoom,
+      y: (point.y - current.y) / current.zoom,
     };
   };
 
-  const onWheel = (event: React.WheelEvent) => {
-    event.preventDefault();
-    setView((v) => ({
-      ...v,
-      zoom: Math.min(4, Math.max(0.12, v.zoom * (event.deltaY < 0 ? 1.12 : 0.89))),
-    }));
-  };
-
   const onPointerDown = (event: React.PointerEvent) => {
+    stopFollowing();
+    const point = toViewport(event.clientX, event.clientY);
     draggingRef.current.panFrom = {
-      x: event.clientX - view.x,
-      y: event.clientY - view.y,
+      x: point.x - viewRef.current.x,
+      y: point.y - viewRef.current.y,
     };
   };
 
@@ -282,7 +457,12 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
     }
     const from = draggingRef.current.panFrom;
     if (from) {
-      setView((v) => ({ ...v, x: event.clientX - from.x, y: event.clientY - from.y }));
+      const point = toViewport(event.clientX, event.clientY);
+      commitView({
+        ...viewRef.current,
+        x: point.x - from.x,
+        y: point.y - from.y,
+      });
     }
   };
 
@@ -293,27 +473,9 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
 
   const labelOpacity = view.zoom < 0.45 ? 0 : Math.min(1, (view.zoom - 0.45) * 3);
 
-  if (graphQuery.isPending) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Building the graph…
-      </div>
-    );
-  }
-
-  if (!graph || graph.nodes.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <p className="text-sm text-muted-foreground">Nothing to draw here yet.</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          Mention another page with @ and it appears in this graph. Switch to
-          Nesting to see how this corner of the wiki is arranged instead.
-        </p>
-      </div>
-    );
-  }
-
-  const linkCount = graph.edges.filter((e) => e.kind === 'link').length;
+  const linkCount = graph
+    ? graph.edges.filter((e) => e.kind === 'link').length
+    : 0;
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
@@ -337,19 +499,28 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
           ))}
         </div>
         <Tooltip delayDuration={300}>
+          {/* A disabled button takes no pointer events, so its own tooltip,
+              the one that says why, would never open: the span carries it. */}
           <TooltipTrigger asChild>
-            <Button
-              type="button"
-              size="sm"
-              variant={includeOrphans ? 'secondary' : 'ghost'}
-              className="h-7 px-2 text-xs"
-              onClick={() => setIncludeOrphans((v) => !v)}
-            >
-              Orphans
-            </Button>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                size="sm"
+                variant={showOrphans ? 'secondary' : 'ghost'}
+                className="h-7 px-2 text-xs"
+                disabled={!orphansApply}
+                onClick={() => setIncludeOrphans((v) => !v)}
+              >
+                Orphans
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent>
-            Also show pages that are neither linked nor nested
+            {!orphansApply
+              ? 'With nesting drawn every sub-page is already connected'
+              : focusNodeId
+                ? 'Also show the sub-pages of this page that nothing links to'
+                : 'Also show pages that are neither linked nor nested'}
           </TooltipContent>
         </Tooltip>
         {focusNodeId && (
@@ -357,16 +528,19 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
             <span>Depth</span>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="size-7 p-0"
-                  aria-label="Show fewer hops"
-                  onClick={() => setDepth((d) => Math.max(1, d - 1))}
-                >
-                  <Minus className="size-3.5" />
-                </Button>
+                <span className="inline-flex">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="size-7 p-0"
+                    aria-label="Show fewer hops"
+                    disabled={depth <= 1}
+                    onClick={() => setDepth((d) => Math.max(1, d - 1))}
+                  >
+                    <Minus className="size-3.5" />
+                  </Button>
+                </span>
               </TooltipTrigger>
               <TooltipContent>Fewer hops from this page</TooltipContent>
             </Tooltip>
@@ -375,17 +549,19 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
             </span>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="size-7 p-0"
-                  aria-label="Show more hops"
-                  disabled={depth >= MAX_DEPTH}
-                  onClick={() => setDepth((d) => Math.min(MAX_DEPTH, d + 1))}
-                >
-                  <Plus className="size-3.5" />
-                </Button>
+                <span className="inline-flex">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="size-7 p-0"
+                    aria-label="Show more hops"
+                    disabled={depth >= MAX_DEPTH}
+                    onClick={() => setDepth((d) => Math.min(MAX_DEPTH, d + 1))}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </span>
               </TooltipTrigger>
               <TooltipContent>
                 {depth >= MAX_DEPTH
@@ -408,41 +584,46 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
               size="sm"
               variant="ghost"
               className="h-7 gap-1 px-2 text-xs"
-              onClick={() => {
-                setView({ x: 0, y: 0, zoom: 1 });
-                startSimulation();
-              }}
+              onClick={resetLayout}
             >
               <Maximize2 className="size-3.5" />
               Reset
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Recentre the view and shake the layout out</TooltipContent>
+          <TooltipContent>Lay the graph out afresh and frame it</TooltipContent>
         </Tooltip>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {graph.truncated && (
-            <span
-              data-testid="graph-truncated"
-              className="mr-2 text-amber-600 dark:text-amber-500"
-            >
-              too many to draw: showing the {graph.truncated.shown} best
-              connected of {graph.truncated.total}
-            </span>
-          )}
-          {graph.nodes.length} nodes · {linkCount} links ·{' '}
-          {graph.edges.length - linkCount} nested
-          {graph.unresolved.length > 0 && (
-            <span className="ml-2 text-amber-600 dark:text-amber-500">
-              {graph.unresolved.length} unresolved
-            </span>
-          )}
-        </span>
+        {graph && (
+          <span
+            className={cn(
+              'ml-auto text-xs text-muted-foreground transition-opacity',
+              graphQuery.isPlaceholderData && 'opacity-50'
+            )}
+          >
+            {graph.truncated && (
+              <span
+                data-testid="graph-truncated"
+                className="mr-2 text-amber-600 dark:text-amber-500"
+              >
+                too many to draw: showing the {graph.truncated.shown} best
+                connected of {graph.truncated.total}
+              </span>
+            )}
+            {graph.nodes.length} nodes · {linkCount} links ·{' '}
+            {graph.edges.length - linkCount} nested
+            {graph.unresolved.length > 0 && (
+              <span className="ml-2 text-amber-600 dark:text-amber-500">
+                {graph.unresolved.length} unresolved
+              </span>
+            )}
+          </span>
+        )}
       </div>
 
+      {/* Always mounted: the size observer and the wheel listener attach to
+          this element once, so it must not come and go with the data. */}
       <div
         ref={containerRef}
         className="relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
-        onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -454,8 +635,8 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
           aria-label="Knowledge graph"
           viewBox={`${-size.width / 2} ${-size.height / 2} ${size.width} ${size.height}`}
         >
-          <g transform={`translate(${view.x} ${view.y}) scale(${view.zoom})`}>
-            {graph.edges.map((edge, i) => {
+          <g ref={sceneRef} transform={transformOf(view)}>
+            {graph?.edges.map((edge, i) => {
               const dim = isDimmed(edge.from) && isDimmed(edge.to);
               return (
                 <line
@@ -474,7 +655,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
               );
             })}
 
-            {graph.nodes.map((node) => {
+            {graph?.nodes.map((node) => {
               const dim = isDimmed(node.id);
               const r = radiusFor(node.degree);
               const isFocus = node.id === focusNodeId;
@@ -492,6 +673,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
                   onMouseLeave={() => setHovered(null)}
                   onPointerDown={(event) => {
                     event.stopPropagation();
+                    stopFollowing();
                     draggingRef.current.id = node.id;
                     startSimulation();
                   }}
@@ -531,15 +713,35 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
           </g>
         </svg>
 
-        <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-2 rounded-md border bg-background/85 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
-          {Object.entries(TYPE_DOT).map(([type, dot]) => (
-            <span key={type} className="flex items-center gap-1">
-              <span className={cn('size-2 rounded-full', dot)} />
-              {type}
-            </span>
-          ))}
-          <span className="ml-1 border-l pl-2">drag a node to move it</span>
-        </div>
+        {!graph && (
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+            Building the graph…
+          </div>
+        )}
+
+        {graph && graph.nodes.length === 0 && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Nothing to draw here yet.
+            </p>
+            <p className="max-w-md text-xs text-muted-foreground">
+              Mention another page with @ and it appears in this graph. Switch
+              to Nesting to see how this corner of the wiki is arranged instead.
+            </p>
+          </div>
+        )}
+
+        {graph && graph.nodes.length > 0 && (
+          <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-2 rounded-md border bg-background/85 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
+            {Object.entries(TYPE_DOT).map(([type, dot]) => (
+              <span key={type} className="flex items-center gap-1">
+                <span className={cn('size-2 rounded-full', dot)} />
+                {type}
+              </span>
+            ))}
+            <span className="ml-1 border-l pl-2">drag a node to move it</span>
+          </div>
+        )}
       </div>
     </div>
   );
