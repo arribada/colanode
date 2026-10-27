@@ -54,7 +54,8 @@ export interface NodeGraph {
 export interface BuildGraphOptions {
   edgeMode: GraphEdgeMode;
   // Orphans are nodes with no edge at all. With hierarchy edges on almost
-  // nothing is an orphan; with links only, most of a young wiki is.
+  // nothing is an orphan; with links only, most of a young wiki is. On a local
+  // graph they are the focus's sub-pages that have no edge.
   includeOrphans: boolean;
   // Local graph: keep only what is reachable from `nodeId` within `depth` hops,
   // walking edges in both directions. The focus node is always kept, even alone.
@@ -160,6 +161,37 @@ export const buildGraph = (
           break;
         }
         frontier = next;
+      }
+    }
+    // Walking edges only ever reaches connected nodes, so on a local graph the
+    // Orphans switch used to change nothing at all. Here it brings in the
+    // sub-pages of the focus, down to `depth` levels, that have no edge in this
+    // mode: the ones a reader of the page would never reach through a mention.
+    // With nesting drawn every sub-page is connected, so it still adds none.
+    if (options.includeOrphans && known.has(nodeId)) {
+      const children = new Map<string, string[]>();
+      for (const node of inputNodes) {
+        if (node.parentId) {
+          const list = children.get(node.parentId);
+          if (list) {
+            list.push(node.id);
+          } else {
+            children.set(node.parentId, [node.id]);
+          }
+        }
+      }
+      let level = [nodeId];
+      for (let hop = 0; hop < Math.max(0, depth) && level.length > 0; hop++) {
+        const next: string[] = [];
+        for (const id of level) {
+          for (const child of children.get(id) ?? []) {
+            next.push(child);
+            if (!neighbours.has(child)) {
+              keep.add(child);
+            }
+          }
+        }
+        level = next;
       }
     }
     edges = edges.filter((edge) => keep.has(edge.from) && keep.has(edge.to));

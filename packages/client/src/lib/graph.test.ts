@@ -118,6 +118,41 @@ describe('buildGraph', () => {
     expect(d2.nodes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
   });
 
+  it('brings in the sub-pages nothing links to when orphans are on in a local graph', () => {
+    // p mentions x, x is mentioned by c1; c2 and its child g are linked to nothing.
+    const nodes = [
+      node('p'),
+      node('c1', 'p'),
+      node('c2', 'p'),
+      node('g', 'c2'),
+      node('x'),
+    ];
+    const refs = [ref('p', 'x'), ref('c1', 'x')];
+    const local = (depth: number, includeOrphans: boolean) =>
+      buildGraph(nodes, refs, {
+        edgeMode: 'links',
+        includeOrphans,
+        focus: { nodeId: 'p', depth },
+      }).nodes.map((n) => n.id);
+
+    expect(local(1, false)).toEqual(['p', 'x']);
+    expect(local(1, true)).toEqual(['c2', 'p', 'x']);
+    expect(local(2, false)).toEqual(['c1', 'p', 'x']);
+    expect(local(2, true)).toEqual(['c1', 'c2', 'g', 'p', 'x']);
+  });
+
+  it('adds nothing for orphans in a local graph once nesting is drawn', () => {
+    const nodes = [node('p'), node('c', 'p'), node('g', 'c'), node('far')];
+    const opts = (includeOrphans: boolean) => ({
+      edgeMode: 'both' as const,
+      includeOrphans,
+      focus: { nodeId: 'p', depth: 2 },
+    });
+    expect(buildGraph(nodes, [], opts(true))).toEqual(
+      buildGraph(nodes, [], opts(false))
+    );
+  });
+
   it('never returns an edge whose endpoint was filtered out', () => {
     const g = buildGraph(
       [node('a'), node('b'), node('c')],
