@@ -42,6 +42,10 @@ export class NodeGraphGetQueryHandler
   implements QueryHandler<NodeGraphGetQueryInput>
 {
   private readonly projectFetchedAt = new Map<string, number>();
+  // The last answer per graph, as JSON: an answer identical to it is not a
+  // change. Without this every refresh handed the canvas a new object and
+  // restarted the layout, so a graph open during a sync never came to rest.
+  private readonly projectLast = new Map<string, string>();
 
   public async handleQuery(
     input: NodeGraphGetQueryInput
@@ -110,12 +114,14 @@ export class NodeGraphGetQueryHandler
     const workspace = this.getWorkspace(input.userId);
     this.projectFetchedAt.set(this.projectKey(input), Date.now());
     try {
-      return await workspace.account.client
+      const graph = await workspace.account.client
         .get(`v1/workspaces/${workspace.workspaceId}/projects/graph`, {
           searchParams: { pageId: focusNodeId },
           timeout: 60_000,
         })
         .json<ProjectGraph>();
+      this.projectLast.set(this.projectKey(input), JSON.stringify(graph));
+      return graph;
     } catch {
       // Offline, or the server does not have the template: nothing to draw,
       // and the view says so rather than drawing a partial project.
@@ -152,12 +158,15 @@ export class NodeGraphGetQueryHandler
     if (input.scope === 'project') {
       // The server holds the answer, so it is asked again when something
       // changed here, but not on every event of a burst.
-      const last = this.projectFetchedAt.get(this.projectKey(input)) ?? 0;
+      const key = this.projectKey(input);
+      const last = this.projectFetchedAt.get(key) ?? 0;
       if (affectsGraph && Date.now() - last >= PROJECT_REFRESH_MS) {
-        return {
-          hasChanges: true,
-          result: await this.handleQuery(input),
-        };
+        const before = this.projectLast.get(key);
+        const result = await this.handleQuery(input);
+        if (before !== undefined && this.projectLast.get(key) === before) {
+          return { hasChanges: false };
+        }
+        return { hasChanges: true, result };
       }
       return { hasChanges: false };
     }
