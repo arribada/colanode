@@ -1,7 +1,9 @@
 // ABOUTME: Pure graph construction for the knowledge graph — turns node rows and
 // ABOUTME: mention references into a filtered node/edge set. No IO, no React.
 
-export type GraphEdgeKind = 'link' | 'hierarchy';
+// 'relation' only appears on a project graph: a relation field between two
+// register records (a requirement and the test that verifies it).
+export type GraphEdgeKind = 'link' | 'hierarchy' | 'relation';
 export type GraphEdgeMode = 'links' | 'hierarchy' | 'both';
 
 export interface GraphInputNode {
@@ -27,6 +29,8 @@ export interface GraphEdge {
   from: string;
   to: string;
   kind: GraphEdgeKind;
+  // The relation field's name, for a 'relation' edge.
+  label?: string;
 }
 
 export interface GraphUnresolved {

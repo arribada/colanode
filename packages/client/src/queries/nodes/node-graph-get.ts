@@ -1,4 +1,5 @@
 import { GraphEdgeMode, NodeGraph } from '@colanode/client/lib/graph';
+import { ProjectGraph } from '@colanode/client/lib/project-graph';
 
 export type NodeGraphGetQueryInput = {
   type: 'node.graph.get';
@@ -11,13 +12,17 @@ export type NodeGraphGetQueryInput = {
   depth?: number;
   // Most nodes to draw; the rest are left out and the view says so.
   maxNodes?: number;
+  // 'project': the template project the focus node belongs to, its pages and
+  // register records in lanes (see lib/project-graph). The edge options and
+  // the depth do not apply to it.
+  scope?: 'local' | 'project';
 };
 
 declare module '@colanode/client/queries' {
   interface QueryMap {
     'node.graph.get': {
       input: NodeGraphGetQueryInput;
-      output: NodeGraph;
+      output: NodeGraph | ProjectGraph;
     };
   }
 }

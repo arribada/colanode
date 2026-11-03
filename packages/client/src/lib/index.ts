@@ -12,3 +12,4 @@ export * from './features';
 export * from './fts';
 export * from './formulas';
 export * from './graph';
+export * from './project-graph';

@@ -264,3 +264,27 @@ describe('zoomAt', () => {
     expect(zoomAt({ x: 0, y: 0, zoom: 0.13 }, 0.5, 0, 0).zoom).toBe(0.12);
   });
 });
+
+describe('lane targets', () => {
+  it('settles every node in its lane column, spread on y', () => {
+    const points = seedPositions(ids(12));
+    const laneTargets = new Map(
+      points.map((p, i) => [p.id, i % 2 === 0 ? -300 : 300])
+    );
+    runLayout(points, [], 600, { ...DEFAULT_LAYOUT_OPTIONS, laneTargets });
+    for (const p of points) {
+      expect(Math.abs(p.x - laneTargets.get(p.id)!)).toBeLessThan(40);
+    }
+    const ys = points.filter((_, i) => i % 2 === 0).map((p) => p.y);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(100);
+    expect(finite(points)).toBe(true);
+  });
+
+  it('leaves a node without a target to the centre pull', () => {
+    const points = seedPositions(ids(2));
+    const laneTargets = new Map([['n0', 500]]);
+    runLayout(points, [], 600, { ...DEFAULT_LAYOUT_OPTIONS, laneTargets });
+    expect(points[0]!.x).toBeGreaterThan(400);
+    expect(Math.abs(points[1]!.x)).toBeLessThan(400);
+  });
+});

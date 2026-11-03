@@ -12,7 +12,12 @@ import {
   useState,
 } from 'react';
 
-import type { GraphEdgeMode, NodeGraph } from '@colanode/client/lib';
+import type {
+  GraphEdgeMode,
+  NodeGraph,
+  ProjectGraph,
+} from '@colanode/client/lib';
+import { PROJECT_LANES, type ProjectLane } from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
 import {
@@ -55,6 +60,40 @@ const TYPE_DOT: Record<string, string> = {
   folder: 'bg-slate-400',
   whiteboard: 'bg-amber-500',
 };
+
+// Project graph: one colour per lane, and the lanes left to right.
+const LANE_FILL: Record<ProjectLane, string> = {
+  context: 'fill-slate-400',
+  requirements: 'fill-sky-500',
+  design: 'fill-violet-500',
+  decisions: 'fill-amber-500',
+  verification: 'fill-emerald-500',
+  delivery: 'fill-rose-500',
+};
+
+const LANE_DOT: Record<ProjectLane, string> = {
+  context: 'bg-slate-400',
+  requirements: 'bg-sky-500',
+  design: 'bg-violet-500',
+  decisions: 'bg-amber-500',
+  verification: 'bg-emerald-500',
+  delivery: 'bg-rose-500',
+};
+
+const LANE_LABEL: Record<ProjectLane, string> = {
+  context: 'Context',
+  requirements: 'Requirements',
+  design: 'Design',
+  decisions: 'Decisions',
+  verification: 'Verification',
+  delivery: 'Delivery',
+};
+
+// Scene units between two lane columns.
+const LANE_GAP = 260;
+
+const laneX = (lane: ProjectLane): number =>
+  (PROJECT_LANES.indexOf(lane) - (PROJECT_LANES.length - 1) / 2) * LANE_GAP;
 
 const EDGE_MODES: { value: GraphEdgeMode; label: string; hint: string }[] = [
   { value: 'both', label: 'Both', hint: 'Mentions and nesting together' },
@@ -113,12 +152,21 @@ const transformOf = (view: ViewTransform): string =>
 interface GraphViewProps {
   // Local graph when set; whole workspace when absent.
   focusNodeId?: string;
+  // The focus page belongs to a project that follows the template, so the
+  // project graph (lanes, coverage) can be shown. It opens on it.
+  projectScope?: boolean;
   className?: string;
 }
 
-export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
+export const GraphView = ({
+  focusNodeId,
+  projectScope = false,
+  className,
+}: GraphViewProps) => {
   const workspace = useWorkspace();
   const navigate = useNavigate();
+  const [projectMode, setProjectMode] = useState(projectScope);
+  const inProject = projectScope && projectMode && Boolean(focusNodeId);
 
   const [edgeMode, setEdgeMode] = useState<GraphEdgeMode>('both');
   const [includeOrphans, setIncludeOrphans] = useState(false);
@@ -135,7 +183,9 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
   // on Links there.
   const orphansApply = !focusNodeId || edgeMode === 'links';
   const showOrphans = includeOrphans && orphansApply;
-  const optionsKey = `${focusNodeId ?? ''}|${edgeMode}|${showOrphans}|${depth}`;
+  const optionsKey = inProject
+    ? `${focusNodeId ?? ''}|project`
+    : `${focusNodeId ?? ''}|${edgeMode}|${showOrphans}|${depth}`;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SVGGElement>(null);
@@ -165,6 +215,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
       focusNodeId: focusNodeId ?? null,
       depth,
       maxNodes: MAX_NODES,
+      scope: inProject ? 'project' : 'local',
     },
     // Each option is its own query, so without this every click on a filter
     // or the depth swapped the whole view, toolbar included, for a loading
@@ -173,6 +224,13 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
   );
 
   const graph = graphQuery.data;
+  // Only a project graph carries lanes; a local graph left on screen while the
+  // project one loads must not be drawn in columns.
+  const projectGraph =
+    inProject && graph && 'lanes' in graph ? (graph as ProjectGraph) : null;
+  const lanes = projectGraph?.lanes ?? null;
+  const lanesRef = useRef<Record<string, ProjectLane> | null>(null);
+  const headerRefs = useRef(new Map<ProjectLane, SVGTextElement | null>());
 
   useEffect(() => {
     const element = containerRef.current;
@@ -251,6 +309,13 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
   // part of the app; writing transforms on the nodes we already rendered costs
   // nothing and is what makes it feel alive rather than appear fully formed.
   const paint = useCallback(() => {
+    if (lanesRef.current) {
+      // Lane titles sit above the highest node, wherever the layout put it.
+      const top = layoutBounds(pointsRef.current).minY - 40;
+      for (const [, element] of headerRefs.current) {
+        element?.setAttribute('y', String(top));
+      }
+    }
     for (const point of pointsRef.current) {
       const element = nodeRefs.current.get(point.id);
       if (element) {
@@ -317,7 +382,15 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
       return;
     }
     stopSimulation();
-    const options = optionsForSize(current.nodes.length);
+    const laneMap = lanesRef.current;
+    const options: LayoutOptions = laneMap
+      ? {
+          ...optionsForSize(current.nodes.length),
+          laneTargets: new Map(
+            current.nodes.map((n) => [n.id, laneX(laneMap[n.id] ?? 'design')])
+          ),
+        }
+      : optionsForSize(current.nodes.length);
     let frames = 0;
     const loop = () => {
       const moved = stepLayout(pointsRef.current, current.edges, options);
@@ -341,19 +414,32 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
   // its nodes never flash at the origin for a frame.
   useLayoutEffect(() => {
     graphRef.current = graph;
+    lanesRef.current = lanes;
     if (!graph || graph.nodes.length === 0) {
       pointsRef.current = [];
       pointIndex.current = new Map();
       return;
     }
-    // Carried over, not re-seeded: re-seeding every node on every new graph is
-    // what made each filter or depth change throw the whole picture away.
-    pointsRef.current = carryPositions(
-      pointsRef.current,
-      graph.nodes.map((n) => n.id),
-      graph.edges,
-      spreadFor(graph.nodes.length)
-    );
+    if (lanes && laidOutKeyRef.current !== optionsKey) {
+      // Entering the project graph: start every node in its column, in a
+      // stack, so the lanes read from the first frame.
+      const rows = new Map<ProjectLane, number>();
+      pointsRef.current = graph.nodes.map((n) => {
+        const lane = lanes[n.id] ?? 'design';
+        const row = rows.get(lane) ?? 0;
+        rows.set(lane, row + 1);
+        return { id: n.id, x: laneX(lane), y: row * 36, vx: 0, vy: 0 };
+      });
+    } else {
+      // Carried over, not re-seeded: re-seeding every node on every new graph
+      // is what made each filter or depth change throw the whole picture away.
+      pointsRef.current = carryPositions(
+        pointsRef.current,
+        graph.nodes.map((n) => n.id),
+        graph.edges,
+        spreadFor(graph.nodes.length)
+      );
+    }
     pointIndex.current = indexById(pointsRef.current);
     paint();
     // A graph the user asked for (first open, another mode, depth or filter)
@@ -367,7 +453,7 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
     }
     startSimulation();
     return stopSimulation;
-  }, [graph, paint, startSimulation, stopSimulation]);
+  }, [graph, lanes, paint, startSimulation, stopSimulation]);
 
   const resetLayout = () => {
     const current = graphRef.current;
@@ -476,10 +562,35 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
   const linkCount = graph
     ? graph.edges.filter((e) => e.kind === 'link').length
     : 0;
+  const relationCount = graph
+    ? graph.edges.filter((e) => e.kind === 'relation').length
+    : 0;
+  const coverage = projectGraph?.project?.coverage ?? null;
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+        {projectScope && focusNodeId && (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant={inProject ? 'secondary' : 'ghost'}
+                className="h-7 px-2 text-xs"
+                onClick={() => setProjectMode((v) => !v)}
+              >
+                Project
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {inProject
+                ? 'Back to the links around this page'
+                : 'The whole project in lanes: requirements, design, decisions, tests'}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {!inProject && (
         <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
           {EDGE_MODES.map((mode) => (
             <Tooltip delayDuration={300} key={mode.value}>
@@ -498,6 +609,8 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
             </Tooltip>
           ))}
         </div>
+        )}
+        {!inProject && (
         <Tooltip delayDuration={300}>
           {/* A disabled button takes no pointer events, so its own tooltip,
               the one that says why, would never open: the span carries it. */}
@@ -523,7 +636,8 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
                 : 'Also show pages that are neither linked nor nested'}
           </TooltipContent>
         </Tooltip>
-        {focusNodeId && (
+        )}
+        {focusNodeId && !inProject && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Depth</span>
             <Tooltip delayDuration={300}>
@@ -608,8 +722,34 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
                 connected of {graph.truncated.total}
               </span>
             )}
+            {coverage && projectGraph?.project && (
+              <span
+                data-testid="graph-coverage"
+                className="mr-3 text-foreground"
+              >
+                <span className="font-medium">{projectGraph.project.code}</span>
+                {' · '}
+                {coverage.requirements} requirements · {coverage.tested} tested
+                · {coverage.passed} passed
+                {coverage.failing > 0 && (
+                  <span className="text-red-600 dark:text-red-400">
+                    {' '}
+                    · {coverage.failing} failing
+                  </span>
+                )}
+                {coverage.requirements - coverage.tested > 0 && (
+                  <span className="text-amber-600 dark:text-amber-500">
+                    {' '}
+                    · {coverage.requirements - coverage.tested} untested
+                  </span>
+                )}
+                {' · '}
+                {coverage.openDecisions}/{coverage.decisions} decisions open
+              </span>
+            )}
             {graph.nodes.length} nodes · {linkCount} links ·{' '}
-            {graph.edges.length - linkCount} nested
+            {relationCount > 0 && <>{relationCount} relations · </>}
+            {graph.edges.length - linkCount - relationCount} nested
             {graph.unresolved.length > 0 && (
               <span className="ml-2 text-amber-600 dark:text-amber-500">
                 {graph.unresolved.length} unresolved
@@ -645,16 +785,43 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
                     edgeRefs.current[i] = el;
                   }}
                   className={cn(
-                    'stroke-muted-foreground transition-opacity',
-                    edge.kind === 'hierarchy' ? 'opacity-25' : 'opacity-50',
+                    'transition-opacity',
+                    edge.kind === 'relation'
+                      ? 'stroke-emerald-600 opacity-70 dark:stroke-emerald-400'
+                      : 'stroke-muted-foreground',
+                    edge.kind === 'hierarchy' && 'opacity-25',
+                    edge.kind === 'link' && 'opacity-50',
                     dim && 'opacity-5'
                   )}
-                  strokeWidth={edge.kind === 'link' ? 1.2 : 0.8}
+                  strokeWidth={
+                    edge.kind === 'relation'
+                      ? 1.5
+                      : edge.kind === 'link'
+                        ? 1.2
+                        : 0.8
+                  }
                   strokeDasharray={edge.kind === 'hierarchy' ? '3 3' : undefined}
-                />
+                >
+                  {edge.label && <title>{edge.label}</title>}
+                </line>
               );
             })}
 
+            {lanes &&
+              PROJECT_LANES.map((lane) => (
+                <text
+                  key={lane}
+                  ref={(el) => {
+                    headerRefs.current.set(lane, el);
+                  }}
+                  x={laneX(lane)}
+                  y={0}
+                  textAnchor="middle"
+                  className="pointer-events-none fill-muted-foreground text-[11px] font-medium uppercase tracking-wide"
+                >
+                  {LANE_LABEL[lane]}
+                </text>
+              ))}
             {graph?.nodes.map((node) => {
               const dim = isDimmed(node.id);
               const r = radiusFor(node.degree);
@@ -692,7 +859,9 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
                   <circle
                     r={r}
                     className={cn(
-                      TYPE_FILL[node.type] ?? 'fill-slate-400',
+                      lanes
+                        ? LANE_FILL[lanes[node.id] ?? 'design']
+                        : (TYPE_FILL[node.type] ?? 'fill-slate-400'),
                       isFocus && 'stroke-foreground'
                     )}
                     strokeWidth={isFocus ? 2 : 0}
@@ -725,20 +894,34 @@ export const GraphView = ({ focusNodeId, className }: GraphViewProps) => {
               Nothing to draw here yet.
             </p>
             <p className="max-w-md text-xs text-muted-foreground">
-              Mention another page with @ and it appears in this graph. Switch
-              to Nesting to see how this corner of the wiki is arranged instead.
+              {inProject
+                ? 'This page is not in a project that follows the project template, or the project has no pages yet.'
+                : 'Mention another page with @ and it appears in this graph. Switch to Nesting to see how this corner of the wiki is arranged instead.'}
             </p>
           </div>
         )}
 
         {graph && graph.nodes.length > 0 && (
           <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-2 rounded-md border bg-background/85 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
-            {Object.entries(TYPE_DOT).map(([type, dot]) => (
-              <span key={type} className="flex items-center gap-1">
-                <span className={cn('size-2 rounded-full', dot)} />
-                {type}
+            {lanes
+              ? PROJECT_LANES.map((lane) => (
+                  <span key={lane} className="flex items-center gap-1">
+                    <span className={cn('size-2 rounded-full', LANE_DOT[lane])} />
+                    {LANE_LABEL[lane]}
+                  </span>
+                ))
+              : Object.entries(TYPE_DOT).map(([type, dot]) => (
+                  <span key={type} className="flex items-center gap-1">
+                    <span className={cn('size-2 rounded-full', dot)} />
+                    {type}
+                  </span>
+                ))}
+            {lanes && (
+              <span className="flex items-center gap-1">
+                <span className="h-0.5 w-3 bg-emerald-600 dark:bg-emerald-400" />
+                relation
               </span>
-            ))}
+            )}
             <span className="ml-1 border-l pl-2">drag a node to move it</span>
           </div>
         )}

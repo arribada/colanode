@@ -9,6 +9,15 @@ import {
   NodeGraph,
 } from '@colanode/client/lib/graph';
 import { notInTrashedTreeSql } from '@colanode/client/lib/nodes';
+import {
+  buildProjectGraph,
+  findProjectRoot,
+  ProjectGraph,
+  ProjectGraphDatabase,
+  ProjectGraphInputNode,
+  ProjectRegister,
+  registersInDocument,
+} from '@colanode/client/lib/project-graph';
 import { NodeGraphGetQueryInput } from '@colanode/client/queries/nodes/node-graph-get';
 import { Event } from '@colanode/client/types/events';
 import { NodeType } from '@colanode/core';
@@ -29,7 +38,13 @@ export class NodeGraphGetQueryHandler
   extends WorkspaceQueryHandlerBase
   implements QueryHandler<NodeGraphGetQueryInput>
 {
-  public async handleQuery(input: NodeGraphGetQueryInput): Promise<NodeGraph> {
+  public async handleQuery(
+    input: NodeGraphGetQueryInput
+  ): Promise<NodeGraph | ProjectGraph> {
+    if (input.scope === 'project' && input.focusNodeId) {
+      return await this.handleProjectQuery(input, input.focusNodeId);
+    }
+
     const workspace = this.getWorkspace(input.userId);
 
     const nodeRows = await workspace.database
@@ -75,6 +90,115 @@ export class NodeGraphGetQueryHandler
         ? { nodeId: input.focusNodeId, depth: input.depth ?? 1 }
         : undefined,
       maxNodes: input.maxNodes,
+    });
+  }
+
+  // A template project, in lanes: its pages plus the records of the three
+  // registers its Requirements, Tests and Decisions pages embed.
+  private async handleProjectQuery(
+    input: NodeGraphGetQueryInput,
+    focusNodeId: string
+  ): Promise<ProjectGraph> {
+    const workspace = this.getWorkspace(input.userId);
+
+    const nodeRows = await workspace.database
+      .selectFrom('nodes')
+      .where('type', 'in', GRAPH_NODE_TYPES)
+      .where(sql<boolean>`${sql.raw(notInTrashedTreeSql('nodes'))}`)
+      .select(['id', 'type', 'parent_id', 'attributes'])
+      .execute();
+
+    const nodes: ProjectGraphInputNode[] = [];
+    const databases: ProjectGraphDatabase[] = [];
+    for (const row of nodeRows) {
+      let attributes: Record<string, unknown> = {};
+      try {
+        attributes = JSON.parse(row.attributes) as Record<string, unknown>;
+      } catch {
+        // Unparseable attributes: the node is drawn, unnamed and roleless.
+      }
+      const text = (key: string) =>
+        typeof attributes[key] === 'string'
+          ? (attributes[key] as string)
+          : null;
+      nodes.push({
+        id: row.id,
+        type: row.type,
+        name: text('name') ?? '',
+        parentId: row.parent_id,
+        projectCode: text('projectCode'),
+        projectRole: text('projectRole'),
+        databaseId: text('databaseId'),
+        fields:
+          row.type === 'record' && attributes.fields
+            ? (attributes.fields as Record<string, unknown>)
+            : undefined,
+      });
+      if (row.type === 'database' && attributes.fields) {
+        databases.push({
+          id: row.id,
+          fields: attributes.fields as ProjectGraphDatabase['fields'],
+        });
+      }
+    }
+
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const root = findProjectRoot(byId, focusNodeId);
+    if (!root) {
+      return { nodes: [], edges: [], unresolved: [], lanes: {}, project: null };
+    }
+
+    const registerPages = nodes.filter(
+      (node) =>
+        node.parentId === root.id &&
+        (node.projectRole === 'requirements' ||
+          node.projectRole === 'tests' ||
+          node.projectRole === 'decisions')
+    );
+    const registers: ProjectRegister[] = [];
+    if (registerPages.length > 0) {
+      const documents = await workspace.database
+        .selectFrom('documents')
+        .where(
+          'id',
+          'in',
+          registerPages.map((page) => page.id)
+        )
+        .select(['id', 'content'])
+        .execute();
+      for (const document of documents) {
+        const page = byId.get(document.id)!;
+        let content: unknown = null;
+        try {
+          content = JSON.parse(document.content);
+        } catch {
+          continue;
+        }
+        registers.push(
+          ...registersInDocument(
+            page.id,
+            page.projectRole as ProjectRegister['role'],
+            content
+          )
+        );
+      }
+    }
+
+    const referenceRows = await workspace.database
+      .selectFrom('node_references')
+      .where('type', '=', 'mention')
+      .select(['node_id', 'reference_id'])
+      .execute();
+
+    return buildProjectGraph({
+      nodes,
+      references: referenceRows.map((row) => ({
+        nodeId: row.node_id,
+        referenceId: row.reference_id,
+      })),
+      registers,
+      databases,
+      rootId: root.id,
     });
   }
 

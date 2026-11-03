@@ -25,6 +25,11 @@ export interface LayoutOptions {
   centerStrength: number;
   // Velocity retained between ticks. Below 1 the simulation settles.
   damping: number;
+  // Project graph: the x each node is pulled to, its lane's column. A node
+  // with a target is held to its column instead of to the centre on x; y
+  // stays free, so the springs and the repulsion still spread each lane.
+  laneTargets?: ReadonlyMap<string, number>;
+  laneStrength?: number;
 }
 
 export const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
@@ -243,9 +248,14 @@ export const stepLayout = (
   }
 
   let travelled = 0;
+  const laneStrength = options.laneStrength ?? 0.08;
   for (let i = 0; i < count; i++) {
     const p = points[i]!;
-    const ax = fx[i]! - p.x * options.centerStrength;
+    const laneX = options.laneTargets?.get(p.id);
+    const ax =
+      laneX === undefined
+        ? fx[i]! - p.x * options.centerStrength
+        : fx[i]! - (p.x - laneX) * laneStrength;
     const ay = fy[i]! - p.y * options.centerStrength;
     p.vx = (p.vx + ax) * options.damping;
     p.vy = (p.vy + ay) * options.damping;

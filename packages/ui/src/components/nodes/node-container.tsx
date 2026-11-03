@@ -197,7 +197,12 @@ const NodeContent = ({ type, onFullscreen }: NodeContentProps) => {
       )}
       {data.node.type === 'page' &&
         (graphActive ? (
-          <GraphView focusNodeId={data.node.id} />
+          <GraphView
+            focusNodeId={data.node.id}
+            projectScope={Boolean(
+              data.node.projectCode || data.node.projectRole
+            )}
+          />
         ) : boardActive ? (
           <WhiteboardContainer
             node={data.node}
