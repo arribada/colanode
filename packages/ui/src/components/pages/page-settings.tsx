@@ -36,6 +36,8 @@ import { PageMoveDialog } from '@colanode/ui/components/pages/page-move-dialog';
 import { PagePresentOverlay } from '@colanode/ui/components/pages/page-present-overlay';
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
+import { ProjectAlignDialog } from '@colanode/ui/components/projects/project-align-dialog';
+import { ProjectAlignMenuItem } from '@colanode/ui/components/projects/project-menu-items';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -83,6 +85,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showMarkdownDialog, setShowMarkdownDialog] = useState(false);
+  const [showAlignDialog, setShowAlignDialog] = useState(false);
   const [showPresentOverlay, setShowPresentOverlay] = useState(false);
 
   const canEdit = hasNodeRole(role, 'editor');
@@ -469,6 +472,11 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
             <History className="size-4" />
             Version history
           </DropdownMenuItem>
+          <ProjectAlignMenuItem
+            page={page}
+            canEdit={canEdit}
+            onSelect={() => setShowAlignDialog(true)}
+          />
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"
@@ -612,6 +620,13 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
         open={showMarkdownDialog}
         onOpenChange={setShowMarkdownDialog}
       />
+      {showAlignDialog && (
+        <ProjectAlignDialog
+          page={page}
+          open={showAlignDialog}
+          onOpenChange={setShowAlignDialog}
+        />
+      )}
       {showPresentOverlay && (
         <PagePresentOverlay
           pageId={page.id}

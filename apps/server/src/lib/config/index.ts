@@ -11,6 +11,7 @@ import { jobsConfigSchema } from './jobs';
 import { loggingConfigSchema } from './logging';
 import { planeConfigSchema } from './plane';
 import { postgresConfigSchema } from './postgres';
+import { projectsConfigSchema } from './projects';
 import { pushConfigSchema } from './push';
 import { redisConfigSchema } from './redis';
 import { storageConfigSchema } from './storage';
@@ -50,6 +51,7 @@ const configSchema = z.object({
   apns: apnsConfigSchema,
   zulip: zulipConfigSchema,
   plane: planeConfigSchema,
+  projects: projectsConfigSchema,
 });
 
 export type Configuration = z.infer<typeof configSchema>;

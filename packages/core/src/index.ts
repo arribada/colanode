@@ -43,6 +43,8 @@ export * from './types/build';
 export * from './lib/servers';
 export * from './types/auth';
 export * from './lib/plane';
+export * from './lib/project-template';
 export * from './types/plane';
+export * from './types/projects';
 export * from './types/unsplash';
 export * from './types/ai';

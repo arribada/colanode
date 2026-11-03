@@ -38,6 +38,8 @@ import {
 } from '@colanode/ui/components/pages/page-template-submenu';
 import { PageTransferDialog } from '@colanode/ui/components/pages/page-transfer-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
+import { ProjectCreateDialog } from '@colanode/ui/components/projects/project-create-dialog';
+import { ProjectCreateMenuItem } from '@colanode/ui/components/projects/project-menu-items';
 import {
   Collapsible,
   CollapsibleContent,
@@ -104,6 +106,7 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
   const [transferOpen, setTransferOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const { isRenaming, startRenaming, cancelRenaming, commitRenaming } =
     useInlineRename(page);
 
@@ -377,6 +380,13 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
                         onSelect={createFromTemplate}
                       />
                     )}
+                    {canEdit && !page.projectCode && !page.projectRole && (
+                      <ProjectCreateMenuItem
+                        spaceId={page.rootId}
+                        label="New project here"
+                        onSelect={() => setCreateProjectOpen(true)}
+                      />
+                    )}
                     <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
                       <FolderInput className="size-4" />
                       Move to
@@ -485,6 +495,13 @@ export const PageSidebarItem = ({ page }: PageSidebarItemProps) => {
           page={page}
           open={moveOpen}
           onOpenChange={setMoveOpen}
+        />
+      )}
+      {createProjectOpen && (
+        <ProjectCreateDialog
+          parentId={page.id}
+          open={createProjectOpen}
+          onOpenChange={setCreateProjectOpen}
         />
       )}
       {transferOpen && (

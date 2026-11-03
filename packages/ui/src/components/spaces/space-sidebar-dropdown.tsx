@@ -20,6 +20,8 @@ import {
   useCreatePageFromTemplate,
 } from '@colanode/ui/components/pages/page-template-submenu';
 import { PageTemplatesDialog } from '@colanode/ui/components/pages/page-templates-dialog';
+import { ProjectCreateDialog } from '@colanode/ui/components/projects/project-create-dialog';
+import { ProjectCreateMenuItem } from '@colanode/ui/components/projects/project-menu-items';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +51,7 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
   const [openCreateDatabase, setOpenCreateDatabase] = useState(false);
   const [openCreateWhiteboard, setOpenCreateWhiteboard] = useState(false);
   const [openTemplates, setOpenTemplates] = useState(false);
+  const [openCreateProject, setOpenCreateProject] = useState(false);
 
   const createPageFromTemplate = useCreatePageFromTemplate({
     spaceId: space.id,
@@ -77,6 +80,12 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
               <StickyNote className="size-4" />
               <span>Add page</span>
             </DropdownMenuItem>
+          )}
+          {canCreate && (
+            <ProjectCreateMenuItem
+              spaceId={space.id}
+              onSelect={() => setOpenCreateProject(true)}
+            />
           )}
           {canCreate && (
             <PageTemplateSubmenu
@@ -161,6 +170,12 @@ export const SpaceSidebarDropdown = ({ space }: SpaceSidebarDropdownProps) => {
           spaceId={space.id}
           open={openCreateWhiteboard}
           onOpenChange={setOpenCreateWhiteboard}
+        />
+      )}
+      {openCreateProject && (
+        <ProjectCreateDialog
+          open={openCreateProject}
+          onOpenChange={setOpenCreateProject}
         />
       )}
       {openTemplates && spaceRole !== null && (

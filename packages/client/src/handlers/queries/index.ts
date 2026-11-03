@@ -54,6 +54,8 @@ import { PlaneMyIssuesQueryHandler } from './plane/plane-my-issues';
 import { PlaneProjectBoardQueryHandler } from './plane/plane-project-board';
 import { PlaneProjectsListQueryHandler } from './plane/plane-projects-list';
 import { PresenceListQueryHandler } from './presence/presence-list';
+import { ProjectCodeCheckQueryHandler } from './projects/project-code-check';
+import { ProjectParentsListQueryHandler } from './projects/project-parents-list';
 import { RecordFieldValueCountQueryHandler } from './records/record-field-value-count';
 import { RecordSearchQueryHandler } from './records/record-search';
 import { RecordTemplateListQueryHandler } from './records/record-template-list';
@@ -129,6 +131,8 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'plane.my.issues': new PlaneMyIssuesQueryHandler(app),
     'plane.project.board': new PlaneProjectBoardQueryHandler(app),
     'plane.projects.list': new PlaneProjectsListQueryHandler(app),
+    'project.parents.list': new ProjectParentsListQueryHandler(app),
+    'project.code.check': new ProjectCodeCheckQueryHandler(app),
     'presence.list': new PresenceListQueryHandler(app),
     'unsplash.search': new UnsplashSearchQueryHandler(app),
   };

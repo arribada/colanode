@@ -74,6 +74,8 @@ import { PageTemplateCreateMutationHandler } from './pages/page-template-create'
 import { PageTemplateSaveMutationHandler } from './pages/page-template-save';
 import { PageTransferMutationHandler } from './pages/page-transfer';
 import { PlaneSyncRunMutationHandler } from './plane/plane-sync-run';
+import { ProjectAlignMutationHandler } from './projects/project-align';
+import { ProjectCreateMutationHandler } from './projects/project-create';
 import { PresenceLeaveMutationHandler } from './presence/presence-leave';
 import { PresenceUpdateMutationHandler } from './presence/presence-update';
 import { PushSubscriptionCreateMutationHandler } from './push-subscriptions/push-subscription-create';
@@ -198,6 +200,8 @@ export const buildMutationHandlerMap = (
     'presence.update': new PresenceUpdateMutationHandler(app),
     'presence.leave': new PresenceLeaveMutationHandler(app),
     'plane.sync.run': new PlaneSyncRunMutationHandler(app),
+    'project.create': new ProjectCreateMutationHandler(app),
+    'project.align': new ProjectAlignMutationHandler(app),
     'unsplash.download': new UnsplashDownloadMutationHandler(app),
   };
 };

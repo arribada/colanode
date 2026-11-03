@@ -86,6 +86,8 @@ export * from './records/record-template-create';
 export * from './presence/presence-update';
 export * from './presence/presence-leave';
 export * from './plane/plane-sync-run';
+export * from './projects/project-create';
+export * from './projects/project-align';
 export * from './unsplash/unsplash-download';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

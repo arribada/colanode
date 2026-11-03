@@ -121,7 +121,7 @@ interface AccessibleNode {
 
 // Loads the full ancestor→node tree, asserts the node exists inside the given
 // workspace, and resolves the acting user's node role (null → no access).
-const requireAccessibleNode = async (
+export const requireAccessibleNode = async (
   nodeId: string,
   ctx: WikiToolContext
 ): Promise<AccessibleNode> => {
@@ -280,7 +280,7 @@ interface WorkspaceUser {
   workspaceId: string;
 }
 
-const fetchWorkspaceUser = async (
+export const fetchWorkspaceUser = async (
   ctx: WikiToolContext
 ): Promise<WorkspaceUser> => {
   const user = await database

@@ -33,6 +33,16 @@ export const pageAttributesSchema = z.object({
   // Page layout width. false / absent = a constrained, centered readable
   // column (~max-w-3xl); true = full container width for wide tables/embeds.
   fullWidth: z.boolean().nullable().optional(),
+  // Optional project template (see @colanode/core/lib/project-template).
+  // `projectCode` marks the ROOT page of a project that follows the template;
+  // it is the project's unique identifier, the same letters as its Plane
+  // identifier (e.g. "MARLIN"). `projectRole` marks each page of the
+  // template's document set (e.g. "requirements"). Pages without either are
+  // ordinary pages: the template is an option, never an obligation, and only
+  // the dedicated project views read these two attributes. Kept as plain
+  // strings so a role added later does not make an older server reject it.
+  projectCode: z.string().nullable().optional(),
+  projectRole: z.string().nullable().optional(),
   // Page lock. Null/absent => 'open' (every existing page). 'open' = anyone
   // with edit rights edits normally; 'suggest' = non-privileged users get a
   // read-only editor but may still PROPOSE edits via the suggestion flow;

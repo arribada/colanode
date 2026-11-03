@@ -3,6 +3,7 @@ import { FastifyPluginCallback } from 'fastify';
 import { accountRoutes } from '@colanode/server/api/client/routes/accounts';
 import { authRoutes } from '@colanode/server/api/client/routes/auth';
 import { avatarRoutes } from '@colanode/server/api/client/routes/avatars';
+import { projectLinkRoutes } from '@colanode/server/api/client/routes/project-links';
 import { socketRoutes } from '@colanode/server/api/client/routes/sockets';
 import { testRoutes } from '@colanode/server/api/client/routes/test';
 import { unsplashRoutes } from '@colanode/server/api/client/routes/unsplash';
@@ -15,6 +16,7 @@ export const clientRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register(avatarRoutes, { prefix: '/avatars' });
   instance.register(workspaceRoutes, { prefix: '/workspaces' });
   instance.register(unsplashRoutes, { prefix: '/unsplash' });
+  instance.register(projectLinkRoutes, { prefix: '/project-links' });
   // DEV-GATED test seam — see routes/test/guard.ts. Registration is
   // unconditional; the onRequest hook inside testRoutes is what makes this
   // a no-op / 404 outside test/dev.

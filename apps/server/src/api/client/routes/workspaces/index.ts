@@ -13,6 +13,7 @@ import { suggestionRoutes } from './suggestions';
 import { fileRoutes } from './files';
 import { planeIntegrationRoutes } from './integrations/plane';
 import { mutationsRoutes } from './mutations';
+import { projectRoutes } from './projects';
 import { userRoutes } from './users';
 import { workspaceCreateRoute } from './workspace-create';
 import { workspaceDeleteRoute } from './workspace-delete';
@@ -45,6 +46,7 @@ export const workspaceRoutes: FastifyPluginCallback = (instance, _, done) => {
       subInstance.register(planeIntegrationRoutes, {
         prefix: '/integrations/plane',
       });
+      subInstance.register(projectRoutes, { prefix: '/projects' });
     },
     {
       prefix: '/:workspaceId',
