@@ -48,6 +48,7 @@ const toInput = (row: SelectNode): ProjectGraphInputNode => {
     parentId: row.parent_id,
     projectCode: text('projectCode'),
     projectRole: text('projectRole'),
+    projectLane: text('projectLane'),
     databaseId: text('databaseId'),
     fields:
       row.type === 'record' && attributes.fields

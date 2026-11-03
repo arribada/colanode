@@ -37,7 +37,10 @@ import { PagePresentOverlay } from '@colanode/ui/components/pages/page-present-o
 import { PageShareDialog } from '@colanode/ui/components/pages/page-share-dialog';
 import { PageUpdateDialog } from '@colanode/ui/components/pages/page-update-dialog';
 import { ProjectAlignDialog } from '@colanode/ui/components/projects/project-align-dialog';
-import { ProjectAlignMenuItem } from '@colanode/ui/components/projects/project-menu-items';
+import {
+  ProjectAlignMenuItem,
+  ProjectLaneMenuItem,
+} from '@colanode/ui/components/projects/project-menu-items';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -477,6 +480,7 @@ export const PageSettings = ({ page, nodes, role }: PageSettingsProps) => {
             canEdit={canEdit}
             onSelect={() => setShowAlignDialog(true)}
           />
+          <ProjectLaneMenuItem page={page} chain={nodes} canEdit={canEdit} />
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="flex items-center gap-2 cursor-pointer"

@@ -206,6 +206,25 @@ describe('buildProjectGraph', () => {
     expect(lanes.pextra).toBe('design');
   });
 
+  it('puts a page in the column chosen for it, and its sub-pages with it', () => {
+    const nodes = [
+      ...NODES,
+      {
+        ...page('ptrial', 'root', undefined, 'Field trial'),
+        projectLane: 'verification',
+      },
+      page('ptrialsub', 'ptrial', undefined, 'Day 1'),
+      // A role wins over a chosen lane; an unknown lane is ignored.
+      { ...page('pboth', 'root', 'decisions'), projectLane: 'delivery' },
+      { ...page('podd', 'root', undefined, 'Odd'), projectLane: 'nowhere' },
+    ];
+    const { lanes } = build({ nodes });
+    expect(lanes.ptrial).toBe('verification');
+    expect(lanes.ptrialsub).toBe('verification');
+    expect(lanes.pboth).toBe('decisions');
+    expect(lanes.podd).toBe('design');
+  });
+
   it('draws a relation once even when both sides hold it', () => {
     const relations = build().edges.filter((e) => e.kind === 'relation');
     const pairs = relations.map((e) => [e.from, e.to].sort().join('-')).sort();

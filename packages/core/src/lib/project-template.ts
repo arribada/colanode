@@ -40,6 +40,19 @@ export const PROJECT_LANES = [
 
 export type ProjectLane = (typeof PROJECT_LANES)[number];
 
+export const PROJECT_LANE_LABELS: Record<ProjectLane, string> = {
+  context: 'Context',
+  requirements: 'Requirements',
+  design: 'Design',
+  decisions: 'Decisions',
+  verification: 'Verification',
+  delivery: 'Delivery',
+};
+
+export const isProjectLane = (value: unknown): value is ProjectLane =>
+  typeof value === 'string' &&
+  (PROJECT_LANES as readonly string[]).includes(value);
+
 export type ProjectTemplatePage = {
   role: ProjectRole;
   // The canonical title, the one a new project gets.
@@ -186,6 +199,61 @@ export const getProjectTemplatePage = (
 // is where most of them belong ("Power budget", "HV stage", ...).
 export const getProjectLane = (role: string | null | undefined): ProjectLane =>
   getProjectTemplatePage(role)?.lane ?? 'design';
+
+export interface ProjectLaneHolder {
+  projectCode?: string | null;
+  projectRole?: string | null;
+  projectLane?: string | null;
+}
+
+// Why a page sits in its column: its template role, the column someone
+// chose for it, the page above it, or nothing (design).
+export type ProjectLaneSource = 'role' | 'chosen' | 'inherited' | 'default';
+
+// The page's own column, if it has one: a template role first, then a
+// chosen lane. Unknown strings (a role from a newer template) count as none.
+export const ownProjectLane = (
+  page: ProjectLaneHolder
+): { lane: ProjectLane; source: 'role' | 'chosen' } | null => {
+  if (page.projectRole && getProjectTemplatePage(page.projectRole)) {
+    return { lane: getProjectLane(page.projectRole), source: 'role' };
+  }
+  if (isProjectLane(page.projectLane)) {
+    return { lane: page.projectLane, source: 'chosen' };
+  }
+  return null;
+};
+
+// The column of the last page of `chain` (outermost ancestor first, the
+// page itself last) in the project its closest project root starts. Null
+// when no ancestor is a project root, or when the page is the root.
+export const resolveProjectLane = (
+  chain: ReadonlyArray<ProjectLaneHolder>
+): { code: string; lane: ProjectLane; source: ProjectLaneSource } | null => {
+  let rootIndex = -1;
+  for (let i = chain.length - 1; i >= 0; i--) {
+    if (chain[i]?.projectCode) {
+      rootIndex = i;
+      break;
+    }
+  }
+  const root = chain[rootIndex];
+  if (!root?.projectCode || rootIndex === chain.length - 1) {
+    return null;
+  }
+  let lane: ProjectLane | null = null;
+  let source: ProjectLaneSource = 'default';
+  for (let i = rootIndex + 1; i < chain.length; i++) {
+    const own = ownProjectLane(chain[i]!);
+    if (own) {
+      lane = own.lane;
+      source = i === chain.length - 1 ? own.source : 'inherited';
+    } else if (lane) {
+      source = 'inherited';
+    }
+  }
+  return { code: root.projectCode, lane: lane ?? 'design', source };
+};
 
 // Case, accents, emoji, "10 - " style numeric prefixes and punctuation are
 // ignored, so "🧭 70 - Decisions / ADR" and "Decisions and ADR" compare

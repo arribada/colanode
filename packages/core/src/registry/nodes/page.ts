@@ -43,6 +43,11 @@ export const pageAttributesSchema = z.object({
   // strings so a role added later does not make an older server reject it.
   projectCode: z.string().nullable().optional(),
   projectRole: z.string().nullable().optional(),
+  // A page of a template project that is not one of the template's pages
+  // ("Power budget", "Field trial plan") can say which column of the project
+  // graph it belongs in (a lane: design, verification, ...). Absent, it takes
+  // the column of the page above it. A template page's role always wins.
+  projectLane: z.string().nullable().optional(),
   // On the root page only: where each register of the project lives (the
   // database, its Project field, and the option that is this project's), by
   // role -- requirements, tests, decisions. The project graph reads this

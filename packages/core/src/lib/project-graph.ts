@@ -1,8 +1,7 @@
 // ABOUTME: The project graph — a template project's pages and register records in
 // ABOUTME: lanes (requirements, design, decisions, tests), with coverage. Pure.
 import {
-  getProjectLane,
-  isProjectRole,
+  ownProjectLane,
   ProjectLane,
 } from '@colanode/core/lib/project-template';
 
@@ -31,6 +30,8 @@ export interface ProjectGraphInputNode {
   parentId: string | null;
   projectCode?: string | null;
   projectRole?: string | null;
+  // A role-less page's chosen column (see the page attribute).
+  projectLane?: string | null;
   // Root page only: the registers the server declared for the project.
   registers?: Record<
     string,
@@ -183,15 +184,15 @@ export const buildProjectGraph = (input: {
     children.set(node.parentId, list);
   }
 
-  // The project's pages: everything under the root, each in the lane of the
-  // template page it sits under (a sub-page of Hardware design is design).
+  // The project's pages: everything under the root, each in the lane of its
+  // template role, else the lane chosen for it, else the lane of the page it
+  // sits under (a sub-page of Hardware design is design).
   const lanes: Record<string, ProjectLane> = {};
   const inScope = new Map<string, ProjectGraphInputNode>();
   const walk = (parentId: string, inherited: ProjectLane | null) => {
     for (const child of children.get(parentId) ?? []) {
       if (!PAGE_TYPES.has(child.type)) continue;
-      const role = isProjectRole(child.projectRole) ? child.projectRole : null;
-      const lane = role ? getProjectLane(role) : (inherited ?? 'design');
+      const lane = ownProjectLane(child)?.lane ?? inherited ?? 'design';
       inScope.set(child.id, child);
       lanes[child.id] = lane;
       walk(child.id, lane);

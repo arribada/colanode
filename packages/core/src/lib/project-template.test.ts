@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PROJECT_ROLES,
+  resolveProjectLane,
   PROJECT_TEMPLATE_PAGES,
   getProjectLane,
   isValidProjectCode,
@@ -118,5 +119,53 @@ describe('project codes', () => {
     expect(suggestProjectCode('Sea Turtle Tag GPS')).toBe('STTG');
     expect(suggestProjectCode('')).toBe('');
     expect(isValidProjectCode(suggestProjectCode('Arribada Clubs'))).toBe(true);
+  });
+});
+
+describe('resolveProjectLane', () => {
+  const root = { projectCode: 'MARLIN' };
+
+  it('is null outside a project and on the project page itself', () => {
+    expect(resolveProjectLane([{}, {}])).toBeNull();
+    expect(resolveProjectLane([{}, root])).toBeNull();
+  });
+
+  it('says where the column comes from', () => {
+    expect(resolveProjectLane([root, { projectRole: 'tests' }])).toEqual({
+      code: 'MARLIN',
+      lane: 'verification',
+      source: 'role',
+    });
+    expect(resolveProjectLane([root, { projectLane: 'delivery' }])).toEqual({
+      code: 'MARLIN',
+      lane: 'delivery',
+      source: 'chosen',
+    });
+    expect(
+      resolveProjectLane([root, { projectRole: 'tests' }, {}])
+    ).toMatchObject({ lane: 'verification', source: 'inherited' });
+    expect(resolveProjectLane([root, {}])).toMatchObject({
+      lane: 'design',
+      source: 'default',
+    });
+  });
+
+  it('lets a template role win over a chosen lane', () => {
+    expect(
+      resolveProjectLane([
+        root,
+        { projectRole: 'decisions', projectLane: 'design' },
+      ])
+    ).toMatchObject({ lane: 'decisions', source: 'role' });
+  });
+
+  it('uses the closest project root', () => {
+    expect(
+      resolveProjectLane([
+        { projectCode: 'OUTER' },
+        { projectCode: 'INNER' },
+        {},
+      ])
+    ).toMatchObject({ code: 'INNER' });
   });
 });
