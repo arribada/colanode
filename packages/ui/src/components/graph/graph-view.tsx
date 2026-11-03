@@ -27,6 +27,7 @@ import {
 } from '@colanode/ui/components/ui/tooltip';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import { laneLayout } from '@colanode/ui/lib/graph/lane-layout';
 import {
   carryPositions,
   DEFAULT_LAYOUT_OPTIONS,
@@ -89,11 +90,6 @@ const LANE_LABEL: Record<ProjectLane, string> = {
   delivery: 'Delivery',
 };
 
-// Scene units between two lane columns.
-const LANE_GAP = 260;
-
-const laneX = (lane: ProjectLane): number =>
-  (PROJECT_LANES.indexOf(lane) - (PROJECT_LANES.length - 1) / 2) * LANE_GAP;
 
 const EDGE_MODES: { value: GraphEdgeMode; label: string; hint: string }[] = [
   { value: 'both', label: 'Both', hint: 'Mentions and nesting together' },
@@ -231,6 +227,8 @@ export const GraphView = ({
   const lanes = projectGraph?.lanes ?? null;
   const lanesRef = useRef<Record<string, ProjectLane> | null>(null);
   const headerRefs = useRef(new Map<ProjectLane, SVGTextElement | null>());
+  // Where the lane layout put each lane's column, and the line above them.
+  const laneFrameRef = useRef<{ centers: Record<string, number>; top: number } | null>(null);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -309,11 +307,14 @@ export const GraphView = ({
   // part of the app; writing transforms on the nodes we already rendered costs
   // nothing and is what makes it feel alive rather than appear fully formed.
   const paint = useCallback(() => {
-    if (lanesRef.current) {
-      // Lane titles sit above the highest node, wherever the layout put it.
-      const top = layoutBounds(pointsRef.current).minY - 40;
-      for (const [, element] of headerRefs.current) {
-        element?.setAttribute('y', String(top));
+    const frame = laneFrameRef.current;
+    if (lanesRef.current && frame) {
+      // Each title over its column; a lane with nothing in it shows none.
+      for (const [lane, element] of headerRefs.current) {
+        const x = frame.centers[lane];
+        element?.setAttribute('x', String(x ?? 0));
+        element?.setAttribute('y', String(frame.top));
+        element?.setAttribute('opacity', x === undefined ? '0' : '1');
       }
     }
     for (const point of pointsRef.current) {
@@ -382,15 +383,7 @@ export const GraphView = ({
       return;
     }
     stopSimulation();
-    const laneMap = lanesRef.current;
-    const options: LayoutOptions = laneMap
-      ? {
-          ...optionsForSize(current.nodes.length),
-          laneTargets: new Map(
-            current.nodes.map((n) => [n.id, laneX(laneMap[n.id] ?? 'design')])
-          ),
-        }
-      : optionsForSize(current.nodes.length);
+    const options: LayoutOptions = optionsForSize(current.nodes.length);
     let frames = 0;
     const loop = () => {
       const moved = stepLayout(pointsRef.current, current.edges, options);
@@ -410,6 +403,40 @@ export const GraphView = ({
     runningRef.current = requestAnimationFrame(loop);
   }, [paint, followStep, stopFollowing, stopSimulation]);
 
+  // Puts every node of a project graph in its lane's column.
+  const placeLanes = useCallback(
+    (current: NodeGraph | ProjectGraph) => {
+      const laneMap = lanesRef.current ?? {};
+      const layout = laneLayout(
+        current.nodes.map((n) => ({ ...n, lane: laneMap[n.id] ?? 'design' })),
+        PROJECT_LANES
+      );
+      laneFrameRef.current = { centers: layout.centers, top: layout.top };
+      pointsRef.current = layout.points;
+      pointIndex.current = indexById(pointsRef.current);
+      paint();
+    },
+    [paint]
+  );
+
+  // Frames the whole drawing at once, with room for the lane titles.
+  const frameAll = useCallback(() => {
+    const bounds = layoutBounds(pointsRef.current);
+    const top = laneFrameRef.current?.top ?? bounds.minY;
+    commitView(
+      fitView(
+        {
+          minX: bounds.minX - NODE_MARGIN * 4,
+          minY: Math.min(bounds.minY, top) - NODE_MARGIN,
+          maxX: bounds.maxX + NODE_MARGIN * 4,
+          maxY: bounds.maxY + NODE_MARGIN,
+        },
+        sizeRef.current.width,
+        sizeRef.current.height
+      )
+    );
+  }, [commitView]);
+
   // A layout effect, so a new graph is placed before the browser paints and
   // its nodes never flash at the origin for a frame.
   useLayoutEffect(() => {
@@ -420,17 +447,19 @@ export const GraphView = ({
       pointIndex.current = new Map();
       return;
     }
-    if (lanes && laidOutKeyRef.current !== optionsKey) {
-      // Entering the project graph: start every node in its column, in a
-      // stack, so the lanes read from the first frame.
-      const rows = new Map<ProjectLane, number>();
-      pointsRef.current = graph.nodes.map((n) => {
-        const lane = lanes[n.id] ?? 'design';
-        const row = rows.get(lane) ?? 0;
-        rows.set(lane, row + 1);
-        return { id: n.id, x: laneX(lane), y: row * 36, vx: 0, vy: 0 };
-      });
+    if (lanes) {
+      // The project graph is laid out, not simulated: a column per lane,
+      // pages then records in order. 200 nodes under a force layout never
+      // came to rest and spread each lane over its neighbours.
+      stopSimulation();
+      placeLanes(graph);
+      if (laidOutKeyRef.current !== optionsKey) {
+        laidOutKeyRef.current = optionsKey;
+        frameAll();
+      }
+      return;
     } else {
+      laneFrameRef.current = null;
       // Carried over, not re-seeded: re-seeding every node on every new graph
       // is what made each filter or depth change throw the whole picture away.
       pointsRef.current = carryPositions(
@@ -453,11 +482,16 @@ export const GraphView = ({
     }
     startSimulation();
     return stopSimulation;
-  }, [graph, lanes, paint, startSimulation, stopSimulation]);
+  }, [graph, lanes, paint, startSimulation, stopSimulation, placeLanes, frameAll]);
 
   const resetLayout = () => {
     const current = graphRef.current;
     if (!current || current.nodes.length === 0) {
+      return;
+    }
+    if (lanesRef.current) {
+      placeLanes(current);
+      frameAll();
       return;
     }
     pointsRef.current = seedPositions(
@@ -538,6 +572,10 @@ export const GraphView = ({
         point.y = scene.y;
         point.vx = 0;
         point.vy = 0;
+        if (lanesRef.current) {
+          // No simulation runs on a project graph: draw the move here.
+          paint();
+        }
       }
       return;
     }
@@ -814,8 +852,9 @@ export const GraphView = ({
                   ref={(el) => {
                     headerRefs.current.set(lane, el);
                   }}
-                  x={laneX(lane)}
+                  x={0}
                   y={0}
+                  opacity={0}
                   textAnchor="middle"
                   className="pointer-events-none fill-muted-foreground text-[11px] font-medium uppercase tracking-wide"
                 >
@@ -842,7 +881,9 @@ export const GraphView = ({
                     event.stopPropagation();
                     stopFollowing();
                     draggingRef.current.id = node.id;
-                    startSimulation();
+                    if (!lanesRef.current) {
+                      startSimulation();
+                    }
                   }}
                   onClick={(event) => {
                     // A drag that ended on the node must not also navigate.
