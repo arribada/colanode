@@ -93,6 +93,30 @@ export class NodeGraphGetQueryHandler
     });
   }
 
+  private async isRegisterPage(
+    userId: string,
+    documentId: string
+  ): Promise<boolean> {
+    const workspace = this.getWorkspace(userId);
+    const row = await workspace.database
+      .selectFrom('nodes')
+      .where('id', '=', documentId)
+      .select(['attributes'])
+      .executeTakeFirst();
+    if (!row) {
+      return false;
+    }
+    try {
+      const role = (JSON.parse(row.attributes) as { projectRole?: unknown })
+        .projectRole;
+      return (
+        role === 'requirements' || role === 'tests' || role === 'decisions'
+      );
+    } catch {
+      return false;
+    }
+  }
+
   // A template project, in lanes: its pages plus the records of the three
   // registers its Requirements, Tests and Decisions pages embed.
   private async handleProjectQuery(
@@ -213,6 +237,23 @@ export class NodeGraphGetQueryHandler
       return {
         hasChanges: true,
         result: { nodes: [], edges: [], unresolved: [] },
+      };
+    }
+
+    // A project graph finds its registers in the documents of its
+    // Requirements, Tests and Decisions pages. Those documents reach a new
+    // device after its nodes, so without this the graph kept the empty answer
+    // it computed first. Only those three pages count: recomputing on every
+    // keystroke anywhere in the wiki would cost more than the graph is worth.
+    if (
+      input.scope === 'project' &&
+      event.type === 'document.updated' &&
+      event.workspace.userId === input.userId &&
+      (await this.isRegisterPage(input.userId, event.document.id))
+    ) {
+      return {
+        hasChanges: true,
+        result: await this.handleQuery(input),
       };
     }
 
