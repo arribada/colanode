@@ -70,6 +70,7 @@ describe('describeAlignPlan', () => {
       { pageId: 'b', role: 'requirements', name: 'Requirements and use cases' },
     ],
     unmatched: [{ pageId: 'd', name: 'Guide' }],
+    clear: [{ pageId: 'e', name: 'Old tests' }],
     options: [
       {
         database: 'adr',
@@ -94,6 +95,7 @@ describe('describeAlignPlan', () => {
     expect(describeAlignPlan(plan)).toEqual([
       '"Overview" becomes the Overview page',
       '"Requirements and use cases" becomes the Requirements page (similar title)',
+      '"Old tests" stops being a template page',
       'Add the missing page "Tests and validation"',
       'Add the Requirements register at the top of "Requirements and use cases"',
       '🧭 ADR: rename the option "Rewild Cyprus" to REWLD',

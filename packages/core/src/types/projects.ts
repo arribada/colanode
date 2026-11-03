@@ -89,6 +89,10 @@ export const projectAlignInputSchema = z.object({
   apply: z.boolean(),
   plane: projectPlaneModeSchema,
   aliases: z.array(z.string().max(200)).max(20).optional(),
+  // Explicit roles by page id, over title matching; null = no role.
+  roles: z.record(z.string(), z.string().nullable()).optional(),
+  // Which missing template pages to add: all (default), none, or these roles.
+  createMissing: z.union([z.boolean(), z.array(z.string())]).optional(),
 });
 
 export type ProjectAlignInput = z.infer<typeof projectAlignInputSchema>;
@@ -102,7 +106,7 @@ export const projectAlignPlanSchema = z.object({
       pageId: z.string(),
       name: z.string(),
       role: z.string(),
-      via: z.enum(['name', 'alias', 'kept']),
+      via: z.enum(['name', 'alias', 'kept', 'set']),
     })
   ),
   create: z.array(z.object({ role: z.string(), name: z.string() })),
@@ -110,6 +114,7 @@ export const projectAlignPlanSchema = z.object({
     z.object({ pageId: z.string(), role: z.string(), name: z.string() })
   ),
   unmatched: z.array(z.object({ pageId: z.string(), name: z.string() })),
+  clear: z.array(z.object({ pageId: z.string(), name: z.string() })),
   options: z.array(
     z.object({
       database: z.string(),

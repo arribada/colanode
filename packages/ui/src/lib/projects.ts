@@ -84,10 +84,13 @@ export const describeAlignPlan = (plan: ProjectAlignPlan): string[] => {
       continue;
     }
     lines.push(
-      entry.via === 'name'
-        ? `"${entry.name}" becomes the ${roleName(entry.role)} page`
-        : `"${entry.name}" becomes the ${roleName(entry.role)} page (similar title)`
+      entry.via === 'alias'
+        ? `"${entry.name}" becomes the ${roleName(entry.role)} page (similar title)`
+        : `"${entry.name}" becomes the ${roleName(entry.role)} page`
     );
+  }
+  for (const entry of plan.clear) {
+    lines.push(`"${entry.name}" stops being a template page`);
   }
   for (const entry of plan.create) {
     lines.push(`Add the missing page "${entry.name}"`);

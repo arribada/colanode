@@ -10,6 +10,8 @@ export type ProjectAlignMutationInput = {
   apply: boolean;
   plane: ProjectPlaneMode;
   aliases?: string[];
+  roles?: Record<string, string | null>;
+  createMissing?: boolean | string[];
 };
 
 declare module '@colanode/client/mutations' {

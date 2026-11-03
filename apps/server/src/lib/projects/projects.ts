@@ -619,7 +619,7 @@ const writePage = async (
 const setPageAttributes = async (
   ctx: WikiToolContext,
   pageId: string,
-  patch: { projectCode?: string; projectRole?: ProjectRole }
+  patch: { projectCode?: string; projectRole?: ProjectRole | null }
 ): Promise<void> => {
   await updateNode({
     nodeId: pageId,
@@ -633,7 +633,7 @@ const setPageAttributes = async (
         (patch.projectCode === undefined ||
           attributes.projectCode === patch.projectCode) &&
         (patch.projectRole === undefined ||
-          attributes.projectRole === patch.projectRole)
+          (attributes.projectRole ?? null) === patch.projectRole)
       ) {
         return null;
       }
@@ -1140,11 +1140,13 @@ export type AlignPlan = {
     pageId: string;
     name: string;
     role: ProjectRole;
-    via: 'name' | 'alias' | 'kept';
+    via: 'name' | 'alias' | 'kept' | 'set';
   }>;
   create: Array<{ role: ProjectRole; name: string }>;
   registers: Array<{ pageId: string; role: ProjectRole; name: string }>;
   unmatched: Array<{ pageId: string; name: string }>;
+  // Pages that carry a role today and lose it to an explicit choice.
+  clear: Array<{ pageId: string; name: string }>;
   options: OptionReport[];
   plane: PlaneStatus;
 };
@@ -1154,13 +1156,29 @@ const planAlignment = async (
   cfg: EnabledProjectsConfig,
   page: SelectNode,
   code: string,
-  aliases: string[]
+  aliases: string[],
+  choices: AlignChoices
 ): Promise<{ plan: AlignPlan; children: SelectNode[] }> => {
   const attributes = page.attributes as PageAttributes;
   const children = await liveChildPages(page.id);
+  const childIds = new Set(children.map((child) => child.id));
 
-  // A role set by hand (or by an earlier alignment) is kept as it is.
-  const kept = children
+  // Roles given explicitly win over everything: "Calibration, tests and
+  // validation" IS this project's tests page, whatever its title says. A
+  // null takes a page out of the template on purpose.
+  const set = Object.entries(choices.roles)
+    .filter(([pageId]) => childIds.has(pageId))
+    .map(([pageId, role]) => ({ pageId, role }));
+  const setIds = new Set(set.map((entry) => entry.pageId));
+  const assigned = set.filter(
+    (entry): entry is { pageId: string; role: ProjectRole } =>
+      isProjectRole(entry.role)
+  );
+  const assignedRoles = new Set(assigned.map((entry) => entry.role));
+
+  // A role set by hand (or by an earlier alignment) is kept as it is, unless
+  // an explicit choice gives that role to another page.
+  const withRole = children
     .map((child) => ({
       child,
       role: (child.attributes as PageAttributes).projectRole,
@@ -1168,18 +1186,41 @@ const planAlignment = async (
     .filter((entry): entry is { child: SelectNode; role: ProjectRole } =>
       isProjectRole(entry.role)
     );
-  const keptRoles = new Set(kept.map((entry) => entry.role));
-  const keptIds = new Set(kept.map((entry) => entry.child.id));
+  const kept = withRole.filter(
+    (entry) => !setIds.has(entry.child.id) && !assignedRoles.has(entry.role)
+  );
+  const clear = withRole
+    .filter(
+      (entry) =>
+        !kept.includes(entry) &&
+        !assigned.some(
+          (choice) =>
+            choice.pageId === entry.child.id && choice.role === entry.role
+        )
+    )
+    .map((entry) => ({ pageId: entry.child.id, name: nodeName(entry.child) }));
+  const keptRoles = new Set([
+    ...kept.map((entry) => entry.role),
+    ...assignedRoles,
+  ]);
+  const keptIds = new Set([...kept.map((entry) => entry.child.id), ...setIds]);
+  const roleOwners = new Set(withRole.map((entry) => entry.child.id));
 
   const matched = matchProjectRoles(
     children
-      .filter((child) => !keptIds.has(child.id))
+      .filter((child) => !keptIds.has(child.id) && !roleOwners.has(child.id))
       .sort((a, b) => compareString(a.id, b.id))
       .map((child) => ({ id: child.id, name: nodeName(child) }))
   ).filter((match) => !keptRoles.has(match.role));
 
   const byId = new Map(children.map((child) => [child.id, child]));
   const roles: AlignPlan['roles'] = [
+    ...assigned.map((entry) => ({
+      pageId: entry.pageId,
+      name: nodeName(byId.get(entry.pageId)!),
+      role: entry.role,
+      via: 'set' as const,
+    })),
     ...kept.map((entry) => ({
       pageId: entry.child.id,
       name: nodeName(entry.child),
@@ -1194,9 +1235,15 @@ const planAlignment = async (
     })),
   ];
 
+  // A project does not need every page (Conventions and templates): which
+  // missing pages to add is a choice, all of them by default.
   const present = new Set(roles.map((entry) => entry.role));
+  const wanted = (role: ProjectRole) =>
+    choices.createMissing === true ||
+    (Array.isArray(choices.createMissing) &&
+      choices.createMissing.includes(role));
   const create = PROJECT_TEMPLATE_PAGES.filter(
-    (template) => !present.has(template.role)
+    (template) => !present.has(template.role) && wanted(template.role)
   ).map((template) => ({ role: template.role, name: template.name }));
 
   const registers: AlignPlan['registers'] = [];
@@ -1242,11 +1289,17 @@ const planAlignment = async (
       create,
       registers,
       unmatched,
+      clear,
       options,
       plane,
     },
     children,
   };
+};
+
+export type AlignChoices = {
+  roles: Record<string, string | null>;
+  createMissing: boolean | ProjectRole[];
 };
 
 const planeName = (status: PlaneStatus): string =>
@@ -1261,6 +1314,10 @@ export type AlignProjectInput = {
   // Other names the project's select options may carry today ("Sea Turtle
   // Doppler"), besides its page title and its Plane name.
   aliases?: string[];
+  // Explicit roles by page id (null = no role), over title matching.
+  roles?: Record<string, string | null>;
+  // Which missing template pages to add: all (default), none, or these roles.
+  createMissing?: boolean | string[];
 };
 
 export type AlignProjectOutput = {
@@ -1305,7 +1362,20 @@ export const alignProject = async (
   }
 
   const aliases = (input.aliases ?? []).filter((alias) => alias.trim());
-  const { plan, children } = await planAlignment(ctx, cfg, page, code, aliases);
+  const choices: AlignChoices = {
+    roles: input.roles ?? {},
+    createMissing: Array.isArray(input.createMissing)
+      ? input.createMissing.filter(isProjectRole)
+      : (input.createMissing ?? true),
+  };
+  const { plan, children } = await planAlignment(
+    ctx,
+    cfg,
+    page,
+    code,
+    aliases,
+    choices
+  );
   if (!input.apply) {
     return { plan, applied: false, plane: null };
   }
@@ -1363,6 +1433,9 @@ export const alignProject = async (
   };
 
   await setPageAttributes(ctx, page.id, { projectCode: code });
+  for (const entry of plan.clear) {
+    await setPageAttributes(ctx, entry.pageId, { projectRole: null });
+  }
   for (const entry of plan.roles) {
     await setPageAttributes(ctx, entry.pageId, { projectRole: entry.role });
   }
