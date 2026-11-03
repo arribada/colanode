@@ -4,6 +4,7 @@ import { DatabaseViewLayout } from '@colanode/core';
 
 import {
   GALLERY_CARD_MAX_FIELDS,
+  generateFieldValuesFromFilters,
   getDefaultViewFieldDisplay,
   getEffectiveFilterOperator,
   getGalleryCoverColorClass,
@@ -174,5 +175,79 @@ describe('healFilterOperator', () => {
   it('resolves against the field type, not the value shape', () => {
     const healed = healFilterOperator(fieldFilter('f_txt', 'is_in'), fields);
     expect(healed).toMatchObject({ operator: 'contains' });
+  });
+});
+
+describe('generateFieldValuesFromFilters', () => {
+  const fields = [
+    {
+      id: 'fproject',
+      type: 'select' as const,
+      name: 'Project',
+      index: 'a0',
+      options: {
+        omarlin: { id: 'omarlin', name: 'MARLIN', color: 'blue', index: 'a0' },
+      },
+    },
+    {
+      id: 'fverifies',
+      type: 'relation' as const,
+      name: 'Verifies',
+      index: 'a1',
+      databaseId: 'dreq',
+    },
+  ];
+
+  it('seeds the select option an embed filters on', () => {
+    expect(
+      generateFieldValuesFromFilters(
+        fields,
+        [
+          {
+            id: 'embed-filter',
+            type: 'field',
+            fieldId: 'fproject',
+            operator: 'is_in',
+            value: ['omarlin'],
+          },
+        ],
+        'user'
+      )
+    ).toEqual({ fproject: { type: 'string', value: 'omarlin' } });
+  });
+
+  it('seeds a relation filtered on a record', () => {
+    expect(
+      generateFieldValuesFromFilters(
+        fields,
+        [
+          {
+            id: 'f1',
+            type: 'field',
+            fieldId: 'fverifies',
+            operator: 'is_in',
+            value: ['rhw3'],
+          },
+        ],
+        'user'
+      )
+    ).toEqual({ fverifies: { type: 'string_array', value: ['rhw3'] } });
+  });
+
+  it('seeds nothing for a relation filter that names no record', () => {
+    expect(
+      generateFieldValuesFromFilters(
+        fields,
+        [
+          {
+            id: 'f1',
+            type: 'field',
+            fieldId: 'fverifies',
+            operator: 'is_not_empty',
+          },
+        ],
+        'user'
+      )
+    ).toEqual({});
   });
 });

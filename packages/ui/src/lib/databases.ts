@@ -1491,6 +1491,9 @@ const generateValueFromFilter = (
     case 'phone': {
       return generatePhoneValue(filter);
     }
+    case 'relation': {
+      return generateRelationValue(filter);
+    }
     case 'select': {
       return generateSelectValue(field, filter);
     }
@@ -1642,6 +1645,21 @@ const generateMultiSelectValue = (
     }
 
     return { type: 'string_array', value: [firstOption.id] };
+  }
+
+  return null;
+};
+
+// A view filtered on "Requirement is HW-3" creates its records linked to
+// HW-3. Only an inclusion says which record: is_not_empty names none.
+const generateRelationValue = (
+  filter: DatabaseViewFieldFilterAttributes
+): FieldValue | null => {
+  if (filter.operator === 'is_in' && Array.isArray(filter.value)) {
+    const ids = filter.value.filter(
+      (value): value is string => typeof value === 'string' && value.length > 0
+    );
+    return ids.length > 0 ? { type: 'string_array', value: [ids[0]!] } : null;
   }
 
   return null;

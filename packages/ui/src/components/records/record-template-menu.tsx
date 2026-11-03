@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@colanode/ui/components/ui/dropdown-menu';
 import { useDatabase } from '@colanode/ui/contexts/database';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
@@ -31,6 +32,9 @@ export const RecordTemplateMenu = ({ filters }: RecordTemplateMenuProps) => {
   const database = useDatabase();
   const workspace = useWorkspace();
   const navigate = useNavigate();
+  // Same rule as "New record": a record made from an embed satisfies the
+  // embed's filter, or it disappears from the table it was created in.
+  const { extraFilters: embedFilters } = useDatabaseViews();
 
   const templatesQuery = useLiveQuery({
     type: 'record.template.list',
@@ -48,7 +52,7 @@ export const RecordTemplateMenu = ({ filters }: RecordTemplateMenuProps) => {
   const handleSelect = (templateId: string) => {
     const fieldOverrides = generateFieldValuesFromFilters(
       database.fields,
-      filters ?? [],
+      [...(embedFilters ?? []), ...(filters ?? [])],
       workspace.userId
     );
 

@@ -19,6 +19,7 @@ import {
 import { ViewSkeleton } from '@colanode/ui/components/databases/view-skeleton';
 import { useDatabase } from '@colanode/ui/contexts/database';
 import { DatabaseViewContext } from '@colanode/ui/contexts/database-view';
+import { useDatabaseViews } from '@colanode/ui/contexts/database-views';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useDebouncedValue } from '@colanode/ui/hooks/use-debounced-value';
 import { useIsMobile } from '@colanode/ui/hooks/use-is-mobile';
@@ -89,6 +90,10 @@ interface ViewProps {
 export const View = ({ view }: ViewProps) => {
   const workspace = useWorkspace();
   const database = useDatabase();
+  // The filter an embed adds on top of the view ("Project is MARLIN" on a
+  // project page). A record created from the embed must satisfy it too, or
+  // it is created and vanishes from the very table it was added to.
+  const { extraFilters: embedFilters } = useDatabaseViews();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { mutate: createFromTemplate } = useMutation();
@@ -351,7 +356,11 @@ export const View = ({ view }: ViewProps) => {
           // de-duplicate by field so a caller-passed filter (e.g. a board
           // column value) wins and view filters are never double-applied.
           const extraFilters = filters ?? [];
-          const merged = [...effectiveFilters, ...extraFilters];
+          const merged = [
+            ...effectiveFilters,
+            ...(embedFilters ?? []),
+            ...extraFilters,
+          ];
           const seen = new Set<string>();
           const allFilters: DatabaseViewFilterAttributes[] = [];
           for (let i = merged.length - 1; i >= 0; i--) {
