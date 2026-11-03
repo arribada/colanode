@@ -82,6 +82,7 @@ import {
   updateNode,
 } from '@colanode/server/lib/nodes';
 import { fetchAllRecords, searchRecords } from '@colanode/server/lib/records';
+import { reconcileBidirectionalRelations } from '@colanode/server/lib/relation-reconciler';
 import { storage } from '@colanode/server/lib/storage';
 
 // ---------------------------------------------------------------------------
@@ -1616,6 +1617,15 @@ const toFieldValue = (
         .map((entry) => resolveOptionId(field, String(entry)))
         .filter((id): id is string => id !== null);
       return { type: 'string_array', value: ids };
+    }
+    case 'relation': {
+      // Record ids, as the relation field stores them. Anything that is not
+      // an id is dropped rather than stored as a link to nowhere.
+      const raw = Array.isArray(value) ? value : [value];
+      const ids = raw
+        .map((entry) => String(entry).trim())
+        .filter((id) => NODE_ID_PATTERN.test(id));
+      return { type: 'string_array', value: [...new Set(ids)] };
     }
     default:
       return null;
@@ -3500,12 +3510,39 @@ export const createRecord = async (
     throw new WikiToolError('Failed to create the record.');
   }
 
+  // A relation set here must show on the other side too ("Verifies" on a test
+  // is "Verified by" on the requirement), as it does for an edit made in the
+  // app, which goes through the same reconciler.
+  await reconcileRelationsQuietly(ctx, recordId, input.databaseId, undefined, attributes);
+
   return {
     id: recordId,
     name,
     applied: applied.applied,
     skipped: applied.skipped,
   };
+};
+
+const reconcileRelationsQuietly = async (
+  ctx: WikiToolContext,
+  recordId: string,
+  databaseId: string,
+  prevAttributes: RecordAttributes | undefined,
+  nextAttributes: RecordAttributes
+): Promise<void> => {
+  try {
+    await reconcileBidirectionalRelations({
+      recordId,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      databaseId,
+      prevAttributes,
+      nextAttributes,
+    });
+  } catch {
+    // The record itself is written; a reverse link the reconciler could not
+    // write is picked up by the next edit of either side.
+  }
 };
 
 export const updateRecord = async (
@@ -3543,6 +3580,7 @@ export const updateRecord = async (
     throw new WikiToolError('You do not have permission to edit this record.');
   }
 
+  let written: RecordAttributes | null = null;
   const updated = await updateNode({
     nodeId: input.recordId,
     userId: ctx.userId,
@@ -3552,16 +3590,27 @@ export const updateRecord = async (
         return null;
       }
       const nextFields = { ...attributes.fields, ...applied.fields };
-      return {
+      written = {
         ...attributes,
         name: applied.name ?? attributes.name,
         fields: nextFields,
       };
+      return written;
     },
   });
 
   if (!updated) {
     throw new WikiToolError('Failed to update the record.');
+  }
+
+  if (written) {
+    await reconcileRelationsQuietly(
+      ctx,
+      input.recordId,
+      recordAttributes.databaseId,
+      recordAttributes,
+      written
+    );
   }
 
   const finalName = applied.name ?? recordAttributes.name;
