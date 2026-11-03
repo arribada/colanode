@@ -11,6 +11,11 @@ export interface ProjectGraphInputNode {
   parentId: string | null;
   projectCode?: string | null;
   projectRole?: string | null;
+  // Root page only: the registers the server declared for the project.
+  registers?: Record<
+    string,
+    { databaseId: string; fieldId: string; optionId: string }
+  >;
   // Records only.
   databaseId?: string | null;
   fields?: Record<string, unknown>;

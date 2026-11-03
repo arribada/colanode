@@ -43,6 +43,21 @@ export const pageAttributesSchema = z.object({
   // strings so a role added later does not make an older server reject it.
   projectCode: z.string().nullable().optional(),
   projectRole: z.string().nullable().optional(),
+  // On the root page only: where each register of the project lives (the
+  // database, its Project field, and the option that is this project's), by
+  // role -- requirements, tests, decisions. The project graph reads this
+  // instead of the pages' documents, which a device only has once opened.
+  projectRegisters: z
+    .record(
+      z.string(),
+      z.object({
+        databaseId: z.string(),
+        fieldId: z.string(),
+        optionId: z.string(),
+      })
+    )
+    .nullable()
+    .optional(),
   // Page lock. Null/absent => 'open' (every existing page). 'open' = anyone
   // with edit rights edits normally; 'suggest' = non-privileged users get a
   // read-only editor but may still PROPOSE edits via the suggestion flow;

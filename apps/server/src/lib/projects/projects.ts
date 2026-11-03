@@ -573,6 +573,7 @@ const writePage = async (
     index: string | null;
     projectCode?: string;
     projectRole?: ProjectRole;
+    projectRegisters?: ProjectRegisters;
     markdown: string;
   }
 ): Promise<void> => {
@@ -583,6 +584,9 @@ const writePage = async (
     ...(input.index ? { index: input.index } : {}),
     ...(input.projectCode ? { projectCode: input.projectCode } : {}),
     ...(input.projectRole ? { projectRole: input.projectRole } : {}),
+    ...(input.projectRegisters
+      ? { projectRegisters: input.projectRegisters }
+      : {}),
   };
 
   const created = await createNode({
@@ -616,10 +620,29 @@ const writePage = async (
   }
 };
 
+type ProjectRegisters = NonNullable<PageAttributes['projectRegisters']>;
+
+// The registers a project's views read, by role, from the options ensured.
+const registersOf = (embeds: {
+  requirements: ProjectEmbed | null;
+  verification: ProjectEmbed | null;
+  adr: ProjectEmbed | null;
+}): ProjectRegisters => {
+  const registers: ProjectRegisters = {};
+  if (embeds.requirements) registers.requirements = embeds.requirements;
+  if (embeds.verification) registers.tests = embeds.verification;
+  if (embeds.adr) registers.decisions = embeds.adr;
+  return registers;
+};
+
 const setPageAttributes = async (
   ctx: WikiToolContext,
   pageId: string,
-  patch: { projectCode?: string; projectRole?: ProjectRole | null }
+  patch: {
+    projectCode?: string;
+    projectRole?: ProjectRole | null;
+    projectRegisters?: ProjectRegisters;
+  }
 ): Promise<void> => {
   await updateNode({
     nodeId: pageId,
@@ -633,7 +656,10 @@ const setPageAttributes = async (
         (patch.projectCode === undefined ||
           attributes.projectCode === patch.projectCode) &&
         (patch.projectRole === undefined ||
-          (attributes.projectRole ?? null) === patch.projectRole)
+          (attributes.projectRole ?? null) === patch.projectRole) &&
+        (patch.projectRegisters === undefined ||
+          JSON.stringify(attributes.projectRegisters ?? null) ===
+            JSON.stringify(patch.projectRegisters))
       ) {
         return null;
       }
@@ -1100,6 +1126,7 @@ export const createProject = async (
     name,
     index: null,
     projectCode: code,
+    projectRegisters: registersOf(embeds),
     markdown: buildProjectRootMarkdown(content),
   });
 
@@ -1432,7 +1459,10 @@ export const alignProject = async (
     today: today(),
   };
 
-  await setPageAttributes(ctx, page.id, { projectCode: code });
+  await setPageAttributes(ctx, page.id, {
+    projectCode: code,
+    projectRegisters: registersOf(embeds),
+  });
   for (const entry of plan.clear) {
     await setPageAttributes(ctx, entry.pageId, { projectRole: null });
   }

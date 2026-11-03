@@ -34,6 +34,28 @@ const GRAPH_NODE_TYPES: NodeType[] = [
   'whiteboard',
 ];
 
+// The root page's projectRegisters, kept only where every part is a string.
+const readRegisters = (value: unknown): ProjectGraphInputNode['registers'] => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const out: NonNullable<ProjectGraphInputNode['registers']> = {};
+  for (const [role, entry] of Object.entries(
+    value as Record<string, unknown>
+  )) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { databaseId, fieldId, optionId } = entry as Record<string, unknown>;
+    if (
+      typeof databaseId === 'string' &&
+      typeof fieldId === 'string' &&
+      typeof optionId === 'string'
+    ) {
+      out[role] = { databaseId, fieldId, optionId };
+    }
+  }
+  return out;
+};
+
 export class NodeGraphGetQueryHandler
   extends WorkspaceQueryHandlerBase
   implements QueryHandler<NodeGraphGetQueryInput>
@@ -152,6 +174,7 @@ export class NodeGraphGetQueryHandler
         parentId: row.parent_id,
         projectCode: text('projectCode'),
         projectRole: text('projectRole'),
+        registers: readRegisters(attributes.projectRegisters),
         databaseId: text('databaseId'),
         fields:
           row.type === 'record' && attributes.fields
@@ -180,7 +203,18 @@ export class NodeGraphGetQueryHandler
           node.projectRole === 'decisions')
     );
     const registers: ProjectRegister[] = [];
-    if (registerPages.length > 0) {
+    // Written on the root page by the server when it creates or aligns the
+    // project: always on this device, unlike the documents.
+    for (const page of registerPages) {
+      const role = page.projectRole as ProjectRegister['role'];
+      const declared = root.registers?.[role];
+      if (declared) {
+        registers.push({ pageId: page.id, role, ...declared });
+      }
+    }
+    // A project assembled by hand has no declaration: read the embeds from
+    // the documents this device has.
+    if (registers.length === 0 && registerPages.length > 0) {
       const documents = await workspace.database
         .selectFrom('documents')
         .where(
