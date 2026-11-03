@@ -14,6 +14,7 @@ import {
 
 import type { GraphEdgeMode, NodeGraph } from '@colanode/client/lib';
 import {
+  PROJECT_LANE_LABELS,
   PROJECT_LANES,
   type ProjectGraph,
   type ProjectLane,
@@ -27,12 +28,19 @@ import {
 } from '@colanode/ui/components/ui/tooltip';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
+import {
+  clusterLeaves,
+  isClusterId,
+  labelledNodes,
+  neighbourOfCluster,
+} from '@colanode/ui/lib/graph/cluster';
 import { laneLayout } from '@colanode/ui/lib/graph/lane-layout';
 import {
   carryPositions,
   DEFAULT_LAYOUT_OPTIONS,
   fitView,
   layoutBounds,
+  runLayout,
   seedPositions,
   stepLayout,
   zoomAt,
@@ -81,14 +89,7 @@ const LANE_DOT: Record<ProjectLane, string> = {
   delivery: 'bg-rose-500',
 };
 
-const LANE_LABEL: Record<ProjectLane, string> = {
-  context: 'Context',
-  requirements: 'Requirements',
-  design: 'Design',
-  decisions: 'Decisions',
-  verification: 'Verification',
-  delivery: 'Delivery',
-};
+const LANE_LABEL = PROJECT_LANE_LABELS;
 
 
 const EDGE_MODES: { value: GraphEdgeMode; label: string; hint: string }[] = [
@@ -119,6 +120,28 @@ const NODE_MARGIN = 24;
 // Share of the remaining distance the camera covers each frame while it
 // follows a layout that is still unfolding: smooth, and there in ~20 frames.
 const FOLLOW_EASE = 0.2;
+
+// Past this many nodes the leaves hanging from one page are folded into a
+// "+N" bubble, and only the best connected nodes keep their label: a page's
+// neighbourhood at depth 3 is a few hundred pages, and drawn whole it was a
+// hairball that kept the tab busy.
+const CLUSTER_THRESHOLD = 120;
+const LABEL_ALL_MAX = 80;
+const LABEL_LIMIT = 40;
+// A large graph is laid out this far before it is first drawn, so it opens
+// close to its final shape instead of unfolding for seconds.
+const WARMUP_NODES = 100;
+const WARMUP_TICKS = 120;
+// However it behaves, the simulation stops after this long.
+const MAX_SIMULATION_MS = 6000;
+const NO_IDS: ReadonlySet<string> = new Set();
+
+// The record's own identifier, the part before " · " ("HW-12 · Dual
+// power" reads "HW-12"): what fits beside a node in a project column.
+const shortName = (name: string): string => name.split(' · ')[0] ?? name;
+
+const truncate = (name: string): string =>
+  name.length > 26 ? `${name.slice(0, 25)}…` : name;
 
 const radiusFor = (degree: number): number =>
   4 + Math.min(9, Math.sqrt(degree) * 2.4);
@@ -219,7 +242,40 @@ export const GraphView = ({
     { placeholderData: keepPreviousData }
   );
 
-  const graph = graphQuery.data;
+  const rawGraph = graphQuery.data;
+  // Pages whose folded leaves the reader opened, for the graph they opened
+  // them in: another page, mode or depth starts folded again.
+  const [opened, setOpened] = useState<{
+    key: string;
+    ids: ReadonlySet<string>;
+  }>(() => ({ key: optionsKey, ids: NO_IDS }));
+  const expanded = opened.key === optionsKey ? opened.ids : NO_IDS;
+  const { graph, folded } = useMemo((): {
+    graph: NodeGraph | ProjectGraph | undefined;
+    folded: number;
+  } => {
+    if (!rawGraph || 'lanes' in rawGraph) {
+      return { graph: rawGraph, folded: 0 };
+    }
+    const clustered = clusterLeaves(rawGraph, {
+      threshold: CLUSTER_THRESHOLD,
+      minGroup: 3,
+      expanded,
+      keep: new Set(focusNodeId ? [focusNodeId] : []),
+    });
+    const groups = Object.values(clustered.clusters);
+    if (groups.length === 0) {
+      return { graph: rawGraph, folded: 0 };
+    }
+    return {
+      graph: {
+        ...rawGraph,
+        nodes: clustered.nodes,
+        edges: clustered.edges as NodeGraph['edges'],
+      },
+      folded: groups.reduce((sum, members) => sum + members.length, 0),
+    };
+  }, [rawGraph, expanded, focusNodeId]);
   // Only a project graph carries lanes; a local graph left on screen while the
   // project one loads must not be drawn in columns.
   const projectGraph =
@@ -384,6 +440,7 @@ export const GraphView = ({
     }
     stopSimulation();
     const options: LayoutOptions = optionsForSize(current.nodes.length);
+    const deadline = performance.now() + MAX_SIMULATION_MS;
     let frames = 0;
     const loop = () => {
       const moved = stepLayout(pointsRef.current, current.edges, options);
@@ -392,7 +449,9 @@ export const GraphView = ({
       frames++;
       if (
         draggingRef.current.id ||
-        ((moved > SETTLE_THRESHOLD || cameraMoving) && frames < MAX_FRAMES)
+        ((moved > SETTLE_THRESHOLD || cameraMoving) &&
+          frames < MAX_FRAMES &&
+          performance.now() < deadline)
       ) {
         runningRef.current = requestAnimationFrame(loop);
       } else {
@@ -468,6 +527,17 @@ export const GraphView = ({
         graph.edges,
         spreadFor(graph.nodes.length)
       );
+      if (
+        laidOutKeyRef.current !== optionsKey &&
+        graph.nodes.length > WARMUP_NODES
+      ) {
+        runLayout(
+          pointsRef.current,
+          graph.edges,
+          WARMUP_TICKS,
+          optionsForSize(graph.nodes.length)
+        );
+      }
     }
     pointIndex.current = indexById(pointsRef.current);
     paint();
@@ -596,6 +666,21 @@ export const GraphView = ({
   };
 
   const labelOpacity = view.zoom < 0.45 ? 0 : Math.min(1, (view.zoom - 0.45) * 3);
+  const labelled = useMemo(
+    () =>
+      graph && !lanes && graph.nodes.length > LABEL_ALL_MAX
+        ? labelledNodes(graph.nodes, {
+            limit: LABEL_LIMIT,
+            always: [focusNodeId, activeHover],
+          })
+        : null,
+    [graph, lanes, focusNodeId, activeHover]
+  );
+  // A project column keeps its labels readable at any zoom: the text is
+  // sized against the zoom, and shows only the identifier until there is
+  // room for the title.
+  const projectLabelSize = Math.min(14, 10 / Math.max(view.zoom, 0.05));
+  const projectLabelFull = view.zoom >= 0.9;
 
   const linkCount = graph
     ? graph.edges.filter((e) => e.kind === 'link').length
@@ -785,6 +870,11 @@ export const GraphView = ({
                 {coverage.openDecisions}/{coverage.decisions} decisions open
               </span>
             )}
+            {folded > 0 && (
+              <span data-testid="graph-folded" className="mr-2">
+                {folded} pages folded into +N bubbles (click one to open it) ·
+              </span>
+            )}
             {graph.nodes.length} nodes · {linkCount} links ·{' '}
             {relationCount > 0 && <>{relationCount} relations · </>}
             {graph.edges.length - linkCount - relationCount} nested
@@ -856,15 +946,21 @@ export const GraphView = ({
                   y={0}
                   opacity={0}
                   textAnchor="middle"
-                  className="pointer-events-none fill-muted-foreground text-[11px] font-medium uppercase tracking-wide"
+                  fontSize={Math.min(28, 12 / Math.max(view.zoom, 0.05))}
+                  className="pointer-events-none fill-muted-foreground font-semibold uppercase tracking-wide"
                 >
                   {LANE_LABEL[lane]}
                 </text>
               ))}
             {graph?.nodes.map((node) => {
               const dim = isDimmed(node.id);
-              const r = radiusFor(node.degree);
+              const isCluster = isClusterId(node.id);
+              const r = isCluster
+                ? Math.min(16, 7 + Math.sqrt(node.degree) * 1.6)
+                : radiusFor(node.degree);
               const isFocus = node.id === focusNodeId;
+              const showLabel =
+                !labelled || labelled.has(node.id) || view.zoom >= 1.3;
               return (
                 <g
                   key={node.id}
@@ -890,33 +986,75 @@ export const GraphView = ({
                     if (event.detail === 0) {
                       return;
                     }
+                    if (isCluster) {
+                      // Unfold: the pages it stands for take its place.
+                      const neighbour = neighbourOfCluster(node.id);
+                      setOpened((prev) => ({
+                        key: optionsKey,
+                        ids: new Set([
+                          ...(prev.key === optionsKey ? prev.ids : []),
+                          neighbour,
+                        ]),
+                      }));
+                      return;
+                    }
                     navigate({
                       to: '/workspace/$userId/$nodeId',
                       params: { userId: workspace.userId, nodeId: node.id },
                     });
                   }}
                 >
-                  <title>{node.name}</title>
+                  <title>
+                    {isCluster
+                      ? `${node.degree} pages hang from here: click to show them`
+                      : node.name}
+                  </title>
                   <circle
                     r={r}
                     className={cn(
-                      lanes
-                        ? LANE_FILL[lanes[node.id] ?? 'design']
-                        : (TYPE_FILL[node.type] ?? 'fill-slate-400'),
+                      isCluster
+                        ? 'fill-slate-300 stroke-slate-500 dark:fill-slate-700'
+                        : lanes
+                          ? LANE_FILL[lanes[node.id] ?? 'design']
+                          : (TYPE_FILL[node.type] ?? 'fill-slate-400'),
                       isFocus && 'stroke-foreground'
                     )}
-                    strokeWidth={isFocus ? 2 : 0}
+                    strokeWidth={isFocus ? 2 : isCluster ? 1 : 0}
                   />
-                  <text
-                    y={r + 11}
-                    textAnchor="middle"
-                    opacity={labelOpacity}
-                    className="pointer-events-none fill-foreground text-[9px]"
-                  >
-                    {node.name.length > 26
-                      ? `${node.name.slice(0, 25)}…`
-                      : node.name}
-                  </text>
+                  {isCluster ? (
+                    <text
+                      y={3}
+                      textAnchor="middle"
+                      className="pointer-events-none fill-foreground text-[8px] font-semibold"
+                    >
+                      {node.name}
+                    </text>
+                  ) : lanes ? (
+                    <text
+                      x={r + 3}
+                      y={projectLabelSize * 0.35}
+                      textAnchor="start"
+                      fontSize={projectLabelSize}
+                      opacity={view.zoom < 0.2 ? 0 : 1}
+                      className={cn(
+                        'pointer-events-none fill-foreground',
+                        node.type !== 'record' && 'font-semibold'
+                      )}
+                    >
+                      {node.type === 'record' && !projectLabelFull
+                        ? shortName(node.name)
+                        : truncate(node.name)}
+                    </text>
+                  ) : (
+                    <text
+                      y={r + 11}
+                      textAnchor="middle"
+                      opacity={showLabel ? labelOpacity : 0}
+                      className="pointer-events-none fill-foreground text-[9px]"
+                    >
+                      {truncate(node.name)}
+                    </text>
+                  )}
                 </g>
               );
             })}

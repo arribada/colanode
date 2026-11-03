@@ -46,6 +46,10 @@ export class NodeGraphGetQueryHandler
   // change. Without this every refresh handed the canvas a new object and
   // restarted the layout, so a graph open during a sync never came to rest.
   private readonly projectLast = new Map<string, string>();
+  // Same rule for a page's own graph: a sync delivers hundreds of node events
+  // that change nothing in it, and each one restarted the layout of up to 300
+  // nodes. The graph never came to rest while a device was syncing.
+  private readonly localLast = new Map<string, string>();
 
   public async handleQuery(
     input: NodeGraphGetQueryInput
@@ -92,7 +96,7 @@ export class NodeGraphGetQueryHandler
       referenceId: row.reference_id,
     }));
 
-    return buildGraph(nodes, references, {
+    const graph = buildGraph(nodes, references, {
       edgeMode: input.edgeMode,
       includeOrphans: input.includeOrphans,
       focus: input.focusNodeId
@@ -100,6 +104,19 @@ export class NodeGraphGetQueryHandler
         : undefined,
       maxNodes: input.maxNodes,
     });
+    this.localLast.set(this.localKey(input), JSON.stringify(graph));
+    return graph;
+  }
+
+  private localKey(input: NodeGraphGetQueryInput): string {
+    return JSON.stringify([
+      input.userId,
+      input.focusNodeId ?? null,
+      input.edgeMode,
+      input.includeOrphans,
+      input.depth ?? null,
+      input.maxNodes ?? null,
+    ]);
   }
 
   // A template project, in lanes, built by the server. Not from this
@@ -175,10 +192,13 @@ export class NodeGraphGetQueryHandler
     // change can alter it. Recomputing is a couple of indexed reads plus pure
     // maths; keeping a fine-grained diff here would cost more than it saves.
     if (affectsGraph) {
-      return {
-        hasChanges: true,
-        result: await this.handleQuery(input),
-      };
+      const key = this.localKey(input);
+      const before = this.localLast.get(key);
+      const result = await this.handleQuery(input);
+      if (before !== undefined && this.localLast.get(key) === before) {
+        return { hasChanges: false };
+      }
+      return { hasChanges: true, result };
     }
 
     return {
