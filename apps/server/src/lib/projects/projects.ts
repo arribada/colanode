@@ -1421,20 +1421,25 @@ export const alignProject = async (
     pageIds[entry.role] = generateId(IdType.Page);
   }
 
+  // What Plane and the Projects list point to: the Overview page, or the
+  // project page itself for a project aligned without one (an archived
+  // project is aligned without creating pages; HydroMoth has none).
+  const linkTarget = pageIds.overview ?? page.id;
+
   let plane: PlaneProjectLink | null =
     plan.plane.state === 'linked' ? plan.plane.project : null;
   if (plan.plane.state === 'free' && input.plane !== 'none') {
     plane = await linkPlane('link', {
       code,
       name: attributes.name,
-      overviewId: pageIds.overview!,
+      overviewId: linkTarget,
       actorEmail: await actorEmail(ctx),
     });
   } else if (plan.plane.state === 'absent' && input.plane === 'create') {
     plane = await linkPlane('create', {
       code,
       name: attributes.name,
-      overviewId: pageIds.overview!,
+      overviewId: linkTarget,
       actorEmail: await actorEmail(ctx),
     });
   }
@@ -1533,7 +1538,7 @@ export const alignProject = async (
     code,
     name: attributes.name,
     codeOptionId: embeds.projects?.optionId ?? null,
-    wikiUrl: wikiUrl(ctx.workspaceId, pageIds.overview!),
+    wikiUrl: wikiUrl(ctx.workspaceId, linkTarget),
     planeUrl: plane?.url ?? null,
   });
 
