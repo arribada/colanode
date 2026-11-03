@@ -44,6 +44,7 @@ export * from './lib/servers';
 export * from './types/auth';
 export * from './lib/plane';
 export * from './lib/project-template';
+export * from './lib/project-graph';
 export * from './types/plane';
 export * from './types/projects';
 export * from './types/unsplash';

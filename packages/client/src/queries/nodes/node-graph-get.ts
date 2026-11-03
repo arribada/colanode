@@ -1,5 +1,5 @@
 import { GraphEdgeMode, NodeGraph } from '@colanode/client/lib/graph';
-import { ProjectGraph } from '@colanode/client/lib/project-graph';
+import { ProjectGraph } from '@colanode/core';
 
 export type NodeGraphGetQueryInput = {
   type: 'node.graph.get';

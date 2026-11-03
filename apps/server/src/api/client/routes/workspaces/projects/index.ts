@@ -3,6 +3,7 @@ import { FastifyPluginCallback } from 'fastify';
 import { projectAlignRoute } from './project-align';
 import { projectCodeCheckRoute } from './project-code-check';
 import { projectCreateRoute } from './project-create';
+import { projectGraphGetRoute } from './project-graph-get';
 import { projectParentsListRoute } from './project-parents-list';
 
 // /client/v1/workspaces/:workspaceId/projects -- the optional project
@@ -13,6 +14,7 @@ export const projectRoutes: FastifyPluginCallback = (instance, _, done) => {
   instance.register(projectCodeCheckRoute);
   instance.register(projectCreateRoute);
   instance.register(projectAlignRoute);
+  instance.register(projectGraphGetRoute);
 
   done();
 };

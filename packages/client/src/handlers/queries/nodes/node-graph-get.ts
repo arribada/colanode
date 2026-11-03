@@ -9,18 +9,9 @@ import {
   NodeGraph,
 } from '@colanode/client/lib/graph';
 import { notInTrashedTreeSql } from '@colanode/client/lib/nodes';
-import {
-  buildProjectGraph,
-  findProjectRoot,
-  ProjectGraph,
-  ProjectGraphDatabase,
-  ProjectGraphInputNode,
-  ProjectRegister,
-  registersInDocument,
-} from '@colanode/client/lib/project-graph';
 import { NodeGraphGetQueryInput } from '@colanode/client/queries/nodes/node-graph-get';
 import { Event } from '@colanode/client/types/events';
-import { NodeType } from '@colanode/core';
+import { NodeType, ProjectGraph } from '@colanode/core';
 
 // What the graph is allowed to draw. Channels, chats, messages and files are
 // left out: they are conversation, not knowledge, and they would swamp the
@@ -34,32 +25,24 @@ const GRAPH_NODE_TYPES: NodeType[] = [
   'whiteboard',
 ];
 
-// The root page's projectRegisters, kept only where every part is a string.
-const readRegisters = (value: unknown): ProjectGraphInputNode['registers'] => {
-  if (!value || typeof value !== 'object') {
-    return undefined;
-  }
-  const out: NonNullable<ProjectGraphInputNode['registers']> = {};
-  for (const [role, entry] of Object.entries(
-    value as Record<string, unknown>
-  )) {
-    if (!entry || typeof entry !== 'object') continue;
-    const { databaseId, fieldId, optionId } = entry as Record<string, unknown>;
-    if (
-      typeof databaseId === 'string' &&
-      typeof fieldId === 'string' &&
-      typeof optionId === 'string'
-    ) {
-      out[role] = { databaseId, fieldId, optionId };
-    }
-  }
-  return out;
+const EMPTY_PROJECT_GRAPH: ProjectGraph = {
+  nodes: [],
+  edges: [],
+  unresolved: [],
+  lanes: {},
+  project: null,
 };
+
+// A sync burst fires hundreds of node events in a few seconds; the project
+// graph is asked of the server again at most this often while they arrive.
+const PROJECT_REFRESH_MS = 10_000;
 
 export class NodeGraphGetQueryHandler
   extends WorkspaceQueryHandlerBase
   implements QueryHandler<NodeGraphGetQueryInput>
 {
+  private readonly projectFetchedAt = new Map<string, number>();
+
   public async handleQuery(
     input: NodeGraphGetQueryInput
   ): Promise<NodeGraph | ProjectGraph> {
@@ -115,149 +98,33 @@ export class NodeGraphGetQueryHandler
     });
   }
 
-  private async isRegisterPage(
-    userId: string,
-    documentId: string
-  ): Promise<boolean> {
-    const workspace = this.getWorkspace(userId);
-    const row = await workspace.database
-      .selectFrom('nodes')
-      .where('id', '=', documentId)
-      .select(['attributes'])
-      .executeTakeFirst();
-    if (!row) {
-      return false;
-    }
-    try {
-      const role = (JSON.parse(row.attributes) as { projectRole?: unknown })
-        .projectRole;
-      return (
-        role === 'requirements' || role === 'tests' || role === 'decisions'
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  // A template project, in lanes: its pages plus the records of the three
-  // registers its Requirements, Tests and Decisions pages embed.
+  // A template project, in lanes, built by the server. Not from this
+  // device's store: a device holds the pages it has opened and the databases
+  // it has synced, which on a fresh browser was MARLIN's 15 pages and none of
+  // its 95 requirements -- the graph would have reported a project with no
+  // requirements as a fact.
   private async handleProjectQuery(
     input: NodeGraphGetQueryInput,
     focusNodeId: string
   ): Promise<ProjectGraph> {
     const workspace = this.getWorkspace(input.userId);
-
-    const nodeRows = await workspace.database
-      .selectFrom('nodes')
-      .where('type', 'in', GRAPH_NODE_TYPES)
-      .where(sql<boolean>`${sql.raw(notInTrashedTreeSql('nodes'))}`)
-      .select(['id', 'type', 'parent_id', 'attributes'])
-      .execute();
-
-    const nodes: ProjectGraphInputNode[] = [];
-    const databases: ProjectGraphDatabase[] = [];
-    for (const row of nodeRows) {
-      let attributes: Record<string, unknown> = {};
-      try {
-        attributes = JSON.parse(row.attributes) as Record<string, unknown>;
-      } catch {
-        // Unparseable attributes: the node is drawn, unnamed and roleless.
-      }
-      const text = (key: string) =>
-        typeof attributes[key] === 'string'
-          ? (attributes[key] as string)
-          : null;
-      nodes.push({
-        id: row.id,
-        type: row.type,
-        name: text('name') ?? '',
-        parentId: row.parent_id,
-        projectCode: text('projectCode'),
-        projectRole: text('projectRole'),
-        registers: readRegisters(attributes.projectRegisters),
-        databaseId: text('databaseId'),
-        fields:
-          row.type === 'record' && attributes.fields
-            ? (attributes.fields as Record<string, unknown>)
-            : undefined,
-      });
-      if (row.type === 'database' && attributes.fields) {
-        databases.push({
-          id: row.id,
-          fields: attributes.fields as ProjectGraphDatabase['fields'],
-        });
-      }
+    this.projectFetchedAt.set(this.projectKey(input), Date.now());
+    try {
+      return await workspace.account.client
+        .get(`v1/workspaces/${workspace.workspaceId}/projects/graph`, {
+          searchParams: { pageId: focusNodeId },
+          timeout: 60_000,
+        })
+        .json<ProjectGraph>();
+    } catch {
+      // Offline, or the server does not have the template: nothing to draw,
+      // and the view says so rather than drawing a partial project.
+      return EMPTY_PROJECT_GRAPH;
     }
+  }
 
-    const byId = new Map(nodes.map((node) => [node.id, node]));
-    const root = findProjectRoot(byId, focusNodeId);
-    if (!root) {
-      return { nodes: [], edges: [], unresolved: [], lanes: {}, project: null };
-    }
-
-    const registerPages = nodes.filter(
-      (node) =>
-        node.parentId === root.id &&
-        (node.projectRole === 'requirements' ||
-          node.projectRole === 'tests' ||
-          node.projectRole === 'decisions')
-    );
-    const registers: ProjectRegister[] = [];
-    // Written on the root page by the server when it creates or aligns the
-    // project: always on this device, unlike the documents.
-    for (const page of registerPages) {
-      const role = page.projectRole as ProjectRegister['role'];
-      const declared = root.registers?.[role];
-      if (declared) {
-        registers.push({ pageId: page.id, role, ...declared });
-      }
-    }
-    // A project assembled by hand has no declaration: read the embeds from
-    // the documents this device has.
-    if (registers.length === 0 && registerPages.length > 0) {
-      const documents = await workspace.database
-        .selectFrom('documents')
-        .where(
-          'id',
-          'in',
-          registerPages.map((page) => page.id)
-        )
-        .select(['id', 'content'])
-        .execute();
-      for (const document of documents) {
-        const page = byId.get(document.id)!;
-        let content: unknown = null;
-        try {
-          content = JSON.parse(document.content);
-        } catch {
-          continue;
-        }
-        registers.push(
-          ...registersInDocument(
-            page.id,
-            page.projectRole as ProjectRegister['role'],
-            content
-          )
-        );
-      }
-    }
-
-    const referenceRows = await workspace.database
-      .selectFrom('node_references')
-      .where('type', '=', 'mention')
-      .select(['node_id', 'reference_id'])
-      .execute();
-
-    return buildProjectGraph({
-      nodes,
-      references: referenceRows.map((row) => ({
-        nodeId: row.node_id,
-        referenceId: row.reference_id,
-      })),
-      registers,
-      databases,
-      rootId: root.id,
-    });
+  private projectKey(input: NodeGraphGetQueryInput): string {
+    return `${input.userId}|${input.focusNodeId ?? ''}`;
   }
 
   public async checkForChanges(
@@ -274,34 +141,31 @@ export class NodeGraphGetQueryHandler
       };
     }
 
-    // A project graph finds its registers in the documents of its
-    // Requirements, Tests and Decisions pages. Those documents reach a new
-    // device after its nodes, so without this the graph kept the empty answer
-    // it computed first. Only those three pages count: recomputing on every
-    // keystroke anywhere in the wiki would cost more than the graph is worth.
-    if (
-      input.scope === 'project' &&
-      event.type === 'document.updated' &&
-      event.workspace.userId === input.userId &&
-      (await this.isRegisterPage(input.userId, event.document.id))
-    ) {
-      return {
-        hasChanges: true,
-        result: await this.handleQuery(input),
-      };
-    }
-
-    // The graph is derived from the whole workspace, so any reference or node
-    // change can alter it. Recomputing is a couple of indexed reads plus pure
-    // maths; keeping a fine-grained diff here would cost more than it saves.
-    if (
+    const affectsGraph =
       (event.type === 'node.reference.created' ||
         event.type === 'node.reference.deleted' ||
         event.type === 'node.created' ||
         event.type === 'node.updated' ||
         event.type === 'node.deleted') &&
-      event.workspace.userId === input.userId
-    ) {
+      event.workspace.userId === input.userId;
+
+    if (input.scope === 'project') {
+      // The server holds the answer, so it is asked again when something
+      // changed here, but not on every event of a burst.
+      const last = this.projectFetchedAt.get(this.projectKey(input)) ?? 0;
+      if (affectsGraph && Date.now() - last >= PROJECT_REFRESH_MS) {
+        return {
+          hasChanges: true,
+          result: await this.handleQuery(input),
+        };
+      }
+      return { hasChanges: false };
+    }
+
+    // The graph is derived from the whole workspace, so any reference or node
+    // change can alter it. Recomputing is a couple of indexed reads plus pure
+    // maths; keeping a fine-grained diff here would cost more than it saves.
+    if (affectsGraph) {
       return {
         hasChanges: true,
         result: await this.handleQuery(input),

@@ -135,3 +135,52 @@ export const projectAlignOutputSchema = z.object({
 });
 
 export type ProjectAlignOutput = z.infer<typeof projectAlignOutputSchema>;
+
+// GET /client/v1/workspaces/:workspaceId/projects/graph -- the project graph
+// (lib/project-graph), as the server builds it.
+export const projectGraphOutputSchema = z.object({
+  nodes: z.array(
+    z.object({
+      id: z.string(),
+      type: z.string(),
+      name: z.string(),
+      degree: z.number(),
+    })
+  ),
+  edges: z.array(
+    z.object({
+      from: z.string(),
+      to: z.string(),
+      kind: z.enum(['link', 'hierarchy', 'relation']),
+      label: z.string().optional(),
+    })
+  ),
+  unresolved: z.array(z.object({ from: z.string(), target: z.string() })),
+  lanes: z.record(
+    z.string(),
+    z.enum([
+      'context',
+      'requirements',
+      'design',
+      'decisions',
+      'verification',
+      'delivery',
+    ])
+  ),
+  project: z
+    .object({
+      code: z.string(),
+      rootId: z.string(),
+      rootName: z.string(),
+      coverage: z.object({
+        requirements: z.number(),
+        tested: z.number(),
+        passed: z.number(),
+        failing: z.number(),
+        tests: z.number(),
+        decisions: z.number(),
+        openDecisions: z.number(),
+      }),
+    })
+    .nullable(),
+});

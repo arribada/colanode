@@ -1,8 +1,28 @@
 // ABOUTME: The project graph — a template project's pages and register records in
 // ABOUTME: lanes (requirements, design, decisions, tests), with coverage. Pure.
-import { getProjectLane, isProjectRole, ProjectLane } from '@colanode/core';
+import {
+  getProjectLane,
+  isProjectRole,
+  ProjectLane,
+} from '@colanode/core/lib/project-template';
 
-import type { GraphEdge, GraphNode, NodeGraph } from './graph';
+// The same shape as the knowledge graph the client draws (client lib/graph),
+// so a project graph goes through the same canvas. Kept here because the
+// server builds it too, and the server does not depend on the client.
+export interface ProjectGraphNode {
+  id: string;
+  type: string;
+  name: string;
+  degree: number;
+}
+
+export interface ProjectGraphEdge {
+  from: string;
+  to: string;
+  kind: 'link' | 'hierarchy' | 'relation';
+  // The relation field's name, for a 'relation' edge.
+  label?: string;
+}
 
 export interface ProjectGraphInputNode {
   id: string;
@@ -68,7 +88,13 @@ export interface ProjectGraphSummary {
   coverage: ProjectCoverage;
 }
 
-export type ProjectGraph = NodeGraph & {
+export type ProjectGraph = {
+  nodes: ProjectGraphNode[];
+  edges: ProjectGraphEdge[];
+  unresolved: Array<{ from: string; target: string }>;
+  // Never set: a project is drawn whole. Present so the canvas reads both
+  // kinds of graph the same way.
+  truncated?: { shown: number; total: number };
   lanes: Record<string, ProjectLane>;
   project: ProjectGraphSummary | null;
 };
@@ -195,8 +221,8 @@ export const buildProjectGraph = (input: {
     }
   }
 
-  const edgeMap = new Map<string, GraphEdge>();
-  const addEdge = (edge: GraphEdge, undirected = false) => {
+  const edgeMap = new Map<string, ProjectGraphEdge>();
+  const addEdge = (edge: ProjectGraphEdge, undirected = false) => {
     const key = undirected
       ? `${edge.kind}:${[edge.from, edge.to].sort().join('|')}`
       : `${edge.kind}:${edge.from}>${edge.to}`;
@@ -256,7 +282,7 @@ export const buildProjectGraph = (input: {
     degree.set(edge.to, (degree.get(edge.to) ?? 0) + 1);
   }
 
-  const nodes: GraphNode[] = [...inScope.values()].map((node) => ({
+  const nodes: ProjectGraphNode[] = [...inScope.values()].map((node) => ({
     id: node.id,
     type: node.type,
     name: node.name,

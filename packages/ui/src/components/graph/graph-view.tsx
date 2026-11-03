@@ -12,12 +12,12 @@ import {
   useState,
 } from 'react';
 
-import type {
-  GraphEdgeMode,
-  NodeGraph,
-  ProjectGraph,
-} from '@colanode/client/lib';
-import { PROJECT_LANES, type ProjectLane } from '@colanode/core';
+import type { GraphEdgeMode, NodeGraph } from '@colanode/client/lib';
+import {
+  PROJECT_LANES,
+  type ProjectGraph,
+  type ProjectLane,
+} from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
 import { Input } from '@colanode/ui/components/ui/input';
 import {
