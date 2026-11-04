@@ -200,6 +200,52 @@ export const getProjectTemplatePage = (
 export const getProjectLane = (role: string | null | undefined): ProjectLane =>
   getProjectTemplatePage(role)?.lane ?? 'design';
 
+// Two sizes of the template. The full one is the thirteen pages a contract
+// or funder project needs. A small project takes the light one: what it is
+// and where things live, the three registers, and one Design page for how
+// it works (specifications, hardware and software in one). The project
+// graph and the coverage work the same on both.
+export const PROJECT_TEMPLATE_KINDS = ['full', 'lite'] as const;
+
+export type ProjectTemplateKind = (typeof PROJECT_TEMPLATE_KINDS)[number];
+
+export const isProjectTemplateKind = (
+  value: unknown
+): value is ProjectTemplateKind =>
+  typeof value === 'string' &&
+  (PROJECT_TEMPLATE_KINDS as readonly string[]).includes(value);
+
+const LITE_ROLES: readonly ProjectRole[] = [
+  'overview',
+  'requirements',
+  'specifications',
+  'tests',
+  'decisions',
+];
+
+const LITE_NAMES: Partial<Record<ProjectRole, string>> = {
+  specifications: 'Design',
+};
+
+// The pages a project of this size gets, in the template's order.
+export const getProjectTemplatePages = (
+  kind: ProjectTemplateKind = 'full'
+): ProjectTemplatePage[] =>
+  kind === 'lite'
+    ? PROJECT_TEMPLATE_PAGES.filter((page) =>
+        LITE_ROLES.includes(page.role)
+      ).map((page) => {
+        const name = LITE_NAMES[page.role];
+        return name
+          ? {
+              ...page,
+              name,
+              aliases: [...page.aliases, normalizeProjectPageName(page.name)],
+            }
+          : page;
+      })
+    : [...PROJECT_TEMPLATE_PAGES];
+
 export interface ProjectLaneHolder {
   projectCode?: string | null;
   projectRole?: string | null;
@@ -227,16 +273,22 @@ export const ownProjectLane = (
 // The column of the last page of `chain` (outermost ancestor first, the
 // page itself last) in the project its closest project root starts. Null
 // when no ancestor is a project root, or when the page is the root.
+// The closest project root in a chain (outermost first), or -1.
+export const findProjectRootIndex = (
+  chain: ReadonlyArray<{ projectCode?: string | null }>
+): number => {
+  for (let i = chain.length - 1; i >= 0; i--) {
+    if (chain[i]?.projectCode) {
+      return i;
+    }
+  }
+  return -1;
+};
+
 export const resolveProjectLane = (
   chain: ReadonlyArray<ProjectLaneHolder>
 ): { code: string; lane: ProjectLane; source: ProjectLaneSource } | null => {
-  let rootIndex = -1;
-  for (let i = chain.length - 1; i >= 0; i--) {
-    if (chain[i]?.projectCode) {
-      rootIndex = i;
-      break;
-    }
-  }
+  const rootIndex = findProjectRootIndex(chain);
   const root = chain[rootIndex];
   if (!root?.projectCode || rootIndex === chain.length - 1) {
     return null;

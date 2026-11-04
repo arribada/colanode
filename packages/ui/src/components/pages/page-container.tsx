@@ -5,6 +5,7 @@ import { DocumentBacklinks } from '@colanode/ui/components/documents/document-ba
 import { NodeCoverBanner } from '@colanode/ui/components/nodes/node-cover';
 import { PageChildren } from '@colanode/ui/components/pages/page-children';
 import { PageTitle } from '@colanode/ui/components/pages/page-title';
+import { ProjectSourceBanner } from '@colanode/ui/components/projects/project-source';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -69,6 +70,7 @@ export const PageContainer = ({ page, role }: PageContainerProps) => {
         />
       </NodeCoverBanner>
       <div className={cn('mx-auto w-full min-w-0', !fullWidth && 'max-w-3xl')}>
+        <ProjectSourceBanner page={page} canEdit={canEdit} />
         <Document
           node={page}
           canEdit={canEditDocument}

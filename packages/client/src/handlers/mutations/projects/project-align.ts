@@ -24,6 +24,7 @@ export class ProjectAlignMutationHandler
             aliases: input.aliases,
             roles: input.roles,
             createMissing: input.createMissing,
+            template: input.template,
           },
           timeout: 60_000,
         })

@@ -65,11 +65,27 @@ export type ProjectCodeCheckOutput = z.infer<
   typeof projectCodeCheckOutputSchema
 >;
 
+export const projectTemplateKindSchema = z.enum(['full', 'lite']);
+
+// The project's reference document, when it is not the wiki.
+export const projectSourceSchema = z.object({
+  url: z
+    .string()
+    .max(2000)
+    .regex(/^https?:\/\//, 'A link starting with https://'),
+  label: z.string().max(200).nullable().optional(),
+});
+
+export type ProjectSource = z.infer<typeof projectSourceSchema>;
+
 export const projectCreateInputSchema = z.object({
   parentId: z.string(),
   name: z.string().min(1).max(200),
   code: z.string().min(2).max(10),
   plane: projectPlaneModeSchema,
+  // 'full' (thirteen pages) unless a small project asks for 'lite'.
+  template: projectTemplateKindSchema.optional(),
+  source: projectSourceSchema.nullable().optional(),
 });
 
 export type ProjectCreateInput = z.infer<typeof projectCreateInputSchema>;
@@ -93,6 +109,8 @@ export const projectAlignInputSchema = z.object({
   roles: z.record(z.string(), z.string().nullable()).optional(),
   // Which missing template pages to add: all (default), none, or these roles.
   createMissing: z.union([z.boolean(), z.array(z.string())]).optional(),
+  // The size of template to align on; the project's own when absent.
+  template: projectTemplateKindSchema.optional(),
 });
 
 export type ProjectAlignInput = z.infer<typeof projectAlignInputSchema>;

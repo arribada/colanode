@@ -23,6 +23,8 @@ export class ProjectCreateMutationHandler
             name: input.name,
             code: input.code,
             plane: input.plane,
+            template: input.template,
+            source: input.source,
           },
           timeout: 60_000,
         })

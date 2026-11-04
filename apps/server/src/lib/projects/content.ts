@@ -7,7 +7,12 @@
 // Words in italics are prompts for the author to replace. The wording
 // follows Help › Conventions and templates; change both together.
 
-import { PROJECT_TEMPLATE_PAGES, ProjectRole } from '@colanode/core';
+import {
+  getProjectTemplatePages,
+  PROJECT_TEMPLATE_PAGES,
+  ProjectRole,
+  ProjectTemplateKind,
+} from '@colanode/core';
 
 // A filtered view of one of the template's databases.
 export type ProjectEmbed = {
@@ -31,7 +36,12 @@ export type ProjectContentContext = {
   };
   // ISO date (YYYY-MM-DD) for the dated status section.
   today: string;
+  // The size of the template; 'full' when absent.
+  kind?: ProjectTemplateKind;
 };
+
+const pagesOf = (ctx: ProjectContentContext) =>
+  getProjectTemplatePages(ctx.kind ?? 'full');
 
 const embed = (target: ProjectEmbed | null): string =>
   target
@@ -50,7 +60,9 @@ const embed = (target: ProjectEmbed | null): string =>
 const link = (ctx: ProjectContentContext, role: ProjectRole): string => {
   const id = ctx.pageIds[role];
   const name =
-    PROJECT_TEMPLATE_PAGES.find((page) => page.role === role)?.name ?? role;
+    pagesOf(ctx).find((page) => page.role === role)?.name ??
+    PROJECT_TEMPLATE_PAGES.find((page) => page.role === role)?.name ??
+    role;
   return id ? `[${name}](node:${id})` : name;
 };
 
@@ -91,10 +103,20 @@ const READING_ORDER: Array<[ProjectRole, string]> = [
   ['references', 'everything external'],
 ];
 
-const readingOrder = (ctx: ProjectContentContext): string =>
-  READING_ORDER.map(
-    ([role, what], i) => `${i + 1}. ${link(ctx, role)} — ${what}`
-  ).join('\n');
+// A light project lists only its own pages; its Design page holds what the
+// full template splits over three.
+const readingOrder = (ctx: ProjectContentContext): string => {
+  const roles = new Set(pagesOf(ctx).map((page) => page.role));
+  return READING_ORDER.filter(([role]) => roles.has(role))
+    .map(([role, what], i) => {
+      const said =
+        ctx.kind === 'lite' && role === 'specifications'
+          ? 'how it works: architecture, hardware, firmware, key values'
+          : what;
+      return `${i + 1}. ${link(ctx, role)} — ${said}`;
+    })
+    .join('\n');
+};
 
 // The project's own page, above the thirteen.
 export const buildProjectRootMarkdown = (ctx: ProjectContentContext): string =>
@@ -126,6 +148,20 @@ const BUILDERS: Record<ProjectRole, (ctx: ProjectContentContext) => string> = {
       ].join('\n'),
       '## Reading order',
       readingOrder(ctx),
+      // The light template has no Roadmap, Partners or References page:
+      // their few lines live here.
+      ctx.kind === 'lite' ? '## Plan' : '',
+      ctx.kind === 'lite'
+        ? '_Milestones and dates live on Plane. Write here only what a newcomer needs: the next milestone and what it depends on._'
+        : '',
+      ctx.kind === 'lite' ? '## People and partners' : '',
+      ctx.kind === 'lite'
+        ? '_Who does what; who funds it and what is due to them._'
+        : '',
+      ctx.kind === 'lite' ? '## Documents' : '',
+      ctx.kind === 'lite'
+        ? '_Links to the Drive folder, the repositories, the datasheets. Link to them; never keep a second copy here._'
+        : '',
       ctx.embeds.tasks ? '## Tasks' : '',
       embed(ctx.embeds.tasks),
       `## Status on ${ctx.today}`,
@@ -164,17 +200,33 @@ const BUILDERS: Record<ProjectRole, (ctx: ProjectContentContext) => string> = {
     ),
 
   specifications: (ctx) =>
-    join(
-      callout(ctx, 'NOTE', [
-        'What the implementation must do so the requirements are met: values, tolerances, pass criteria. Each specification names the requirement it serves: type @ and pick the requirement record.',
-        `A requirement is stated once, on ${link(ctx, 'requirements')}. Do not copy its text here; go straight to the verifiable behaviour.`,
-      ]),
-      [
-        '| Specification | Value | Tolerance | Serves | Verified by |',
-        '| --- | --- | --- | --- | --- |',
-        '| _e.g. Transmission rate limit_ | _100 per rolling 24 h_ | _none_ | _@SYS-3_ | _@T-12_ |',
-      ].join('\n')
-    ),
+    ctx.kind === 'lite'
+      ? join(
+          callout(ctx, 'NOTE', [
+            'How the product works, in one page: the architecture, the hardware, the firmware and software, and the values they must meet. Keep it to what is specific to this project.',
+            'A board, module, battery or antenna is described once, in the Hardware Catalog: mention its page and write here only the variant and the differences.',
+          ]),
+          '## Architecture',
+          '## Hardware',
+          '## Firmware and software',
+          '## Key values',
+          [
+            '| Value | Target | Serves | Verified by |',
+            '| --- | --- | --- | --- |',
+            '| _e.g. Battery life_ | _1 year_ | _@SYS-3_ | _@T-12_ |',
+          ].join('\n')
+        )
+      : join(
+          callout(ctx, 'NOTE', [
+            'What the implementation must do so the requirements are met: values, tolerances, pass criteria. Each specification names the requirement it serves: type @ and pick the requirement record.',
+            `A requirement is stated once, on ${link(ctx, 'requirements')}. Do not copy its text here; go straight to the verifiable behaviour.`,
+          ]),
+          [
+            '| Specification | Value | Tolerance | Serves | Verified by |',
+            '| --- | --- | --- | --- | --- |',
+            '| _e.g. Transmission rate limit_ | _100 per rolling 24 h_ | _none_ | _@SYS-3_ | _@T-12_ |',
+          ].join('\n')
+        ),
 
   hardware_design: (ctx) =>
     join(

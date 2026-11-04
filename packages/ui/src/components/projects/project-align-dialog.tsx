@@ -5,12 +5,15 @@ import { toast } from 'sonner';
 
 import { LocalPageNode } from '@colanode/client/types';
 import {
+  isProjectTemplateKind,
   isValidProjectCode,
   normalizeProjectCode,
   ProjectAlignOutput,
   ProjectPlaneMode,
+  ProjectTemplateKind,
   suggestProjectCode,
 } from '@colanode/core';
+import { TemplateChoice } from '@colanode/ui/components/projects/project-create-dialog';
 import { Button } from '@colanode/ui/components/ui/button';
 import {
   Dialog,
@@ -44,13 +47,16 @@ export const ProjectAlignDialog = ({
     page.projectCode ?? suggestProjectCode(page.name)
   );
   const [aliases, setAliases] = useState('');
+  const [template, setTemplate] = useState<ProjectTemplateKind>(
+    isProjectTemplateKind(page.projectTemplate) ? page.projectTemplate : 'full'
+  );
   const [preview, setPreview] = useState<ProjectAlignOutput | null>(null);
   const [plane, setPlane] = useState<ProjectPlaneMode>('none');
 
   // A preview describes one code; editing the code makes it stale.
   useEffect(() => {
     setPreview(null);
-  }, [code, aliases]);
+  }, [code, aliases, template]);
 
   const choices = useMemo(
     () => planeChoices(preview?.plan.plane),
@@ -78,6 +84,7 @@ export const ProjectAlignDialog = ({
         apply,
         plane,
         aliases: aliasList,
+        template,
       },
       onSuccess(output) {
         if (!apply) {
@@ -146,6 +153,17 @@ export const ProjectAlignDialog = ({
               and task options, so they are renamed instead of duplicated.
             </span>
           </div>
+
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-sm font-medium mb-1.5">
+              Size of template (decides which missing pages are added)
+            </legend>
+            <TemplateChoice
+              value={template}
+              onChange={setTemplate}
+              name="project-align-template"
+            />
+          </fieldset>
 
           {preview && (
             <div className="flex flex-col gap-2 rounded border border-border/60 p-3 text-sm max-h-72 overflow-auto">

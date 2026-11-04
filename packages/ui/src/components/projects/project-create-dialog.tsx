@@ -7,8 +7,9 @@ import { toast } from 'sonner';
 import {
   isValidProjectCode,
   normalizeProjectCode,
+  getProjectTemplatePages,
   ProjectPlaneMode,
-  PROJECT_TEMPLATE_PAGES,
+  ProjectTemplateKind,
   suggestProjectCode,
 } from '@colanode/core';
 import { Button } from '@colanode/ui/components/ui/button';
@@ -48,6 +49,11 @@ export const ProjectCreateDialog = ({
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [selectedParent, setSelectedParent] = useState(parentId ?? '');
+  const [template, setTemplate] = useState<ProjectTemplateKind>('full');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceLabel, setSourceLabel] = useState('');
+  const sourceValid =
+    sourceUrl.trim().length === 0 || /^https?:\/\/\S+$/.test(sourceUrl.trim());
   // What the person picked, for the code they picked it for.
   const [planePick, setPlanePick] = useState<{
     code: string;
@@ -109,6 +115,7 @@ export const ProjectCreateDialog = ({
     !!check &&
     !check.wiki &&
     selectedParent.length > 0 &&
+    sourceValid &&
     plane !== null &&
     !isPending;
 
@@ -124,6 +131,10 @@ export const ProjectCreateDialog = ({
         name: name.trim(),
         code,
         plane,
+        template,
+        source: sourceUrl.trim()
+          ? { url: sourceUrl.trim(), label: sourceLabel.trim() || null }
+          : null,
       },
       onSuccess(output) {
         toast.success(
@@ -146,9 +157,10 @@ export const ProjectCreateDialog = ({
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
-            Creates the project page and its {PROJECT_TEMPLATE_PAGES.length}{' '}
-            pages (Overview, Requirements, Tests and validation, Decisions and
-            ADR…), each one saying what belongs on it.
+            Creates the project page and its{' '}
+            {getProjectTemplatePages(template).length} pages (Overview,
+            Requirements, Tests and validation, Decisions and ADR…), each one
+            saying what belongs on it.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,6 +231,36 @@ export const ProjectCreateDialog = ({
           </div>
 
           <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-sm font-medium mb-1.5">Size</legend>
+            <TemplateChoice value={template} onChange={setTemplate} />
+          </fieldset>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="project-source-new" className="text-sm font-medium">
+              Reference document (optional)
+            </label>
+            <Input
+              id="project-source-new"
+              value={sourceUrl}
+              placeholder="https://drive.google.com/… when a document is the reference"
+              onChange={(event) => setSourceUrl(event.target.value)}
+            />
+            {sourceUrl.trim().length > 0 && (
+              <Input
+                aria-label="Name of the reference document"
+                value={sourceLabel}
+                placeholder="Its name, e.g. Technical Requirements Specification v1"
+                onChange={(event) => setSourceLabel(event.target.value)}
+              />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {sourceValid
+                ? 'Leave empty when the wiki registers are the reference. Set it when a specification or a contract on Drive is: the registers then say they are its working copy.'
+                : 'A link starting with https://'}
+            </span>
+          </div>
+
+          <fieldset className="flex flex-col gap-1.5">
             <legend className="text-sm font-medium mb-1.5">Plane</legend>
             {!isValidProjectCode(code) ? (
               <span className="text-xs text-muted-foreground">
@@ -266,3 +308,54 @@ export const ProjectCreateDialog = ({
     </Dialog>
   );
 };
+
+const TEMPLATE_CHOICES: Array<{
+  kind: ProjectTemplateKind;
+  label: string;
+  hint: string;
+}> = [
+  {
+    kind: 'full',
+    label: 'Full: 13 pages',
+    hint: 'For a contract or funder project: requirements, use cases, specifications, hardware and software design, tests, BOM, decisions, procurement, roadmap, partners, references.',
+  },
+  {
+    kind: 'lite',
+    label: 'Light: 5 pages',
+    hint: 'For a small project: Overview (with plan, people and documents), Requirements, Design, Tests and validation, Decisions. Same registers and project graph.',
+  },
+];
+
+// Full or light: the choice a small project makes once, at creation (and
+// again when it is aligned).
+export const TemplateChoice = ({
+  value,
+  onChange,
+  name = 'project-template',
+}: {
+  value: ProjectTemplateKind;
+  onChange: (value: ProjectTemplateKind) => void;
+  name?: string;
+}) => (
+  <>
+    {TEMPLATE_CHOICES.map((choice) => (
+      <label
+        key={choice.kind}
+        aria-label={choice.label}
+        className="flex items-start gap-2 text-sm cursor-pointer"
+      >
+        <input
+          type="radio"
+          name={name}
+          className="mt-1"
+          checked={value === choice.kind}
+          onChange={() => onChange(choice.kind)}
+        />
+        <span className="flex flex-col">
+          <span>{choice.label}</span>
+          <span className="text-xs text-muted-foreground">{choice.hint}</span>
+        </span>
+      </label>
+    ))}
+  </>
+);

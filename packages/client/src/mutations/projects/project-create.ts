@@ -1,4 +1,9 @@
-import { ProjectCreateOutput, ProjectPlaneMode } from '@colanode/core';
+import {
+  ProjectCreateOutput,
+  ProjectPlaneMode,
+  ProjectSource,
+  ProjectTemplateKind,
+} from '@colanode/core';
 
 // Creates a project from the template; see apps/server/src/lib/projects.
 export type ProjectCreateMutationInput = {
@@ -8,6 +13,8 @@ export type ProjectCreateMutationInput = {
   name: string;
   code: string;
   plane: ProjectPlaneMode;
+  template?: ProjectTemplateKind;
+  source?: ProjectSource | null;
 };
 
 declare module '@colanode/client/mutations' {

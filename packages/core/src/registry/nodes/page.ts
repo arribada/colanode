@@ -48,6 +48,21 @@ export const pageAttributesSchema = z.object({
   // graph it belongs in (a lane: design, verification, ...). Absent, it takes
   // the column of the page above it. A template page's role always wins.
   projectLane: z.string().nullable().optional(),
+  // On the root page only: the size of the template the project follows
+  // ('full', the thirteen pages, or 'lite', five), so aligning it again adds
+  // only the pages of its own template.
+  projectTemplate: z.string().nullable().optional(),
+  // On the root page only: the document that is the project's reference
+  // (a specification on Drive). Absent, the wiki registers are the
+  // reference. Shown on the project page and its registers, so nobody takes
+  // the wiki copy for the source.
+  projectSource: z
+    .object({
+      url: z.string(),
+      label: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   // On the root page only: where each register of the project lives (the
   // database, its Project field, and the option that is this project's), by
   // role -- requirements, tests, decisions. The project graph reads this

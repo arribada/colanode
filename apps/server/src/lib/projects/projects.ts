@@ -36,7 +36,10 @@ import {
   normalizeProjectCode,
   normalizeProjectPageName,
   PageAttributes,
+  getProjectTemplatePages,
+  isProjectTemplateKind,
   PROJECT_TEMPLATE_PAGES,
+  ProjectTemplateKind,
   ProjectRole,
   RecordAttributes,
   RichTextContent,
@@ -574,6 +577,8 @@ const writePage = async (
     projectCode?: string;
     projectRole?: ProjectRole;
     projectRegisters?: ProjectRegisters;
+    projectTemplate?: ProjectTemplateKind;
+    projectSource?: { url: string; label?: string | null } | null;
     markdown: string;
   }
 ): Promise<void> => {
@@ -587,6 +592,10 @@ const writePage = async (
     ...(input.projectRegisters
       ? { projectRegisters: input.projectRegisters }
       : {}),
+    ...(input.projectTemplate
+      ? { projectTemplate: input.projectTemplate }
+      : {}),
+    ...(input.projectSource ? { projectSource: input.projectSource } : {}),
   };
 
   const created = await createNode({
@@ -642,6 +651,7 @@ const setPageAttributes = async (
     projectCode?: string;
     projectRole?: ProjectRole | null;
     projectRegisters?: ProjectRegisters;
+    projectTemplate?: ProjectTemplateKind;
   }
 ): Promise<void> => {
   await updateNode({
@@ -659,7 +669,9 @@ const setPageAttributes = async (
           (attributes.projectRole ?? null) === patch.projectRole) &&
         (patch.projectRegisters === undefined ||
           JSON.stringify(attributes.projectRegisters ?? null) ===
-            JSON.stringify(patch.projectRegisters))
+            JSON.stringify(patch.projectRegisters)) &&
+        (patch.projectTemplate === undefined ||
+          attributes.projectTemplate === patch.projectTemplate)
       ) {
         return null;
       }
@@ -1049,6 +1061,10 @@ export type CreateProjectInput = {
   // Set when Plane itself asks: the project already exists there and must
   // not be created or linked again from here.
   planeProject?: PlaneProjectLink | null;
+  // The thirteen pages unless a small project asks for the light five.
+  template?: ProjectTemplateKind;
+  // The project's reference document, when it is not the wiki.
+  source?: { url: string; label?: string | null } | null;
 };
 
 export type CreateProjectOutput = {
@@ -1091,9 +1107,11 @@ export const createProject = async (
     );
   }
 
+  const kind: ProjectTemplateKind = input.template ?? 'full';
+  const templatePages = getProjectTemplatePages(kind);
   const rootId = generateId(IdType.Page);
   const pageIds: Partial<Record<ProjectRole, string>> = {};
-  for (const page of PROJECT_TEMPLATE_PAGES) {
+  for (const page of templatePages) {
     pageIds[page.role] = generateId(IdType.Page);
   }
   const overviewId = pageIds.overview!;
@@ -1124,6 +1142,7 @@ export const createProject = async (
       tasks: embeds.tasks,
     },
     today: today(),
+    kind,
   };
 
   await writePage(ctx, {
@@ -1134,11 +1153,13 @@ export const createProject = async (
     index: null,
     projectCode: code,
     projectRegisters: registersOf(embeds),
+    projectTemplate: kind,
+    projectSource: input.source ?? null,
     markdown: buildProjectRootMarkdown(content),
   });
 
   let previous: string | null = null;
-  for (const page of PROJECT_TEMPLATE_PAGES) {
+  for (const page of templatePages) {
     previous = generateFractionalIndex(previous, null);
     await writePage(ctx, {
       id: pageIds[page.role]!,
@@ -1276,9 +1297,9 @@ const planAlignment = async (
     choices.createMissing === true ||
     (Array.isArray(choices.createMissing) &&
       choices.createMissing.includes(role));
-  const create = PROJECT_TEMPLATE_PAGES.filter(
-    (template) => !present.has(template.role) && wanted(template.role)
-  ).map((template) => ({ role: template.role, name: template.name }));
+  const create = getProjectTemplatePages(choices.template)
+    .filter((template) => !present.has(template.role) && wanted(template.role))
+    .map((template) => ({ role: template.role, name: template.name }));
 
   const registers: AlignPlan['registers'] = [];
   const registerDb: Partial<Record<ProjectRole, string>> = {
@@ -1334,6 +1355,7 @@ const planAlignment = async (
 export type AlignChoices = {
   roles: Record<string, string | null>;
   createMissing: boolean | ProjectRole[];
+  template: ProjectTemplateKind;
 };
 
 const planeName = (status: PlaneStatus): string =>
@@ -1352,6 +1374,8 @@ export type AlignProjectInput = {
   roles?: Record<string, string | null>;
   // Which missing template pages to add: all (default), none, or these roles.
   createMissing?: boolean | string[];
+  // The size of template to align on; the project's own, else full.
+  template?: ProjectTemplateKind;
 };
 
 export type AlignProjectOutput = {
@@ -1401,6 +1425,11 @@ export const alignProject = async (
     createMissing: Array.isArray(input.createMissing)
       ? input.createMissing.filter(isProjectRole)
       : (input.createMissing ?? true),
+    template:
+      input.template ??
+      (isProjectTemplateKind(attributes.projectTemplate)
+        ? attributes.projectTemplate
+        : 'full'),
   };
   const { plan, children } = await planAlignment(
     ctx,
@@ -1469,11 +1498,13 @@ export const alignProject = async (
       tasks: embeds.tasks,
     },
     today: today(),
+    kind: choices.template,
   };
 
   await setPageAttributes(ctx, page.id, {
     projectCode: code,
     projectRegisters: registersOf(embeds),
+    projectTemplate: choices.template,
   });
   for (const entry of plan.clear) {
     await setPageAttributes(ctx, entry.pageId, { projectRole: null });
@@ -1493,7 +1524,7 @@ export const alignProject = async (
     }
   }
   const allKeys = [...keys.values()].sort(compareString);
-  for (const template of PROJECT_TEMPLATE_PAGES) {
+  for (const template of getProjectTemplatePages(choices.template)) {
     if (!plan.create.some((entry) => entry.role === template.role)) {
       continue;
     }

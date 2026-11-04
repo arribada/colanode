@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getProjectTemplatePages,
   PROJECT_ROLES,
   resolveProjectLane,
   PROJECT_TEMPLATE_PAGES,
@@ -167,5 +168,29 @@ describe('resolveProjectLane', () => {
         {},
       ])
     ).toMatchObject({ code: 'INNER' });
+  });
+});
+
+describe('getProjectTemplatePages', () => {
+  it('keeps the thirteen pages for a full project', () => {
+    expect(getProjectTemplatePages('full')).toEqual(PROJECT_TEMPLATE_PAGES);
+    expect(getProjectTemplatePages()).toHaveLength(13);
+  });
+
+  it('gives a small project five pages, with one Design page', () => {
+    const lite = getProjectTemplatePages('lite');
+    expect(lite.map((page) => page.role)).toEqual([
+      'overview',
+      'requirements',
+      'specifications',
+      'tests',
+      'decisions',
+    ]);
+    expect(lite.find((page) => page.role === 'specifications')?.name).toBe(
+      'Design'
+    );
+    expect(lite.find((page) => page.role === 'overview')?.name).toBe(
+      'Overview'
+    );
   });
 });

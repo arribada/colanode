@@ -164,3 +164,39 @@ describe('project page content', () => {
     ).toHaveLength(1);
   });
 });
+
+describe('the light template', () => {
+  const lite: ProjectContentContext = { ...ctx, kind: 'lite' };
+
+  it('lists only its five pages, the Design page by its own name', () => {
+    const root = buildProjectRootMarkdown(lite);
+    const items = root.split('\n').filter((line) => /^\d+\. /.test(line));
+    expect(items).toHaveLength(5);
+    expect(root).toContain('[Design](node:');
+    expect(root).not.toContain('Roadmap');
+    // The full template is unchanged.
+    const full = buildProjectRootMarkdown(ctx);
+    expect(
+      full.split('\n').filter((line) => /^\d+\. /.test(line))
+    ).toHaveLength(13);
+  });
+
+  it('gives the Design page the sections of the three design pages', () => {
+    const design = buildProjectPageMarkdown('specifications', lite);
+    expect(design).toContain('## Architecture');
+    expect(design).toContain('## Firmware and software');
+    expect(buildProjectPageMarkdown('specifications', ctx)).not.toContain(
+      '## Architecture'
+    );
+  });
+
+  it('keeps plan, people and documents on the Overview', () => {
+    const overview = buildProjectPageMarkdown('overview', lite);
+    expect(overview).toContain('## Plan');
+    expect(overview).toContain('## People and partners');
+    expect(overview).toContain('## Documents');
+    expect(buildProjectPageMarkdown('overview', ctx)).not.toContain(
+      '## People and partners'
+    );
+  });
+});

@@ -1,4 +1,8 @@
-import { ProjectAlignOutput, ProjectPlaneMode } from '@colanode/core';
+import {
+  ProjectAlignOutput,
+  ProjectPlaneMode,
+  ProjectTemplateKind,
+} from '@colanode/core';
 
 // Aligns an existing page on the project template. apply=false only
 // returns the plan.
@@ -12,6 +16,7 @@ export type ProjectAlignMutationInput = {
   aliases?: string[];
   roles?: Record<string, string | null>;
   createMissing?: boolean | string[];
+  template?: ProjectTemplateKind;
 };
 
 declare module '@colanode/client/mutations' {
