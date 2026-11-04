@@ -124,3 +124,16 @@ export const describeAlignPlan = (plan: ProjectAlignPlan): string[] => {
 
   return lines;
 };
+
+// The Plane choice in force: the person's pick while the code is the one
+// they picked it for and the choice is still offered, else the first.
+export const resolvePlaneMode = (
+  pick: { code: string; mode: ProjectPlaneMode } | null,
+  code: string,
+  choices: readonly PlaneChoice[]
+): ProjectPlaneMode | null =>
+  pick &&
+  pick.code === code &&
+  choices.some((choice) => choice.mode === pick.mode)
+    ? pick.mode
+    : (choices[0]?.mode ?? null);

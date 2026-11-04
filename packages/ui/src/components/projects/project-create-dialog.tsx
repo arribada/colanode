@@ -26,7 +26,7 @@ import { useWorkspace } from '@colanode/ui/contexts/workspace';
 import { useDebouncedValue } from '@colanode/ui/hooks/use-debounced-value';
 import { useMutation } from '@colanode/ui/hooks/use-mutation';
 import { useQuery } from '@colanode/ui/hooks/use-query';
-import { planeChoices } from '@colanode/ui/lib/projects';
+import { planeChoices, resolvePlaneMode } from '@colanode/ui/lib/projects';
 
 interface ProjectCreateDialogProps {
   open: boolean;
@@ -48,7 +48,11 @@ export const ProjectCreateDialog = ({
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [selectedParent, setSelectedParent] = useState(parentId ?? '');
-  const [plane, setPlane] = useState<ProjectPlaneMode | null>(null);
+  // What the person picked, for the code they picked it for.
+  const [planePick, setPlanePick] = useState<{
+    code: string;
+    mode: ProjectPlaneMode;
+  } | null>(null);
 
   useEffect(() => {
     if (!codeTouched) {
@@ -78,14 +82,17 @@ export const ProjectCreateDialog = ({
     },
     { enabled: open && codeValid, staleTime: 10_000 }
   );
-  const check = codeValid ? checkQuery.data : undefined;
+  // Only the answer for the code on screen: while the code is being typed
+  // the previous code's answer said what Plane had under the old one.
+  const check =
+    codeValid && code === debouncedCode ? checkQuery.data : undefined;
   const choices = useMemo(() => planeChoices(check?.plane), [check?.plane]);
 
-  // The Plane choice follows the code until the person picks one; a code
-  // that changes makes the previous pick meaningless.
-  useEffect(() => {
-    setPlane(choices[0]?.mode ?? null);
-  }, [choices]);
+  // The first choice until the person picks one, then their pick, for as
+  // long as the code is the one they picked it for. This was an effect that
+  // reset the choice on every answer: a refetch arriving after a click on
+  // "No Plane project for now" put it back on "Create the Plane project".
+  const plane = resolvePlaneMode(planePick, code, choices);
 
   const codeError = !isValidProjectCode(code)
     ? code.length === 0
@@ -213,11 +220,11 @@ export const ProjectCreateDialog = ({
 
           <fieldset className="flex flex-col gap-1.5">
             <legend className="text-sm font-medium mb-1.5">Plane</legend>
-            {!codeValid ? (
+            {!isValidProjectCode(code) ? (
               <span className="text-xs text-muted-foreground">
                 Type a code to see what Plane has under it.
               </span>
-            ) : checkQuery.isPending ? (
+            ) : !check ? (
               <Spinner />
             ) : (
               choices.map((choice) => (
@@ -230,7 +237,7 @@ export const ProjectCreateDialog = ({
                     name="project-plane"
                     className="mt-1"
                     checked={plane === choice.mode}
-                    onChange={() => setPlane(choice.mode)}
+                    onChange={() => setPlanePick({ code, mode: choice.mode })}
                   />
                   <span className="flex flex-col">
                     <span>{choice.label}</span>

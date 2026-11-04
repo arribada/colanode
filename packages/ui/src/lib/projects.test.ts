@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ProjectAlignPlan } from '@colanode/core';
 
-import { describeAlignPlan, planeChoices } from './projects';
+import { describeAlignPlan, planeChoices, resolvePlaneMode } from './projects';
 
 const project = {
   projectId: 'p1',
@@ -102,5 +102,37 @@ describe('describeAlignPlan', () => {
       '📐 Requirements: add the option REWLD',
       'Link the Plane project "Rewild Cyprus"',
     ]);
+  });
+});
+
+describe('resolvePlaneMode', () => {
+  const absent = planeChoices({ state: 'absent' });
+
+  it('preselects the first choice', () => {
+    expect(resolvePlaneMode(null, 'ZZMT', absent)).toBe('create');
+  });
+
+  it('keeps the pick when Plane answers again for the same code', () => {
+    const pick = { code: 'ZZMT', mode: 'none' as const };
+    // A refetch builds a new, equal list: the pick must survive it.
+    expect(
+      resolvePlaneMode(pick, 'ZZMT', planeChoices({ state: 'absent' }))
+    ).toBe('none');
+  });
+
+  it('drops the pick when the code changes', () => {
+    const pick = { code: 'ZZMT', mode: 'none' as const };
+    expect(resolvePlaneMode(pick, 'ZZMX', absent)).toBe('create');
+  });
+
+  it('drops a pick that is no longer offered', () => {
+    const linked = planeChoices({ state: 'linked', project });
+    expect(
+      resolvePlaneMode({ code: 'MARLIN', mode: 'none' }, 'MARLIN', linked)
+    ).toBe('link');
+  });
+
+  it('has nothing to choose before Plane answers', () => {
+    expect(resolvePlaneMode(null, 'ZZMT', [])).toBeNull();
   });
 });

@@ -1004,6 +1004,13 @@ const linkPlane = async (
           : `The Plane project ${input.code} is already linked to another wiki page.`
       );
     }
+    if (result.status === 403 && result.error === 'not_a_plane_member') {
+      throw new ProjectError(
+        403,
+        'not_a_plane_member',
+        'Plane creates a project only for one of its members, and your wiki account is not a member of the Plane workspace. Choose "No Plane project for now", or ask a Plane admin to add you first.'
+      );
+    }
     if (result.status === 404) {
       throw new ProjectError(
         404,
