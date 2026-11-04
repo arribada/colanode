@@ -12,8 +12,40 @@ import { useDatabase } from '@colanode/ui/contexts/database';
 import { useDatabaseView } from '@colanode/ui/contexts/database-view';
 import { useRecord } from '@colanode/ui/contexts/record';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { useRecordsQuery } from '@colanode/ui/hooks/use-records-query';
 import { cn } from '@colanode/ui/lib/utils';
+
+// The records a relation points to, by name, one per line. A device only
+// holds part of the workspace (a register's records arrive as they are
+// opened), so the ones not here yet are counted rather than left blank.
+const PlainRelation = ({ ids }: { ids: string[] }) => {
+  const workspace = useWorkspace();
+  const query = useLiveQuery({
+    type: 'node.list',
+    userId: workspace.userId,
+    filters: [{ field: ['id'], operator: 'in', value: ids }],
+    sorts: [],
+  });
+  const names = (query.data ?? [])
+    .filter((node) => node.type === 'record')
+    .map((node) => node.name || 'Untitled')
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const missing = ids.length - names.length;
+
+  return (
+    <span className="flex flex-col gap-0.5">
+      {names.map((name, i) => (
+        <span key={`${name}-${i}`}>{name}</span>
+      ))}
+      {missing > 0 && (
+        <span className="text-xs text-muted-foreground">
+          {names.length > 0 ? `+${missing} more` : `${ids.length} linked`}
+        </span>
+      )}
+    </span>
+  );
+};
 
 // Text, numbers and links are written out in full here: their grid cells are
 // one-line inputs that cut a statement after a few words. Every other type
@@ -34,6 +66,10 @@ const PlainValue = ({ field }: { field: FieldAttributes }) => {
     }
     case 'number':
       return <span>{value?.type === 'number' ? String(value.value) : ''}</span>;
+    case 'relation': {
+      const ids = value?.type === 'string_array' ? value.value : [];
+      return ids.length > 0 ? <PlainRelation ids={ids} /> : null;
+    }
     case 'url': {
       const href = value?.type === 'string' ? value.value : '';
       return href ? (
@@ -74,13 +110,17 @@ export const TableViewPlain = () => {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
-            <th className="border border-border bg-muted/50 px-2 py-1.5 text-left align-bottom font-semibold">
+            <th
+              className="border border-border bg-muted/50 px-2 py-1.5 text-left align-bottom font-semibold"
+              style={{ minWidth: view.nameWidth }}
+            >
               Name
             </th>
             {fields.map((viewField) => (
               <th
                 key={viewField.field.id}
                 className="border border-border bg-muted/50 px-2 py-1.5 text-left align-bottom font-semibold"
+                style={{ minWidth: viewField.width }}
               >
                 {viewField.field.name}
               </th>
