@@ -52,6 +52,12 @@ const TableViewMobile = lazy(() =>
     (module) => ({ default: module.TableViewMobile })
   )
 );
+// The table drawn as a plain document table, when the view asks for it.
+const TableViewPlain = lazy(() =>
+  import('@colanode/ui/components/databases/tables/table-view-plain').then(
+    (module) => ({ default: module.TableViewPlain })
+  )
+);
 const BoardView = lazy(() =>
   import('@colanode/ui/components/databases/boards/board-view').then(
     (module) => ({ default: module.BoardView })
@@ -157,6 +163,7 @@ export const View = ({ view }: ViewProps) => {
         timeline: view.timeline,
         conditionalColors: view.conditionalColors ?? [],
         zebra: view.zebra ?? false,
+        plain: view.plain ?? false,
         summaries: view.summaries ?? {},
         nameWidth: view.nameWidth ?? getDefaultNameWidth(),
         isSearchBarOpened: isSearchBarOpened || openedFieldFilters.length > 0,
@@ -441,7 +448,15 @@ export const View = ({ view }: ViewProps) => {
       <div className="w-full h-full group/database">
         <Suspense fallback={<ViewSkeleton />}>
           {match(view.layout)
-            .with('table', () => (isMobile ? <TableViewMobile /> : <TableView />))
+            .with('table', () =>
+              isMobile ? (
+                <TableViewMobile />
+              ) : view.plain ? (
+                <TableViewPlain />
+              ) : (
+                <TableView />
+              )
+            )
             .with('board', () => <BoardView />)
             .with('calendar', () => <CalendarView />)
             .with('gallery', () => <GalleryView />)

@@ -5,6 +5,7 @@ import {
   ChartPie,
   Check,
   Columns,
+  FileText,
   Filter,
   LayoutGrid,
   List,
@@ -265,6 +266,35 @@ export const ViewSettingsPopover = ({
                     <Rows3 className="size-4" />
                     <span className="flex-1">Alternating row colours</span>
                     {view.zebra && <Check className="size-4" />}
+                  </button>
+                )}
+                {view.layout === 'table' && (
+                  <button
+                    type="button"
+                    data-testid="view-plain-toggle"
+                    className="flex w-full cursor-pointer flex-row items-center gap-1 rounded-md p-0.5 text-left hover:bg-accent"
+                    onClick={() => {
+                      const nodes = workspace.collections.nodes;
+                      if (!nodes.has(view.id)) {
+                        return;
+                      }
+                      nodes.update(view.id, (draft) => {
+                        if (draft.type !== 'database_view') {
+                          return;
+                        }
+                        draft.plain = !(draft.plain ?? false);
+                      });
+                    }}
+                  >
+                    <FileText className="size-4" />
+                    <span className="flex flex-1 flex-col">
+                      <span>Plain table</span>
+                      <span className="text-xs text-muted-foreground">
+                        Every value in full, read-only, like a table in a
+                        document
+                      </span>
+                    </span>
+                    {view.plain && <Check className="size-4" />}
                   </button>
                 )}
                 <button

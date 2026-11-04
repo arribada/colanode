@@ -35,6 +35,8 @@ interface DatabaseViewContext {
   conditionalColors: DatabaseViewConditionalColorAttributes[];
   nameWidth: number;
   zebra: boolean;
+  // Table layout drawn as a plain read-only document table.
+  plain: boolean;
   // Per-column summary footer choices, keyed by field id (or the special 'name'
   // id). Values are SummaryKind strings. Empty when no column has a summary.
   summaries: Record<string, string>;
