@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 
-import { getIdType, IdType } from '@colanode/core';
+import { DocumentContent, getIdType, IdType } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { CreateNodeTombstone } from '@colanode/server/data/schema';
 import { JobHandler } from '@colanode/server/jobs';
@@ -35,7 +35,16 @@ export const nodeCleanHandler: JobHandler<NodeCleanInput> = async (input) => {
   await cleanNodeFiles([input.nodeId]);
 
   if (input.parentId) {
-    await cleanNodeFromDocument(input);
+    // The parent edit must never block the children cleanup below: when it
+    // threw, the job sat in the failed set with nothing cleaned.
+    try {
+      await cleanNodeFromDocument(input);
+    } catch (error) {
+      logger.warn(
+        error,
+        `Could not remove ${input.nodeId} from its parent document`
+      );
+    }
   }
 
   let hasMore = true;
@@ -202,13 +211,23 @@ const cleanNodeFromDocument = async (input: NodeCleanInput) => {
     documentId: input.parentId,
     userId: input.userId,
     workspaceId: input.workspaceId,
-    updater: (content) => {
-      if (!content.blocks[input.nodeId]) {
-        return content;
-      }
-
-      delete content.blocks[input.nodeId];
-      return content;
-    },
+    updater: (content) => withoutBlock(content, input.nodeId),
   });
+};
+
+// A page that was imported or never opened has no Yjs log yet: replaying its
+// updates gives `{}`, so `content.blocks` is undefined and indexing it threw.
+// Null is the updater's "nothing to write" answer, which updateDocument turns
+// into a plain false instead of an exception.
+export const withoutBlock = (
+  content: DocumentContent,
+  nodeId: string
+): DocumentContent | null => {
+  const blocks = (content as Partial<DocumentContent>).blocks;
+  if (!blocks || !blocks[nodeId]) {
+    return null;
+  }
+
+  delete blocks[nodeId];
+  return content;
 };
