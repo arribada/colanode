@@ -106,6 +106,24 @@ const buildContextNote = (input: {
 
 const RETRY_ATTEMPTS = 3;
 
+// A reasoning model served through the OpenAI-compatible endpoint (gpt-oss on
+// Groq) answers each step with reasoning parts, and the SDK sends them back as
+// `reasoning_content` on the assistant turn of the next step, which Groq
+// rejects ("property 'reasoning_content' is unsupported"). Every tool loop
+// therefore died at its second step, retried into the rate limit and came out
+// as a 500. The reasoning of a finished step is not needed to go on: drop it.
+export const withoutReasoningParts = (
+  messages: ModelMessage[]
+): ModelMessage[] =>
+  messages.map((message) =>
+    message.role === 'assistant' && Array.isArray(message.content)
+      ? {
+          ...message,
+          content: message.content.filter((part) => part.type !== 'reasoning'),
+        }
+      : message
+  );
+
 // Free / OpenAI-compatible models (e.g. Groq llama) intermittently fail the
 // tool-calling loop, which surfaced as a hard 500 ("the AI agent failed")
 // roughly half the time. Retry the tool run while NOTHING has executed yet (a
@@ -126,7 +144,15 @@ const generateAgentAnswer = async (
       ...(base.messages
         ? { messages: base.messages }
         : { prompt: base.prompt ?? '' }),
-      ...(withTools ? { tools, stopWhen: stepCountIs(MAX_STEPS) } : {}),
+      ...(withTools
+        ? {
+            tools,
+            stopWhen: stepCountIs(MAX_STEPS),
+            prepareStep: ({ messages }) => ({
+              messages: withoutReasoningParts(messages),
+            }),
+          }
+        : {}),
       maxOutputTokens: MAX_OUTPUT_TOKENS,
     });
 
