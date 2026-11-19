@@ -51,6 +51,11 @@ export const FileNode = Node.create<FileNodeOptions>({
       caption: {
         default: null,
       },
+      // Where the picture sits in the line: 'center' | 'right'; null is the
+      // flow (left).
+      align: {
+        default: null,
+      },
     };
   },
   renderHTML({ HTMLAttributes }) {

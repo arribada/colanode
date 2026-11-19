@@ -171,13 +171,22 @@ const layoutImages = (doc: Document, fit: ImageFit) => {
     // on: a picture planned for a full landscape page printed at 231 mm of the
     // 273 mm available. The frame is given the whole width and the image is
     // centred inside it instead.
+    // A picture the author put at the left or the right stays there on paper;
+    // one with no placement is centred, as before.
+    const placement = img.closest('figure')?.getAttribute('data-align');
+    const alignItems =
+      placement === 'left'
+        ? 'flex-start'
+        : placement === 'right'
+          ? 'flex-end'
+          : 'center';
     let frame = img.parentElement;
     while (frame && frame !== topLevelBlock(img)) {
       frame.style.width = '100%';
       frame.style.maxWidth = '100%';
       frame.style.marginLeft = '0';
       frame.style.marginRight = '0';
-      frame.style.alignItems = 'center';
+      frame.style.alignItems = alignItems;
       frame = frame.parentElement;
     }
 

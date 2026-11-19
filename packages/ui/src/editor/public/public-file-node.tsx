@@ -21,6 +21,19 @@ const PublicFileView = ({ node, extension }: NodeViewProps) => {
   const id = node.attrs.id as string | null;
   const { token, imageKey } = extension.options as PublicFileOptions;
   const [failed, setFailed] = useState(false);
+  // The size and placement the author chose, the same way the editor draws
+  // them: a width in px, and the picture in the flow, centred, or at the right.
+  const width =
+    typeof node.attrs.width === 'number' && node.attrs.width > 0
+      ? (node.attrs.width as number)
+      : null;
+  const align = node.attrs.align as string | null;
+  const justify =
+    align === 'center'
+      ? 'justify-center'
+      : align === 'right'
+        ? 'justify-end'
+        : 'justify-start';
 
   if (!id || !token) {
     return null;
@@ -29,7 +42,7 @@ const PublicFileView = ({ node, extension }: NodeViewProps) => {
   const url = fileUrl(token, id, imageKey);
 
   return (
-    <NodeViewWrapper className="my-3">
+    <NodeViewWrapper className={`my-3 flex ${justify}`}>
       {failed ? (
         <a
           href={url}
@@ -47,6 +60,7 @@ const PublicFileView = ({ node, extension }: NodeViewProps) => {
           alt=""
           loading="lazy"
           className="max-w-full rounded-md"
+          style={width ? { width: `${width}px` } : undefined}
           onError={() => setFailed(true)}
         />
       )}
@@ -65,6 +79,12 @@ export const PublicFileNode = Node.create<PublicFileOptions>({
   addAttributes() {
     return {
       id: {
+        default: null,
+      },
+      width: {
+        default: null,
+      },
+      align: {
         default: null,
       },
     };

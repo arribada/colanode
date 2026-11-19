@@ -6,6 +6,7 @@ import TextNode from '@tiptap/extension-text';
 import UnderlineMark from '@tiptap/extension-underline';
 
 import { AutoJoiner } from '@colanode/ui/editor/extensions/auto-joiner';
+import { BlockMoveExtension } from '@colanode/ui/editor/extensions/block-move';
 import { BlockquoteNode } from '@colanode/ui/editor/extensions/blockquote';
 import { BookmarkNode } from '@colanode/ui/editor/extensions/bookmark';
 import { BulletListNode } from '@colanode/ui/editor/extensions/bullet-list';
@@ -146,6 +147,7 @@ export {
   AutoJoiner,
   MentionExtension,
   TextAlignExtension,
+  BlockMoveExtension,
   PlaneIssueLinkExtension,
   HardBreakNode,
   ParserExtension,

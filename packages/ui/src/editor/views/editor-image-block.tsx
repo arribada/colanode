@@ -2,7 +2,18 @@
 // ABOUTME: caption that carries a live, auto-updating "Figure N" number.
 import { type NodeViewProps } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { Captions, CaptionsOff, Copy, Download, Maximize2 } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Captions,
+  CaptionsOff,
+  Check,
+  Copy,
+  Download,
+  Maximize2,
+  Scaling,
+} from 'lucide-react';
 import { Resizable } from 're-resizable';
 import { useState } from 'react';
 
@@ -12,15 +23,16 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@colanode/ui/components/ui/context-menu';
 import { useWorkspace } from '@colanode/ui/contexts/workspace';
+import { CaptionField } from '@colanode/ui/editor/views/caption-field';
 import {
   MediaLightbox,
   copyPicture,
 } from '@colanode/ui/editor/views/media-lightbox';
-import { CaptionField } from '@colanode/ui/editor/views/caption-field';
 import { useFileDownload } from '@colanode/ui/hooks/use-file-download';
 import { useLiveQuery } from '@colanode/ui/hooks/use-live-query';
 import { imageUrlToPng } from '@colanode/ui/lib/image-export';
@@ -38,6 +50,45 @@ interface EditorImageBlockProps {
 const DEFAULT_WIDTH = 420;
 const MIN_WIDTH = 120;
 const MAX_WIDTH = 900;
+
+export type ImageAlign = 'left' | 'center' | 'right';
+
+export const IMAGE_ALIGNMENTS: {
+  value: ImageAlign;
+  label: string;
+  icon: typeof AlignLeft;
+}[] = [
+  { value: 'left', label: 'Align left', icon: AlignLeft },
+  { value: 'center', label: 'Align center', icon: AlignCenter },
+  { value: 'right', label: 'Align right', icon: AlignRight },
+];
+
+// Width presets, so a picture can be sized in one click instead of dragged.
+// "Full width" is the column the editor draws in, capped like the handle.
+export const IMAGE_SIZES: { key: string; label: string; width: number | 'full' }[] = [
+  { key: 'small', label: 'Small', width: 320 },
+  { key: 'medium', label: 'Medium', width: 480 },
+  { key: 'large', label: 'Large', width: 720 },
+  { key: 'full', label: 'Full width', width: 'full' },
+];
+
+export const readImageAlign = (value: unknown): ImageAlign =>
+  value === 'center' || value === 'right' ? value : 'left';
+
+// The stored value: the flow (left) is stored as nothing, like text alignment.
+export const imageAlignAttr = (value: ImageAlign): ImageAlign | null =>
+  value === 'left' ? null : value;
+
+export const alignmentClass = (align: ImageAlign): string | false =>
+  align === 'center' ? 'mx-auto' : align === 'right' && 'ml-auto';
+
+export const presetWidth = (
+  preset: number | 'full',
+  editorWidth: number
+): number =>
+  preset === 'full'
+    ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(editorWidth)))
+    : preset;
 
 export const EditorImageBlock = ({
   file,
@@ -63,6 +114,13 @@ export const EditorImageBlock = ({
       : DEFAULT_WIDTH;
   const caption = (node.attrs.caption as string | null | undefined) ?? null;
   const hasCaption = caption !== null;
+  const align = readImageAlign(node.attrs.align);
+  const setAlign = (value: ImageAlign) =>
+    updateAttributes({ align: imageAlignAttr(value) });
+  const setSize = (preset: number | 'full') =>
+    updateAttributes({
+      width: presetWidth(preset, editor.view.dom.clientWidth),
+    });
   const editable = editor.isEditable;
   // Double-click opens the image full size; the right-click menu can also copy
   // it as a PNG for other apps (Ctrl+C keeps copying the block, so pasting it
@@ -109,7 +167,11 @@ export const EditorImageBlock = ({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <figure
-          className="group/img my-2 flex w-fit max-w-full flex-col gap-1"
+          className={cn(
+            'group/img my-2 flex w-fit max-w-full flex-col gap-1',
+            alignmentClass(align)
+          )}
+          data-align={align}
           contentEditable={false}
         >
           <Resizable
@@ -196,6 +258,9 @@ export const EditorImageBlock = ({
               </span>
               {editable ? (
                 <CaptionField
+                  // The field appears because the author just asked for a
+                  // caption: the cursor belongs in it.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus={caption === ''}
                   value={caption ?? ''}
                   onChange={(value) => updateAttributes({ caption: value })}
@@ -249,6 +314,44 @@ export const EditorImageBlock = ({
             <Captions className="size-4" />
             Add caption
           </ContextMenuItem>
+        )}
+        {editable && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuLabel className="text-xs text-muted-foreground">
+              Placement
+            </ContextMenuLabel>
+            {IMAGE_ALIGNMENTS.map((option) => (
+              <ContextMenuItem
+                key={option.value}
+                data-testid={`image-align-${option.value}`}
+                onClick={() => setAlign(option.value)}
+                className="flex items-center gap-2"
+              >
+                <option.icon className="size-4" />
+                {option.label}
+                {align === option.value && <Check className="ml-auto size-4" />}
+              </ContextMenuItem>
+            ))}
+            <ContextMenuSeparator />
+            <ContextMenuLabel className="text-xs text-muted-foreground">
+              Size
+            </ContextMenuLabel>
+            {IMAGE_SIZES.map((option) => (
+              <ContextMenuItem
+                key={option.key}
+                data-testid={`image-size-${option.key}`}
+                onClick={() => setSize(option.width)}
+                className="flex items-center gap-2"
+              >
+                <Scaling className="size-4" />
+                {option.label}
+                {option.width !== 'full' && option.width === width && (
+                  <Check className="ml-auto size-4" />
+                )}
+              </ContextMenuItem>
+            ))}
+          </>
         )}
       </ContextMenuContent>
       {url && (

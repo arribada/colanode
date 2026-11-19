@@ -3,6 +3,12 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { NodeSelection } from '@tiptap/pm/state';
 import { Editor } from '@tiptap/react';
 import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  ArrowDown,
+  ArrowUp,
   Minus,
   Baseline,
   Check,
@@ -52,12 +58,20 @@ import {
 import { openAiPrompt } from '@colanode/ui/editor/ai/ai-prompt';
 import { columnChildDepth } from '@colanode/ui/editor/extensions/columns-drag';
 import {
+  TEXT_ALIGN_TYPES,
+  type TextAlignValue,
+} from '@colanode/ui/editor/extensions/text-align';
+import {
   blockBelow,
   innerHandleTarget,
   LIST_ITEM_TYPES,
   PathStep,
 } from '@colanode/ui/editor/menus/block-target';
 import { DIVIDER_VARIANTS } from '@colanode/ui/editor/views/divider';
+import {
+  imageAlignAttr,
+  readImageAlign,
+} from '@colanode/ui/editor/views/editor-image-block';
 import { editorColors } from '@colanode/ui/lib/editor';
 import { cn } from '@colanode/ui/lib/utils';
 
@@ -70,6 +84,19 @@ const HEADING_CHOICES = [
   { node: 'heading4', label: 'Heading 4', icon: Heading4, preview: 'text-sm font-medium' },
   { node: 'heading5', label: 'Heading 5', icon: Heading5, preview: 'text-xs font-medium' },
 ] as const;
+
+// How a block can be placed in the line. A picture takes the first three; a
+// text block all four.
+const ALIGN_CHOICES: {
+  value: TextAlignValue;
+  label: string;
+  icon: typeof AlignLeft;
+}[] = [
+  { value: 'left', label: 'Left', icon: AlignLeft },
+  { value: 'center', label: 'Center', icon: AlignCenter },
+  { value: 'right', label: 'Right', icon: AlignRight },
+  { value: 'justify', label: 'Justify', icon: AlignJustify },
+];
 
 interface ActionMenuProps {
   editor: Editor | null;
@@ -663,6 +690,59 @@ export const ActionMenu = ({
     chain.focus().run();
   };
 
+  // Move the hovered block one step among its siblings, the same move as
+  // Alt+Arrow, for whoever would rather not drag.
+  const canMove = (direction: 'up' | 'down'): boolean => {
+    if (
+      menuState.pos === undefined ||
+      menuState.pos >= editor.state.doc.content.size
+    ) {
+      return false;
+    }
+    const $pos = editor.state.doc.resolve(menuState.pos);
+    const index = $pos.index();
+    return direction === 'up' ? index > 0 : index < $pos.parent.childCount - 1;
+  };
+  const moveHovered = (direction: 'up' | 'down') => {
+    if (menuState.pos === undefined) {
+      return;
+    }
+    editor.chain().focus().moveBlockAt(menuState.pos, direction).run();
+  };
+
+  // Placement: a text block takes the toolbar's alignment, a picture its own
+  // placement attribute (left, centred, right).
+  const hoveredType = menuState.pmNode?.type.name ?? '';
+  const isTextBlock = TEXT_ALIGN_TYPES.includes(hoveredType);
+  const isFile = hoveredType === 'file';
+  const currentAlign: string = isFile
+    ? readImageAlign(menuState.pmNode?.attrs.align)
+    : ((menuState.pmNode?.attrs.textAlign as string | null | undefined) ??
+      'left');
+  const alignHovered = (value: TextAlignValue) => {
+    if (menuState.pos === undefined) {
+      return;
+    }
+    if (isFile) {
+      if (value === 'justify') {
+        return;
+      }
+      editor
+        .chain()
+        .focus()
+        .setNodeSelection(menuState.pos)
+        .updateAttributes('file', { align: imageAlignAttr(value) })
+        .run();
+      return;
+    }
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(menuState.pos + 1)
+      .setTextAlign(value)
+      .run();
+  };
+
   // Comment on the whole block: select its text, reuse an existing thread if the
   // block already carries a comment mark, else open a fresh one, then hand the
   // thread id to the page's comments panel (same entry point as the toolbar).
@@ -839,6 +919,58 @@ export const ActionMenu = ({
             }}
           >
             <DropdownMenuLabel>Block</DropdownMenuLabel>
+            <DropdownMenuItem
+              data-testid="editor-action-menu-move-up"
+              disabled={!canMove('up')}
+              onClick={() => moveHovered('up')}
+            >
+              <ArrowUp className="size-4" />
+              Move up
+              <span className="ml-auto text-xs text-muted-foreground">
+                Alt+↑
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="editor-action-menu-move-down"
+              disabled={!canMove('down')}
+              onClick={() => moveHovered('down')}
+            >
+              <ArrowDown className="size-4" />
+              Move down
+              <span className="ml-auto text-xs text-muted-foreground">
+                Alt+↓
+              </span>
+            </DropdownMenuItem>
+            {(isTextBlock || isFile) && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger
+                  data-testid="editor-action-menu-align"
+                  className="flex items-center gap-2"
+                >
+                  <AlignLeft className="size-4 text-muted-foreground" />
+                  Align
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-40">
+                  {ALIGN_CHOICES.filter(
+                    (choice) => !isFile || choice.value !== 'justify'
+                  ).map((choice) => (
+                    <DropdownMenuItem
+                      key={choice.value}
+                      data-testid={`editor-action-menu-align-${choice.value}`}
+                      onClick={() => alignHovered(choice.value)}
+                      className="flex items-center gap-2"
+                    >
+                      <choice.icon className="size-4 text-muted-foreground" />
+                      {choice.label}
+                      {currentAlign === choice.value && (
+                        <Check className="ml-auto size-4" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            <DropdownMenuSeparator />
             {canTurnInto && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="flex items-center gap-2">

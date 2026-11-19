@@ -11,7 +11,14 @@ export const TEXT_ALIGNMENTS: TextAlignValue[] = [
   'justify',
 ];
 
-const TEXT_ALIGN_TYPES = ['paragraph', 'heading1', 'heading2', 'heading3', 'heading4', 'heading5'];
+export const TEXT_ALIGN_TYPES = [
+  'paragraph',
+  'heading1',
+  'heading2',
+  'heading3',
+  'heading4',
+  'heading5',
+];
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
