@@ -634,10 +634,58 @@ const RUNS_ON_BLOCK_TYPES = new Set([
 // because the markdown had nowhere to say how wide it was.
 const imageMarkdown = (block: Block): string => {
   const width = block.attrs?.width;
-  return typeof width === 'number' && width > 0
-    ? `![](file:${block.id}){width=${Math.round(width)}}`
-    : `![](file:${block.id})`;
+  const align = block.attrs?.align;
+  const caption = block.attrs?.caption;
+  const parts: string[] = [];
+  if (typeof width === 'number' && width > 0) {
+    parts.push(`width=${Math.round(width)}`);
+  }
+  // Its placement travels the same way: {align=center} or {align=right}; left
+  // is the flow and is not written.
+  if (align === 'center' || align === 'right') {
+    parts.push(`align=${align}`);
+  }
+  // The caption is the alt text. It had nowhere to go, so a page with one
+  // captioned picture could no longer be replaced without losing it. An empty
+  // caption (the field added, nothing typed) is written as none.
+  const alt =
+    typeof caption === 'string' && caption.length > 0
+      ? escapeImageAlt(caption)
+      : '';
+  return parts.length > 0
+    ? `![${alt}](file:${block.id}){${parts.join(' ')}}`
+    : `![${alt}](file:${block.id})`;
 };
+
+// `]` and `\` inside a caption are escaped so the alt text still ends at its
+// bracket; a newline becomes a space, a caption is one line.
+export const escapeImageAlt = (caption: string): string =>
+  caption.replace(/[\\\]]/g, (c) => `\\${c}`).replace(/\s*\n\s*/g, ' ');
+
+export const unescapeImageAlt = (alt: string): string =>
+  alt.replace(/\\([\\\]])/g, '$1');
+
+// The alt text and the {…} after an image link, as attrs for the file block:
+// the caption, width=N and align=center|right in any order. Nothing
+// recognised means no attrs.
+export const imageMarkdownAttrs = (
+  alt: string | undefined,
+  meta: string | undefined
+): { width?: number; align?: 'center' | 'right'; caption?: string } => {
+  const width = meta ? /(?:^|\s)width=(\d+)(?:\s|$)/.exec(meta) : null;
+  const align = meta ? /(?:^|\s)align=(center|right)(?:\s|$)/.exec(meta) : null;
+  const caption = alt ? unescapeImageAlt(alt).trim() : '';
+  return {
+    ...(width ? { width: Number(width[1]) } : {}),
+    ...(align ? { align: align[1] as 'center' | 'right' } : {}),
+    ...(caption.length > 0 ? { caption } : {}),
+  };
+};
+
+// An image link: ![alt](file:<id>) with an optional {…} of settings. The alt
+// may hold escaped brackets.
+const IMAGE_LINK =
+  /^!\[((?:\\.|[^\]\\])*)\]\(file:([0-9a-z]{20,})\)(?:\{([^}]*)\})?/;
 
 export const richTextToMarkdown = (
   documentId: string,
@@ -939,7 +987,9 @@ const EMPTY_PARAGRAPH = '<p></p>';
 const paragraphContent = (text: string): BlockLeaf[] =>
   text.trim() === EMPTY_PARAGRAPH ? [] : parseInline(text);
 
-type CellSegment = { fileId: string; width?: number } | { text: string };
+type CellSegment =
+  | { fileId: string; width?: number; caption?: string }
+  | { text: string };
 
 // The inverse of cellText in richTextToMarkdown: a cell written as <p>…</p>
 // and ![](file:…) segments, and nothing else, becomes those blocks. Any
@@ -955,14 +1005,13 @@ const cellSegments = (text: string): CellSegment[] | null => {
       at += 1;
       continue;
     }
-    const image =
-      /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)(?:\{width=(\d+)\})?/.exec(
-        text.slice(at, at + 256)
-      );
+    const image = IMAGE_LINK.exec(text.slice(at, at + 256));
     if (image) {
+      const attrs = imageMarkdownAttrs(image[1], image[3]);
       segments.push({
-        fileId: image[1] ?? '',
-        ...(image[2] ? { width: Number(image[2]) } : {}),
+        fileId: image[2] ?? '',
+        ...(attrs.width ? { width: attrs.width } : {}),
+        ...(attrs.caption ? { caption: attrs.caption } : {}),
       });
       at += image[0].length;
       continue;
@@ -1379,7 +1428,16 @@ const parseBlockLines = (
                 type: 'file',
                 parentId: cell.id,
                 index,
-                ...(segment.width ? { attrs: { width: segment.width } } : {}),
+                ...(segment.width || segment.caption
+                  ? {
+                      attrs: {
+                        ...(segment.width ? { width: segment.width } : {}),
+                        ...(segment.caption
+                          ? { caption: segment.caption }
+                          : {}),
+                      },
+                    }
+                  : {}),
               };
             } else {
               const paragraph = newBlock('paragraph', cell.id, index);
@@ -1401,17 +1459,15 @@ const parseBlockLines = (
     // An uploaded image is placed by writing ![caption](file:<id>) on its own
     // line. The block's id must BE the file node id — file blocks carry no
     // attrs at all, which is the one detail that makes this work.
-    const image =
-      /^!\[[^\]]*\]\(file:([0-9a-z]{20,})\)(?:\{width=(\d+)\})?$/.exec(
-        trimmed
-      );
-    if (image && image[1]) {
-      blocks[image[1]] = {
-        id: image[1],
+    const image = IMAGE_LINK.exec(trimmed);
+    if (image && image[2] && image[0].length === trimmed.length) {
+      const attrs = imageMarkdownAttrs(image[1], image[3]);
+      blocks[image[2]] = {
+        id: image[2],
         type: 'file',
         parentId,
         index: nextIndex(),
-        ...(image[2] ? { attrs: { width: Number(image[2]) } } : {}),
+        ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
       };
       i += 1;
       continue;

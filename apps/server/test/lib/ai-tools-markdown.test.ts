@@ -1452,13 +1452,99 @@ describe('images', () => {
     expect(block!.parentId).toBe(DOC);
   });
 
-  it('round-trips a file block', () => {
+  it('round-trips a file block, its alt text becoming the caption', () => {
     const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
-    const md = richTextToMarkdown(DOC, {
+    const blocks = markdownToBlocks(DOC, `![x](file:${id})`);
+    expect(blocks[id]!.attrs).toEqual({ caption: 'x' });
+    const md = richTextToMarkdown(DOC, { type: 'rich_text', blocks });
+    expect(md.trim()).toBe(`![x](file:${id})`);
+  });
+
+  it('round-trips the width and the placement of an image', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    const blocks = markdownToBlocks(
+      DOC,
+      `![](file:${id}){width=300 align=center}`
+    );
+    expect(blocks[id]!.attrs).toEqual({ width: 300, align: 'center' });
+    const md = richTextToMarkdown(DOC, { type: 'rich_text', blocks });
+    expect(md.trim()).toBe(`![](file:${id}){width=300 align=center}`);
+  });
+
+  it('reads a placement on its own, in either order, and never writes left', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    expect(
+      markdownToBlocks(DOC, `![](file:${id}){align=right}`)[id]!.attrs
+    ).toEqual({ align: 'right' });
+    expect(
+      markdownToBlocks(DOC, `![](file:${id}){align=center width=200}`)[id]!
+        .attrs
+    ).toEqual({ width: 200, align: 'center' });
+    const left = richTextToMarkdown(DOC, {
       type: 'rich_text',
-      blocks: markdownToBlocks(DOC, `![x](file:${id})`),
+      blocks: {
+        [id]: {
+          id,
+          type: 'file',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { width: 120, align: 'left' },
+        },
+      },
     });
-    expect(md.trim()).toBe(`![](file:${id})`);
+    expect(left.trim()).toBe(`![](file:${id}){width=120}`);
+  });
+
+  it('keeps a caption with brackets and a backslash, on one line', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    const written = richTextToMarkdown(DOC, {
+      type: 'rich_text',
+      blocks: {
+        [id]: {
+          id,
+          type: 'file',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { caption: 'Board [rev B] \\ top', width: 300 },
+        },
+      },
+    }).trim();
+    expect(written).toBe(`![Board [rev B\\] \\\\ top](file:${id}){width=300}`);
+    expect(markdownToBlocks(DOC, written)[id]!.attrs).toEqual({
+      caption: 'Board [rev B] \\ top',
+      width: 300,
+    });
+  });
+
+  it('writes an empty caption as none and flags no loss for it', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        [id]: {
+          id,
+          type: 'file',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { caption: '' },
+        },
+      },
+    };
+    expect(richTextToMarkdown(DOC, content).trim()).toBe(`![](file:${id})`);
+    expect(lossyOnReplace(DOC, content)).toEqual([]);
+  });
+
+  it('loses nothing of a captioned, sized, placed image on a replace', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    expect(
+      lossyOnReplace(DOC, {
+        type: 'rich_text',
+        blocks: markdownToBlocks(
+          DOC,
+          `![Assembly step 3](file:${id}){width=300 align=right}`
+        ),
+      })
+    ).toEqual([]);
   });
 
   it('no longer leaves a stray ! for an image it cannot display', () => {

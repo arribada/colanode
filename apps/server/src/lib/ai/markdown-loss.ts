@@ -78,7 +78,7 @@ const EDITOR_COLOURS = new Set([
 const CARRIED_ATTRS: Record<string, ReadonlySet<string>> = {
   // Written as {width=N} after the image, and as a <!-- colwidths --> line
   // above the table; checked below for values that cannot be written.
-  file: new Set(['width']),
+  file: new Set(['width', 'align', 'caption']),
   tableHeader: new Set(['colwidth']),
   tableCell: new Set(['colwidth']),
   codeBlock: new Set(['language']),
@@ -258,6 +258,18 @@ const namedLosses = (
           !(typeof value === 'number' && Number.isInteger(value) && value > 0)
         ) {
           found.add('image sizes');
+        }
+        if (
+          block.type === 'file' &&
+          key === 'align' &&
+          value !== 'left' &&
+          value !== 'center' &&
+          value !== 'right'
+        ) {
+          found.add('image placement');
+        }
+        if (block.type === 'file' && key === 'caption' && typeof value !== 'string') {
+          found.add('image captions');
         }
         if (
           (block.type === 'tableHeader' || block.type === 'tableCell') &&
@@ -470,7 +482,11 @@ const comparableTree = (
                     block.type === 'codeBlock' &&
                     key === 'language' &&
                     value === 'plaintext'
-                  )
+                  ) &&
+                  // An empty caption and a left placement are written as
+                  // nothing and read back as nothing: no loss.
+                  !(block.type === 'file' && key === 'caption' && value === '') &&
+                  !(block.type === 'file' && key === 'align' && value === 'left')
               )
               .sort(([a], [b]) => compareString(a, b));
             return `(${block.type}${id}${attrs.length ? JSON.stringify(attrs) : ''}|${comparableText(block)}|${write(block.id, depth + 1)})`;
