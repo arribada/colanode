@@ -94,6 +94,11 @@ const CARRIED_ATTRS: Record<string, ReadonlySet<string>> = {
 const isEmptyArray = (value: unknown): boolean =>
   Array.isArray(value) && value.length === 0;
 
+// A caption as the markdown writes it: on one line, without the spaces
+// around it. What is written, and what is compared after a round trip.
+export const canonicalImageCaption = (value: unknown): string =>
+  typeof value === 'string' ? value.replace(/\s*\n\s*/g, ' ').trim() : '';
+
 // Attributes that are not written, and the values that mean "nothing set",
 // which lose nothing. Anything else set on them is named by its label.
 const UNCARRIED_ATTRS: Record<
@@ -485,8 +490,17 @@ const comparableTree = (
                   ) &&
                   // An empty caption and a left placement are written as
                   // nothing and read back as nothing: no loss.
-                  !(block.type === 'file' && key === 'caption' && value === '') &&
+                  !(
+                    block.type === 'file' &&
+                    key === 'caption' &&
+                    canonicalImageCaption(value) === ''
+                  ) &&
                   !(block.type === 'file' && key === 'align' && value === 'left')
+              )
+              .map(([key, value]): [string, unknown] =>
+                block.type === 'file' && key === 'caption'
+                  ? [key, canonicalImageCaption(value)]
+                  : [key, value]
               )
               .sort(([a], [b]) => compareString(a, b));
             return `(${block.type}${id}${attrs.length ? JSON.stringify(attrs) : ''}|${comparableText(block)}|${write(block.id, depth + 1)})`;

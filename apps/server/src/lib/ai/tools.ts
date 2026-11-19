@@ -59,7 +59,10 @@ import {
   parseInline,
   renderInline,
 } from '@colanode/server/lib/ai/markdown-inline';
-import { lostOnRoundTrip } from '@colanode/server/lib/ai/markdown-loss';
+import {
+  canonicalImageCaption,
+  lostOnRoundTrip,
+} from '@colanode/server/lib/ai/markdown-loss';
 import {
   loadImageFromBase64,
   loadImageFromUrl,
@@ -648,19 +651,16 @@ const imageMarkdown = (block: Block): string => {
   // The caption is the alt text. It had nowhere to go, so a page with one
   // captioned picture could no longer be replaced without losing it. An empty
   // caption (the field added, nothing typed) is written as none.
-  const alt =
-    typeof caption === 'string' && caption.length > 0
-      ? escapeImageAlt(caption)
-      : '';
+  const alt = escapeImageAlt(canonicalImageCaption(caption));
   return parts.length > 0
     ? `![${alt}](file:${block.id}){${parts.join(' ')}}`
     : `![${alt}](file:${block.id})`;
 };
 
 // `]` and `\` inside a caption are escaped so the alt text still ends at its
-// bracket; a newline becomes a space, a caption is one line.
+// bracket.
 export const escapeImageAlt = (caption: string): string =>
-  caption.replace(/[\\\]]/g, (c) => `\\${c}`).replace(/\s*\n\s*/g, ' ');
+  caption.replace(/[\\\]]/g, (c) => `\\${c}`);
 
 export const unescapeImageAlt = (alt: string): string =>
   alt.replace(/\\([\\\]])/g, '$1');

@@ -1534,6 +1534,26 @@ describe('images', () => {
     expect(lossyOnReplace(DOC, content)).toEqual([]);
   });
 
+  it('counts a caption with spaces around it or a line break as no loss', () => {
+    const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
+    const content = {
+      type: 'rich_text' as const,
+      blocks: {
+        [id]: {
+          id,
+          type: 'file',
+          parentId: DOC,
+          index: 'a0',
+          attrs: { caption: ' positive joint\ninsulated. ' },
+        },
+      },
+    };
+    expect(richTextToMarkdown(DOC, content).trim()).toBe(
+      `![positive joint insulated.](file:${id})`
+    );
+    expect(lossyOnReplace(DOC, content)).toEqual([]);
+  });
+
   it('loses nothing of a captioned, sized, placed image on a replace', () => {
     const id = '01kz6nz23jsk9mv3ws0h6k28vnfi';
     expect(
