@@ -126,9 +126,11 @@ export const EditorImageBlock = ({
   // it as a PNG for other apps (Ctrl+C keeps copying the block, so pasting it
   // back in the wiki does not upload a second file).
   const [viewerOpen, setViewerOpen] = useState(false);
-  // Set when "Add caption" was chosen: the menu then closes without pulling
-  // focus back to the editor, so the new caption field keeps the cursor.
+  // Set when "Add caption" was chosen. The field mounts while the menu still
+  // holds focus, so its own autofocus is lost; when the menu closes, focus is
+  // sent to the field instead of back to the editor.
   const keepCaptionFocusRef = useRef(false);
+  const figureRef = useRef<HTMLElement>(null);
   const copy = url ? () => copyPicture(() => imageUrlToPng(url)) : undefined;
   // Saved as the file that was uploaded, not as a re-encoded PNG, so a photo
   // keeps its original format and quality.
@@ -170,6 +172,7 @@ export const EditorImageBlock = ({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <figure
+          ref={figureRef}
           className={cn(
             'group/img my-2 flex w-fit max-w-full flex-col gap-1',
             alignmentClass(align)
@@ -282,6 +285,9 @@ export const EditorImageBlock = ({
           if (keepCaptionFocusRef.current) {
             keepCaptionFocusRef.current = false;
             event.preventDefault();
+            window.requestAnimationFrame(() => {
+              figureRef.current?.querySelector('textarea')?.focus();
+            });
           }
         }}
       >
