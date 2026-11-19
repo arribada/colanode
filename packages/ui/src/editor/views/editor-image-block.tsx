@@ -15,7 +15,7 @@ import {
   Scaling,
 } from 'lucide-react';
 import { Resizable } from 're-resizable';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { DownloadStatus, LocalFileNode } from '@colanode/client/types';
 import { FileStatus } from '@colanode/core';
@@ -126,6 +126,9 @@ export const EditorImageBlock = ({
   // it as a PNG for other apps (Ctrl+C keeps copying the block, so pasting it
   // back in the wiki does not upload a second file).
   const [viewerOpen, setViewerOpen] = useState(false);
+  // Set when "Add caption" was chosen: the menu then closes without pulling
+  // focus back to the editor, so the new caption field keeps the cursor.
+  const keepCaptionFocusRef = useRef(false);
   const copy = url ? () => copyPicture(() => imageUrlToPng(url)) : undefined;
   // Saved as the file that was uploaded, not as a re-encoded PNG, so a photo
   // keeps its original format and quality.
@@ -274,7 +277,14 @@ export const EditorImageBlock = ({
           )}
         </figure>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent
+        onCloseAutoFocus={(event) => {
+          if (keepCaptionFocusRef.current) {
+            keepCaptionFocusRef.current = false;
+            event.preventDefault();
+          }
+        }}
+      >
         {url && (
           <>
             <ContextMenuItem
@@ -308,7 +318,11 @@ export const EditorImageBlock = ({
           </ContextMenuItem>
         ) : (
           <ContextMenuItem
-            onClick={() => updateAttributes({ caption: '' })}
+            data-testid="image-add-caption"
+            onClick={() => {
+              keepCaptionFocusRef.current = true;
+              updateAttributes({ caption: '' });
+            }}
             className="flex items-center gap-2"
           >
             <Captions className="size-4" />

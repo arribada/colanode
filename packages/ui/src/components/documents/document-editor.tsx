@@ -162,6 +162,7 @@ import {
   Markdown,
   PresenceExtension,
   TextAlignExtension,
+  BlockMoveExtension,
   ReferenceListNode,
   setRemoteCarets,
   type RemoteCaret,
@@ -731,6 +732,7 @@ export const DocumentEditor = ({
         TableOfContentsNode,
         ReferenceListNode,
         TextAlignExtension,
+        BlockMoveExtension,
         BookmarkNode,
         ColumnsNode,
         ColumnNode,
@@ -900,7 +902,7 @@ export const DocumentEditor = ({
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       autofocus: autoFocus,
-      onUpdate: async ({ editor, transaction }) => {
+      onUpdate: async ({ transaction }) => {
         if (transaction.docChanged) {
           hasPendingChanges.current = true;
           debouncedSave();
