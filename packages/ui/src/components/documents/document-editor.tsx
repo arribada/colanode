@@ -44,6 +44,7 @@ import {
   InlineDatabaseCreateDialog,
   InlineDatabaseValues,
 } from '@colanode/ui/components/databases/inline-database-create-dialog';
+import { DocumentFindBar } from '@colanode/ui/components/documents/document-find-bar';
 import { DocumentReadingProgress } from '@colanode/ui/components/documents/document-reading-progress';
 import { DocumentToc } from '@colanode/ui/components/documents/document-toc';
 import { useLayout } from '@colanode/ui/contexts/layout';
@@ -163,6 +164,7 @@ import {
   PresenceExtension,
   TextAlignExtension,
   BlockMoveExtension,
+  FindExtension,
   ReferenceListNode,
   setRemoteCarets,
   type RemoteCaret,
@@ -175,6 +177,7 @@ import {
 } from '@colanode/ui/hooks/use-presence';
 import { getRandomSelectOptionColor } from '@colanode/ui/lib/databases';
 import { registerDocumentExporter } from '@colanode/ui/lib/document-export';
+import { FIND_HASH_PREFIX } from '@colanode/ui/lib/find-request';
 import { cn } from '@colanode/ui/lib/utils';
 import { getWorkspaceUserId } from '@colanode/ui/routes/utils';
 
@@ -405,6 +408,10 @@ export const DocumentEditor = ({
       return;
     }
 
+    // A find asked for by the search dialog is the find bar's, not a block.
+    if (window.location.hash.startsWith(FIND_HASH_PREFIX)) {
+      return;
+    }
     const blockId = window.location.hash.replace(/^#/, '');
     if (!blockId) {
       return;
@@ -491,6 +498,7 @@ export const DocumentEditor = ({
   const revisionRef = useRef(state?.revision ?? 0);
   const ydocRef = useRef<YDoc>(buildYDoc(state, updates));
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [viewReady, setViewReady] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [inlineDbModalOpen, setInlineDbModalOpen] = useState(false);
@@ -733,6 +741,7 @@ export const DocumentEditor = ({
         ReferenceListNode,
         TextAlignExtension,
         BlockMoveExtension,
+        FindExtension,
         BookmarkNode,
         ColumnsNode,
         ColumnNode,
@@ -1219,7 +1228,15 @@ export const DocumentEditor = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
+      {editor && viewReady && (
+        <DocumentFindBar
+          editor={editor}
+          nodeId={node.id}
+          canReplace={canEdit}
+          containerRef={rootRef}
+        />
+      )}
       <InlineDatabaseCreateDialog
         open={inlineDbModalOpen}
         onOpenChange={setInlineDbModalOpen}

@@ -327,3 +327,27 @@ th[data-valign='bottom'] {
   --viz-7: #9085e9;
   --viz-8: #e66767;
 }
+
+/* Find in page (FindExtension). Every match washed yellow, the current one
+   solid orange with an outline, so it stands out among dozens. Written here
+   rather than as Tailwind classes: decorations are class strings the
+   Tailwind scanner never sees. */
+.find-match {
+  background-color: rgba(250, 204, 21, 0.4);
+  border-radius: 2px;
+}
+
+.find-match-current {
+  background-color: rgba(249, 115, 22, 0.75);
+  box-shadow: 0 0 0 1px rgba(234, 88, 12, 0.9);
+  color: #111827;
+}
+
+.dark .find-match {
+  background-color: rgba(234, 179, 8, 0.35);
+}
+
+.dark .find-match-current {
+  background-color: rgba(249, 115, 22, 0.85);
+  color: #0b0b0b;
+}

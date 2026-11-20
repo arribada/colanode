@@ -29,6 +29,7 @@ import { DividerNode } from '@colanode/ui/editor/extensions/divider';
 import { DropcursorExtension } from '@colanode/ui/editor/extensions/dropcursor';
 import { EmbedNode } from '@colanode/ui/editor/extensions/embed';
 import { FileNode } from '@colanode/ui/editor/extensions/file';
+import { FindExtension } from '@colanode/ui/editor/extensions/find';
 import { FolderNode } from '@colanode/ui/editor/extensions/folder';
 import { HardBreakNode } from '@colanode/ui/editor/extensions/hard-break';
 import { HeadingEnhancementsExtension } from '@colanode/ui/editor/extensions/heading-enhancements';
@@ -148,6 +149,7 @@ export {
   MentionExtension,
   TextAlignExtension,
   BlockMoveExtension,
+  FindExtension,
   PlaneIssueLinkExtension,
   HardBreakNode,
   ParserExtension,
