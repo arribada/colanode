@@ -65,6 +65,21 @@ export const ViewQuickSearch = () => {
         className="w-28 bg-transparent text-sm outline-none placeholder:text-muted-foreground sm:w-40"
         data-testid="view-search-input"
       />
+      {view.searchText.trim().length > 0 && view.searchMatchIds !== null && (
+        <span
+          className="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+          title={`${view.searchMatchIds.length} ${
+            view.searchMatchIds.length === 1
+              ? 'record matches'
+              : 'records match'
+          } in this database`}
+          data-testid="view-search-count"
+        >
+          {view.searchMatchIds.length === 0
+            ? 'None'
+            : `${view.searchMatchIds.length} found`}
+        </span>
+      )}
       {view.searchText.length > 0 && (
         <button
           type="button"
