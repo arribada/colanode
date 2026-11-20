@@ -66,7 +66,7 @@ export const BoardNodeCardPicker = ({
     { enabled: debounced.trim().length > 0 }
   );
 
-  const results = (searchQuery.data ?? []).filter((node) =>
+  const results = (searchQuery.data?.results ?? []).filter((node) =>
     LINKABLE.includes(node.type)
   );
 

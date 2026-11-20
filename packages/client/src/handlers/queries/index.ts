@@ -10,9 +10,9 @@ import { MetadataListQueryHandler } from './apps/metadata-list';
 import { TabsListQueryHandler } from './apps/tabs-list';
 import { AvatarGetQueryHandler } from './avatars/avatar-get';
 import { DocumentGetQueryHandler } from './documents/document-get';
-import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
 import { DocumentServerUpdateGetQueryHandler } from './documents/document-server-update-get';
 import { DocumentServerUpdateListQueryHandler } from './documents/document-server-update-list';
+import { DocumentSnapshotGetQueryHandler } from './documents/document-snapshot-get';
 import { DocumentSnapshotListQueryHandler } from './documents/document-snapshot-list';
 import { DocumentStateGetQueryHandler } from './documents/document-state-get';
 import { DocumentUpdateContentQueryHandler } from './documents/document-update-content';
@@ -42,6 +42,7 @@ import { NodeNameMatchQueryHandler } from './nodes/node-name-match';
 import { NodePathListQueryHandler } from './nodes/node-path-list';
 import { NodeReactionsListQueryHandler } from './nodes/node-reaction-list';
 import { NodeSearchQueryHandler } from './nodes/node-search';
+import { NodeSearchPreviewQueryHandler } from './nodes/node-search-preview';
 import { NodeSnapshotGetQueryHandler } from './nodes/node-snapshot-get';
 import { NodeSnapshotListQueryHandler } from './nodes/node-snapshot-list';
 import { NodeTrashListQueryHandler } from './nodes/node-trash-list';
@@ -81,6 +82,7 @@ export const buildQueryHandlerMap = (app: AppService): QueryHandlerMap => {
     'node.reaction.list': new NodeReactionsListQueryHandler(app),
     'node.list': new NodeListQueryHandler(app),
     'node.search': new NodeSearchQueryHandler(app),
+    'node.search.preview': new NodeSearchPreviewQueryHandler(app),
     'node.mention.search': new NodeMentionSearchQueryHandler(app),
     'node.name.match': new NodeNameMatchQueryHandler(app),
     'node.path.list': new NodePathListQueryHandler(app),

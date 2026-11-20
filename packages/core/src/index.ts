@@ -32,6 +32,7 @@ export * from './types/mutations';
 export * from './synchronizers';
 export * from './lib/nodes';
 export * from './lib/texts';
+export * from './lib/search-text';
 export * from './lib/permissions';
 export * from './types/api';
 export * from './lib/debugger';

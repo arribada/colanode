@@ -44,6 +44,7 @@ export * from './apps/tabs-list';
 export * from './servers/server-list';
 export * from './nodes/node-list';
 export * from './nodes/node-search';
+export * from './nodes/node-search-preview';
 export * from './nodes/node-mention-search';
 export * from './nodes/node-name-match';
 export * from './nodes/node-path-list';

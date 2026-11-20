@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildFtsExclusionQuery,
   buildFtsMatchQuery,
+  buildFtsUnitQueries,
   buildSnippet,
   tokenizeSearchQuery,
 } from '@colanode/client/lib/fts';
+import { parseSearchQuery } from '@colanode/core';
 
 describe('tokenizeSearchQuery', () => {
   it('splits on whitespace and punctuation', () => {
@@ -47,6 +50,29 @@ describe('buildFtsMatchQuery', () => {
 
   it('applies a column filter when requested', () => {
     expect(buildFtsMatchQuery(['rec'], 'name')).toBe('name : ("rec"*)');
+  });
+});
+
+describe('buildFtsUnitQueries', () => {
+  it('builds one prefix unit per word and one exact unit per phrase', () => {
+    expect(
+      buildFtsUnitQueries(parseSearchQuery('tag "sea turtle" -draft'))
+    ).toEqual(['"sea turtle"', '"tag"*']);
+  });
+
+  it('restricts every unit to a column when asked', () => {
+    expect(buildFtsUnitQueries(parseSearchQuery('tag'), 'name')).toEqual([
+      'name : ("tag"*)',
+    ]);
+  });
+});
+
+describe('buildFtsExclusionQuery', () => {
+  it('joins excluded words with OR, each one whole', () => {
+    expect(buildFtsExclusionQuery(parseSearchQuery('a -draft -old'))).toBe(
+      '"draft" OR "old"'
+    );
+    expect(buildFtsExclusionQuery(parseSearchQuery('a'))).toBeNull();
   });
 });
 
