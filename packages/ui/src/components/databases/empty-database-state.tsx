@@ -1,6 +1,6 @@
 // ABOUTME: Shared empty-state for database views — an icon plus "New record",
 // ABOUTME: "New from template" and "Import CSV" actions instead of a bare label.
-import { Database, Plus, Upload } from 'lucide-react';
+import { Database, Plus, SearchX, Upload, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { ViewImportCsvDialog } from '@colanode/ui/components/databases/view-import-csv-dialog';
@@ -25,6 +25,42 @@ export const EmptyDatabaseState = ({ className }: EmptyDatabaseStateProps) => {
   const canCreate = database.canCreateRecord;
   const canImport = database.canCreateRecord && !database.isLocked;
 
+  // A search or a filter that keeps nothing is not an empty database: saying
+  // "No records yet" there sent people to create records that already exist.
+  const searchText = view.searchText.trim();
+  if (searchText.length > 0) {
+    return (
+      <div
+        className={cn(
+          'flex w-full flex-col items-center justify-center gap-3 p-10 text-center text-sm text-muted-foreground',
+          className
+        )}
+        data-testid="empty-database-search"
+      >
+        <SearchX className="size-8" />
+        <div className="flex flex-col gap-1">
+          <p className="font-medium text-foreground">
+            No records match “{searchText}”
+          </p>
+          <p>
+            The search looks at every record of this database, in its name and
+            in what its fields show.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => view.setSearchText('')}
+        >
+          <X className="size-4" />
+          Clear search
+        </Button>
+      </div>
+    );
+  }
+  const filtered = view.filters.length > 0;
+
   return (
     <div
       className={cn(
@@ -34,11 +70,17 @@ export const EmptyDatabaseState = ({ className }: EmptyDatabaseStateProps) => {
     >
       <Database className="size-8" />
       <div className="flex flex-col gap-1">
-        <p className="font-medium text-foreground">No records yet</p>
+        <p className="font-medium text-foreground">
+          {filtered ? 'No records match this view’s filters' : 'No records yet'}
+        </p>
         <p>
-          {canCreate
-            ? 'Create your first record, start from a template, or import a CSV.'
-            : 'This view has no records yet.'}
+          {filtered
+            ? canCreate
+              ? 'Change or remove a filter to see more, or add a record.'
+              : 'Change or remove a filter to see more.'
+            : canCreate
+              ? 'Create your first record, start from a template, or import a CSV.'
+              : 'This view has no records yet.'}
         </p>
       </div>
       {canCreate && (
