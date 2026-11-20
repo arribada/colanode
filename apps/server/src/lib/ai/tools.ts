@@ -52,6 +52,10 @@ import {
   RichTextContent,
   WhiteboardAttributes,
   WorkspaceRole,
+  buildSearchExcerpt,
+  extractDocumentText,
+  findSearchMatches,
+  parseSearchQuery,
 } from '@colanode/core';
 import { database } from '@colanode/server/data/database';
 import { SelectNode } from '@colanode/server/data/schema';
@@ -1763,12 +1767,21 @@ export interface SearchPageItem {
   // Ancestors from the space down to the parent; an ancestor the caller
   // could not open on its own keeps an empty name.
   path: NodePathEntry[];
+  // With content: whether every word is in the name, how many times the
+  // query shows in the node, one line around its first match in the body
+  // or values, and when the node last changed.
+  matchedIn?: 'name' | 'content';
+  matches?: number;
+  snippet?: string | null;
+  editedAt?: string;
 }
 
 export interface SearchPagesResult {
   items: SearchPageItem[];
   truncated: boolean;
   nextCursor: string | null;
+  // With content: every node the query matches, not only the ones returned.
+  total?: number;
 }
 
 export interface TrashItem {
@@ -1969,6 +1982,69 @@ const decodeSearchCursor = (cursor: string): [string, string] => {
   throw new WikiToolError('That cursor was not returned by search_pages.');
 };
 
+// A node holds `like` in its name, its record values or its body. The body
+// is read leaf by leaf, so a word never runs from one block into the next.
+const nodeTextContains = (like: string) => sql<SqlBool>`(
+  coalesce(n.attributes->>'name', '') ilike ${like} escape '\\'
+  or coalesce((n.attributes->'fields')::text, '') ilike ${like} escape '\\'
+  or exists (
+    select 1
+    from documents d
+    cross join lateral jsonb_path_query(d.content, 'lax $.blocks.*.content[*].text') leaf
+    where d.id = n.id and (leaf #>> '{}') ilike ${like} escape '\\'
+  )
+)`;
+
+// How many times the query shows in a node's name, values and body, and one
+// line around its first match outside the name.
+const describeContentMatch = (
+  id: string,
+  name: string,
+  attributes: NodeAttributes,
+  body: string | null,
+  query: string
+): Pick<SearchPageItem, 'matchedIn' | 'matches' | 'snippet'> => {
+  const parsed = parseSearchQuery(query);
+  let values: string | null = null;
+  try {
+    values =
+      getNodeModel(attributes.type)?.extractText(id, attributes)?.attributes ??
+      null;
+  } catch {
+    values = null;
+  }
+  const nameMatches = findSearchMatches(name, parsed);
+  const bodyMatches = findSearchMatches(body, parsed);
+  const valueMatches = findSearchMatches(values, parsed);
+  const excerpt =
+    body && bodyMatches.length > 0
+      ? buildSearchExcerpt(body, bodyMatches, 0)
+      : values && valueMatches.length > 0
+        ? buildSearchExcerpt(values, valueMatches, 0)
+        : null;
+  const units = [
+    ...parsed.phrases.map((phrase) => ({
+      terms: [],
+      phrases: [phrase],
+      excluded: [],
+    })),
+    ...parsed.terms.map((term) => ({
+      terms: [term],
+      phrases: [],
+      excluded: [],
+    })),
+  ];
+  return {
+    matchedIn:
+      units.length > 0 &&
+      units.every((unit) => findSearchMatches(name, unit, 1).length > 0)
+        ? 'name'
+        : 'content',
+    matches: nameMatches.length + bodyMatches.length + valueMatches.length,
+    snippet: excerpt?.text ?? null,
+  };
+};
+
 export const searchPages = async (
   ctx: WikiToolContext,
   input: {
@@ -1978,6 +2054,7 @@ export const searchPages = async (
     parentId?: string;
     scope?: 'children' | 'descendants';
     includeTrashed?: boolean;
+    content?: boolean;
     limit?: number;
     cursor?: string;
   }
@@ -1994,6 +2071,39 @@ export const searchPages = async (
   const parentId = input.parentId;
   const sortName = sql<string>`lower(coalesce(n.attributes->>'name', ''))`;
 
+  // Content mode reads the query the way the wiki's search box does: each
+  // word in the name or the text, "a phrase" as written, -word left out. The
+  // words go to ILIKE as typed: it folds case, not accents.
+  const content = input.content === true;
+  const asTyped = parseSearchQuery(input.query ?? '', { fold: false });
+  const include = [
+    ...asTyped.phrases.map((phrase) => phrase.join(' ')),
+    ...asTyped.terms,
+  ].map((unit) => `%${escapeLike(unit)}%`);
+  const exclude = asTyped.excluded.map((word) => `%${escapeLike(word)}%`);
+  if (content && include.length === 0) {
+    throw new WikiToolError(
+      'A content search needs at least one word to look for.'
+    );
+  }
+  if (content && cursor) {
+    throw new WikiToolError(
+      'A content search has no next page: narrow the query, the space or the parent instead.'
+    );
+  }
+  const contentConditions = [
+    ...include.map(nodeTextContains),
+    ...exclude.map((word) => sql<SqlBool>`not ${nodeTextContains(word)}`),
+  ];
+  const nameHoldsEverything = sql<boolean>`(${sql.join(
+    include.map(
+      (unit) =>
+        sql`coalesce(n.attributes->>'name', '') ilike ${unit} escape '\\'`
+    ),
+    sql` and `
+  )})`;
+  const editedAt = sql<Date>`coalesce(n.updated_at, n.created_at)`;
+
   // Access, trash and scope are all EXISTS: the old join on collaborations
   // returned a node once per collaborator of its space, and 25 rows with no
   // ORDER BY were whichever the planner met first.
@@ -2007,11 +2117,22 @@ export const searchPages = async (
       sql<string | null>`n.attributes->>'name'`.as('name'),
       sortName.as('sortName'),
       nodePathSelect(ctx.userId).as('path'),
+      'n.attributes as attributes',
+      editedAt.as('editedAt'),
+      sql<string>`count(*) over ()`.as('total'),
     ])
     .where('n.workspace_id', '=', ctx.workspaceId)
     .where('n.type', 'in', types)
-    .where(
-      sql<SqlBool>`coalesce(n.attributes->>'name', '') ilike ${like} escape '\\'`
+    .$if(!content, (qb) =>
+      qb.where(
+        sql<SqlBool>`coalesce(n.attributes->>'name', '') ilike ${like} escape '\\'`
+      )
+    )
+    .$if(content, (qb) =>
+      contentConditions.reduce(
+        (scoped, condition) => scoped.where(condition),
+        qb
+      )
     )
     .where(nodeAccessCondition(ctx.userId))
     .where(
@@ -2044,7 +2165,12 @@ export const searchPages = async (
         sql<SqlBool>`(${sortName}, n.id) > (${cursor![0]}, ${cursor![1]})`
       )
     )
-    .orderBy(sortName)
+    // Content mode: the nodes whose name holds every word first, then the
+    // most recently edited.
+    .$if(content, (qb) =>
+      qb.orderBy(nameHoldsEverything, 'desc').orderBy(editedAt, 'desc')
+    )
+    .$if(!content, (qb) => qb.orderBy(sortName))
     .orderBy('n.id')
     .limit(limit + 1)
     .execute();
@@ -2052,17 +2178,61 @@ export const searchPages = async (
   const page = rows.slice(0, limit);
   const last = page[page.length - 1];
   const truncated = rows.length > limit;
+  const items: SearchPageItem[] = page.map((row) => ({
+    id: row.id,
+    name: row.name ?? '',
+    type: row.type,
+    parentId: row.parentId,
+    rootId: row.rootId,
+    path: row.path ?? [],
+  }));
+
+  if (!content) {
+    return {
+      items,
+      truncated,
+      nextCursor:
+        truncated && last ? encodeSearchCursor(last.sortName, last.id) : null,
+    };
+  }
+
+  const documents =
+    page.length > 0
+      ? await database
+          .selectFrom('documents')
+          .select(['id', 'content'])
+          .where(
+            'id',
+            'in',
+            page.map((row) => row.id)
+          )
+          .execute()
+      : [];
+  const bodies = new Map(
+    documents.map((document) => [
+      document.id,
+      extractDocumentText(document.id, document.content),
+    ])
+  );
+
   return {
-    items: page.map((row) => ({
-      id: row.id,
-      name: row.name ?? '',
-      type: row.type,
-      parentId: row.parentId,
-      rootId: row.rootId,
-      path: row.path ?? [],
-    })),
+    items: items.map((item, index) => {
+      const row = page[index]!;
+      return {
+        ...item,
+        ...describeContentMatch(
+          item.id,
+          item.name,
+          row.attributes,
+          bodies.get(item.id) ?? null,
+          input.query ?? ''
+        ),
+        editedAt: new Date(row.editedAt).toISOString(),
+      };
+    }),
     truncated,
-    nextCursor: truncated && last ? encodeSearchCursor(last.sortName, last.id) : null,
+    nextCursor: null,
+    total: Number(page[0]?.total ?? 0),
   };
 };
 
@@ -3776,6 +3946,12 @@ const searchPagesInput = z.object({
     .describe(
       'Also match nodes in the trash or under a trashed node. Default false.'
     ),
+  content: z
+    .boolean()
+    .optional()
+    .describe(
+      'Also look inside page and record bodies and record values. A node matches when each word is in its name or its text; "a phrase" in quotes must appear as written; a -word leaves out the nodes that contain it. Results come best first (every word in the name, then the most recently edited) with matchedIn, matches (how many times the query shows), snippet and editedAt, plus total. No cursor in this mode. Default false: names only.'
+    ),
   limit: z
     .number()
     .int()
@@ -4303,7 +4479,7 @@ export const wikiToolDefinitions: WikiToolDefinition[] = [
   defineTool({
     name: 'search_pages',
     description:
-      'Search names across the workspace -- pages, folders, databases, records, channels, spaces and whiteboards -- ordered by name, optionally within one space or below one node. Trashed nodes and templates are left out unless includeTrashed. Returns { items: [{ id, name, type, parentId, rootId, path: [{ id, name, type }] }], truncated, nextCursor }.',
+      'Search names across the workspace -- pages, folders, databases, records, channels, spaces and whiteboards -- ordered by name, optionally within one space or below one node; with content: true, search page bodies and record values too, best match first, with a snippet and a match count per result. Trashed nodes and templates are left out unless includeTrashed. Returns { items: [{ id, name, type, parentId, rootId, path: [{ id, name, type }], and with content: matchedIn, matches, snippet, editedAt }], truncated, nextCursor, total (with content) }.',
     inputSchema: searchPagesInput,
     run: searchPages,
     action: (input) => ({

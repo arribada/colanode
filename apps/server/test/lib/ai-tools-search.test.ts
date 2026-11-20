@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { generateId, IdType, NodeAttributes } from '@colanode/core';
-import { searchPages } from '@colanode/server/lib/ai/tools';
+import { createPage, searchPages } from '@colanode/server/lib/ai/tools';
 import { createNode, updateNode } from '@colanode/server/lib/nodes';
 
 import {
@@ -219,5 +219,106 @@ describe('search_pages', () => {
         await searchPages(data.ctx, { query: 'energy', rootId: data.bobOnly })
       )
     ).toEqual([]);
+  });
+});
+
+describe('search_pages with content', () => {
+  const seedContent = async () => {
+    const data = await seed();
+    const page = async (name: string, content: string) =>
+      (await createPage(data.ctx, { parentId: data.shared, name, content })).id;
+    // The page named after the query is the oldest: only its name can put it
+    // first, not recency.
+    const title = await page('Saltwater switch', 'Notes.');
+    return {
+      ...data,
+      title,
+      logbook: await page(
+        'Field logbook',
+        'Day one\n\nThe saltwater switch failed twice.\n\nThe switch was replaced.'
+      ),
+      draft: await page('Switch draft', 'A draft about the saltwater switch.'),
+    };
+  };
+
+  it('finds words in the body, counts them and shows the line around the first', async () => {
+    const data = await seedContent();
+
+    const result = await searchPages(data.ctx, {
+      query: 'switch',
+      content: true,
+    });
+    const logbook = result.items.find((item) => item.id === data.logbook)!;
+    expect(logbook.matchedIn).toBe('content');
+    expect(logbook.matches).toBe(2);
+    expect(logbook.snippet).toBe('The saltwater switch failed twice.');
+    expect(result.total).toBe(3);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('puts the nodes whose name holds every word first', async () => {
+    const data = await seedContent();
+
+    const result = await searchPages(data.ctx, {
+      query: 'saltwater switch',
+      content: true,
+    });
+    expect(result.items[0]!.id).toBe(data.title);
+    expect(result.items[0]!.matchedIn).toBe('name');
+    expect(result.items.map((item) => item.id).sort()).toEqual(
+      [data.logbook, data.draft, data.title].sort()
+    );
+  });
+
+  it('matches a word in the name and another in the body', async () => {
+    const data = await seedContent();
+
+    const result = await searchPages(data.ctx, {
+      query: 'logbook replaced',
+      content: true,
+    });
+    expect(result.items.map((item) => item.id)).toEqual([data.logbook]);
+  });
+
+  it('leaves out a -word and keeps a "phrase" whole', async () => {
+    const data = await seedContent();
+
+    const withoutDraft = await searchPages(data.ctx, {
+      query: 'saltwater -draft',
+      content: true,
+    });
+    expect(withoutDraft.items.map((item) => item.id).sort()).toEqual(
+      [data.logbook, data.title].sort()
+    );
+
+    const phrase = await searchPages(data.ctx, {
+      query: '"switch failed"',
+      content: true,
+    });
+    expect(phrase.items.map((item) => item.id)).toEqual([data.logbook]);
+  });
+
+  it('keeps names-only search the default', async () => {
+    const data = await seedContent();
+
+    const result = await searchPages(data.ctx, { query: 'failed' });
+    expect(result.items).toEqual([]);
+    expect(result.total).toBeUndefined();
+  });
+
+  it('refuses a content search with nothing to look for, or a cursor', async () => {
+    const data = await seedContent();
+
+    await expect(
+      searchPages(data.ctx, { query: '-draft', content: true })
+    ).rejects.toThrow('at least one word');
+    const first = await searchPages(data.ctx, { query: 'energy', limit: 1 });
+    await expect(
+      searchPages(data.ctx, {
+        query: 'energy',
+        content: true,
+        cursor: first.nextCursor!,
+      })
+    ).rejects.toThrow('no next page');
   });
 });
